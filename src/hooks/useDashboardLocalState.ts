@@ -146,12 +146,12 @@ export function useDashboardLocalState({
     if (waitForInitialState) return
     let cancelled = false
     const mutationVersion = localMutationVersionRef.current
-    // A cached state keeps the first paint fast, then this post-paint read makes sure a
-    // just-changed pin cannot leave the mounted page using stale cached ordering.
+    // Re-read after admission to close the handoff to the hook's storage-event
+    // subscription. Equality suppresses a second render when nothing changed.
     loadDashboardLocalStateResult().then(({ ok, state: nextState }) => {
       if (cancelled || mutationVersion !== localMutationVersionRef.current) return
       const currentState = stateRef.current
-      // A transient storage read must not replace a valid warm-cache state with
+      // A transient storage read must not replace a valid initial state with
       // empty arrays or redefine the writer's rollback baseline. With no warm
       // state, still mark the shell loaded so a storage outage cannot block it.
       if (!ok && currentState.loaded) return

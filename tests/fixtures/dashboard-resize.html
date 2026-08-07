@@ -151,8 +151,28 @@
           }
         ]
       }
-      let bookmarkTree = []
+      function bookmarkTreeForCount(count = 0) {
+        return [{
+          id: 'root',
+          title: '',
+          children: [{
+            id: 'bar',
+            title: 'Bookmarks Bar',
+            children: Array.from({ length: count }, (_, index) => {
+              const domain = `bookmark-smoke-${String(index + 1).padStart(4, '0')}.test`
+              return {
+                id: `bookmark-${index + 1}`,
+                title: `Bookmark ${index + 1} with enough tooltip text to exercise progressive rendering`,
+                url: `https://${domain}/docs/${index + 1}`
+              }
+            })
+          }]
+        }]
+      }
+      const initialBookmarks = Math.max(0, Number.parseInt(fixtureParams.get('initialBookmarks') || '0', 10) || 0)
+      let bookmarkTree = initialBookmarks > 0 ? bookmarkTreeForCount(initialBookmarks) : []
       const rememberedHistoryRange = fixtureParams.get('rememberedHistoryRange')
+      const staleLegacyStartup = fixtureParams.has('staleLegacyStartup')
       const localStorageStore = {
         ...(rememberedHistoryRange
           ? { tabOutHistoryRangeV1: rememberedHistoryRange }
@@ -161,7 +181,26 @@
           'page-chip|tabs|' +
             encodeURIComponent('scope|atlassian.net|example-team|/jira|') + '|' +
             encodeURIComponent('url:https://example-team.atlassian.net/jira/software/c/projects/OPS2/boards/1226/backlog?assignee=712020%3A838adb9a-07e8-48f3-ac56-0db51007ac44')
-        ]
+        ],
+        ...(staleLegacyStartup
+          ? {
+              'tab-out:startup-snapshot:v1': {
+                savedAt: Date.now(),
+                captureStartedAt: Date.now(),
+                workingSetSavedAt: Date.now(),
+                snapshot: {
+                  dashboard: {
+                    realTabs: [
+                      { id: 9901, url: 'https://stale.example.test/duplicate', title: 'Stale Duplicate A' },
+                      { id: 9902, url: 'https://stale.example.test/duplicate', title: 'Stale Duplicate B' }
+                    ],
+                    domainGroups: [{ domain: 'stale.example.test' }]
+                  },
+                  workingSet: { items: [] }
+                }
+              }
+            }
+          : {})
       }
       const windows = [
         { id: 1, type: 'normal', focused: true },
@@ -574,6 +613,7 @@
 
       const slowCloseRefresh = fixtureParams.has('slowCloseRefresh')
       const slowInitialStorage = fixtureParams.has('slowInitialStorage')
+      const failFirstStartupStorage = fixtureParams.has('failFirstStartupStorage')
       const stalledCloseRefresh = fixtureParams.has('stalledCloseRefresh')
       const slowStartupRefresh = fixtureParams.has('slowStartupRefresh')
       let delayNextDashboardServiceState = false
@@ -611,15 +651,32 @@
           return { ok: false }
         }
       })
-      if (slowInitialStorage) {
+      const historySearchQueries = []
+      const searchHistory = chromeApi.history.search.bind(chromeApi.history)
+      chromeApi.history.search = async (query) => {
+        historySearchQueries.push(query.text)
+        return searchHistory(query)
+      }
+      window.__tabOutSmokeHistorySearchQueries = historySearchQueries
+      if (slowInitialStorage || failFirstStartupStorage) {
         const readLocalStorage = chromeApi.storage.local.get.bind(chromeApi.storage.local)
         let pendingInitialReads = 0
+        let startupStorageFailed = false
         window.__tabOutInitialStoragePending = false
         chromeApi.storage.local.get = async (keys) => {
           pendingInitialReads += 1
           window.__tabOutInitialStoragePending = true
-          await new Promise((resolve) => setTimeout(resolve, 600))
           try {
+            if (slowInitialStorage) await new Promise((resolve) => setTimeout(resolve, 600))
+            if (
+              failFirstStartupStorage &&
+              !startupStorageFailed &&
+              keys === 'tabOutDismissedClosedGhostsV1'
+            ) {
+              startupStorageFailed = true
+              await new Promise((resolve) => setTimeout(resolve, 1200))
+              throw new Error('Fixture startup storage failure')
+            }
             return await readLocalStorage(keys)
           } finally {
             pendingInitialReads -= 1
@@ -696,22 +753,7 @@
         })
       }
       window.__tabOutSmokeSetBookmarks = (count = 0) => {
-        bookmarkTree = [{
-          id: 'root',
-          title: '',
-          children: [{
-            id: 'bar',
-            title: 'Bookmarks Bar',
-            children: Array.from({ length: count }, (_, index) => {
-              const domain = `bookmark-smoke-${String(index + 1).padStart(4, '0')}.test`
-              return {
-                id: `bookmark-${index + 1}`,
-                title: `Bookmark ${index + 1} with enough tooltip text to exercise progressive rendering`,
-                url: `https://${domain}/docs/${index + 1}`
-              }
-            })
-          }]
-        }]
+        bookmarkTree = bookmarkTreeForCount(count)
       }
       window.__tabOutSmokeSetBulkTabs = async (count = 0) => {
         const normalizedCount = Math.max(0, Number.parseInt(String(count), 10) || 0)

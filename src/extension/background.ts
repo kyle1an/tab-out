@@ -136,7 +136,10 @@ chromeApi.runtime.onStartup.addListener(() => {
 chromeApi.tabs.onCreated.addListener((tab) => {
   refreshBadge()
   void backgroundRuntime.runPromise(
-    settleBackgroundEffect(tabHistoryService.recordTabCreation(tab))
+    settleBackgroundEffect(Effect.all([
+      tabHistoryService.recordTabCreation(tab),
+      startupSnapshotService.invalidateTitleRetention(tab.id)
+    ], { concurrency: 'unbounded' }))
   )
   scheduleStartupSnapshotRefresh()
 })
@@ -174,7 +177,9 @@ chromeApi.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
   return backgroundRuntime.runPromise(settleBackgroundEffect(
     Effect.all([
       tabHistoryService.replaceTabId(addedTabId, removedTabId),
-      workingSetService.replaceTabId(addedTabId, removedTabId)
+      workingSetService.replaceTabId(addedTabId, removedTabId),
+      startupSnapshotService.invalidateTitleRetention(addedTabId),
+      startupSnapshotService.invalidateTitleRetention(removedTabId)
     ], { concurrency: 'unbounded' }).pipe(
       Effect.andThen(startupSnapshotService.scheduleRefresh())
     )
@@ -185,7 +190,10 @@ chromeApi.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
 chromeApi.tabs.onRemoved.addListener((tabId, removeInfo) => {
   refreshBadge()
   void backgroundRuntime.runPromise(settleBackgroundEffect(
-    tabHistoryService.restorePreviousTabAfterClose(tabId, removeInfo)
+    Effect.all([
+      tabHistoryService.restorePreviousTabAfterClose(tabId, removeInfo),
+      startupSnapshotService.invalidateTitleRetention(tabId)
+    ], { concurrency: 'unbounded' })
   ))
   scheduleStartupSnapshotRefresh()
 })

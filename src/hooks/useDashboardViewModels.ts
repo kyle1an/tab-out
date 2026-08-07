@@ -4,7 +4,7 @@ import { dashboardChipOrderAltKeyForChip, dashboardChipOrderKeyForChip } from '.
 import { canDisplayHistorySearchResults, canUseBookmarkSearchResults, canUseHistorySearchResults, isHistorySearchRequestSettled, shouldShowHistoryRange } from '../extension/filter-search.js'
 import { tabMatchesSourceFilter } from '../extension/filter-match.js'
 import { buildDashboardViewModel, dashboardChipPriorityFromWorkingSet, dedupeCompanionSearchTabs } from '../extension/render.js'
-import type { DashboardCardEntry, DashboardCardVM, DashboardChipData, DashboardChipOrderByCard, DashboardData, DashboardSource, DashboardViewModel, DomainGroup, HistorySearchSummary, WorkingSetSnapshot } from '../extension/types'
+import type { DashboardCardEntry, DashboardCardVM, DashboardChipData, DashboardChipOrderByCard, DashboardData, DashboardSource, DomainGroup, HistorySearchSummary, WorkingSetSnapshot } from '../extension/types'
 import type { PinnedPageChipIndex } from '../extension/page-chip-pins.js'
 import type { MissionOrderMap } from '../extension/dashboard-intake.js'
 
@@ -37,10 +37,9 @@ type DashboardViewModelOptions = {
   pinnedSections?: ReadonlySet<string>
   pinnedPageChips?: PinnedPageChipIndex
   freezeTabsChipOrder?: boolean
-  startupViewModel?: DashboardViewModel | null
 }
 
-export function useDashboardViewModels({ dashboard, source, filter, historyRange, historyFilterEnabled, historySearchPending = false, isReady, chipOrder, workingSet, pinnedSections, pinnedPageChips, freezeTabsChipOrder, startupViewModel }: DashboardViewModelOptions) {
+export function useDashboardViewModels({ dashboard, source, filter, historyRange, historyFilterEnabled, historySearchPending = false, isReady, chipOrder, workingSet, pinnedSections, pinnedPageChips, freezeTabsChipOrder }: DashboardViewModelOptions) {
   const filterSearchOptions = { source, filter, historyRange, historyFilterEnabled }
   const realTabs = dashboard?.realTabs || EMPTY_TABS
   const domainGroups = dashboard?.domainGroups || EMPTY_DOMAIN_GROUPS
@@ -66,7 +65,7 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
   // contents only when a build input (dashboard/filter/source/pins) changes,
   // which is when reordering is meant to apply (see the startup-order contract).
   const dashboardVm = useMemo(
-    () => startupViewModel ?? buildDashboardViewModel({
+    () => buildDashboardViewModel({
       realTabs,
       domainGroups,
       filter,
@@ -77,7 +76,7 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
       ...(pinnedSections ? { pinnedSections } : {}),
       ...(pinnedPageChips ? { pinnedPageChips } : {})
     }),
-    [startupViewModel, realTabs, domainGroups, filter, source, currentWindowId, mainChipOrder, chipPriority, pinnedSections, pinnedPageChips]
+    [realTabs, domainGroups, filter, source, currentWindowId, mainChipOrder, chipPriority, pinnedSections, pinnedPageChips]
   )
 
   const companionSources = useMemo(

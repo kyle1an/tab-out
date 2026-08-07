@@ -11,7 +11,7 @@
    reappears, so forgetting is per-closure rather than permanent.
    ================================================================ */
 
-import { Effect, Schema, Semaphore } from 'effect'
+import { Effect, Result, Schema, Semaphore } from 'effect'
 
 import { getAppRuntime } from './app-runtime.js'
 import { runPromiseExclusiveEffect } from './promise-exclusive-effect.js'
@@ -19,7 +19,7 @@ import { pageIdentityForWorkingSet } from './working-set.js'
 import type { ClosedTabEntry } from './closed-tabs.js'
 import type { BrowserReadResult } from './browser-tabs-gateway.js'
 
-const CLOSED_GHOST_DISMISSAL_STORAGE_KEY = 'tabOutDismissedClosedGhostsV1'
+export const CLOSED_GHOST_DISMISSAL_STORAGE_KEY = 'tabOutDismissedClosedGhostsV1'
 const CLOSED_GHOST_DISMISSAL_MUTATION_LOCK = 'tab-out:closed-ghost-dismissal-mutation'
 
 // Chrome's recently-closed list itself ages out, so long-lived dismissal
@@ -58,6 +58,11 @@ class ClosedGhostDismissalMutationError extends Schema.TaggedErrorClass<ClosedGh
   { cause: Schema.Defect() }
 ) {}
 
+class ClosedGhostDismissalReadError extends Schema.TaggedErrorClass<ClosedGhostDismissalReadError>()(
+  'ClosedGhostDismissalReadError',
+  { cause: Schema.Defect() }
+) {}
+
 export function closedGhostDismissalKey(entry: ClosedGhostIdentity): string {
   return pageIdentityForWorkingSet(entry.url) || entry.url
 }
@@ -88,21 +93,31 @@ export function normalizeClosedGhostDismissals(value: unknown, now: number = Dat
   return pruneExpired(map, now)
 }
 
-export async function loadClosedGhostDismissalsResult(
+export const loadClosedGhostDismissalsResultEffect = Effect.fn(
+  'closedGhostDismissals.loadResult'
+)(function*(
   now: number = Date.now()
-): Promise<BrowserReadResult<Map<string, number>>> {
+) {
   if (typeof chrome === 'undefined' || !chrome.storage?.local) {
     return { ok: false, value: new Map() }
   }
-  try {
-    const stored = await chrome.storage.local.get(CLOSED_GHOST_DISMISSAL_STORAGE_KEY)
-    return {
-      ok: true,
-      value: normalizeClosedGhostDismissals(stored[CLOSED_GHOST_DISMISSAL_STORAGE_KEY], now)
-    }
-  } catch {
+  const stored = yield* Effect.result(Effect.tryPromise({
+    try: () => chrome.storage.local.get(CLOSED_GHOST_DISMISSAL_STORAGE_KEY),
+    catch: (cause) => ClosedGhostDismissalReadError.make({ cause })
+  }))
+  if (Result.isFailure(stored)) {
     return { ok: false, value: new Map() }
   }
+  return {
+    ok: true,
+    value: normalizeClosedGhostDismissals(stored.success[CLOSED_GHOST_DISMISSAL_STORAGE_KEY], now)
+  }
+})
+
+export function loadClosedGhostDismissalsResult(
+  now: number = Date.now()
+): Promise<BrowserReadResult<Map<string, number>>> {
+  return getAppRuntime().runPromise(loadClosedGhostDismissalsResultEffect(now))
 }
 
 export function subscribeClosedGhostDismissals(

@@ -6,8 +6,10 @@ import {
   createHistoryRangePreferenceWriter,
   HISTORY_RANGE_STORAGE_KEY,
   loadHistoryRangePreference,
+  loadHistoryRangePreferenceResultEffect,
   saveHistoryRangePreference
 } from '../src/extension/history-range-storage.js'
+import { getAppRuntime } from '../src/extension/app-runtime.js'
 import { createFakeChromeApi } from './helpers/fake-chrome.mjs'
 
 function createExclusiveRunner() {
@@ -92,6 +94,35 @@ test('history range preference falls back to Last day when storage cannot be rea
 
   try {
     assert.equal(await loadHistoryRangePreference(), '1d')
+  } finally {
+    globalThis.chrome = previousChrome
+  }
+})
+
+test('strict history range load distinguishes a read failure from a confirmed default', async () => {
+  const previousChrome = globalThis.chrome
+  let shouldFail = true
+  globalThis.chrome = {
+    storage: {
+      local: {
+        async get() {
+          if (shouldFail) throw new Error('storage unavailable')
+          return {}
+        }
+      }
+    }
+  } as unknown as typeof chrome
+
+  try {
+    assert.deepEqual(
+      await getAppRuntime().runPromise(loadHistoryRangePreferenceResultEffect()),
+      { ok: false, value: '1d' }
+    )
+    shouldFail = false
+    assert.deepEqual(
+      await getAppRuntime().runPromise(loadHistoryRangePreferenceResultEffect()),
+      { ok: true, value: '1d' }
+    )
   } finally {
     globalThis.chrome = previousChrome
   }

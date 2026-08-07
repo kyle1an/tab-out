@@ -12,6 +12,7 @@ type UseDashboardRefreshOptions = {
   historyFilterEnabled: boolean
   pinnedDomains: string[]
   localStateLoaded: boolean
+  initialDashboardIncludesPinnedDomains?: boolean
   previousOrder: MissionOrderMap
   onBeforePinnedRefresh?: () => void
 }
@@ -31,10 +32,12 @@ export function useDashboardRefresh({
   historyFilterEnabled,
   pinnedDomains,
   localStateLoaded,
+  initialDashboardIncludesPinnedDomains = false,
   previousOrder,
   onBeforePinnedRefresh
 }: UseDashboardRefreshOptions) {
   const callbacksRef = useRef({ onBeforePinnedRefresh })
+  const pinnedRefreshInitializedRef = useRef(false)
   const bookmarkSearchActive = source === 'tabs' && bookmarkFilter.trim() !== ''
 
   useEffect(() => {
@@ -53,19 +56,23 @@ export function useDashboardRefresh({
   useEffect(() => {
     if (!localStateLoaded || !dashboardNeedsFilterSearchRefresh(dashboard, { source, filter, historyRange, historyFilterEnabled })) return
     const frame = requestAnimationFrame(() => {
-      void settleDashboardRefresh(appDashboardStore.refresh({ waitForStartup: true }))
+      void settleDashboardRefresh(appDashboardStore.refresh())
     })
     return () => cancelAnimationFrame(frame)
   }, [dashboard, filter, historyRange, historyFilterEnabled, localStateLoaded, source, dashboard?.bookmarkSearchReady, dashboard?.historySearchQuery, dashboard?.historyRange])
 
   useEffect(() => {
     if (!localStateLoaded) return
+    if (!pinnedRefreshInitializedRef.current) {
+      pinnedRefreshInitializedRef.current = true
+      if (initialDashboardIncludesPinnedDomains) return
+    }
     callbacksRef.current.onBeforePinnedRefresh?.()
     const frame = requestAnimationFrame(() => {
       void settleDashboardRefresh(appDashboardStore.refresh())
     })
     return () => cancelAnimationFrame(frame)
-  }, [pinnedDomains, localStateLoaded])
+  }, [initialDashboardIncludesPinnedDomains, pinnedDomains, localStateLoaded])
 
   return { refreshDashboard: appDashboardStore.refresh }
 }

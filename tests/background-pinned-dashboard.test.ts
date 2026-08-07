@@ -7,8 +7,9 @@ import { CLOSED_TAB_RESTORE_STATE_MESSAGE } from '../src/extension/closed-tabs.j
 import type { CapturedDashboardServiceState } from '../src/extension/dashboard-service-messages.js'
 import {
   DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY,
-  type DashboardStartupSnapshot
+  type DashboardStartupSeed
 } from '../src/extension/startup-snapshot.js'
+import { parseDashboardStartupSeedBoundary } from '../src/extension/startup-snapshot-schema.js'
 import { normalizeChromeOpenTabs } from '../src/extension/tabs.js'
 import type { TabHistorySnapshot } from '../src/extension/types'
 import { buildWorkingSetSnapshot } from '../src/extension/working-set.js'
@@ -67,10 +68,6 @@ type BackgroundRuntimeMessageMock = {
   }
 }
 
-type StartupCacheEnvelope = {
-  snapshot: DashboardStartupSnapshot
-}
-
 test.after(() => backgroundClock.uninstall())
 test.beforeEach(() => backgroundClock.reset())
 
@@ -85,20 +82,10 @@ function requireHistorySnapshot(response: TabHistoryMessageResponse): TabHistory
   return response.snapshot
 }
 
-function assertStartupCacheEnvelope(value: unknown): asserts value is StartupCacheEnvelope {
-  assert.ok(value !== null && typeof value === 'object', 'expected a startup cache envelope')
-  assert.ok('snapshot' in value, 'expected the startup cache to contain a snapshot')
-  const { snapshot } = value
-  assert.ok(snapshot !== null && typeof snapshot === 'object', 'expected a startup snapshot object')
-  assert.ok('dashboard' in snapshot, 'expected cached dashboard state')
-  assert.ok('tabHistory' in snapshot, 'expected cached tab-history state')
-  assert.ok('workingSet' in snapshot, 'expected cached Working Set state')
-  assert.ok('closedTabs' in snapshot, 'expected cached closed-tab state')
-}
-
-function requireStartupSnapshot(value: unknown): DashboardStartupSnapshot {
-  assertStartupCacheEnvelope(value)
-  return value.snapshot
+function requireStartupSeed(value: unknown): DashboardStartupSeed {
+  const seed = parseDashboardStartupSeedBoundary(value)
+  assert.ok(seed, 'expected a compact startup seed')
+  return seed
 }
 
 function clone<T>(value: T): T {
@@ -136,6 +123,9 @@ function createStorageArea(values: Record<string, any>) {
     },
     async set(items: Record<string, any>) {
       Object.assign(values, clone(items))
+    },
+    async remove(keys: string | string[]) {
+      for (const key of Array.isArray(keys) ? keys : [keys]) delete values[key]
     }
   }
 }
@@ -1324,7 +1314,7 @@ test('browser startup clears persisted tab-id history before refreshing the star
   })
 })
 
-test('tab replacement rebases history, Working Set, and the warm startup snapshot', async () => {
+test('tab replacement rebases live state while the URL-keyed Warm seed remains stable', async () => {
   const mock = await loadBackground([
     {
       id: 201,
@@ -1370,27 +1360,113 @@ test('tab replacement rebases history, Working Set, and the warm startup snapsho
   onInstalled({ reason: 'install' })
   await flushBackgroundWork()
 
-  const warmBefore = requireStartupSnapshot(
+  const warmBefore = requireStartupSeed(
     mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
   )
-  assert.ok(warmBefore.dashboard.realTabs.some((tab) => tab.id === 201))
-  assert.ok(warmBefore.tabHistory.entries.some((entry) => entry.tabId === 201))
-  assert.ok(warmBefore.workingSet.items.some((item) => item.tabId === 201))
+  assert.ok(warmBefore.workingSetPriority.keys.includes('https://one.example.test/'))
 
   await mock.replaceTab(201, 211)
   await flushBackgroundWork()
   await backgroundClock.tickAsync(STARTUP_SNAPSHOT_DEBOUNCE_MS)
   await flushBackgroundWork()
 
-  const warmAfter = requireStartupSnapshot(
+  const warmAfter = requireStartupSeed(
     mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
   )
-  assert.equal(warmAfter.dashboard.realTabs.some((tab) => tab.id === 201), false)
-  assert.equal(warmAfter.tabHistory.entries.some((entry) => entry.tabId === 201), false)
-  assert.equal(warmAfter.workingSet.items.some((item) => item.tabId === 201), false)
-  assert.ok(warmAfter.dashboard.realTabs.some((tab) => tab.id === 211))
-  assert.ok(warmAfter.tabHistory.entries.some((entry) => entry.tabId === 211))
-  assert.ok(warmAfter.workingSet.items.some((item) => item.tabId === 211))
+  assert.deepEqual(warmAfter.cardOrder, warmBefore.cardOrder)
+  assert.deepEqual(warmAfter.workingSetPriority, warmBefore.workingSetPriority)
+  const liveState = await sendRuntimeMessage(mock, { type: 'tab-out:get-dashboard-service-state' })
+  assert.equal(liveState.ok, true)
+  if (!liveState.ok) return
+  assert.equal(liveState.tabHistory.entries.some((entry) => entry.tabId === 201), false)
+  assert.ok(liveState.tabHistory.entries.some((entry) => entry.tabId === 211))
+  const liveWorkingSet = buildWorkingSetFromServiceState(liveState)
+  assert.equal(liveWorkingSet.items.some((item) => item.tabId === 201), false)
+  assert.ok(liveWorkingSet.items.some((item) => item.tabId === 211))
+})
+
+test('tab lifecycle events invalidate session-only title retention before the debounced rebuild', async () => {
+  const retainedTitle = (tabId: number, domain: string) => ({
+    tabId,
+    url: `https://${domain}/docs`,
+    title: `${domain} docs`,
+    kind: 'suspended'
+  })
+  const mock = await loadBackground([
+    {
+      id: 701,
+      windowId: 1,
+      url: 'https://created.example/docs',
+      title: 'Created',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    },
+    {
+      id: 702,
+      windowId: 1,
+      url: 'https://removed.example/docs',
+      title: 'Removed',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 1
+    },
+    {
+      id: 703,
+      windowId: 1,
+      url: 'https://replaced.example/docs',
+      title: 'Replaced',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 2
+    }
+  ], {
+    storageValues: {
+      session: {
+        [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: {
+          schemaVersion: 2,
+          savedAt: 10,
+          captureStartedAt: 10,
+          cardOrder: ['domain-example'],
+          workingSetPriority: { epoch: 10, keys: [] },
+          titleRetention: [
+            retainedTitle(701, 'created.example'),
+            retainedTitle(702, 'removed.example'),
+            retainedTitle(703, 'replaced.example'),
+            retainedTitle(704, 'replacement.example')
+          ]
+        }
+      }
+    }
+  })
+
+  const onCreated = valueAt(mock.listeners.tabsOnCreated, 0)
+  onCreated(clone(mock.state.tabsById[701]))
+  await flushBackgroundWork()
+  assert.deepEqual(
+    requireStartupSeed(mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY])
+      .titleRetention?.map((entry) => entry.tabId),
+    [702, 703, 704]
+  )
+
+  await mock.chrome.tabs.remove(702)
+  await flushBackgroundWork()
+  assert.deepEqual(
+    requireStartupSeed(mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY])
+      .titleRetention?.map((entry) => entry.tabId),
+    [703, 704]
+  )
+
+  await mock.replaceTab(703, 704)
+  await flushBackgroundWork()
+  assert.equal(
+    requireStartupSeed(mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY])
+      .titleRetention,
+    undefined
+  )
 })
 
 test('active tab is primed to close back to the previous same-window tab without fallback flash', async () => {
@@ -2244,7 +2320,7 @@ test('combined service state ignores title-only updates so idle tabs do not resh
   }
 })
 
-test('recently closed session changes refresh the warm startup snapshot without a tab event', async () => {
+test('recently closed session changes do not rewrite the compact Warm seed', async () => {
   const mock = await loadBackground([
     {
       id: 511,
@@ -2264,13 +2340,10 @@ test('recently closed session changes refresh the warm startup snapshot without 
 
   onInstalled({ reason: 'install' })
   await flushBackgroundWork()
-  const beforeSnapshot = requireStartupSnapshot(
+  const beforeSeed = requireStartupSeed(
     mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
   )
-  assert.equal(
-    beforeSnapshot.closedTabs.some((entry) => entry.url === 'https://closed.example.test/report'),
-    false
-  )
+  const tabQueriesBefore = mock.calls.tabQuery.length
 
   mock.recentlyClosed.push({
     lastModified: 1_700_000_000,
@@ -2287,16 +2360,14 @@ test('recently closed session changes refresh the warm startup snapshot without 
   await backgroundClock.tickAsync(150 + STARTUP_SNAPSHOT_DEBOUNCE_MS)
   await flushBackgroundWork()
 
-  const afterSnapshot = requireStartupSnapshot(
+  const afterSeed = requireStartupSeed(
     mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
   )
-  assert.equal(
-    afterSnapshot.closedTabs.some((entry) => entry.url === 'https://closed.example.test/report'),
-    true
-  )
+  assert.deepEqual(afterSeed, beforeSeed)
+  assert.equal(mock.calls.tabQuery.length, tabQueriesBefore)
 })
 
-test('background restore messages hold an early sessions change until the restore settles', async () => {
+test('background restore messages remain acknowledged without scheduling seed work', async () => {
   const mock = await loadBackground([
     {
       id: 521,
@@ -2330,40 +2401,15 @@ test('background restore messages hold an early sessions change until the restor
     phase: 'started'
   }), { ok: true })
   onSessionsChanged()
-  await backgroundClock.tickAsync(151)
-  await flushBackgroundWork()
-  assert.equal(mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY], undefined)
 
   assert.deepEqual(await sendRuntimeMessage(mock, {
     type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
     restoreId: 'restore-slow',
     phase: 'settled'
   }), { ok: true })
-  await backgroundClock.tickAsync(149)
+  await backgroundClock.tickAsync(STARTUP_SNAPSHOT_DEBOUNCE_MS * 2)
+  await flushBackgroundWork()
   assert.equal(mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY], undefined)
-
-  await backgroundClock.tickAsync(1)
-  assert.equal(mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY], undefined)
-
-  await backgroundClock.tickAsync(STARTUP_SNAPSHOT_DEBOUNCE_MS)
-  for (
-    let turn = 0;
-    mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] === undefined && turn < 20;
-    turn += 1
-  ) {
-    await flushBackgroundWork()
-  }
-  assert.ok(
-    mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
-    `expected trailing cache write after ${mock.calls.tabQuery.length} tab queries and ${mock.calls.windowsGetAll.length} window reads`
-  )
-  const trailingSnapshot = requireStartupSnapshot(
-    mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
-  )
-  assert.equal(
-    trailingSnapshot.closedTabs.some((entry) => entry.url === 'https://closed.example.test/slow'),
-    true
-  )
 })
 
 test('background rejects malformed restore message envelopes', async () => {

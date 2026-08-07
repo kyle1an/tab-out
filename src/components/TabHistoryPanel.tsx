@@ -6,7 +6,7 @@ import { audioStateForTab, nextMutedForAudioState } from '../extension/tab-audio
 import { duplicateTabTarget, reloadTabTarget, setHistoryEntryMuted, suspendHistoryEntry } from '../extension/tab-actions'
 import { restoreClosedTab } from '../extension/closed-tab-actions.js'
 import type { ClosedTabEntry } from '../extension/closed-tabs.js'
-import { closedGhostDismissalKey, dismissClosedGhost, loadClosedGhostDismissalsResult, restoreClosedGhost, subscribeClosedGhostDismissals, type ClosedGhostDismissals } from '../extension/closed-ghost-dismissals.js'
+import { closedGhostDismissalKey, dismissClosedGhost, restoreClosedGhost, subscribeClosedGhostDismissals, type ClosedGhostDismissals } from '../extension/closed-ghost-dismissals.js'
 import { focusWorkingSetItemResult } from '../extension/working-set-client.js'
 import { tabFocusResultToastMessage, type ExistingTabFocusResult } from '../extension/tab-focus.js'
 import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../extension/page-target.js'
@@ -88,7 +88,6 @@ const historyTitleTruncationCallbacks = new WeakMap<
 >()
 const EMPTY_HIGHLIGHT_TERMS: readonly string[] = []
 const EMPTY_CLOSED_TABS: readonly ClosedTabEntry[] = []
-const CLOSED_GHOST_DISMISSAL_LOAD_RETRY_MS = 250
 const HISTORY_TITLE_EXPANDED_LAYOUT_CACHE_LIMIT = 240
 const historyTitleExpandedLayoutCache = new Map<string, HistoryTitleExpandedLayoutMetrics>()
 const historyEntryExpansionLane = createTitleExpansionLane()
@@ -168,6 +167,7 @@ interface TabHistoryPanelProps {
   snapshot: TabHistorySnapshot | null
   workingSet?: WorkingSetSnapshot | null | undefined
   closedTabs?: readonly ClosedTabEntry[] | undefined
+  dismissedClosedGhosts?: ClosedGhostDismissals | null | undefined
   filter?: string | undefined
   savedKeys?: readonly string[] | undefined
   onSnapshotChange?: SnapshotChangeHandler | undefined
@@ -1606,55 +1606,21 @@ export function TabHistoryPanel({
   snapshot,
   workingSet = null,
   closedTabs = EMPTY_CLOSED_TABS,
+  dismissedClosedGhosts: admittedClosedGhostDismissals = null,
   filter = '',
   savedKeys,
   onSnapshotChange,
   onTabsChange
 }: TabHistoryPanelProps) {
   const { onHoverUrlChange } = useDashboardActions()
-  const [dismissedClosedGhosts, setDismissedClosedGhosts] = useState<ClosedGhostDismissals | null>(null)
+  const [observedClosedGhostDismissals, setObservedClosedGhostDismissals] = useState<ClosedGhostDismissals | null>(null)
+  const dismissedClosedGhosts = observedClosedGhostDismissals ?? admittedClosedGhostDismissals
   const closedGhostMutationRevisionRef = useRef(0)
   useEffect(() => {
-    let active = true
-    let retryTimer: ReturnType<typeof setTimeout> | null = null
-
-    const unsubscribe = subscribeClosedGhostDismissals((dismissals) => {
+    return subscribeClosedGhostDismissals((dismissals) => {
       closedGhostMutationRevisionRef.current += 1
-      if (retryTimer !== null) {
-        clearTimeout(retryTimer)
-        retryTimer = null
-      }
-      setDismissedClosedGhosts(dismissals)
+      setObservedClosedGhostDismissals(dismissals)
     })
-
-    async function loadDismissals(retriesRemaining: number) {
-      const loadRevision = closedGhostMutationRevisionRef.current
-      const result = await loadClosedGhostDismissalsResult()
-      if (!active || loadRevision !== closedGhostMutationRevisionRef.current) return
-
-      if (result.ok) {
-        setDismissedClosedGhosts(result.value)
-        return
-      }
-
-      // Keep the state unknown (and therefore closed ghosts suppressed) after
-      // a failed read. One delayed retry covers transient storage failures
-      // without installing a polling loop; a later storage event is also an
-      // authoritative recovery signal and cancels the pending retry.
-      if (retriesRemaining > 0) {
-        retryTimer = setTimeout(() => {
-          retryTimer = null
-          void loadDismissals(retriesRemaining - 1)
-        }, CLOSED_GHOST_DISMISSAL_LOAD_RETRY_MS)
-      }
-    }
-
-    void loadDismissals(1)
-    return () => {
-      active = false
-      if (retryTimer !== null) clearTimeout(retryTimer)
-      unsubscribe()
-    }
   }, [])
 
   async function handleForgetClosedGhost(closed: ClosedTabEntry) {
@@ -1675,7 +1641,7 @@ export function TabHistoryPanel({
 
     if (closedGhostMutationRevisionRef.current === mutationRevision) {
       closedGhostMutationRevisionRef.current += 1
-      setDismissedClosedGhosts(dismissals)
+      setObservedClosedGhostDismissals(dismissals)
     }
     showToast('Removed from recently closed', {
       label: 'Undo',
@@ -1686,7 +1652,7 @@ export function TabHistoryPanel({
           const restoredDismissals = await restoreClosedGhost(closed, expectedDismissedAt)
           if (closedGhostMutationRevisionRef.current === undoRevision) {
             closedGhostMutationRevisionRef.current += 1
-            setDismissedClosedGhosts(restoredDismissals)
+            setObservedClosedGhostDismissals(restoredDismissals)
           }
         } catch {
           showToast('Could not restore recently closed page')

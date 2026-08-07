@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { FOCUS_FILTER_PARAM, filterInputFromSearch, titleForFilterInput, urlForFilterInput } from '../extension/app-url.js'
 import { readFilterFocusPendingInput, releaseFilterFocusBootValue } from '../extension/filter-focus-buffer.js'
 
-const FILTER_SEARCH_UPDATE_DELAY_MS = 200
+export const FILTER_SEARCH_UPDATE_DELAY_MS = 200
 const FILTER_URL_SYNC_DELAY_MS = 600
 
 type UseFilterRoutingOptions = {

@@ -1,7 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type Ref } from 'react'
 import { hydrateRoot } from 'react-dom/client'
-import { readAppStartup, readBuildTimeAppStartup, subscribeAppStartup, type AppStartupState } from '../app-startup.js'
+import { notifyAppStartupMaterialChange, readAppStartup, readBuildTimeAppStartup, setAppStartupFilterIntent, subscribeAppStartup, type AppStartupState } from '../app-startup.js'
 import type { ClosedTabEntry } from '../extension/closed-tabs.js'
+import type { ClosedGhostDismissals } from '../extension/closed-ghost-dismissals.js'
 import { useMissionsMasonry } from '../extension/layout.js'
 import { showToast } from '../extension/toast.js'
 import { HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled } from '../extension/history-range.js'
@@ -17,13 +18,11 @@ import { closeFilteredTabs, dedupeTabs } from '../extension/tab-actions'
 import { buildFilterResultCandidates, type FilterResultCandidate } from '../extension/filter-result-navigation.js'
 import { dashboardNeedsFilterSearchRefresh } from '../extension/filter-search.js'
 import { appDashboardStore, settleDashboardRefresh, type MissionOrderMap } from '../extension/dashboard-intake.js'
-import type { DashboardStartupSnapshot } from '../extension/startup-snapshot.js'
 import { useDashboardIntakeSnapshot } from '../hooks/useDashboardIntakeSnapshot'
 import { useDashboardRefresh } from '../hooks/useDashboardRefresh'
 import { useDashboardLocalState } from '../hooks/useDashboardLocalState'
-import type { DashboardLocalState } from '../extension/dashboard-local-state.js'
 import { useDashboardViewModels, useMissionOrderMemory, type DashboardChipOrderMemoryMap } from '../hooks/useDashboardViewModels'
-import { useFilterRouting } from '../hooks/useFilterRouting'
+import { FILTER_SEARCH_UPDATE_DELAY_MS, useFilterRouting } from '../hooks/useFilterRouting'
 import { useHoverMatch } from '../hooks/useHoverMatch'
 import type { UrlPreviewStore } from '../hooks/useUrlPreview'
 import { HeaderBar } from './HeaderBar'
@@ -109,18 +108,6 @@ type DashboardMissionsListProps = {
   onRetryHistorySearch: () => void
   sections: DashboardMissionSection[]
 }
-function sameStringList(a: readonly string[], b: readonly string[]): boolean {
-  return a.length === b.length && a.every((value, index) => value === b[index])
-}
-
-function startupViewModelMatchesLocalState(startupViewModel: DashboardStartupSnapshot['startupViewModel'], localState: DashboardLocalState | null): startupViewModel is NonNullable<DashboardStartupSnapshot['startupViewModel']> {
-  return !!startupViewModel &&
-    localState?.loaded === true &&
-    sameStringList(startupViewModel.pinnedDomains, localState.pinnedDomains) &&
-    sameStringList(startupViewModel.pinnedSectionIds, localState.pinnedSectionIds) &&
-    sameStringList(startupViewModel.pinnedPageChipIds, localState.pinnedPageChipIds)
-}
-
 function readMissionContainers(...refs: MissionContainerRef[]): MissionContainer[] {
   return refs.map((ref) => ref.current)
 }
@@ -274,6 +261,7 @@ function DashboardMissionsList({ filter, historyRangeAction, onRetryHistorySearc
 
 type DashboardShellProps = {
   closedTabs: readonly ClosedTabEntry[]
+  dismissedClosedGhosts: ClosedGhostDismissals | null
   savedKeys?: readonly string[] | undefined
   filter: string
   filterInput: string
@@ -294,6 +282,7 @@ type DashboardShellProps = {
   source: DashboardSource
   sourceSelection: DashboardSource
   stats: DashboardStats
+  startupState: AppStartupState | null
   tabHistory: TabHistorySnapshot | null
   urlPreviewStore: UrlPreviewStore
   workingSet: WorkingSetSnapshot | null
@@ -301,6 +290,7 @@ type DashboardShellProps = {
 
 function DashboardShell({
   closedTabs,
+  dismissedClosedGhosts,
   savedKeys,
   filter,
   filterInput,
@@ -321,6 +311,7 @@ function DashboardShell({
   source,
   sourceSelection,
   stats,
+  startupState,
   tabHistory,
   urlPreviewStore,
   workingSet
@@ -346,6 +337,7 @@ function DashboardShell({
           <TabHistoryPanel
             snapshot={tabHistory}
             closedTabs={closedTabs}
+            dismissedClosedGhosts={dismissedClosedGhosts}
             onSnapshotChange={setTabHistory}
             workingSet={historyWorkingSet}
             filter={filter}
@@ -399,6 +391,27 @@ function DashboardShell({
                 : 'ml-[calc(0px-var(--dashboard-card-shadow-bleed))] pl-(--dashboard-card-shadow-bleed)'
             )}
           >
+            <div
+              data-tabout="dashboard-startup-status"
+              className="pointer-events-none absolute inset-x-0 top-1.5 z-10 flex h-8 items-center justify-center text-xs text-muted-foreground"
+              role={startupState?.phase === 'failed' ? 'alert' : 'status'}
+              aria-live="polite"
+            >
+              {startupState?.phase === 'loading' && 'Loading…'}
+              {startupState?.phase === 'failed' && (
+                <span className="pointer-events-auto inline-flex items-center gap-2">
+                  <span>Couldn’t load dashboard</span>
+                  <button
+                    type="button"
+                    data-tabout-part="retry-button"
+                    className="rounded-md px-2 py-1 text-foreground hover:bg-muted [corner-shape:squircle]"
+                    onClick={startupState.retry}
+                  >
+                    Retry
+                  </button>
+                </span>
+              )}
+            </div>
             <DashboardMissionsList
               filter={filter}
               historyRangeAction={showHistoryRange ? (
@@ -427,7 +440,7 @@ export function App() {
     readAppStartup,
     readBuildTimeAppStartup
   )
-  const startupSnapshot = startupState?.snapshot ?? null
+  const startupReady = startupState?.phase === 'ready'
   const appDashboard = useDashboardIntakeSnapshot()
   const { closedTabs, dashboard, historyRange, historySearchPending, source, sourceSelection, startupPriorityWorkingSet, tabHistory, workingSet } = appDashboard
   const { hoverStateStore, urlPreviewStore, handleHoverUrlChange, clearHoverUrlNow } = useHoverMatch()
@@ -442,9 +455,7 @@ export function App() {
   const setTabHistory = useCallback(function setTabHistory(nextTabHistory: TabHistorySnapshot | null) {
     dispatchAppDashboard({ type: 'tabHistory', tabHistory: nextTabHistory })
   }, [])
-  useEffect(() => appDashboardStore.startClosedTabUpdates(), [])
   const firstDashboardLayoutRecordedRef = useRef(false)
-  const startupRefreshRequestedRef = useRef(false)
 
   const layoutMoveRectsRef = useRef<CardPositionMap | null>(null)
   const pendingSourceSwitchRectsRef = useRef<{
@@ -472,7 +483,8 @@ export function App() {
     const frame = requestAnimationFrame(() => setDashboardContentVisible(true))
     return () => cancelAnimationFrame(frame)
   }, [])
-  const visibleDashboard = dashboardContentVisible ? dashboard : null
+  const dynamicContentVisible = dashboardContentVisible && startupReady
+  const visibleDashboard = dynamicContentVisible ? dashboard : null
   const isReady = !!visibleDashboard
   const historyFilterEnabled = isHistoryFilterEnabled(historyRange)
   const { packMissionsMasonryNow, scheduleMissionsMasonry } = useMissionsMasonry(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, unmatchedMissionsRef, {
@@ -497,18 +509,22 @@ export function App() {
   const { filterInput, filter, filterSearch, setFilterInput } = useFilterRouting({ onBeforeFilterChange: handleBeforeFilterChange })
   const handleFilterInputChange = useCallback(function handleFilterInputChange(nextFilterInput: string) {
     if (nextFilterInput.trim()) void loadHistoryRangeSelect().catch(() => {})
+    if (!startupReady && setAppStartupFilterIntent(nextFilterInput)) {
+      notifyAppStartupMaterialChange(
+        nextFilterInput.trim() ? FILTER_SEARCH_UPDATE_DELAY_MS : 0
+      )
+    }
     setFilterInput(nextFilterInput)
-  }, [setFilterInput])
+  }, [setFilterInput, startupReady])
   const effectiveStartupPriorityWorkingSet = source === 'tabs' && filter.trim() === '' ? startupPriorityWorkingSet : null
-  const visibleWorkingSet = dashboardContentVisible ? effectiveStartupPriorityWorkingSet ?? workingSet : null
-  const historyPanelWorkingSet = dashboardContentVisible ? workingSet : null
+  const visibleWorkingSet = dynamicContentVisible ? effectiveStartupPriorityWorkingSet ?? workingSet : null
+  const historyPanelWorkingSet = dynamicContentVisible ? workingSet : null
   function resetMissionOrder() {
     previousOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
     chipOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
   }
   const {
     localStateLoaded,
-    localState,
     pinnedDomains,
     pinnedSections,
     pinnedPageChips,
@@ -518,7 +534,7 @@ export function App() {
     togglePinnedSection,
     togglePinnedPageChip
   } = useDashboardLocalState({
-    waitForInitialState: startupState === null,
+    waitForInitialState: !startupReady,
     onBeforeApplyPinnedDomains: ({ animate }) => {
       resetMissionOrder()
       if (animate) primeCardMoveAnimation()
@@ -535,19 +551,10 @@ export function App() {
   })
   const appliedStartupStateRef = useRef<AppStartupState | null>(null)
   useLayoutEffect(() => {
-    if (!startupState || appliedStartupStateRef.current === startupState) return
+    if (startupState?.phase !== 'ready' || appliedStartupStateRef.current === startupState) return
     appliedStartupStateRef.current = startupState
     applyStartupState(startupState.localState)
   }, [applyStartupState, startupState])
-  const initialStartupViewModel = startupSnapshot?.startupViewModel
-  const startupDashboardViewModel =
-    visibleDashboard === startupSnapshot?.dashboard &&
-    source === 'tabs' &&
-    filter.trim() === '' &&
-    !!effectiveStartupPriorityWorkingSet &&
-    startupViewModelMatchesLocalState(initialStartupViewModel, localState)
-      ? initialStartupViewModel.viewModel
-      : null
   // react-doctor-disable-next-line react-hooks-js/refs -- the order/chip refs are mutable caches the refresh reads at call time, intentionally outside React's render-tracked state.
   const { refreshDashboard } = useDashboardRefresh({
     bookmarkFilter: filter,
@@ -558,6 +565,7 @@ export function App() {
     historyFilterEnabled,
     pinnedDomains,
     localStateLoaded,
+    initialDashboardIncludesPinnedDomains: startupReady,
     // react-doctor-disable-next-line react-hooks-js/refs -- previousOrder is a mutable ordering cache read at refresh time, not render-derived state.
     previousOrder: previousOrderRef.current,
     onBeforePinnedRefresh: clearHoverUrlNow
@@ -573,16 +581,7 @@ export function App() {
         if (pendingRects?.requestId !== event.requestId) return
         pendingSourceSwitchRectsRef.current = null
         layoutMoveRectsRef.current = pendingRects.rects
-        return
       }
-      recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'live-startup-snapshot-applied', {
-        detail: {
-          closedTabs: event.snapshot.closedTabs.length,
-          domainGroups: event.snapshot.dashboard.domainGroups.length,
-          realTabs: event.snapshot.dashboard.realTabs.length,
-          workingSet: event.snapshot.workingSet.items.length
-        }
-      })
     })
   }, [primeCardMoveAnimation])
   const retryHistorySearch = useCallback(function retryHistorySearch() {
@@ -637,8 +636,7 @@ export function App() {
     // react-doctor-disable-next-line react-hooks-js/refs -- chipOrder is a mutable per-source ordering cache read at view-model build time, not render-derived state.
     chipOrder: chipOrderRef.current,
     workingSet: visibleWorkingSet,
-    freezeTabsChipOrder: dashboardContentVisible && !!effectiveStartupPriorityWorkingSet,
-    startupViewModel: startupDashboardViewModel,
+    freezeTabsChipOrder: dynamicContentVisible && !!effectiveStartupPriorityWorkingSet,
     pinnedSections,
     pinnedPageChips
   })
@@ -680,17 +678,16 @@ export function App() {
     firstDashboardLayoutRecordedRef.current = true
     recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'first-dashboard-layout', {
       detail: {
-        cachedStartupSnapshot: !!startupSnapshot,
+        startupFrame: startupReady,
         domainGroups: visibleDashboard.domainGroups.length,
         filterActive: filter.trim() !== '',
         matchedCards: matchedCards.length,
         realTabs: visibleDashboard.realTabs.length,
         source,
-        startupViewModel: !!startupDashboardViewModel,
         workingSet: visibleWorkingSet?.items.length ?? 0
       }
     })
-  }, [visibleDashboard, filter, startupSnapshot, matchedCards.length, source, startupDashboardViewModel, visibleWorkingSet])
+  }, [visibleDashboard, filter, matchedCards.length, source, startupReady, visibleWorkingSet])
 
   useLayoutEffect(() => {
     recordStartupOrderDebugVmSample(STARTUP_ORDER_DEBUG_CAPTURE, {
@@ -721,6 +718,11 @@ export function App() {
 
   const onSourceChange = useCallback(function onSourceChange(nextSource: DashboardSource) {
     if (nextSource === sourceSelection) return
+    if (!startupReady) {
+      appDashboardStore.selectStartupSource(nextSource)
+      notifyAppStartupMaterialChange()
+      return
+    }
     if (nextSource === source) {
       pendingSourceSwitchRectsRef.current = null
       appDashboardStore.switchSource(nextSource)
@@ -733,7 +735,7 @@ export function App() {
     if (requestId !== null) {
       pendingSourceSwitchRectsRef.current = { rects: previousRects, requestId }
     }
-  }, [source, sourceSelection, clearHoverUrlNow, currentMissionContainers])
+  }, [source, sourceSelection, startupReady, clearHoverUrlNow, currentMissionContainers])
 
   const primaryMissionsEmpty = matchedCards.length === 0
   const showHistorySection = showHistoryRange || showHistoryMatches
@@ -769,22 +771,13 @@ export function App() {
   useMissionOrderMemory({
     previousOrderRef,
     chipOrderRef,
-    enabled: dashboardContentVisible,
+    enabled: dynamicContentVisible,
     source,
     filter,
     matchedCards,
     bookmarkMatchedCards,
     historyMatchedCards
   })
-
-  useEffect(() => {
-    if (startupRefreshRequestedRef.current || !dashboardContentVisible || !localStateLoaded) return
-    startupRefreshRequestedRef.current = true
-    recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'live-startup-refresh-requested', {
-      detail: { localStateLoaded }
-    })
-    void settleDashboardRefresh(refreshDashboard({ startupSnapshot: true }))
-  }, [dashboardContentVisible, localStateLoaded, refreshDashboard])
 
   // App bails out of React Compiler (the render-time ordering-cache ref reads
   // above are deliberate), so this context value is memoized manually — the
@@ -802,7 +795,8 @@ export function App() {
     <DashboardActionsProvider value={dashboardActions}>
       <HoverStateProvider store={hoverStateStore}>
         <DashboardShell
-          closedTabs={dashboardContentVisible ? closedTabs : EMPTY_CLOSED_TABS}
+          closedTabs={dynamicContentVisible ? closedTabs : EMPTY_CLOSED_TABS}
+          dismissedClosedGhosts={startupReady ? startupState.closedGhostDismissals : null}
           savedKeys={visibleDashboard?.savedKeys}
           filter={filter}
           filterInput={filterInput}
@@ -819,11 +813,12 @@ export function App() {
           setFilterInput={handleFilterInputChange}
           setHistoryRange={setHistoryRange}
           setTabHistory={setTabHistory}
-          showHistoryRange={showHistoryRange}
+          showHistoryRange={startupReady && showHistoryRange}
           source={source}
           sourceSelection={sourceSelection}
           stats={stats}
-          tabHistory={dashboardContentVisible ? tabHistory : null}
+          startupState={startupState}
+          tabHistory={dynamicContentVisible ? tabHistory : null}
           urlPreviewStore={urlPreviewStore}
           workingSet={historyPanelWorkingSet}
         />

@@ -1,4 +1,4 @@
-import { Effect, Schema } from 'effect'
+import { Effect, Result, Schema } from 'effect'
 
 import { getAppRuntime } from './app-runtime.js'
 import { DEFAULT_HISTORY_RANGE, HISTORY_FILTER_OFF } from './history-range.js'
@@ -34,6 +34,11 @@ class HistoryRangePreferenceError extends Schema.TaggedErrorClass<HistoryRangePr
   'HistoryRangePreferenceError',
   { cause: Schema.Defect() }
 ) {}
+
+export type HistoryRangePreferenceLoadResult = {
+  ok: boolean
+  value: string
+}
 
 /**
  * Keep writes in invocation order. Production requests one origin-wide Web
@@ -76,19 +81,28 @@ const historyRangePreferenceWriter = createHistoryRangePreferenceWriter({
   )
 })
 
-export const loadHistoryRangePreferenceEffect = Effect.fn('historyRange.load')(function*() {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) return DEFAULT_HISTORY_RANGE
-  const stored = yield* Effect.tryPromise({
+export const loadHistoryRangePreferenceResultEffect = Effect.fn(
+  'historyRange.loadResult'
+)(function*() {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+    return { ok: false, value: DEFAULT_HISTORY_RANGE }
+  }
+  const stored = yield* Effect.result(Effect.tryPromise({
     try: () => chrome.storage.local.get(HISTORY_RANGE_STORAGE_KEY),
     catch: (cause) => HistoryRangePreferenceError.make({ cause })
-  }).pipe(
-    Effect.catchTag('HistoryRangePreferenceError', () => Effect.succeed(null))
-  )
-  if (stored) {
-    const historyRange = stored[HISTORY_RANGE_STORAGE_KEY]
-    return isHistoryRangePreference(historyRange) ? historyRange : DEFAULT_HISTORY_RANGE
+  }))
+  if (Result.isFailure(stored)) {
+    return { ok: false, value: DEFAULT_HISTORY_RANGE }
   }
-  return DEFAULT_HISTORY_RANGE
+  const historyRange = stored.success[HISTORY_RANGE_STORAGE_KEY]
+  return {
+    ok: true,
+    value: isHistoryRangePreference(historyRange) ? historyRange : DEFAULT_HISTORY_RANGE
+  }
+})
+
+export const loadHistoryRangePreferenceEffect = Effect.fn('historyRange.load')(function*() {
+  return (yield* loadHistoryRangePreferenceResultEffect()).value
 })
 
 export function loadHistoryRangePreference(): Promise<string> {

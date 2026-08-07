@@ -11,11 +11,10 @@ import type { DashboardRefreshOptions } from '../src/extension/dashboard-intake.
 
 test('dashboard refresh options expose only supported coordination flags', () => {
   const options = {
-    animateCards: true,
-    startupSnapshot: true
+    animateCards: true
   } satisfies DashboardRefreshOptions
 
-  assert.deepEqual(options, { animateCards: true, startupSnapshot: true })
+  assert.deepEqual(options, { animateCards: true })
 
   // @ts-expect-error Unknown refresh flags must not silently cross the intake seam.
   void ({ unexpectedFlag: true } satisfies DashboardRefreshOptions)
@@ -33,13 +32,13 @@ test('requestDashboardRefresh forwards refresh options to the intake refresh tar
   assert.deepEqual(receivedOptions, { animateCards: true })
 })
 
-test('merged dashboard refreshes preserve stronger coordination flags', () => {
+test('merged dashboard refreshes preserve animation intent', () => {
   const options = mergeDashboardRefreshOptions(
     { animateCards: true },
-    { startupSnapshot: true }
+    {}
   )
 
-  assert.deepEqual(options, { animateCards: true, startupSnapshot: true })
+  assert.deepEqual(options, { animateCards: true })
 })
 
 test('automatic dashboard refresh settlement absorbs a rejected handler', async () => {

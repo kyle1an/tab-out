@@ -1,412 +1,223 @@
 import { Result, Schema } from 'effect'
 
-import type { ClosedTabEntry } from './closed-tabs.js'
-import { domainGroupCardId } from './domain-card-id.js'
-import type { DashboardLocalState } from './dashboard-local-state.js'
-import type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression-types.js'
-import type {
-  DashboardCardEntry,
-  DashboardCardVM,
-  DashboardChipData,
-  DashboardChipEnv,
-  DashboardClusterVM,
-  DashboardData,
-  DashboardSectionVM,
-  DashboardSegment,
-  DashboardStats,
-  DashboardTab,
-  DashboardTabMutationTarget,
-  DashboardTitleSuppression,
-  DashboardViewModel,
-  DashboardWebsitePathSectionVM,
-  DomainGroup
-} from './types'
+import { domainCardId } from './domain-card-id.js'
+import { pageIdentityForWorkingSet } from './working-set.js'
 
-export type DashboardStartupViewModel = {
-  pinnedDomains: readonly string[]
-  pinnedPageChipIds: readonly string[]
-  pinnedSectionIds: readonly string[]
-  viewModel: DashboardViewModel
+export type DashboardStartupTitleRetention = {
+  tabId: number
+  url: string
+  title: string
+  kind: 'suspended' | 'retained-loading'
 }
 
-const mutableStringArray = Schema.mutable(Schema.Array(Schema.String))
-const dashboardTabId = Schema.Union([Schema.String, Schema.Finite])
-const dashboardSourceType = Schema.Literals(['tab', 'bookmark', 'history', 'saved-page'])
-
-const dashboardTabSchema = Schema.Struct({
-  id: Schema.optionalKey(dashboardTabId),
-  url: Schema.String,
-  rawUrl: Schema.String,
-  suspended: Schema.Boolean,
-  title: Schema.String,
-  status: Schema.optionalKey(Schema.Literals(['unloaded', 'loading', 'complete'])),
-  retainedSuspendedTitle: Schema.optionalKey(Schema.Boolean),
-  favIconUrl: Schema.String,
-  windowId: Schema.Finite,
-  active: Schema.Boolean,
-  pinned: Schema.Boolean,
-  groupId: Schema.Finite,
-  isTabOut: Schema.Boolean,
-  isApp: Schema.Boolean,
-  audible: Schema.optionalKey(Schema.Boolean),
-  muted: Schema.optionalKey(Schema.Boolean),
-  sourceType: Schema.optionalKey(dashboardSourceType),
-  saved: Schema.optionalKey(Schema.Boolean),
-  closedSaved: Schema.optionalKey(Schema.Boolean),
-  savedPageKey: Schema.optionalKey(Schema.String),
-  index: Schema.optionalKey(Schema.Finite)
-}) satisfies Schema.Schema<DashboardTab>
-
-const domainGroupSchema = Schema.Struct({
-  domain: Schema.String,
-  tabs: Schema.mutable(Schema.Array(dashboardTabSchema)),
-  label: Schema.optionalKey(Schema.String),
-  pinned: Schema.optionalKey(Schema.Boolean)
-}) satisfies Schema.Schema<DomainGroup>
-
-const dashboardDataSchema = Schema.Struct({
-  realTabs: Schema.mutable(Schema.Array(dashboardTabSchema)),
-  domainGroups: Schema.mutable(Schema.Array(domainGroupSchema)),
-  currentWindowId: Schema.optionalKey(Schema.NullOr(Schema.Finite)),
-  bookmarkTabs: Schema.optionalKey(Schema.mutable(Schema.Array(dashboardTabSchema))),
-  bookmarkDomainGroups: Schema.optionalKey(Schema.mutable(Schema.Array(domainGroupSchema))),
-  bookmarkSearchReady: Schema.optionalKey(Schema.Boolean),
-  historyTabs: Schema.optionalKey(Schema.mutable(Schema.Array(dashboardTabSchema))),
-  historyDomainGroups: Schema.optionalKey(Schema.mutable(Schema.Array(domainGroupSchema))),
-  historySearchQuery: Schema.optionalKey(Schema.String),
-  historyRange: Schema.optionalKey(Schema.String),
-  historySearchStatus: Schema.optionalKey(Schema.Literals(['idle', 'ready', 'error'])),
-  savedKeys: Schema.optionalKey(mutableStringArray)
-}) satisfies Schema.Schema<DashboardData>
-
-const cachedClosedTabSchema = Schema.Struct({
-  sessionId: Schema.String,
-  url: Schema.String,
-  title: Schema.String,
-  lastClosedAt: Schema.Number,
-  tabId: Schema.optionalKey(Schema.Unknown),
-  rawUrl: Schema.optionalKey(Schema.Unknown),
-  displayUrl: Schema.optionalKey(Schema.Unknown),
-  favIconUrl: Schema.optionalKey(Schema.Unknown)
-})
-
-type CachedClosedTab = typeof cachedClosedTabSchema.Type
-
-function normalizeCachedClosedTab(tab: CachedClosedTab): ClosedTabEntry {
-  return {
-    sessionId: tab.sessionId,
-    tabId: typeof tab.tabId === 'number' && Number.isFinite(tab.tabId) ? tab.tabId : -1,
-    url: tab.url,
-    rawUrl: typeof tab.rawUrl === 'string' ? tab.rawUrl : tab.url,
-    displayUrl: typeof tab.displayUrl === 'string' ? tab.displayUrl : tab.url,
-    title: tab.title,
-    favIconUrl: typeof tab.favIconUrl === 'string' ? tab.favIconUrl : '',
-    lastClosedAt: tab.lastClosedAt
-  }
+type DashboardStartupWorkingSetPriority = {
+  epoch: number
+  keys: readonly string[]
 }
 
-const unknownRecord = Schema.Record(Schema.String, Schema.Unknown)
-
-const cachedDashboardStartupBoundarySchema = Schema.Struct({
-  savedAt: Schema.Number,
-  captureStartedAt: Schema.optionalKey(Schema.Unknown),
-  contentFingerprint: Schema.optionalKey(Schema.String),
-  workingSetSavedAt: Schema.optionalKey(Schema.Unknown),
-  snapshot: Schema.Struct({
-    dashboard: dashboardDataSchema,
-    tabHistory: Schema.optionalKey(Schema.NullOr(unknownRecord)),
-    workingSet: Schema.optionalKey(Schema.NullOr(unknownRecord)),
-    closedTabs: Schema.mutable(Schema.Array(cachedClosedTabSchema)),
-    startupViewModel: Schema.optionalKey(Schema.Unknown)
-  }),
-  localState: Schema.optionalKey(Schema.Unknown)
-})
-
-const isCachedDashboardStartupBoundary = Schema.is(cachedDashboardStartupBoundarySchema)
-
-export type CachedDashboardStartupBoundary = {
+export type DashboardStartupSeedBoundary = {
+  schemaVersion: 2
   savedAt: number
-  captureStartedAt: unknown
-  contentFingerprint?: string
-  workingSetSavedAt: unknown
-  snapshot: {
-    dashboard: DashboardData
-    tabHistory: unknown
-    workingSet: unknown
-    closedTabs: readonly ClosedTabEntry[]
-    startupViewModel?: unknown
-  }
-  localState?: unknown
+  captureStartedAt: number
+  cardOrder: readonly string[]
+  workingSetPriority: DashboardStartupWorkingSetPriority
+  titleRetention?: readonly DashboardStartupTitleRetention[]
 }
 
-export function parseCachedDashboardStartupBoundary(value: unknown): CachedDashboardStartupBoundary | null {
-  if (!isCachedDashboardStartupBoundary(value)) return null
-  const boundary = value
-  return {
-    savedAt: boundary.savedAt,
-    captureStartedAt: boundary.captureStartedAt,
-    ...(boundary.contentFingerprint === undefined
-      ? {}
-      : { contentFingerprint: boundary.contentFingerprint }),
-    workingSetSavedAt: boundary.workingSetSavedAt,
-    snapshot: {
-      dashboard: boundary.snapshot.dashboard,
-      tabHistory: boundary.snapshot.tabHistory,
-      workingSet: boundary.snapshot.workingSet,
-      closedTabs: boundary.snapshot.closedTabs.map(normalizeCachedClosedTab),
-      ...(boundary.snapshot.startupViewModel === undefined
-        ? {}
-        : { startupViewModel: boundary.snapshot.startupViewModel })
-    },
-    ...(boundary.localState === undefined ? {} : { localState: boundary.localState })
-  }
-}
-
-const dashboardLocalStateSchema = Schema.Struct({
-  loaded: Schema.Literals([true]),
-  pinnedDomains: mutableStringArray,
-  pinnedSectionIds: mutableStringArray,
-  pinnedPageChipIds: mutableStringArray
-}) satisfies Schema.Schema<DashboardLocalState>
-
-const decodeDashboardLocalState = Schema.decodeUnknownResult(dashboardLocalStateSchema)
-
-export function parseCachedDashboardLocalState(value: unknown): DashboardLocalState | null {
-  const result = decodeDashboardLocalState(value)
-  return Result.isFailure(result) ? null : result.success
-}
-
-const dashboardTitleSuppressionSchema = Schema.Struct({
-  text: Schema.String,
-  count: Schema.Finite,
-  spansRenderedChildGroups: Schema.optionalKey(Schema.Boolean)
-}) satisfies Schema.Schema<DashboardTitleSuppression>
-
-const titleSuppressionToneSchema = Schema.Literals([
-  '',
-  'amber',
-  'teal',
-  'sky',
-  'rose'
-]) satisfies Schema.Schema<TitleSuppressionTone | ''>
-
-const titleSuppressionToneScopeSchema = Schema.Struct({
-  useSuppressionTokenTones: Schema.Boolean,
-  suppressedTitleToneIndexByText: Schema.Record(Schema.String, Schema.Finite),
-  suppressedTitleToneByText: Schema.Record(Schema.String, titleSuppressionToneSchema),
-  usedToneCount: Schema.Finite
-}) satisfies Schema.Schema<TitleSuppressionToneScope>
-
-const dashboardSegmentSchema = Schema.Union([
-  Schema.String,
-  Schema.Struct({
-    placeholder: Schema.Literals([true]),
-    label: Schema.optionalKey(Schema.String)
-  }),
-  Schema.Struct({ titleSuppression: Schema.String })
-]) satisfies Schema.Schema<DashboardSegment>
-
-const dashboardChipEnvSchema = Schema.Struct({
-  tabId: Schema.optionalKey(dashboardTabId),
-  prefix: Schema.String,
-  tabUrl: Schema.String,
-  rawUrl: Schema.String,
-  sourceType: Schema.optionalKey(dashboardSourceType),
-  saved: Schema.optionalKey(Schema.Boolean),
-  closedSaved: Schema.optionalKey(Schema.Boolean),
-  savedPageKey: Schema.optionalKey(Schema.String),
-  title: Schema.optionalKey(Schema.String),
-  faviconUrl: Schema.optionalKey(Schema.String),
-  isApp: Schema.optionalKey(Schema.Boolean),
-  activeInOtherWindow: Schema.optionalKey(Schema.Boolean)
-}) satisfies Schema.Schema<DashboardChipEnv>
-
-const dashboardChipSchema = Schema.Struct({
-  tabId: Schema.optionalKey(dashboardTabId),
-  tabUrl: Schema.String,
-  rawUrl: Schema.String,
-  sourceType: Schema.optionalKey(dashboardSourceType),
-  saved: Schema.optionalKey(Schema.Boolean),
-  closedSaved: Schema.optionalKey(Schema.Boolean),
-  suspended: Schema.optionalKey(Schema.Boolean),
-  loading: Schema.optionalKey(Schema.Boolean),
-  savedPageKey: Schema.optionalKey(Schema.String),
-  pagePinId: Schema.optionalKey(Schema.String),
-  pagePinned: Schema.optionalKey(Schema.Boolean),
-  pagePinDisabled: Schema.optionalKey(Schema.Boolean),
-  leadPrefix: Schema.String,
-  pathGroupLabel: Schema.String,
-  title: Schema.optionalKey(Schema.String),
-  displaySegments: Schema.mutable(Schema.Array(dashboardSegmentSchema)),
-  suppressedTitleParts: mutableStringArray,
-  pathSuffix: Schema.String,
-  tooltip: Schema.String,
-  dupeCount: Schema.Finite,
-  faviconUrl: Schema.String,
-  isGrouped: Schema.Boolean,
-  groupDotColor: Schema.NullOr(Schema.String),
-  isApp: Schema.Boolean,
-  audioState: Schema.optionalKey(Schema.NullOr(Schema.Literals(['playing', 'muted']))),
-  activeInOtherWindow: Schema.optionalKey(Schema.Boolean),
-  activeChipFrame: Schema.optionalKey(Schema.Boolean),
-  isCurrentTabOut: Schema.optionalKey(Schema.Boolean),
-  chromePinned: Schema.optionalKey(Schema.Boolean),
-  chromeGroupId: Schema.optionalKey(Schema.Finite),
-  iconOnly: Schema.optionalKey(Schema.Boolean),
-  envs: Schema.NullOr(Schema.mutable(Schema.Array(dashboardChipEnvSchema))),
-  titleVariantChips: Schema.optionalKey(Schema.mutable(Schema.Array(
-    Schema.suspend((): Schema.Codec<DashboardChipData> => dashboardChipSchema)
-  )))
-}) satisfies Schema.Schema<DashboardChipData>
-
-const dashboardClusterSchema = Schema.Struct({
-  key: Schema.String,
-  label: Schema.String,
-  isPR: Schema.Boolean,
-  count: Schema.Finite,
-  closableUrls: mutableStringArray,
-  suppressedTitleParts: Schema.optionalKey(Schema.mutable(Schema.Array(dashboardTitleSuppressionSchema))),
-  titleSuppressionToneScope: Schema.optionalKey(titleSuppressionToneScopeSchema),
-  suppressedTitleToneByText: Schema.optionalKey(Schema.Record(Schema.String, titleSuppressionToneSchema)),
-  visibleChips: Schema.mutable(Schema.Array(dashboardChipSchema)),
-  hiddenChips: Schema.mutable(Schema.Array(dashboardChipSchema)),
-  hiddenCount: Schema.Finite,
-  isPinned: Schema.optionalKey(Schema.Boolean)
-}) satisfies Schema.Schema<DashboardClusterVM>
-
-const dashboardWebsitePathSectionSchema = Schema.Struct({
-  key: Schema.String,
-  label: Schema.String,
-  sectionCount: Schema.Finite,
-  sectionClosableUrls: mutableStringArray,
-  hasFlat: Schema.Boolean,
-  flatVisibleChips: Schema.mutable(Schema.Array(dashboardChipSchema)),
-  flatHiddenChips: Schema.mutable(Schema.Array(dashboardChipSchema)),
-  flatHiddenCount: Schema.Finite,
-  suppressedTitleParts: Schema.optionalKey(Schema.mutable(Schema.Array(dashboardTitleSuppressionSchema))),
-  titleSuppressionToneScope: Schema.optionalKey(titleSuppressionToneScopeSchema),
-  suppressedTitleToneByText: Schema.optionalKey(Schema.Record(Schema.String, titleSuppressionToneSchema)),
-  clusters: Schema.mutable(Schema.Array(dashboardClusterSchema)),
-  isPinned: Schema.optionalKey(Schema.Boolean)
-}) satisfies Schema.Schema<DashboardWebsitePathSectionVM>
-
-const dashboardSectionSchema = Schema.Struct({
-  key: Schema.String,
-  sectionCount: Schema.Finite,
-  sectionClosableUrls: mutableStringArray,
-  showHeader: Schema.Boolean,
-  isShared: Schema.Boolean,
-  isPort: Schema.optionalKey(Schema.Boolean),
-  hasFlat: Schema.Boolean,
-  flatVisibleChips: Schema.mutable(Schema.Array(dashboardChipSchema)),
-  flatHiddenChips: Schema.mutable(Schema.Array(dashboardChipSchema)),
-  flatHiddenCount: Schema.Finite,
-  suppressedTitleParts: Schema.optionalKey(Schema.mutable(Schema.Array(dashboardTitleSuppressionSchema))),
-  titleSuppressionToneScope: Schema.optionalKey(titleSuppressionToneScopeSchema),
-  suppressedTitleToneByText: Schema.optionalKey(Schema.Record(Schema.String, titleSuppressionToneSchema)),
-  clusters: Schema.mutable(Schema.Array(dashboardClusterSchema)),
-  websitePathSections: Schema.mutable(Schema.Array(dashboardWebsitePathSectionSchema)),
-  isPinned: Schema.optionalKey(Schema.Boolean)
-}) satisfies Schema.Schema<DashboardSectionVM>
-
-const dashboardMutationTargetSchema = Schema.Struct({
+const startupTitleRetentionSchema = Schema.Struct({
   tabId: Schema.Int,
-  tabUrl: Schema.String
-}) satisfies Schema.Schema<DashboardTabMutationTarget>
+  url: Schema.String,
+  title: Schema.String,
+  kind: Schema.Literals(['suspended', 'retained-loading'])
+}) satisfies Schema.Schema<DashboardStartupTitleRetention>
 
-const mutationTargetsByTextSchema = Schema.Record(
-  Schema.String,
-  Schema.mutable(Schema.Array(dashboardMutationTargetSchema))
+const dashboardStartupSeedBoundarySchema = Schema.Struct({
+  schemaVersion: Schema.Literals([2]),
+  savedAt: Schema.Finite,
+  captureStartedAt: Schema.Finite,
+  cardOrder: Schema.Array(Schema.String),
+  workingSetPriority: Schema.Struct({
+    epoch: Schema.Finite,
+    keys: Schema.Array(Schema.String)
+  }),
+  titleRetention: Schema.optionalKey(Schema.Array(startupTitleRetentionSchema))
+})
+
+const decodeDashboardStartupSeedBoundary = Schema.decodeUnknownResult(
+  dashboardStartupSeedBoundarySchema
 )
 
-const dashboardCardSchema = Schema.Struct({
-  stableId: Schema.String,
-  isHidden: Schema.Boolean,
-  displayMode: Schema.Literals(['normal', 'unmatched']),
-  filtering: Schema.Boolean,
-  tabCount: Schema.optionalKey(Schema.Finite),
-  totalTabCount: Schema.optionalKey(Schema.Finite),
-  tabCountLabel: Schema.optionalKey(Schema.String),
-  tabCountTitle: Schema.optionalKey(Schema.String),
-  closableCount: Schema.optionalKey(Schema.Finite),
-  closableCountLabel: Schema.optionalKey(Schema.String),
-  suspendableCount: Schema.optionalKey(Schema.Finite),
-  suspendableCountLabel: Schema.optionalKey(Schema.String),
-  closableSuspendedCount: Schema.optionalKey(Schema.Finite),
-  closableSuspendedCountLabel: Schema.optionalKey(Schema.String),
-  closableDupeUrls: Schema.optionalKey(mutableStringArray),
-  closableExtras: Schema.optionalKey(Schema.Finite),
-  singleSubdomainKey: Schema.optionalKey(Schema.String),
-  singleSubdomainIsPort: Schema.optionalKey(Schema.Boolean),
-  displayName: Schema.optionalKey(Schema.String),
-  suppressedTitleParts: Schema.optionalKey(Schema.mutable(Schema.Array(dashboardTitleSuppressionSchema))),
-  allSuppressedTitleParts: Schema.optionalKey(Schema.mutable(Schema.Array(dashboardTitleSuppressionSchema))),
-  suppressionCloseTargetsByText: Schema.optionalKey(mutationTargetsByTextSchema),
-  suppressionSuspendTargetsByText: Schema.optionalKey(mutationTargetsByTextSchema),
-  cardSuppressionToneScope: Schema.optionalKey(titleSuppressionToneScopeSchema),
-  sections: Schema.mutable(Schema.Array(dashboardSectionSchema))
-}) satisfies Schema.Schema<DashboardCardVM>
-
-const dashboardCardEntrySchema = Schema.Struct({
-  group: domainGroupSchema,
-  vm: dashboardCardSchema
-}) satisfies Schema.Schema<DashboardCardEntry>
-
-const dashboardStatsSchema = Schema.Struct({
-  totalTabs: Schema.Finite,
-  activeTabs: Schema.Finite,
-  visibleTabs: Schema.Finite,
-  totalWindows: Schema.Finite,
-  visibleWindows: Schema.Finite,
-  totalDomains: Schema.Finite,
-  visibleDomains: Schema.Finite,
-  dedupCount: Schema.Finite,
-  filteredCloseCount: Schema.Finite,
-  hasCards: Schema.Boolean,
-  filtering: Schema.Boolean
-}) satisfies Schema.Schema<DashboardStats>
-
-const dashboardViewModelSchema = Schema.Struct({
-  source: Schema.Literals(['tabs']),
-  stats: dashboardStatsSchema,
-  matchedCards: Schema.mutable(Schema.Array(dashboardCardEntrySchema)),
-  unmatchedCards: Schema.mutable(Schema.Array(dashboardCardEntrySchema)),
-  showOtherTabs: Schema.Boolean,
-  globalDedupeUrls: mutableStringArray,
-  filteredCloseUrls: mutableStringArray,
-  filteredCloseTargets: Schema.mutable(Schema.Array(dashboardMutationTargetSchema))
-}) satisfies Schema.Schema<DashboardViewModel>
-
-const dashboardStartupViewModelSchema = Schema.Struct({
-  pinnedDomains: mutableStringArray,
-  pinnedPageChipIds: mutableStringArray,
-  pinnedSectionIds: mutableStringArray,
-  viewModel: dashboardViewModelSchema
-}) satisfies Schema.Schema<DashboardStartupViewModel>
-
-const decodeDashboardStartupViewModel = Schema.decodeUnknownResult(dashboardStartupViewModelSchema)
-
-function repairCachedDashboardCardId(entry: DashboardCardEntry): DashboardCardEntry {
-  return {
-    ...entry,
-    vm: {
-      ...entry.vm,
-      // Stable IDs are derived identity, not persisted product state. Repair
-      // caches written before the collision-safe encoding changed.
-      stableId: domainGroupCardId(entry.group)
+function normalizeCardOrder(values: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const normalized: string[] = []
+  for (const value of values) {
+    if (!value.startsWith('domain-')) continue
+    let domain = ''
+    try {
+      domain = decodeURIComponent(value.slice('domain-'.length))
+    } catch {
+      continue
     }
+    if (!domain || domainCardId(domain) !== value || seen.has(value)) continue
+    seen.add(value)
+    normalized.push(value)
+  }
+  return normalized
+}
+
+function normalizeWorkingSetPriorityKeys(values: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const normalized: string[] = []
+  for (const value of values) {
+    const key = pageIdentityForWorkingSet(value)
+    if (!key || key !== value || seen.has(key)) continue
+    seen.add(key)
+    normalized.push(key)
+  }
+  return normalized
+}
+
+function titleIsUsable(title: string): boolean {
+  return !!title.replaceAll('\u200E', '').trim()
+}
+
+function normalizeTitleRetention(
+  values: readonly DashboardStartupTitleRetention[]
+): DashboardStartupTitleRetention[] {
+  const seenTabIds = new Set<number>()
+  const normalized: DashboardStartupTitleRetention[] = []
+  for (const value of values) {
+    if (
+      value.tabId < 0 ||
+      seenTabIds.has(value.tabId) ||
+      !URL.parse(value.url) ||
+      !titleIsUsable(value.title)
+    ) continue
+    seenTabIds.add(value.tabId)
+    normalized.push(value)
+  }
+  return normalized
+}
+
+export function parseDashboardStartupSeedBoundary(
+  value: unknown,
+  includeTitleRetention = true
+): DashboardStartupSeedBoundary | null {
+  const result = decodeDashboardStartupSeedBoundary(value)
+  if (Result.isFailure(result)) return null
+  const seed = result.success
+  const titleRetention = includeTitleRetention
+    ? normalizeTitleRetention(seed.titleRetention ?? [])
+    : []
+  return {
+    schemaVersion: 2,
+    savedAt: seed.savedAt,
+    captureStartedAt: seed.captureStartedAt,
+    cardOrder: normalizeCardOrder(seed.cardOrder),
+    workingSetPriority: {
+      epoch: seed.workingSetPriority.epoch,
+      keys: normalizeWorkingSetPriorityKeys(seed.workingSetPriority.keys)
+    },
+    ...(titleRetention.length > 0 ? { titleRetention } : {})
   }
 }
 
-export function parseCachedDashboardStartupViewModel(value: unknown): DashboardStartupViewModel | undefined {
-  const result = decodeDashboardStartupViewModel(value)
-  if (Result.isFailure(result)) return undefined
+const legacyTabCandidateSchema = Schema.Struct({
+  id: Schema.optionalKey(Schema.Unknown),
+  url: Schema.optionalKey(Schema.Unknown),
+  title: Schema.optionalKey(Schema.Unknown),
+  suspended: Schema.optionalKey(Schema.Unknown),
+  retainedSuspendedTitle: Schema.optionalKey(Schema.Unknown)
+})
+
+const legacyDomainGroupCandidateSchema = Schema.Struct({
+  domain: Schema.optionalKey(Schema.Unknown)
+})
+
+const legacyWorkingSetCandidateSchema = Schema.Struct({
+  items: Schema.Array(Schema.Unknown)
+})
+
+const legacyWorkingSetItemCandidateSchema = Schema.Struct({
+  key: Schema.optionalKey(Schema.Unknown),
+  tabUrl: Schema.optionalKey(Schema.Unknown)
+})
+
+const legacyDashboardStartupBoundarySchema = Schema.Struct({
+  savedAt: Schema.Finite,
+  captureStartedAt: Schema.optionalKey(Schema.Unknown),
+  workingSetSavedAt: Schema.optionalKey(Schema.Unknown),
+  snapshot: Schema.Struct({
+    dashboard: Schema.Struct({
+      realTabs: Schema.Array(legacyTabCandidateSchema),
+      domainGroups: Schema.Array(legacyDomainGroupCandidateSchema)
+    }),
+    workingSet: Schema.optionalKey(Schema.Unknown)
+  })
+})
+
+const isLegacyDashboardStartupBoundary = Schema.is(legacyDashboardStartupBoundarySchema)
+const isLegacyWorkingSetCandidate = Schema.is(legacyWorkingSetCandidateSchema)
+const isLegacyWorkingSetItemCandidate = Schema.is(legacyWorkingSetItemCandidateSchema)
+
+function finiteNumberOr(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function legacyWorkingSetPriorityKeys(value: unknown): string[] {
+  if (!isLegacyWorkingSetCandidate(value)) return []
+  return normalizeWorkingSetPriorityKeys(value.items.flatMap((item) => {
+    if (!isLegacyWorkingSetItemCandidate(item)) return []
+    const candidate = typeof item.key === 'string'
+      ? item.key
+      : typeof item.tabUrl === 'string' ? item.tabUrl : ''
+    const key = pageIdentityForWorkingSet(candidate)
+    return key ? [key] : []
+  }))
+}
+
+function legacyTitleRetention(
+  tabs: typeof legacyDashboardStartupBoundarySchema.Type['snapshot']['dashboard']['realTabs']
+): DashboardStartupTitleRetention[] {
+  return normalizeTitleRetention(tabs.flatMap((tab) => {
+    if (
+      typeof tab.id !== 'number' ||
+      !Number.isInteger(tab.id) ||
+      typeof tab.url !== 'string' ||
+      typeof tab.title !== 'string'
+    ) return []
+    const kind: DashboardStartupTitleRetention['kind'] | null =
+      tab.retainedSuspendedTitle === true
+        ? 'retained-loading'
+        : tab.suspended === true ? 'suspended' : null
+    return kind ? [{ tabId: tab.id, url: tab.url, title: tab.title, kind }] : []
+  }))
+}
+
+/**
+ * Read-only bridge for the former render cache. Only continuity seed fields are
+ * inspected; history, closed rows, preferences, and derived view models are ignored.
+ */
+export function deriveDashboardStartupSeedFromLegacyBoundary(
+  value: unknown,
+  includeTitleRetention = true
+): DashboardStartupSeedBoundary | null {
+  if (!isLegacyDashboardStartupBoundary(value)) return null
+  const captureStartedAt = finiteNumberOr(value.captureStartedAt, value.savedAt)
+  const titleRetention = includeTitleRetention
+    ? legacyTitleRetention(value.snapshot.dashboard.realTabs)
+    : []
   return {
-    ...result.success,
-    viewModel: {
-      ...result.success.viewModel,
-      matchedCards: result.success.viewModel.matchedCards.map(repairCachedDashboardCardId),
-      unmatchedCards: result.success.viewModel.unmatchedCards.map(repairCachedDashboardCardId)
-    }
+    schemaVersion: 2,
+    savedAt: value.savedAt,
+    captureStartedAt,
+    cardOrder: normalizeCardOrder(value.snapshot.dashboard.domainGroups.flatMap((group) =>
+      typeof group.domain === 'string' ? [domainCardId(group.domain)] : []
+    )),
+    workingSetPriority: {
+      epoch: finiteNumberOr(value.workingSetSavedAt, value.savedAt),
+      keys: legacyWorkingSetPriorityKeys(value.snapshot.workingSet)
+    },
+    ...(titleRetention.length > 0 ? { titleRetention } : {})
   }
 }

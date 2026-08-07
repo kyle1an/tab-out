@@ -5,8 +5,7 @@ import { Effect, Layer, ManagedRuntime } from 'effect'
 
 import { STARTUP_SNAPSHOT_CACHE_SEED_RETRY_MS, StartupSnapshot } from '../src/extension/background/startup-snapshot-service.js'
 import { BrowserTabs } from '../src/extension/browser-tabs-service.js'
-import { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY } from '../src/extension/startup-snapshot.js'
-import { makeCachedSuspendedTab } from './helpers/suspended-tab.js'
+import { DASHBOARD_STARTUP_SEED_CACHE_KEY } from '../src/extension/startup-snapshot.js'
 
 const pageUrl = 'https://example.test/docs'
 const emptyTabHistory = {
@@ -45,17 +44,18 @@ test('background startup snapshots retain the cached title of a waking suspended
   const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
   const previousChrome = (globalThis as { chrome?: unknown }).chrome
   const sessionStore: Record<string, any> = {
-    [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: {
+    [DASHBOARD_STARTUP_SEED_CACHE_KEY]: {
+      schemaVersion: 2,
       savedAt: Date.now(),
-      snapshot: {
-        dashboard: {
-          realTabs: [makeCachedSuspendedTab(pageUrl)],
-          domainGroups: []
-        },
-        tabHistory: emptyTabHistory,
-        workingSet: { items: [] },
-        closedTabs: []
-      }
+      captureStartedAt: Date.now(),
+      cardOrder: ['domain-example.test'],
+      workingSetPriority: { epoch: Date.now(), keys: [] },
+      titleRetention: [{
+        tabId: 7,
+        url: pageUrl,
+        title: 'Example Docs',
+        kind: 'suspended'
+      }]
     }
   }
   const localStore: Record<string, unknown> = {}
@@ -122,7 +122,7 @@ test('background startup snapshots retain the cached title of a waking suspended
 
   await clock.tickAsync(STARTUP_SNAPSHOT_CACHE_SEED_RETRY_MS)
 
-  const [cachedTab] = sessionStore[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY].snapshot.dashboard.realTabs
-  assert.equal(cachedTab.title, 'Example Docs')
-  assert.equal(cachedTab.retainedSuspendedTitle, true)
+  const [retainedTitle] = sessionStore[DASHBOARD_STARTUP_SEED_CACHE_KEY].titleRetention
+  assert.equal(retainedTitle.title, 'Example Docs')
+  assert.equal(retainedTitle.kind, 'retained-loading')
 })

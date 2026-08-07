@@ -76,6 +76,33 @@ test('app dashboard store applies arrivals through the reducer and notifies only
   assert.equal(store.read().source, 'history')
 })
 
+test('a source choice made in the shell is admitted with the matching startup frame', () => {
+  const store = createAppDashboardStore({
+    fetchDashboardSnapshot: () => assert.fail('source choice must join startup capture')
+  })
+  const snapshot = startupSnapshot(historySnapshot(10))
+  snapshot.dashboard = {
+    realTabs: [],
+    domainGroups: [{ domain: 'bookmarks.example', tabs: [] }]
+  }
+
+  store.selectStartupSource('bookmarks')
+  assert.equal(store.read().source, 'tabs')
+  assert.equal(store.read().sourceSelection, 'bookmarks')
+
+  store.applyStartup({
+    historyRange: '24h',
+    snapshot,
+    source: 'bookmarks'
+  })
+
+  assert.equal(store.read().source, 'bookmarks')
+  assert.equal(store.read().sourceSelection, 'bookmarks')
+  assert.equal(store.read().dashboard, snapshot.dashboard)
+  assert.equal(store.read().startupStateApplied, true)
+  assert.equal(store.read().startupPriorityWorkingSet, null)
+})
+
 test('a live history update supersedes the deferred startup target before source cancellation', () => {
   const cachedHistory = historySnapshot(10)
   const liveHistory = historySnapshot(20)

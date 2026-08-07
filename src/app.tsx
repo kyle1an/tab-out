@@ -1,32 +1,48 @@
-import { Effect, Fiber } from 'effect'
+import { Exit } from 'effect'
 
 import './styles/app.css'
 import { attachApp } from './components/App'
-import { applyAppStartup } from './app-startup.js'
+import {
+  applyAppStartup,
+  publishAppStartupFailure,
+  publishAppStartupLoading,
+  resetAppStartupShell,
+  setAppStartupFilterIntent,
+  setAppStartupMaterialChangeHandler,
+  updateAppStartupClosedGhostDismissals,
+  type AppStartupFrame
+} from './app-startup.js'
 import { getAppRuntime } from './extension/app-runtime.js'
-import { BrowserTabs } from './extension/browser-tabs-service.js'
-import { requestDashboardRefresh, settleDashboardRefresh, type DashboardRefreshOptions } from './extension/dashboard-intake.js'
+import { filterInputFromSearch } from './extension/app-url.js'
+import { appDashboardStore, requestDashboardRefresh, settleDashboardRefresh, type DashboardRefreshOptions } from './extension/dashboard-intake.js'
 import { createDashboardPageRefreshScheduler } from './extension/dashboard-page-refresh.js'
+import { DASHBOARD_LOCAL_STORAGE_KEYS } from './extension/dashboard-local-state.js'
 import { groupColorChanged } from './extension/groups.js'
-import { loadDashboardLocalStateEffect } from './extension/dashboard-local-state.js'
-import { loadCachedDashboardStartupEffect } from './extension/startup-snapshot.js'
-import { loadHistoryRangePreferenceEffect } from './extension/history-range-storage.js'
-import { addCurrentTabOutPageToStartupSnapshot } from './extension/startup-view-model.js'
-import { seedOpenTabsTitleHistory } from './extension/tabs.js'
+import { readFilterFocusPendingInput } from './extension/filter-focus-buffer.js'
+import { subscribeClosedGhostDismissals } from './extension/closed-ghost-dismissals.js'
+import { HISTORY_RANGE_STORAGE_KEY } from './extension/history-range-storage.js'
 import { SAVED_PAGES_STORAGE_KEY } from './extension/saved-pages.js'
-import { isTabOutDashboardUrl, isTabOutPageUrl } from './extension/tab-out-url.js'
-import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupTiming, startupDebugNow } from './components/startup-order-debug'
+import { captureAppStartupFrameEffect } from './extension/startup-frame.js'
+import { createStartupAdmissionController } from './extension/startup-frame-controller.js'
+import { isTabOutDashboardUrl } from './extension/tab-out-url.js'
+import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupTiming } from './components/startup-order-debug'
 
 recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'app-module-evaluated')
 const appRuntime = getAppRuntime()
 
-const readCurrentTabOutPageForStartup = Effect.fn('app.readCurrentTabOutPageForStartup')(function*() {
-  const browserTabs = yield* BrowserTabs
-  const tab = yield* browserTabs.getCurrentTab()
-  if (!tab) return null
-  const rawUrl = tab.url || window.location.href
-  if (!isTabOutPageUrl(rawUrl)) return null
-  return { ...tab, url: rawUrl }
+const startupAdmissionController = createStartupAdmissionController<AppStartupFrame, unknown>({
+  capture: (_request, settle) => {
+    const interrupt = appRuntime.runCallback(captureAppStartupFrameEffect(), {
+      onExit: (exit) => {
+        if (Exit.isSuccess(exit)) {
+          settle({ ok: true, value: exit.value })
+          return
+        }
+        settle({ ok: false, error: exit.cause })
+      }
+    })
+    return { cancel: () => interrupt() }
+  }
 })
 
 const dashboardPageRefreshScheduler = createDashboardPageRefreshScheduler({
@@ -37,6 +53,10 @@ const dashboardPageRefreshScheduler = createDashboardPageRefreshScheduler({
 })
 
 function scheduleDashboardRefresh(options: DashboardRefreshOptions = {}) {
+  if (startupAdmissionController.read().phase !== 'ready') {
+    startupAdmissionController.materialChanged()
+    return
+  }
   dashboardPageRefreshScheduler.schedule(options)
 }
 
@@ -95,64 +115,94 @@ chrome.bookmarks.onImportEnded.addListener(schedulePassiveDashboardRefresh)
 chrome.history.onVisited.addListener(schedulePassiveDashboardRefresh)
 chrome.history.onVisitRemoved.addListener(schedulePassiveDashboardRefresh)
 
+chrome.sessions?.onChanged?.addListener(() => {
+  if (startupAdmissionController.read().phase !== 'ready') {
+    startupAdmissionController.materialChanged()
+  }
+})
+
+const startupLocalStorageKeys = new Set<string>([
+  ...DASHBOARD_LOCAL_STORAGE_KEYS,
+  HISTORY_RANGE_STORAGE_KEY,
+  SAVED_PAGES_STORAGE_KEY
+])
+
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName === 'local' && Object.hasOwn(changes, SAVED_PAGES_STORAGE_KEY)) {
+  if (areaName !== 'local') return
+  if (
+    startupAdmissionController.read().phase !== 'ready' &&
+    Object.keys(changes).some((key) => startupLocalStorageKeys.has(key))
+  ) {
+    startupAdmissionController.materialChanged()
+    return
+  }
+  if (Object.hasOwn(changes, SAVED_PAGES_STORAGE_KEY)) {
     scheduleAnimatedDashboardRefresh()
   }
 })
 
 document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && startupAdmissionController.read().phase !== 'ready') {
+    startupAdmissionController.visibilityReturned()
+    return
+  }
   dashboardPageRefreshScheduler.visibilityChanged()
 })
 
 recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'attach-app')
+setAppStartupFilterIntent(
+  readFilterFocusPendingInput(filterInputFromSearch(window.location.search))
+)
 attachApp()
 
-const runInitializeApp = Effect.fn('app.initialize')(function*() {
-  recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'initialize-start')
-  const historyRangeFiber = yield* loadHistoryRangePreferenceEffect().pipe(
-    Effect.forkChild({ startImmediately: true })
-  )
-  const cacheStartedAt = startupDebugNow()
-  const cachedStartup = yield* loadCachedDashboardStartupEffect()
-  seedOpenTabsTitleHistory(cachedStartup?.snapshot.dashboard.realTabs ?? [])
-  recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'startup-cache-loaded', {
-    startedAt: cacheStartedAt,
-    detail: {
-      localStateHit: !!cachedStartup?.localState,
-      snapshotHit: !!cachedStartup?.snapshot
-    }
-  })
-  const cachedStartupSnapshot = cachedStartup?.snapshot ?? null
-  const currentTabOutPageFiber = cachedStartupSnapshot
-    ? yield* readCurrentTabOutPageForStartup().pipe(Effect.forkChild({ startImmediately: true }))
-    : null
-  const localStateStartedAt = startupDebugNow()
-  const localState = cachedStartup?.localState ?? (yield* loadDashboardLocalStateEffect())
-  recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'local-state-ready', {
-    ...(cachedStartup?.localState ? {} : { startedAt: localStateStartedAt }),
-    detail: { source: cachedStartup?.localState ? 'startup-cache' : 'chrome-storage' }
-  })
-  const historyRange = yield* Fiber.join(historyRangeFiber)
-  const currentTabOutPage = currentTabOutPageFiber
-    ? yield* Fiber.join(currentTabOutPageFiber)
-    : null
-  const fallbackStartupSnapshot = cachedStartupSnapshot && currentTabOutPage
-    ? addCurrentTabOutPageToStartupSnapshot(cachedStartupSnapshot, currentTabOutPage, localState)
-    : cachedStartupSnapshot
-  const startupSnapshot = fallbackStartupSnapshot
-  recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'startup-update-ready', {
-    detail: {
-      localStateReady: !!localState,
-      startupSnapshot: !!startupSnapshot
-    }
-  })
-  applyAppStartup({ historyRange, localState, snapshot: startupSnapshot })
+setAppStartupMaterialChangeHandler((delayMs) => startupAdmissionController.materialChanged(delayMs))
+let stopClosedTabUpdates: (() => void) | null = null
+const stopClosedGhostDismissalSync = subscribeClosedGhostDismissals((dismissals) => {
+  if (startupAdmissionController.read().phase === 'ready') {
+    updateAppStartupClosedGhostDismissals(dismissals)
+    return
+  }
+  startupAdmissionController.materialChanged()
 })
-
-void appRuntime.runPromise(runInitializeApp())
+startupAdmissionController.subscribe(() => {
+  const state = startupAdmissionController.read()
+  if (state.phase === 'capturing') {
+    if (state.loadingVisible) publishAppStartupLoading()
+    else resetAppStartupShell()
+    return
+  }
+  if (state.phase === 'failed') {
+    publishAppStartupFailure(() => {
+      resetAppStartupShell()
+      startupAdmissionController.retry()
+    })
+    return
+  }
+  if (state.phase === 'ready') {
+    // Install steady-state session updates in the same task that admits the
+    // frame. Pre-ready events invalidate capture; no independently fetched
+    // closed-tab result can overtake the admitted generation.
+    stopClosedTabUpdates ??= appDashboardStore.startClosedTabUpdates()
+    recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'startup-frame-ready', {
+      detail: {
+        closedTabs: state.value.snapshot.closedTabs.length,
+        domainGroups: state.value.snapshot.dashboard.domainGroups.length,
+        realTabs: state.value.snapshot.dashboard.realTabs.length,
+        source: state.value.source,
+        workingSet: state.value.snapshot.workingSet.items.length
+      }
+    })
+    applyAppStartup(state.value)
+  }
+})
+recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'initialize-start')
+startupAdmissionController.start()
 
 window.addEventListener('pagehide', (event) => {
   if (event.persisted) return
+  setAppStartupMaterialChangeHandler(null)
+  stopClosedTabUpdates?.()
+  stopClosedGhostDismissalSync()
+  startupAdmissionController.dispose()
   void appRuntime.dispose()
 })

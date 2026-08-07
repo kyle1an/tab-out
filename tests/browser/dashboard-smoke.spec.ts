@@ -182,9 +182,11 @@ test('dashboard attaches before storage resolves and fills startup surfaces atom
   await page.addInitScript(() => {
     const startupCommit = {
       firstContent: null as null | {
+        dedupeText: string
         domainCards: number
         headerStats: string
         historyEntries: number
+        historyOrder: string[]
       }
     }
     ;(window as typeof window & { __tabOutStartupCommit: typeof startupCommit })
@@ -193,16 +195,21 @@ test('dashboard attaches before storage resolves and fills startup surfaces atom
     new MutationObserver(() => {
       if (startupCommit.firstContent) return
       const domainCards = document.querySelectorAll('[data-tabout="domain-card"]').length
-      if (domainCards === 0) return
+      const headerStats = document.querySelector('[data-tabout="header-stats"]')?.textContent ?? ''
+      const historyRows = Array.from(document.querySelectorAll<HTMLElement>('[data-tabout="activation-history-entry"]'))
+      const dedupeText = document.querySelector('[data-tabout="header-stats"] button')?.textContent?.trim() ?? ''
+      if (domainCards === 0 && !headerStats.trim() && historyRows.length === 0 && !dedupeText) return
       startupCommit.firstContent = {
+        dedupeText,
         domainCards,
-        headerStats: document.querySelector('[data-tabout="header-stats"]')?.textContent ?? '',
-        historyEntries: document.querySelectorAll('[data-tabout="activation-history-entry"]').length
+        headerStats,
+        historyEntries: historyRows.length,
+        historyOrder: historyRows.map((row) => row.dataset.taboutLayoutKey ?? '')
       }
     }).observe(document, { childList: true, subtree: true })
   })
 
-  await page.goto('/tests/fixtures/dashboard-resize.html?focusFilter=1&slowInitialStorage=1')
+  await page.goto('/tests/fixtures/dashboard-resize.html?focusFilter=1&slowInitialStorage=1&staleLegacyStartup=1')
   const filterInput = page.locator('[data-tabout="filter-query"] input')
   await expect(filterInput).toBeFocused()
   await filterInput.fill('early')
@@ -224,7 +231,8 @@ test('dashboard attaches before storage resolves and fills startup surfaces atom
     return {
       filter: rect('[data-tabout="filter-query"]'),
       header: rect('.pinned-top'),
-      sourceSwitch: rect('[data-tabout="source-switch"]')
+      sourceSwitch: rect('[data-tabout="source-switch"]'),
+      startupStatus: rect('[data-tabout="dashboard-startup-status"]')
     }
   })
 
@@ -232,6 +240,7 @@ test('dashboard attaches before storage resolves and fills startup surfaces atom
     cards: document.querySelectorAll('[data-tabout="domain-card"]').length,
     clearVisible: getComputedStyle(document.querySelector<HTMLElement>('[data-tabout-part="clear-button"]')!).display !== 'none',
     headerShadowOpacity: Number(getComputedStyle(document.querySelector<HTMLElement>('.pinned-top')!, '::after').opacity),
+    startupStatus: document.querySelector('[data-tabout="dashboard-startup-status"]')?.textContent ?? '',
     storagePending: (window as typeof window & { __tabOutInitialStoragePending?: boolean })
       .__tabOutInitialStoragePending === true
   }))
@@ -239,8 +248,10 @@ test('dashboard attaches before storage resolves and fills startup surfaces atom
     cards: 0,
     clearVisible: true,
     headerShadowOpacity: 0,
+    startupStatus: '',
     storagePending: true
   })
+  await expect(page.locator('[data-tabout="dashboard-startup-status"]')).toHaveText('Loading…')
   await page.getByRole('button', { name: 'Clear filter' }).click()
   await expect(filterInput).toHaveValue('')
 
@@ -252,17 +263,23 @@ test('dashboard attaches before storage resolves and fills startup surfaces atom
   const firstContent = await page.evaluate(() =>
     (window as typeof window & {
       __tabOutStartupCommit: {
-        firstContent: {
-          domainCards: number
-          headerStats: string
-          historyEntries: number
+          firstContent: {
+            dedupeText: string
+            domainCards: number
+            headerStats: string
+            historyEntries: number
+            historyOrder: string[]
         }
       }
     }).__tabOutStartupCommit.firstContent
   )
   expect(firstContent.domainCards).toBeGreaterThan(0)
+  expect(firstContent.dedupeText).toBe('')
   expect(firstContent.headerStats).toMatch(/\d+(?:\/\d+)? tabs/)
   expect(firstContent.historyEntries).toBeGreaterThan(0)
+  expect(await page.locator('[data-tabout="activation-history-entry"]').evaluateAll((rows) =>
+    rows.map((row) => (row as HTMLElement).dataset.taboutLayoutKey ?? '')
+  )).toEqual(firstContent.historyOrder)
   expect(await page.evaluate(() => {
     function rect(selector: string) {
       const bounds = document.querySelector(selector)?.getBoundingClientRect()
@@ -277,12 +294,94 @@ test('dashboard attaches before storage resolves and fills startup surfaces atom
     return {
       filter: rect('[data-tabout="filter-query"]'),
       header: rect('.pinned-top'),
-      sourceSwitch: rect('[data-tabout="source-switch"]')
+      sourceSwitch: rect('[data-tabout="source-switch"]'),
+      startupStatus: rect('[data-tabout="dashboard-startup-status"]')
     }
   })).toEqual(shellGeometry)
 })
 
-test('late startup state does not overwrite an early completed Bookmarks switch', async ({ page }) => {
+test('a pre-app filter admits its companion results in the first dynamic frame', async ({ page }) => {
+  await page.addInitScript(() => {
+    const observed = { firstFrameHasBookmark: null as boolean | null }
+    ;(window as typeof window & { __tabOutFilteredStartup: typeof observed })
+      .__tabOutFilteredStartup = observed
+    new MutationObserver(() => {
+      if (observed.firstFrameHasBookmark !== null) return
+      if (document.querySelectorAll('[data-tabout="domain-card"]').length === 0) return
+      observed.firstFrameHasBookmark = document.querySelector(
+        '[data-tabout="domain-card"][data-tabout-domain="bookmark-smoke-0001.test"]'
+      ) !== null
+    }).observe(document, { childList: true, subtree: true })
+  })
+
+  await page.goto('/tests/fixtures/dashboard-resize.html?focusFilter=1&filter=Bookmark%201&initialBookmarks=3')
+  await expect.poll(() => page.evaluate(() =>
+    (window as typeof window & {
+      __tabOutFilteredStartup: { firstFrameHasBookmark: boolean | null }
+    }).__tabOutFilteredStartup.firstFrameHasBookmark
+  )).toBe(true)
+})
+
+test('startup coalesces rapid filter input before its browser History read', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?slowInitialStorage=1')
+  await expect.poll(() => page.evaluate(() =>
+    (window as typeof window & { __tabOutInitialStoragePending?: boolean })
+      .__tabOutInitialStoragePending === true
+  )).toBe(true)
+
+  const filterInput = page.locator('[data-tabout="filter-query"] input')
+  await filterInput.fill('a')
+  await filterInput.fill('al')
+  await filterInput.fill('alp')
+  await filterInput.fill('alpha')
+
+  await expect(page.locator('[data-tabout="domain-card"]').first()).toBeVisible()
+  expect(await page.evaluate(() =>
+    (window as typeof window & { __tabOutSmokeHistorySearchQueries: string[] })
+      .__tabOutSmokeHistorySearchQueries
+  )).toEqual(['alpha'])
+})
+
+test('filter recovery from startup failure stays coalesced before History reads', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?failFirstStartupStorage=1')
+  await expect(page.locator('[data-tabout="dashboard-startup-status"]'))
+    .toContainText('Couldn’t load dashboard')
+
+  const filterInput = page.locator('[data-tabout="filter-query"] input')
+  await filterInput.fill('a')
+  await filterInput.fill('al')
+  await filterInput.fill('alp')
+  await filterInput.fill('alpha')
+
+  await expect(page.locator('[data-tabout="domain-card"]').first()).toBeVisible()
+  expect(await page.evaluate(() =>
+    (window as typeof window & { __tabOutSmokeHistorySearchQueries: string[] })
+      .__tabOutSmokeHistorySearchQueries
+  )).toEqual(['alpha'])
+})
+
+test('startup failure keeps the shell truthful and Retry admits one fresh frame', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?failFirstStartupStorage=1')
+
+  const status = page.locator('[data-tabout="dashboard-startup-status"]')
+  const statusBounds = await status.boundingBox()
+  expect(statusBounds).not.toBeNull()
+  await expect(status).toHaveText('Loading…')
+  await expect(status).toContainText('Couldn’t load dashboard')
+  await expect(page.locator('[data-tabout="domain-card"]')).toHaveCount(0)
+  await expect(page.locator('[data-tabout="activation-history-entry"]')).toHaveCount(0)
+  await expect(page.locator('[data-tabout="header-stats"] button')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Retry' }).click()
+  await expect(page.locator('[data-tabout="domain-card"]').first()).toBeVisible()
+  await expect(status).toHaveText('')
+  const readyStatusBounds = await status.boundingBox()
+  expect(readyStatusBounds).not.toBeNull()
+  expect(Math.abs(readyStatusBounds!.y - statusBounds!.y)).toBeLessThan(1)
+  expect(Math.abs(readyStatusBounds!.height - statusBounds!.height)).toBeLessThan(1)
+})
+
+test('a source choice made in the shell selects the admitted startup frame', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html?slowInitialStorage=1')
   await expect.poll(() => page.evaluate(() =>
     (window as typeof window & { __tabOutInitialStoragePending?: boolean })
@@ -291,6 +390,14 @@ test('late startup state does not overwrite an early completed Bookmarks switch'
   await page.evaluate(() => {
     ;(window as typeof window & { __tabOutSmokeSetBookmarks?: (count: number) => void })
       .__tabOutSmokeSetBookmarks?.(3)
+    const observed = { contentSources: [] as string[] }
+    ;(window as typeof window & { __tabOutStartupSourceFrames: typeof observed })
+      .__tabOutStartupSourceFrames = observed
+    new MutationObserver(() => {
+      if (document.querySelectorAll('[data-tabout="domain-card"]').length === 0) return
+      const source = document.querySelector<HTMLElement>('[data-tabout="dashboard-shell"]')?.dataset.source ?? ''
+      if (source && observed.contentSources.at(-1) !== source) observed.contentSources.push(source)
+    }).observe(document.getElementById('appRoot')!, { childList: true, subtree: true })
   })
 
   const bookmarksSource = page.getByRole('tab', { name: 'Bookmarks' })
@@ -299,34 +406,18 @@ test('late startup state does not overwrite an early completed Bookmarks switch'
   const bookmarkCard = page.locator(
     '[data-tabout="domain-card"][data-tabout-domain="bookmark-smoke-0001.test"]'
   )
-  await expect(bookmarkCard).toHaveCount(1)
-  await page.evaluate(() => {
-    const observed = { disappeared: false }
-    ;(window as typeof window & { __tabOutEarlyBookmarkState: typeof observed })
-      .__tabOutEarlyBookmarkState = observed
-    new MutationObserver(() => {
-      const bookmarkSelected = document.querySelector(
-        '[data-tabout="source-switch"] [data-active]'
-      )?.textContent?.trim() === 'Bookmarks'
-      const bookmarkVisible = document.querySelector(
-        '[data-tabout="domain-card"][data-tabout-domain="bookmark-smoke-0001.test"]'
-      ) !== null
-      if (bookmarkSelected && !bookmarkVisible) observed.disappeared = true
-    }).observe(document.getElementById('appRoot')!, { childList: true, subtree: true })
-  })
+  await expect(bookmarkCard).toHaveCount(0)
 
   await expect.poll(() => page.evaluate(() =>
     (window as typeof window & { __tabOutInitialStoragePending?: boolean })
       .__tabOutInitialStoragePending === false
   )).toBe(true)
-  await page.waitForTimeout(1_500)
-
+  await expect(bookmarkCard).toHaveCount(1)
   expect(await page.evaluate(() =>
     (window as typeof window & {
-      __tabOutEarlyBookmarkState: { disappeared: boolean }
-    }).__tabOutEarlyBookmarkState.disappeared
-  )).toBe(false)
-  await expect(bookmarkCard).toHaveCount(1)
+      __tabOutStartupSourceFrames: { contentSources: string[] }
+    }).__tabOutStartupSourceFrames.contentSources
+  )).toEqual(['bookmarks'])
 })
 
 const RUN_HISTORY_SCROLLBAR_OVERLAP_ONLY = process.env.HISTORY_SCROLLBAR_OVERLAP_ONLY === '1'
