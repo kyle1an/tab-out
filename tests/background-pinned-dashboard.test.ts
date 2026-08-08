@@ -1884,7 +1884,8 @@ test('native placement bridge directly places a requested window without focusin
     type: 'response',
     requestId: 'hs-bridge-test-1',
     status: 'accepted',
-    browserWindowId: 2
+    browserWindowId: 2,
+    creationToken: 'hs-bridge-test-1'
   }])
 })
 

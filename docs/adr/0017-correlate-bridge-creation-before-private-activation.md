@@ -23,11 +23,13 @@ test even though it was not created by the bridge request.
 - The extension uses the already validated request ID as a unique creation
   token, places it in the Tab Out bootstrap document's `tabOutPlacement` query
   parameter, and returns the exact `browserWindowId` received from
-  `chrome.windows.create` in the accepted creation response. Hammerspoon retains
-  its generated request ID as the known token instead of requiring the response
-  to echo it. Both routes use this tokenized extension document; the filter
-  route also starts with `focusFilter=1`, while the new-page route focuses
-  Chrome's address bar after exact activation.
+  `chrome.windows.create` in the accepted creation response. Protocol v3 also
+  keeps its original request-ID token echo so an already-loaded v3 Hammerspoon
+  client remains compatible during an extension-only reload. Current
+  Hammerspoon retains its generated request ID as the known token instead of
+  depending on that echo. Both routes use this tokenized extension document;
+  the filter route also starts with `focusFilter=1`, while the new-page route
+  focuses Chrome's address bar after exact activation.
 - Hammerspoon excludes every native Chrome window present before the request
   and considers only standard, non-minimized candidates on the captured display
   and active Space. A window-created event wakes matching but never proves

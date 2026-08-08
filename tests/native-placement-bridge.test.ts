@@ -69,7 +69,7 @@ function createRequest(overrides: Record<string, unknown> = {}) {
   }
 }
 
-test('native placement bridge creates the requested inactive window at target bounds', async () => {
+test('native placement bridge preserves the v3 token echo for staggered reloads', async () => {
   const { chromeApi, createCalls } = createChromeApi()
   const creationToken = 'hs:1800000000000:filter'
 
@@ -82,7 +82,8 @@ test('native placement bridge creates the requested inactive window at target bo
     type: 'response',
     requestId: creationToken,
     status: 'accepted',
-    browserWindowId: 91
+    browserWindowId: 91,
+    creationToken
   })
   assert.deepEqual(createCalls, [{
     type: 'normal',
@@ -109,7 +110,8 @@ test('native placement bridge creates new-page requests through a uniquely token
     type: 'response',
     requestId: creationToken,
     status: 'accepted',
-    browserWindowId: 91
+    browserWindowId: 91,
+    creationToken
   })
   assert.deepEqual(createCalls, [{
     type: 'normal',
