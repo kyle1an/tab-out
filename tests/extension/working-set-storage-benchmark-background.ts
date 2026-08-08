@@ -27,8 +27,35 @@ import {
   type WorkingSetStorageBenchmarkTimings
 } from './working-set-storage-benchmark-protocol.js'
 
+const realTabsProofEnabled =
+  typeof __TAB_OUT_WORKING_SET_REAL_TABS_PROOF__ !== 'undefined' &&
+  __TAB_OUT_WORKING_SET_REAL_TABS_PROOF__
 const selectedBackend: WorkingSetStorageBenchmarkBackend = benchmarkBackend
 const activityStorage = backgroundRuntime.runSync(WorkingSetActivityStorage)
+const workerStartedAtEpochMs = realTabsProofEnabled
+  ? performance.timeOrigin + performance.now()
+  : 0
+let activeTabUrlChangeCount = 0
+let tabActivatedCount = 0
+let windowFocusChangedCount = 0
+let tabReplacedCount = 0
+
+if (realTabsProofEnabled) {
+  chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+    if (tab.active && changeInfo.url !== undefined) {
+      activeTabUrlChangeCount += 1
+    }
+  })
+  chrome.tabs.onActivated.addListener(() => {
+    tabActivatedCount += 1
+  })
+  chrome.windows.onFocusChanged.addListener(() => {
+    windowFocusChangedCount += 1
+  })
+  chrome.tabs.onReplaced.addListener(() => {
+    tabReplacedCount += 1
+  })
+}
 
 class WorkingSetStorageBenchmarkControllerError extends Schema.TaggedErrorClass<WorkingSetStorageBenchmarkControllerError>()(
   'WorkingSetStorageBenchmarkControllerError',
@@ -103,6 +130,16 @@ const captureDiagnostics = Effect.fn(
       lastMutationLogicalBytes: selectedBackend.lastMutationLogicalBytes(),
       lastMutationPhysicalWrites: selectedBackend.lastMutationPhysicalWrites(),
       writeInvocationCount: selectedBackend.writeInvocationCount(),
+      readInvocationCount: selectedBackend.readInvocationCount?.() ?? 0,
+      lastReadStartedAtEpochMs:
+        selectedBackend.lastReadStartedAtEpochMs?.() ?? null,
+      lastReadFinishedAtEpochMs:
+        selectedBackend.lastReadFinishedAtEpochMs?.() ?? null,
+      workerStartedAtEpochMs,
+      activeTabUrlChangeCount,
+      tabActivatedCount,
+      windowFocusChangedCount,
+      tabReplacedCount,
       lastReadDiagnostics: selectedBackend.lastReadDiagnostics?.() ?? null
     }),
     catch: (cause) => WorkingSetStorageBenchmarkControllerError.make({
@@ -315,6 +352,10 @@ const runCommand = Effect.fn('WorkingSetStorageBenchmark.runCommand')(
             cause
           })
         })
+        activeTabUrlChangeCount = 0
+        tabActivatedCount = 0
+        windowFocusChangedCount = 0
+        tabReplacedCount = 0
         const commitFinishedAt = performance.now()
         return {
           operation: message.operation,

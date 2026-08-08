@@ -737,7 +737,9 @@ test('explores cold Working Set reads without selecting a backend', async ({}, t
     description: 'This benchmark records evidence but cannot select a storage backend.'
   })
 
-  await using build = await buildWorkingSetStorageBenchmarkArtifacts()
+  await using build = await buildWorkingSetStorageBenchmarkArtifacts({
+    instrumentation: 'cold-read'
+  })
   const running: RunningVariant[] = []
   const cleanupErrors: string[] = []
   let coldReadSamples: readonly ColdReadSample[] = []
@@ -815,9 +817,11 @@ test('explores cold Working Set reads without selecting a backend', async ({}, t
     artifacts: {
       schemaVersion: build.sidecar.schemaVersion,
       createdAt: build.sidecar.createdAt,
+      instrumentation: build.sidecar.instrumentation,
       trackedExtension: build.sidecar.trackedExtension,
       variants: build.sidecar.variants.map((artifact) => ({
         variant: artifact.variant,
+        instrumentation: artifact.instrumentation,
         hashes: artifact.hashes,
         selectedBackendModule: artifact.selectedBackendModule
       }))

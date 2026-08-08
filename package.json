@@ -33,6 +33,7 @@
     "test:extension:retention-benchmark": "pnpm chrome-support:check && pnpm build && playwright test --config tests/playwright.extension-benchmark.config.ts tests/extension/retention-storage.benchmark.spec.ts",
     "test:extension:working-set-storage-benchmark": "pnpm chrome-support:check && playwright test --config tests/playwright.extension-benchmark.config.ts tests/extension/working-set-storage.benchmark.spec.ts",
     "test:extension:working-set-storage-cold-read-exploration": "pnpm chrome-support:check && playwright test --config tests/playwright.extension-benchmark.config.ts tests/extension/working-set-storage-cold-read.benchmark.spec.ts",
+    "test:extension:working-set-storage-real-tabs-exploration": "pnpm chrome-support:check && playwright test --config tests/playwright.extension-benchmark.config.ts tests/extension/working-set-storage-real-tabs.benchmark.spec.ts",
     "verify:bundle": "git diff --exit-code -- extension/dist",
     "verify:compiler": "node scripts/react-compiler-check.ts",
     "lint:tailwind": "node scripts/check-tailwind-diagnostics.ts",

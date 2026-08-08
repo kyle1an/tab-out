@@ -9,7 +9,9 @@ import {
   resolveWorkingSetBuildSelection,
   workingSetBackgroundEntryPath,
   workingSetBenchmarkAliases,
-  workingSetBenchmarkModuleGraphPlugin
+  workingSetBenchmarkModuleGraphPlugin,
+  workingSetReadDiagnosticsEnabled,
+  workingSetRealTabsProofEnabled
 } from './scripts/working-set-benchmark-build-config.js'
 import { CHROME_BUILD_TARGET } from './src/extension/chrome-support.js'
 
@@ -45,6 +47,14 @@ const buildInputs: Record<string, string> =
         }
 
 export default defineConfig({
+  define: {
+    __TAB_OUT_WORKING_SET_READ_DIAGNOSTICS__: JSON.stringify(
+      workingSetReadDiagnosticsEnabled(workingSetBuildSelection)
+    ),
+    __TAB_OUT_WORKING_SET_REAL_TABS_PROOF__: JSON.stringify(
+      workingSetRealTabsProofEnabled(workingSetBuildSelection)
+    )
+  },
   plugins: [
     tailwindcss(),
     react(),

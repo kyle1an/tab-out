@@ -28,15 +28,18 @@ import { Effect, Schema } from 'effect'
 import {
   assertWorkingSetBackendModuleGraph,
   resolveWorkingSetBuildSelection,
+  workingSetBenchmarkInstrumentationSchema,
   workingSetBenchmarkBackendModulePath,
   workingSetBenchmarkSelectorModulePath,
   WORKING_SET_BENCHMARK_BACKEND_ENV,
   WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV,
+  WORKING_SET_BENCHMARK_INSTRUMENTATION_ENV,
   WORKING_SET_BENCHMARK_NONCE_ENV,
   WORKING_SET_BENCHMARK_ROOT_MARKER,
   WORKING_SET_BENCHMARK_TEMP_PREFIX,
   WORKING_SET_BENCHMARK_VARIANTS,
   type WorkingSetBenchmarkBuildSelection,
+  type WorkingSetBenchmarkInstrumentation,
   type WorkingSetBenchmarkVariant
 } from './working-set-benchmark-build-config.js'
 
@@ -69,6 +72,7 @@ const generatedExtensionEntries = new Set([
 const moduleGraphSchema = Schema.Struct({
   schemaVersion: Schema.Literals([1]),
   variant: Schema.Literals(WORKING_SET_BENCHMARK_VARIANTS),
+  instrumentation: workingSetBenchmarkInstrumentationSchema,
   selectedBackendModule: Schema.String,
   includedBackendModules: Schema.Array(Schema.String),
   moduleIds: Schema.Array(Schema.String)
@@ -87,6 +91,7 @@ export interface WorkingSetBenchmarkArtifactHashes {
 export interface WorkingSetBenchmarkArtifactSidecar {
   readonly schemaVersion: 1
   readonly variant: WorkingSetBenchmarkVariant
+  readonly instrumentation: WorkingSetBenchmarkInstrumentation
   readonly extensionDirectory: string
   readonly controllerPage: string
   readonly moduleGraphPath: string
@@ -99,6 +104,7 @@ export interface WorkingSetBenchmarkBuildSidecar {
   readonly benchmarkRoot: string
   readonly buildNonce: string
   readonly createdAt: string
+  readonly instrumentation: WorkingSetBenchmarkInstrumentation
   readonly trackedExtension: {
     readonly beforeSha256: string
     readonly afterSha256: string
@@ -110,6 +116,11 @@ export interface WorkingSetBenchmarkBuildResult extends AsyncDisposable {
   readonly sidecar: WorkingSetBenchmarkBuildSidecar
   readonly sidecarPath: string
   readonly dispose: () => Promise<void>
+}
+
+export interface WorkingSetBenchmarkBuildOptions {
+  readonly instrumentation?: WorkingSetBenchmarkInstrumentation
+  readonly repositoryRoot?: string
 }
 
 class WorkingSetBenchmarkBuildError extends Schema.TaggedErrorClass<WorkingSetBenchmarkBuildError>()(
@@ -281,6 +292,7 @@ function runExtensionBuild(
         ...process.env,
         [WORKING_SET_BENCHMARK_BACKEND_ENV]: selection.variant,
         [WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV]: selection.extensionDirectory,
+        [WORKING_SET_BENCHMARK_INSTRUMENTATION_ENV]: selection.instrumentation,
         [WORKING_SET_BENCHMARK_NONCE_ENV]: nonce
       },
       stdio: 'inherit'
@@ -311,6 +323,7 @@ async function readAndValidateModuleGraph(
   }
   if (
     parsed.variant !== selection.variant ||
+    parsed.instrumentation !== selection.instrumentation ||
     parsed.selectedBackendModule !== selection.backendModulePath
   ) {
     throw new Error(
@@ -329,6 +342,7 @@ async function buildVariant(
   benchmarkRoot: string,
   nonce: string,
   variant: WorkingSetBenchmarkVariant,
+  instrumentation: WorkingSetBenchmarkInstrumentation,
   commonHashes: Pick<
     WorkingSetBenchmarkArtifactHashes,
     'lockfileSha256' | 'workloadFixtureSha256'
@@ -351,6 +365,7 @@ async function buildVariant(
   const selectionEnvironment: NodeJS.ProcessEnv = {
     [WORKING_SET_BENCHMARK_BACKEND_ENV]: variant,
     [WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV]: extensionDirectory,
+    [WORKING_SET_BENCHMARK_INSTRUMENTATION_ENV]: instrumentation,
     [WORKING_SET_BENCHMARK_NONCE_ENV]: nonce
   }
   const selection = resolveWorkingSetBuildSelection(
@@ -374,6 +389,7 @@ async function buildVariant(
   const artifact: WorkingSetBenchmarkArtifactSidecar = {
     schemaVersion: 1,
     variant,
+    instrumentation: selection.instrumentation,
     extensionDirectory: selection.extensionDirectory,
     controllerPage: WORKING_SET_BENCHMARK_CONTROLLER_PAGE,
     moduleGraphPath: selection.moduleGraphPath,
@@ -415,7 +431,8 @@ async function assertBenchmarkSourcesExist(repositoryRoot: string): Promise<void
 }
 
 async function buildWorkingSetStorageBenchmarkArtifactsUnsafe(
-  repositoryRootInput: string
+  repositoryRootInput: string,
+  instrumentation: WorkingSetBenchmarkInstrumentation
 ): Promise<WorkingSetBenchmarkBuildResult> {
   const repositoryRoot = await realpath(repositoryRootInput)
   const trackedExtensionBefore = await trackedExtensionSha256(repositoryRoot)
@@ -448,6 +465,7 @@ async function buildWorkingSetStorageBenchmarkArtifactsUnsafe(
         benchmarkRoot,
         nonce,
         variant,
+        instrumentation,
         commonHashes
       ))
     }
@@ -462,6 +480,7 @@ async function buildWorkingSetStorageBenchmarkArtifactsUnsafe(
       benchmarkRoot,
       buildNonce: nonce,
       createdAt: new Date().toISOString(),
+      instrumentation,
       trackedExtension: {
         beforeSha256: trackedExtensionBefore,
         afterSha256: trackedExtensionAfter
@@ -512,11 +531,20 @@ async function buildWorkingSetStorageBenchmarkArtifactsUnsafe(
 }
 
 export function buildWorkingSetStorageBenchmarkArtifacts(
-  repositoryRoot = fileURLToPath(new URL('../', import.meta.url))
+  input: string | WorkingSetBenchmarkBuildOptions = {}
 ): Promise<WorkingSetBenchmarkBuildResult> {
+  const repositoryRoot = typeof input === 'string'
+    ? input
+    : input.repositoryRoot ?? fileURLToPath(new URL('../', import.meta.url))
+  const instrumentation = typeof input === 'string'
+    ? 'none'
+    : input.instrumentation ?? 'none'
   return Effect.runPromise(
     Effect.tryPromise({
-      try: () => buildWorkingSetStorageBenchmarkArtifactsUnsafe(repositoryRoot),
+      try: () => buildWorkingSetStorageBenchmarkArtifactsUnsafe(
+        repositoryRoot,
+        instrumentation
+      ),
       catch: (cause) => benchmarkBuildError(
         'build disposable Working Set storage benchmark artifacts',
         cause
@@ -559,6 +587,7 @@ if (import.meta.main) {
     yield* Effect.sync(() => console.log(JSON.stringify({
       disposed: true,
       trackedExtensionSha256: result.sidecar.trackedExtension.afterSha256,
+      instrumentation: result.sidecar.instrumentation,
       variants: result.sidecar.variants.map(({ variant, hashes }) => ({
         variant,
         artifactTreeSha256: hashes.artifactTreeSha256,

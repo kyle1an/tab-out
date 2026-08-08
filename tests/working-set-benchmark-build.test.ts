@@ -24,18 +24,24 @@ import {
   workingSetBenchmarkBackendModulePath,
   workingSetBenchmarkSelectorModulePath,
   workingSetProductionBackendModulePath,
+  workingSetReadDiagnosticsEnabled,
+  workingSetRealTabsProofEnabled,
   WORKING_SET_BENCHMARK_BACKEND_ENV,
   WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV,
+  WORKING_SET_BENCHMARK_INSTRUMENTATION_ENV,
   WORKING_SET_BENCHMARK_NONCE_ENV,
   WORKING_SET_BENCHMARK_ROOT_MARKER,
   WORKING_SET_BENCHMARK_TEMP_PREFIX,
   WORKING_SET_BENCHMARK_VARIANTS,
-  type WorkingSetBenchmarkBuildSelection
+  type WorkingSetBenchmarkBuildSelection,
+  type WorkingSetBenchmarkInstrumentation
 } from '../scripts/working-set-benchmark-build-config.js'
 
 const repositoryRoot = realpathSync(process.cwd())
 
-function makeCurrentBenchmarkSelection(): {
+function makeCurrentBenchmarkSelection(
+  instrumentation?: WorkingSetBenchmarkInstrumentation
+): {
   readonly selection: WorkingSetBenchmarkBuildSelection
   [Symbol.dispose](): void
 } {
@@ -57,6 +63,9 @@ function makeCurrentBenchmarkSelection(): {
   const selection = resolveWorkingSetBuildSelection(repositoryRoot, {
     [WORKING_SET_BENCHMARK_BACKEND_ENV]: 'current',
     [WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV]: extensionDirectory,
+    ...(instrumentation === undefined
+      ? {}
+      : { [WORKING_SET_BENCHMARK_INSTRUMENTATION_ENV]: instrumentation }),
     [WORKING_SET_BENCHMARK_NONCE_ENV]: nonce
   })
   assert.equal(selection.mode, 'benchmark')
@@ -79,6 +88,7 @@ test('normal builds retain the production Working Set paths and no benchmark ali
     ),
     distDirectory: resolve(repositoryRoot, 'extension/dist'),
     extensionDirectory: resolve(repositoryRoot, 'extension'),
+    instrumentation: 'none',
     variant: 'current'
   })
   assert.equal(
@@ -86,6 +96,38 @@ test('normal builds retain the production Working Set paths and no benchmark ali
     resolve(repositoryRoot, 'src/extension/background.ts')
   )
   assert.deepEqual(workingSetBenchmarkAliases(selection), [])
+  assert.equal(workingSetReadDiagnosticsEnabled(selection), false)
+  assert.equal(workingSetRealTabsProofEnabled(selection), false)
+})
+
+test('real-tab proof instrumentation is opt-in and benchmark-only', () => {
+  using canonical = makeCurrentBenchmarkSelection()
+  assert.equal(canonical.selection.instrumentation, 'none')
+  assert.equal(workingSetReadDiagnosticsEnabled(canonical.selection), false)
+  assert.equal(workingSetRealTabsProofEnabled(canonical.selection), false)
+
+  using coldRead = makeCurrentBenchmarkSelection('cold-read')
+  assert.equal(coldRead.selection.instrumentation, 'cold-read')
+  assert.equal(workingSetReadDiagnosticsEnabled(coldRead.selection), true)
+  assert.equal(workingSetRealTabsProofEnabled(coldRead.selection), false)
+
+  using realTabs = makeCurrentBenchmarkSelection('real-tabs')
+  assert.equal(realTabs.selection.instrumentation, 'real-tabs')
+  assert.equal(workingSetReadDiagnosticsEnabled(realTabs.selection), true)
+  assert.equal(workingSetRealTabsProofEnabled(realTabs.selection), true)
+
+  assert.throws(
+    () => resolveWorkingSetBuildSelection(repositoryRoot, {
+      [WORKING_SET_BENCHMARK_INSTRUMENTATION_ENV]: 'real-tabs'
+    }),
+    /requires a benchmark build environment/
+  )
+  assert.throws(
+    () => resolveWorkingSetBuildSelection(repositoryRoot, {
+      [WORKING_SET_BENCHMARK_INSTRUMENTATION_ENV]: 'unknown'
+    }),
+    /Unknown Working Set benchmark instrumentation/
+  )
 })
 
 test('benchmark backend paths cover exactly the four compile-time variants', () => {

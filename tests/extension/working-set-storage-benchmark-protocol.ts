@@ -207,6 +207,9 @@ export interface WorkingSetStorageBenchmarkBackend {
   readonly writeInvocationCount: () => number
   readonly lastReadDiagnostics?: () =>
     WorkingSetStorageBenchmarkReadDiagnostics | null
+  readonly readInvocationCount?: () => number
+  readonly lastReadStartedAtEpochMs?: () => number | null
+  readonly lastReadFinishedAtEpochMs?: () => number | null
   readonly failNextMutation: () => void
   readonly corrupt: (
     kind: WorkingSetStorageBenchmarkCorruption,
@@ -236,6 +239,14 @@ export const workingSetStorageBenchmarkDiagnosticsSchema = Schema.Struct({
   lastMutationLogicalBytes: nonNegativeFiniteSchema,
   lastMutationPhysicalWrites: Schema.Array(Schema.String),
   writeInvocationCount: nonNegativeIntSchema,
+  readInvocationCount: nonNegativeIntSchema,
+  lastReadStartedAtEpochMs: Schema.NullOr(nonNegativeFiniteSchema),
+  lastReadFinishedAtEpochMs: Schema.NullOr(nonNegativeFiniteSchema),
+  workerStartedAtEpochMs: nonNegativeFiniteSchema,
+  activeTabUrlChangeCount: nonNegativeIntSchema,
+  tabActivatedCount: nonNegativeIntSchema,
+  windowFocusChangedCount: nonNegativeIntSchema,
+  tabReplacedCount: nonNegativeIntSchema,
   lastReadDiagnostics: Schema.NullOr(
     workingSetStorageBenchmarkReadDiagnosticsSchema
   )

@@ -24,6 +24,8 @@ export const WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV =
   'TAB_OUT_WORKING_SET_BENCHMARK_EXTENSION_DIR'
 export const WORKING_SET_BENCHMARK_NONCE_ENV =
   'TAB_OUT_WORKING_SET_BENCHMARK_NONCE'
+export const WORKING_SET_BENCHMARK_INSTRUMENTATION_ENV =
+  'TAB_OUT_WORKING_SET_BENCHMARK_INSTRUMENTATION'
 export const WORKING_SET_BENCHMARK_TEMP_PREFIX =
   'tab-out-working-set-benchmark-'
 export const WORKING_SET_BENCHMARK_ROOT_MARKER =
@@ -47,6 +49,19 @@ export const WORKING_SET_BENCHMARK_VARIANTS: readonly WorkingSetBenchmarkVariant
   'shards-32',
   'idb'
 ]
+
+export const workingSetBenchmarkInstrumentationSchema = Schema.Literals([
+  'none',
+  'cold-read',
+  'real-tabs'
+])
+
+export type WorkingSetBenchmarkInstrumentation =
+  typeof workingSetBenchmarkInstrumentationSchema.Type
+
+const isWorkingSetBenchmarkInstrumentation = Schema.is(
+  workingSetBenchmarkInstrumentationSchema
+)
 
 const workingSetBenchmarkCandidateFilename: Readonly<
   Record<WorkingSetBenchmarkVariant, string>
@@ -74,6 +89,7 @@ export type WorkingSetProductionBuildSelection = {
   readonly backendModulePath: string
   readonly distDirectory: string
   readonly extensionDirectory: string
+  readonly instrumentation: 'none'
   readonly variant: 'current'
 }
 
@@ -83,6 +99,7 @@ export type WorkingSetBenchmarkBuildSelection = {
   readonly benchmarkRoot: string
   readonly distDirectory: string
   readonly extensionDirectory: string
+  readonly instrumentation: WorkingSetBenchmarkInstrumentation
   readonly moduleGraphPath: string
   readonly variant: WorkingSetBenchmarkVariant
 }
@@ -182,18 +199,37 @@ export function resolveWorkingSetBuildSelection(
     environment,
     WORKING_SET_BENCHMARK_NONCE_ENV
   )
+  const instrumentationInput = requiredEnvironmentValue(
+    environment,
+    WORKING_SET_BENCHMARK_INSTRUMENTATION_ENV
+  )
+  if (
+    instrumentationInput !== undefined &&
+    !isWorkingSetBenchmarkInstrumentation(instrumentationInput)
+  ) {
+    throw new Error(
+      `Unknown Working Set benchmark instrumentation: ${instrumentationInput}`
+    )
+  }
+  const instrumentation = instrumentationInput ?? 'none'
   const benchmarkEnvironmentValues = [backend, extensionDirectoryInput, nonce]
   const suppliedValues = benchmarkEnvironmentValues.filter(
     (value) => value !== undefined
   ).length
 
   if (suppliedValues === 0) {
+    if (instrumentation !== 'none') {
+      throw new Error(
+        'Working Set benchmark instrumentation requires a benchmark build environment'
+      )
+    }
     const extensionDirectory = resolve(repositoryRoot, 'extension')
     return {
       mode: 'production',
       backendModulePath: workingSetProductionBackendModulePath(repositoryRoot),
       distDirectory: resolve(extensionDirectory, 'dist'),
       extensionDirectory,
+      instrumentation: 'none',
       variant: 'current'
     }
   }
@@ -251,12 +287,27 @@ export function resolveWorkingSetBuildSelection(
     benchmarkRoot,
     distDirectory: resolve(extensionDirectory, 'dist'),
     extensionDirectory,
+    instrumentation,
     moduleGraphPath: resolve(
       variantDirectory,
       WORKING_SET_BENCHMARK_MODULE_GRAPH
     ),
     variant: backend
   }
+}
+
+export function workingSetRealTabsProofEnabled(
+  selection: WorkingSetBuildSelection
+): boolean {
+  return selection.mode === 'benchmark' &&
+    selection.instrumentation === 'real-tabs'
+}
+
+export function workingSetReadDiagnosticsEnabled(
+  selection: WorkingSetBuildSelection
+): boolean {
+  return selection.mode === 'benchmark' &&
+    selection.instrumentation !== 'none'
 }
 
 function normalizedModuleId(moduleId: string): string {
@@ -348,6 +399,7 @@ export function workingSetBenchmarkModuleGraphPlugin(
         `${JSON.stringify({
           schemaVersion: 1,
           variant: selection.variant,
+          instrumentation: selection.instrumentation,
           selectedBackendModule: selection.backendModulePath,
           includedBackendModules,
           moduleIds: [...new Set(moduleIds)].sort()

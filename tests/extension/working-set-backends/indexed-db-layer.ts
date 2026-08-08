@@ -28,6 +28,12 @@ import {
   type WorkingSetBenchmarkBackend
 } from './benchmark-backend.js'
 
+const realTabsProofEnabled =
+  typeof __TAB_OUT_WORKING_SET_REAL_TABS_PROOF__ !== 'undefined' &&
+  __TAB_OUT_WORKING_SET_REAL_TABS_PROOF__
+const readDiagnosticsEnabled =
+  typeof __TAB_OUT_WORKING_SET_READ_DIAGNOSTICS__ !== 'undefined' &&
+  __TAB_OUT_WORKING_SET_READ_DIAGNOSTICS__
 export const DISPOSABLE_INDEXED_DB_NAME =
   `${DISPOSABLE_BENCHMARK_PREFIX}:indexed-db`
 export const INDEXED_DB_RECORDS_STORE = 'page-activity'
@@ -81,6 +87,13 @@ const diagnostics = makeMutationDiagnostics()
 const readDiagnostics = makeReadDiagnostics()
 const closeConnections = new Set<() => Promise<void>>()
 let failNextWrite = false
+let readInvocations = 0
+let lastReadStartedAtEpochMs: number | null = null
+let lastReadFinishedAtEpochMs: number | null = null
+
+function epochNow(): number {
+  return performance.timeOrigin + performance.now()
+}
 
 interface MutableReadDiagnostics {
   backendReadTotalMs: number
@@ -154,7 +167,9 @@ function makeIndexedDbBackend(
     currentReadDiagnostics?: MutableReadDiagnostics
   ): Promise<IDBPDatabase<WorkingSetBenchmarkDatabase>> => {
     if (databasePromise !== undefined) return databasePromise
-    const openStartedAt = performance.now()
+    const openStartedAt = currentReadDiagnostics === undefined
+      ? 0
+      : performance.now()
     const pending = openDB<WorkingSetBenchmarkDatabase>(
       DISPOSABLE_INDEXED_DB_NAME,
       DATABASE_VERSION,
@@ -175,7 +190,10 @@ function makeIndexedDbBackend(
         currentReadDiagnostics.openDatabaseMs = elapsedSince(openStartedAt)
       }
       try {
-        const sweepDiagnostics = await sweepExpiredRows(db)
+        const sweepDiagnostics = await sweepExpiredRows(
+          db,
+          currentReadDiagnostics !== undefined
+        )
         if (currentReadDiagnostics !== undefined) {
           currentReadDiagnostics.expiryScanMs = sweepDiagnostics.scanMs
           currentReadDiagnostics.expiryDeleteMs = sweepDiagnostics.deleteMs
@@ -265,8 +283,17 @@ function makeIndexedDbBackend(
 
   return {
     read: () => serialize(async () => {
-      const readStartedAt = performance.now()
-      const currentReadDiagnostics = makeEmptyReadDiagnostics()
+      if (realTabsProofEnabled) {
+        readInvocations += 1
+        lastReadStartedAtEpochMs = epochNow()
+        lastReadFinishedAtEpochMs = null
+      }
+      const currentReadDiagnostics = readDiagnosticsEnabled
+        ? makeEmptyReadDiagnostics()
+        : undefined
+      const readStartedAt = currentReadDiagnostics === undefined
+        ? 0
+        : performance.now()
       const db = await database(currentReadDiagnostics)
       const retainedRange = IDBKeyRange.lowerBound(
         Date.now() - ACTIVITY_RETENTION_MS
@@ -276,28 +303,38 @@ function makeIndexedDbBackend(
         'readonly'
       )
       const retained = transaction.store.index(INDEXED_DB_LAST_EVENT_INDEX)
-      const fetchStartedAt = performance.now()
+      const fetchStartedAt = currentReadDiagnostics === undefined
+        ? 0
+        : performance.now()
       const [storedKeys, storedValues] = await Promise.all([
         retained.getAllKeys(retainedRange),
         retained.getAll(retainedRange),
         transaction.done
       ])
-      currentReadDiagnostics.retainedFetchMs = elapsedSince(fetchStartedAt)
-      currentReadDiagnostics.fetchedRows = storedKeys.length
-      currentReadDiagnostics.fetchedEvents = storedValues.reduce(
-        (total, value) => total + storedEventCount(value),
-        0
-      )
-      const decodeStartedAt = performance.now()
+      if (currentReadDiagnostics !== undefined) {
+        currentReadDiagnostics.retainedFetchMs = elapsedSince(fetchStartedAt)
+        currentReadDiagnostics.fetchedRows = storedKeys.length
+        currentReadDiagnostics.fetchedEvents = storedValues.reduce(
+          (total, value) => total + storedEventCount(value),
+          0
+        )
+      }
+      const decodeStartedAt = currentReadDiagnostics === undefined
+        ? 0
+        : performance.now()
       const recordsByKey = new Map<string, WorkingSetActivityRecord>()
       let validEventCount = 0
       for (const [index, key] of storedKeys.entries()) {
         try {
           const record = decodeIndexedDbEntrySync(key, storedValues[index])
-          const previous = recordsByKey.get(record.key)
+          const previous = currentReadDiagnostics === undefined
+            ? undefined
+            : recordsByKey.get(record.key)
           if (previous !== undefined) validEventCount -= previous.events.length
           recordsByKey.set(record.key, record)
-          validEventCount += record.events.length
+          if (currentReadDiagnostics !== undefined) {
+            validEventCount += record.events.length
+          }
         } catch {
           // A malformed row remains isolated from valid retained siblings.
         }
@@ -306,19 +343,22 @@ function makeIndexedDbBackend(
         version: 1,
         records: Object.fromEntries(recordsByKey)
       }
-      currentReadDiagnostics.decodeMaterializeMs = elapsedSince(decodeStartedAt)
-      currentReadDiagnostics.validRows = recordsByKey.size
-      currentReadDiagnostics.invalidRows = Math.max(
-        0,
-        currentReadDiagnostics.fetchedRows - currentReadDiagnostics.validRows
-      )
-      currentReadDiagnostics.validEvents = validEventCount
-      currentReadDiagnostics.invalidEvents = Math.max(
-        0,
-        currentReadDiagnostics.fetchedEvents - currentReadDiagnostics.validEvents
-      )
-      currentReadDiagnostics.backendReadTotalMs = elapsedSince(readStartedAt)
-      readDiagnostics.record(currentReadDiagnostics)
+      if (currentReadDiagnostics !== undefined) {
+        currentReadDiagnostics.decodeMaterializeMs = elapsedSince(decodeStartedAt)
+        currentReadDiagnostics.validRows = recordsByKey.size
+        currentReadDiagnostics.invalidRows = Math.max(
+          0,
+          currentReadDiagnostics.fetchedRows - currentReadDiagnostics.validRows
+        )
+        currentReadDiagnostics.validEvents = validEventCount
+        currentReadDiagnostics.invalidEvents = Math.max(
+          0,
+          currentReadDiagnostics.fetchedEvents - currentReadDiagnostics.validEvents
+        )
+        currentReadDiagnostics.backendReadTotalMs = elapsedSince(readStartedAt)
+        readDiagnostics.record(currentReadDiagnostics)
+      }
+      if (realTabsProofEnabled) lastReadFinishedAtEpochMs = epochNow()
       return activity
     }),
     write: (change: WorkingSetActivityWrite) => {
@@ -486,6 +526,9 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
   lastMutationPhysicalWrites: diagnostics.lastMutationPhysicalWrites,
   writeInvocationCount: diagnostics.writeInvocationCount,
   lastReadDiagnostics: readDiagnostics.last,
+  readInvocationCount: () => readInvocations,
+  lastReadStartedAtEpochMs: () => lastReadStartedAtEpochMs,
+  lastReadFinishedAtEpochMs: () => lastReadFinishedAtEpochMs,
   failNextMutation() {
     failNextWrite = true
   },
@@ -529,6 +572,9 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
     await closeAllConnections()
     await deleteDB(DISPOSABLE_INDEXED_DB_NAME)
     failNextWrite = false
+    readInvocations = 0
+    lastReadStartedAtEpochMs = null
+    lastReadFinishedAtEpochMs = null
     diagnostics.reset()
     readDiagnostics.reset()
   },
@@ -543,18 +589,19 @@ function createDatabaseSchema(
 }
 
 async function sweepExpiredRows(
-  db: IDBPDatabase<WorkingSetBenchmarkDatabase>
+  db: IDBPDatabase<WorkingSetBenchmarkDatabase>,
+  collectDiagnostics = false
 ): Promise<ExpirySweepDiagnostics> {
-  const scanStartedAt = performance.now()
+  const scanStartedAt = collectDiagnostics ? performance.now() : 0
   const expiredKeys = await db.getAllKeysFromIndex(
     INDEXED_DB_RECORDS_STORE,
     INDEXED_DB_LAST_EVENT_INDEX,
     IDBKeyRange.upperBound(Date.now() - ACTIVITY_RETENTION_MS, true)
   )
-  const scanMs = elapsedSince(scanStartedAt)
+  const scanMs = collectDiagnostics ? elapsedSince(scanStartedAt) : 0
   if (expiredKeys.length === 0) return { scanMs, deleteMs: 0 }
 
-  const deleteStartedAt = performance.now()
+  const deleteStartedAt = collectDiagnostics ? performance.now() : 0
   try {
     const transaction = db.transaction(
       INDEXED_DB_RECORDS_STORE,
@@ -568,7 +615,7 @@ async function sweepExpiredRows(
   }
   return {
     scanMs,
-    deleteMs: elapsedSince(deleteStartedAt)
+    deleteMs: collectDiagnostics ? elapsedSince(deleteStartedAt) : 0
   }
 }
 
