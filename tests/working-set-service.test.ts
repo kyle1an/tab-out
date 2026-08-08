@@ -257,6 +257,35 @@ test('Working Set tab lookup failures do not rewrite unchanged activity', async 
   assert.equal(writeCount, 0)
 })
 
+test('Working Set ignores active navigation for an unsupported page identity without writing', async (t) => {
+  const tab = {
+    ...chromeTab(1, 'ignored'),
+    url: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop/index.html'
+  }
+  let writeCount = 0
+  const chromeApi = {
+    tabs: { query: async () => [tab] },
+    windows: {
+      WINDOW_ID_NONE: -1,
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' }]
+    },
+    storage: {
+      local: {
+        get: async () => ({ [WorkingSet.WORKING_SET_ACTIVITY_KEY]: emptyWorkingSetActivity() }),
+        set: async () => { writeCount += 1 }
+      }
+    }
+  } as unknown as ChromeApi
+
+  await createWorkingSetService(t, chromeApi).recordTabNavigation(
+    1,
+    { url: tab.url },
+    tab
+  )
+
+  assert.equal(writeCount, 0)
+})
+
 test('Working Set does not dedupe a paired focus event after the activation write fails', async (t) => {
   const tab = chromeTab(1, 'paired-write-retry')
   let storedActivity = emptyWorkingSetActivity()

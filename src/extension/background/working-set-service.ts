@@ -10,17 +10,18 @@ import {
 } from 'effect'
 
 import {
-  emptyWorkingSetActivity,
-  normalizeWorkingSetActivity,
   pageIdentityForWorkingSet,
-  recordWorkingSetActivity
+  recordWorkingSetActivityMutation
 } from '../working-set.js'
 import { normalizeChromeTabToDashboardItem } from '../dashboard-tab-normalization.js'
-import { readChromeStorageValue, writeChromeStorageValue } from './chrome-storage.js'
 import type { ChromeApi } from './chrome-api.js'
 import type { DashboardTab, WorkingSetActivityKind, WorkingSetActivityStore } from '../types'
+import {
+  WorkingSetActivityStorage,
+  type WorkingSetActivityWrite
+} from './working-set-activity-storage.js'
 
-export const WORKING_SET_ACTIVITY_KEY = 'workingSetActivity'
+export { WORKING_SET_ACTIVITY_KEY } from './working-set-activity-storage.js'
 const ACTIVATION_SIGNAL_DEDUPE_MS = 1000
 
 type ActivationSignalSource = 'tab-activated' | 'window-focused'
@@ -32,6 +33,7 @@ type ActivationSignal = {
 }
 type ActivityMutation = {
   readonly activity: WorkingSetActivityStore
+  readonly write?: WorkingSetActivityWrite
   readonly commit?: Effect.Effect<void>
 }
 type ActivityMutator = (
@@ -73,13 +75,18 @@ export class WorkingSet extends Context.Service<WorkingSet, {
     tab: chrome.tabs.Tab
   ) => Effect.Effect<void, WorkingSetStorageError>
 }>()('@tab-out/background/WorkingSet') {
-  static layer(chromeApi: ChromeApi): Layer.Layer<WorkingSet> {
+  static layer(
+    chromeApi: ChromeApi
+  ): Layer.Layer<WorkingSet, never, WorkingSetActivityStorage> {
     return makeWorkingSetLayer(chromeApi)
   }
 }
 
-function makeWorkingSetLayer(chromeApi: ChromeApi): Layer.Layer<WorkingSet> {
+function makeWorkingSetLayer(
+  chromeApi: ChromeApi
+): Layer.Layer<WorkingSet, never, WorkingSetActivityStorage> {
   return Layer.effect(WorkingSet, Effect.gen(function*() {
+    const activityStorage = yield* WorkingSetActivityStorage
     const scope = yield* Effect.scope
     const activityCache = yield* Ref.make<WorkingSetActivityStore | null>(null)
     const activityTasks = yield* Queue.unbounded<Effect.Effect<void>>()
@@ -87,40 +94,29 @@ function makeWorkingSetLayer(chromeApi: ChromeApi): Layer.Layer<WorkingSet> {
     const lastPageIdentityByTabId = yield* Ref.make(new Map<number, string>())
     const lastActivationSignal = yield* Ref.make<ActivationSignal | null>(null)
 
-    function storageArea(): chrome.storage.StorageArea | null {
-      return chromeApi.storage?.local || null
-    }
-
     const readActivity = Effect.fn('WorkingSet.readActivity')(function*() {
       const cached = yield* Ref.get(activityCache)
       if (cached) return cached
-      const storage = storageArea()
-      if (!storage) {
-        const empty = emptyWorkingSetActivity()
-        yield* Ref.set(activityCache, empty)
-        return empty
-      }
-
-      const storedActivity = yield* Effect.tryPromise({
-        try: () => readChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY),
-        catch: (cause) => WorkingSetStorageError.make({ operation: 'read', cause })
-      })
-      const normalized = normalizeWorkingSetActivity(storedActivity)
-      yield* Ref.set(activityCache, normalized)
-      return normalized
+      const activity = yield* activityStorage.read().pipe(
+        Effect.mapError((error) => WorkingSetStorageError.make({
+          operation: 'read',
+          cause: error.cause
+        }))
+      )
+      yield* Ref.set(activityCache, activity)
+      return activity
     })
 
     const writeActivity = Effect.fn('WorkingSet.writeActivity')(function*(
-      nextActivity: WorkingSetActivityStore
+      change: WorkingSetActivityWrite
     ) {
-      const storage = storageArea()
-      if (storage) {
-        yield* Effect.tryPromise({
-          try: () => writeChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY, nextActivity),
-          catch: (cause) => WorkingSetStorageError.make({ operation: 'write', cause })
-        })
-      }
-      yield* Ref.set(activityCache, nextActivity)
+      yield* activityStorage.write(change).pipe(
+        Effect.mapError((error) => WorkingSetStorageError.make({
+          operation: 'write',
+          cause: error.cause
+        }))
+      )
+      yield* Ref.set(activityCache, change.activity)
     })
 
     const runActivityMutation = Effect.fn('WorkingSet.mutateActivity')(function*(
@@ -129,10 +125,9 @@ function makeWorkingSetLayer(chromeApi: ChromeApi): Layer.Layer<WorkingSet> {
       const before = yield* readActivity()
       const mutation = yield* mutator(before)
       // No-op signals (paired activation/focus events, failed tab lookups, and
-      // tab-id rebases) still need their commit effect, but must not rewrite
-      // the entire 30-day activity store. Real event mutations already return
-      // a normalized immutable store from recordWorkingSetActivity.
-      if (mutation.activity !== before) yield* writeActivity(mutation.activity)
+      // tab-id rebases) still need their commit effect, but must not reach the
+      // persistence backend. Real events carry a record-oriented write delta.
+      if (mutation.write) yield* writeActivity(mutation.write)
       if (mutation.commit) yield* mutation.commit
     })
 
@@ -167,12 +162,15 @@ function makeWorkingSetLayer(chromeApi: ChromeApi): Layer.Layer<WorkingSet> {
         ? tab
         : normalizeChromeTabToDashboardItem(tab, { runtimeId: chromeApi.runtime?.id ?? null })
       const at = Math.max(Date.now(), (yield* Ref.get(lastActivityAt)) + 1)
+      const write = recordWorkingSetActivityMutation(activity, {
+        kind,
+        at,
+        tab: dashboardTab
+      })
+      const hasDurableChange = write.upsert !== null || write.deleteKeys.length > 0
       return {
-        activity: recordWorkingSetActivity(activity, {
-          kind,
-          at,
-          tab: dashboardTab
-        }),
+        activity: hasDurableChange ? write.activity : activity,
+        ...(hasDurableChange ? { write } : {}),
         commit: Ref.set(lastActivityAt, at)
       } satisfies ActivityMutation
     })
@@ -220,6 +218,7 @@ function makeWorkingSetLayer(chromeApi: ChromeApi): Layer.Layer<WorkingSet> {
         const mutation = yield* activityAfterTabEvent(activity, 'activation', tab)
         return {
           activity: mutation.activity,
+          ...(mutation.write ? { write: mutation.write } : {}),
           commit: mutation.commit.pipe(Effect.andThen(commitSignal))
         } satisfies ActivityMutation
       }
@@ -360,6 +359,7 @@ function makeWorkingSetLayer(chromeApi: ChromeApi): Layer.Layer<WorkingSet> {
         const mutation = yield* activityAfterTabEvent(activity, 'navigation', tab)
         return {
           activity: mutation.activity,
+          ...(mutation.write ? { write: mutation.write } : {}),
           commit: mutation.commit.pipe(Effect.andThen(commitPageIdentity))
         }
       }))

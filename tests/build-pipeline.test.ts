@@ -164,6 +164,10 @@ test('extension HTML loads the Vite-built React entry', async () => {
 
   const viteConfig = readFileSync('vite.config.ts', 'utf8')
   const buildScript = readFileSync('scripts/build-extension.ts', 'utf8')
+  const workingSetBenchmarkBuildConfig = readFileSync(
+    'scripts/working-set-benchmark-build-config.ts',
+    'utf8'
+  )
   const manifestSource = readFileSync('src/extension/manifest.ts', 'utf8')
   const indexHtmlSource = readFileSync('src/index-html.tsx', 'utf8')
   const serveScript = readFileSync('scripts/serve.ts', 'utf8')
@@ -187,11 +191,14 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.match(viteConfig, /chunkFileNames: 'assets\/\[name\]-\[hash\]\.js'/)
   assert.match(viteConfig, /const repoRoot = import\.meta\.dirname/)
   assert.match(viteConfig, /\{ find: '@', replacement: resolve\(repoRoot, 'src'\) \}/)
-  assert.match(viteConfig, /src\/extension\/background\.ts/)
+  assert.match(viteConfig, /workingSetBackgroundEntryPath/)
+  assert.match(workingSetBenchmarkBuildConfig, /src\/extension\/background\.ts/)
+  assert.match(workingSetBenchmarkBuildConfig, /resolve\(repositoryRoot, 'extension'\)/)
   assert.match(buildScript, /createExtensionManifest/)
   assert.match(buildScript, /createIndexHtml/)
-  assert.match(buildScript, /extension\/manifest\.json/)
-  assert.match(buildScript, /extension\/index\.html/)
+  assert.match(buildScript, /resolveWorkingSetBuildSelection/)
+  assert.match(buildScript, /resolve\(extensionPackageDirectory, 'manifest\.json'\)/)
+  assert.match(buildScript, /resolve\(extensionPackageDirectory, 'index\.html'\)/)
   assert.match(buildScript, /ChildProcess\.make\('pnpm'/)
   assert.match(buildScript, /runBuild\('app', viteArgs\)/)
   assert.match(buildScript, /runBuild\('background', viteArgs\)/)

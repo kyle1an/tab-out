@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { setImmediate } from 'node:timers/promises'
-import { Effect, ManagedRuntime } from 'effect'
+import { Effect, Layer, ManagedRuntime } from 'effect'
 import * as TabHistoryService from '../src/extension/background/tab-history-service.js'
+import { makeWorkingSetActivityStorageLayer } from '../src/extension/background/working-set-activity-storage-layer.js'
 import {
   effectiveUrlForHistoryIdentity,
   historyChanged,
@@ -20,7 +21,11 @@ test.after(async () => {
 })
 
 function createTabHistoryService(chromeApi: ChromeApi) {
-  const runtime = ManagedRuntime.make(TabHistoryService.TabHistory.layer(chromeApi))
+  const runtime = ManagedRuntime.make(
+    TabHistoryService.TabHistory.layer(chromeApi).pipe(
+      Layer.provide(makeWorkingSetActivityStorageLayer(chromeApi))
+    )
+  )
   runtime.runSync(Effect.void)
   const service = runtime.runSync(TabHistoryService.TabHistory)
   disposeTabHistoryRuntimes.push(() => runtime.dispose())
