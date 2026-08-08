@@ -26,11 +26,11 @@ visible Dashboard state by itself. The generated shell remains interactive
 until the live Startup Frame is ready. Normal refreshes and source switching
 remain owned by the existing Dashboard Intake seam.
 
-The shell stays visually quiet for the first 300 milliseconds of capture. A
-longer capture reveals a subtle `Loading…` status in a reserved slot without a
-layout shift; failure replaces that status with `Couldn’t load dashboard` and
-Retry. Filter and source controls remain interactive, and their latest intent
-participates in the page-local attempt revision.
+The shell stays visually quiet throughout capture: it shows no loading label,
+spinner, or skeleton. Failure uses a reserved status slot for `Couldn’t load
+dashboard` and Retry without a layout shift. Filter and source controls remain
+interactive, and their latest intent participates in the page-local attempt
+revision.
 
 A generation succeeds only when every semantic authority represented in the
 frame is known: open tabs and windows, Activation History, Working Set, Saved
@@ -74,6 +74,6 @@ Every load waits for live inputs before showing dynamic content, but the shell
 still paints and becomes interactive immediately. Warm and Durable state can
 preserve useful ordering without a Dirty Fence, two-slot commit, per-input
 revision vector, or current-page delta journal. Startup admission becomes one
-focused module rather than a redesign of normal Dashboard Intake. The loading
-delay avoids replacing stale-content flicker with spinner flicker while still
-making a genuinely slow or failed capture legible.
+focused module rather than a redesign of normal Dashboard Intake. The quiet
+shell avoids replacing stale-content flicker with loading-indicator flicker,
+while the reserved failure state keeps an unsuccessful capture legible.

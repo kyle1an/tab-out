@@ -1,4 +1,3 @@
-export const STARTUP_ADMISSION_QUIET_MS = 300
 export const STARTUP_ADMISSION_TIMEOUT_MS = 5_000
 
 export type StartupAdmissionFailure<Error> =
@@ -10,7 +9,6 @@ export type StartupAdmissionState<Value, Error> =
   | {
       readonly phase: 'capturing'
       readonly attempt: number
-      readonly loadingVisible: boolean
     }
   | {
       readonly phase: 'failed'
@@ -57,7 +55,6 @@ export type StartupAdmissionControllerOptions<Value, Error> = {
   readonly capture: StartupAdmissionCaptureRunner<Value, Error>
   readonly now?: () => number
   readonly schedule?: StartupAdmissionSchedule
-  readonly quietMs?: number
   readonly timeoutMs?: number
 }
 
@@ -76,10 +73,8 @@ type ActiveAttempt = {
   readonly startedAt: number
   readonly deadlineAt: number
   generation: number
-  loadingVisible: boolean
   activeCapture: StartupAdmissionCancellation | null
   activeToken: number | null
-  quietTimer: StartupAdmissionTimer | null
   deadlineTimer: StartupAdmissionTimer | null
   recaptureTimer: StartupAdmissionTimer | null
 }
@@ -98,7 +93,6 @@ export function createStartupAdmissionController<Value, Error>(
 ): StartupAdmissionController<Value, Error> {
   const now = options.now ?? Date.now
   const schedule = options.schedule ?? scheduleWithPlatformTimer
-  const quietMs = options.quietMs ?? STARTUP_ADMISSION_QUIET_MS
   const timeoutMs = options.timeoutMs ?? STARTUP_ADMISSION_TIMEOUT_MS
   const listeners = new Set<() => void>()
 
@@ -126,7 +120,7 @@ export function createStartupAdmissionController<Value, Error>(
 
   const cancelTimer = (
     attempt: ActiveAttempt,
-    key: 'quietTimer' | 'deadlineTimer' | 'recaptureTimer'
+    key: 'deadlineTimer' | 'recaptureTimer'
   ) => {
     const timer = attempt[key]
     attempt[key] = null
@@ -135,7 +129,6 @@ export function createStartupAdmissionController<Value, Error>(
 
   const endAttempt = (attempt: ActiveAttempt) => {
     cancelActiveCapture(attempt)
-    cancelTimer(attempt, 'quietTimer')
     cancelTimer(attempt, 'deadlineTimer')
     cancelTimer(attempt, 'recaptureTimer')
     if (activeAttempt === attempt) activeAttempt = null
@@ -232,36 +225,16 @@ export function createStartupAdmissionController<Value, Error>(
       startedAt,
       deadlineAt: startedAt + timeoutMs,
       generation: 0,
-      loadingVisible: quietMs <= 0,
       activeCapture: null,
       activeToken: null,
-      quietTimer: null,
       deadlineTimer: null,
       recaptureTimer: null
     }
     activeAttempt = attempt
     publish({
       phase: 'capturing',
-      attempt: attempt.id,
-      loadingVisible: attempt.loadingVisible
+      attempt: attempt.id
     })
-
-    if (quietMs > 0) {
-      attempt.quietTimer = schedule(quietMs, () => {
-        attempt.quietTimer = null
-        if (
-          disposed ||
-          activeAttempt !== attempt ||
-          state.phase !== 'capturing'
-        ) return
-        attempt.loadingVisible = true
-        publish({
-          phase: 'capturing',
-          attempt: attempt.id,
-          loadingVisible: true
-        })
-      })
-    }
 
     attempt.deadlineTimer = schedule(timeoutMs, () => {
       attempt.deadlineTimer = null

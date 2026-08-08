@@ -5,7 +5,6 @@ import { attachApp } from './components/App'
 import {
   applyAppStartup,
   publishAppStartupFailure,
-  publishAppStartupLoading,
   resetAppStartupShell,
   setAppStartupFilterIntent,
   setAppStartupMaterialChangeHandler,
@@ -167,15 +166,11 @@ const stopClosedGhostDismissalSync = subscribeClosedGhostDismissals((dismissals)
 startupAdmissionController.subscribe(() => {
   const state = startupAdmissionController.read()
   if (state.phase === 'capturing') {
-    if (state.loadingVisible) publishAppStartupLoading()
-    else resetAppStartupShell()
+    resetAppStartupShell()
     return
   }
   if (state.phase === 'failed') {
-    publishAppStartupFailure(() => {
-      resetAppStartupShell()
-      startupAdmissionController.retry()
-    })
+    publishAppStartupFailure(() => startupAdmissionController.retry())
     return
   }
   if (state.phase === 'ready') {

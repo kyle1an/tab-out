@@ -187,12 +187,18 @@ test('dashboard attaches before storage resolves and fills startup surfaces atom
         headerStats: string
         historyEntries: number
         historyOrder: string[]
-      }
+      },
+      statusTexts: [] as string[]
     }
     ;(window as typeof window & { __tabOutStartupCommit: typeof startupCommit })
       .__tabOutStartupCommit = startupCommit
 
     new MutationObserver(() => {
+      const statusText = document.querySelector('[data-tabout="dashboard-startup-status"]')
+        ?.textContent?.trim() ?? ''
+      if (statusText && startupCommit.statusTexts.at(-1) !== statusText) {
+        startupCommit.statusTexts.push(statusText)
+      }
       if (startupCommit.firstContent) return
       const domainCards = document.querySelectorAll('[data-tabout="domain-card"]').length
       const headerStats = document.querySelector('[data-tabout="header-stats"]')?.textContent ?? ''
@@ -251,7 +257,7 @@ test('dashboard attaches before storage resolves and fills startup surfaces atom
     startupStatus: '',
     storagePending: true
   })
-  await expect(page.locator('[data-tabout="dashboard-startup-status"]')).toHaveText('Loading…')
+  await expect(page.locator('[data-tabout="dashboard-startup-status"]')).toHaveText('')
   await page.getByRole('button', { name: 'Clear filter' }).click()
   await expect(filterInput).toHaveValue('')
 
@@ -277,6 +283,11 @@ test('dashboard attaches before storage resolves and fills startup surfaces atom
   expect(firstContent.dedupeText).toBe('')
   expect(firstContent.headerStats).toMatch(/\d+(?:\/\d+)? tabs/)
   expect(firstContent.historyEntries).toBeGreaterThan(0)
+  expect(await page.evaluate(() =>
+    (window as typeof window & {
+      __tabOutStartupCommit: { statusTexts: string[] }
+    }).__tabOutStartupCommit.statusTexts
+  )).not.toContain('Loading…')
   expect(await page.locator('[data-tabout="activation-history-entry"]').evaluateAll((rows) =>
     rows.map((row) => (row as HTMLElement).dataset.taboutLayoutKey ?? '')
   )).toEqual(firstContent.historyOrder)
@@ -361,12 +372,22 @@ test('filter recovery from startup failure stays coalesced before History reads'
 })
 
 test('startup failure keeps the shell truthful and Retry admits one fresh frame', async ({ page }) => {
+  await page.addInitScript(() => {
+    const statusTexts: string[] = []
+    ;(window as typeof window & { __tabOutStartupStatusTexts: string[] })
+      .__tabOutStartupStatusTexts = statusTexts
+    new MutationObserver(() => {
+      const statusText = document.querySelector('[data-tabout="dashboard-startup-status"]')
+        ?.textContent?.trim() ?? ''
+      if (statusText && statusTexts.at(-1) !== statusText) statusTexts.push(statusText)
+    }).observe(document, { childList: true, subtree: true })
+  })
   await page.goto('/tests/fixtures/dashboard-resize.html?failFirstStartupStorage=1')
 
   const status = page.locator('[data-tabout="dashboard-startup-status"]')
   const statusBounds = await status.boundingBox()
   expect(statusBounds).not.toBeNull()
-  await expect(status).toHaveText('Loading…')
+  await expect(status).toHaveText('')
   await expect(status).toContainText('Couldn’t load dashboard')
   await expect(page.locator('[data-tabout="domain-card"]')).toHaveCount(0)
   await expect(page.locator('[data-tabout="activation-history-entry"]')).toHaveCount(0)
@@ -379,6 +400,10 @@ test('startup failure keeps the shell truthful and Retry admits one fresh frame'
   expect(readyStatusBounds).not.toBeNull()
   expect(Math.abs(readyStatusBounds!.y - statusBounds!.y)).toBeLessThan(1)
   expect(Math.abs(readyStatusBounds!.height - statusBounds!.height)).toBeLessThan(1)
+  expect(await page.evaluate(() =>
+    (window as typeof window & { __tabOutStartupStatusTexts: string[] })
+      .__tabOutStartupStatusTexts
+  )).not.toContain('Loading…')
 })
 
 test('a source choice made in the shell selects the admitted startup frame', async ({ page }) => {

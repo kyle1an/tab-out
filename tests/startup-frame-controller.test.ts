@@ -91,7 +91,7 @@ function createCaptureHarness<Value, Error>() {
   return { capture, captures }
 }
 
-test('startup admission keeps the shell quiet for 300ms before exposing loading', () => {
+test('startup admission stays quiet until the complete frame is ready', () => {
   const time = createTestTime()
   const harness = createCaptureHarness<string, string>()
   const controller = createStartupAdmissionController({
@@ -105,8 +105,7 @@ test('startup admission keeps the shell quiet for 300ms before exposing loading'
   controller.start()
   assert.deepEqual(controller.read(), {
     phase: 'capturing',
-    attempt: 1,
-    loadingVisible: false
+    attempt: 1
   })
   assert.deepEqual(harness.captures[0]?.request, {
     attempt: 1,
@@ -116,18 +115,10 @@ test('startup admission keeps the shell quiet for 300ms before exposing loading'
     remainingMs: 5_000
   })
 
-  time.advanceBy(299)
-  const quietState = controller.read()
-  assert.equal(quietState.phase, 'capturing')
-  if (quietState.phase === 'capturing') {
-    assert.equal(quietState.loadingVisible, false)
-  }
-
-  time.advanceBy(1)
+  time.advanceBy(300)
   assert.deepEqual(controller.read(), {
     phase: 'capturing',
-    attempt: 1,
-    loadingVisible: true
+    attempt: 1
   })
 
   harness.captures[0]?.settle({ ok: true, value: 'live frame' })
@@ -227,8 +218,7 @@ test('a delayed material change from failure also coalesces before the fresh cap
 
   assert.deepEqual(controller.read(), {
     phase: 'capturing',
-    attempt: 2,
-    loadingVisible: false
+    attempt: 2
   })
   time.advanceBy(100)
   controller.materialChanged(200)

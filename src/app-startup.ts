@@ -13,7 +13,6 @@ export type AppStartupFrame = {
 }
 
 export type AppStartupState =
-  | { phase: 'loading' }
   | { phase: 'failed'; retry: () => void }
   | ({ phase: 'ready' } & AppStartupFrame)
 
@@ -46,10 +45,6 @@ export function updateAppStartupClosedGhostDismissals(
     closedGhostDismissals: dismissals
   })
   return true
-}
-
-export function publishAppStartupLoading(): void {
-  publishAppStartup({ phase: 'loading' })
 }
 
 export function publishAppStartupFailure(retry: () => void): void {

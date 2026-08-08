@@ -397,7 +397,6 @@ function DashboardShell({
               role={startupState?.phase === 'failed' ? 'alert' : 'status'}
               aria-live="polite"
             >
-              {startupState?.phase === 'loading' && 'Loading…'}
               {startupState?.phase === 'failed' && (
                 <span className="pointer-events-auto inline-flex items-center gap-2">
                   <span>Couldn’t load dashboard</span>

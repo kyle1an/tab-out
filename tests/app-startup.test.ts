@@ -4,7 +4,6 @@ import test from 'node:test'
 import {
   applyAppStartup,
   publishAppStartupFailure,
-  publishAppStartupLoading,
   readAppStartup,
   readBuildTimeAppStartup,
   resetAppStartupShell,
@@ -54,12 +53,9 @@ test('app startup publishes one ready frame and applies it to Dashboard Intake',
   assert.equal(appDashboardStore.read().startupStateApplied, true)
 })
 
-test('loading and failure phases never apply partial state to Dashboard Intake', () => {
+test('failure never applies partial state to Dashboard Intake', () => {
   resetAppStartupShell()
   let retries = 0
-
-  publishAppStartupLoading()
-  assert.deepEqual(readAppStartup(), { phase: 'loading' })
 
   publishAppStartupFailure(() => { retries += 1 })
   const failed = readAppStartup()
