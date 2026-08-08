@@ -1,8 +1,8 @@
 import Darwin
 import Foundation
 
-private let bridgeVersion = 1
-private let bridgeVersionString = "1.0.0"
+private let bridgeVersion = 3
+private let bridgeVersionString = "3.0.0"
 private let maximumMessageBytes = 64 * 1024
 private let maximumRequestLifetimeMs: Int64 = 60_000
 

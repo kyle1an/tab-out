@@ -30,6 +30,9 @@ const displays = [
 ] as chrome.system.display.DisplayUnitInfo[]
 
 const targetBounds = displays[1]!.bounds
+const nativePlacementRequestId = 'hs:1800000000000:1'
+const encodedNativePlacementRequestId = 'hs%3A1800000000000%3A1'
+const nativePlacementToken = `tabOutPlacement=${encodedNativePlacementRequestId}`
 
 const remoteWindow = {
   id: 41,
@@ -83,13 +86,19 @@ function createChromeApi(options: {
 test('filter bridge supplies target geometry at creation so Chrome cannot expose source-display bounds', async () => {
   const { calls, chromeApi } = createChromeApi()
 
-  await createInactiveWindow('filter', targetBounds, chromeApi)
+  const browserWindowId = await createInactiveWindow(
+    'filter',
+    targetBounds,
+    nativePlacementRequestId,
+    chromeApi
+  )
 
+  assert.equal(browserWindowId, 52)
   assert.deepEqual(calls.getAll, [{ windowTypes: ['normal'] }])
   assert.deepEqual(calls.create, [
     {
       type: 'normal',
-      url: 'chrome-extension://tab-out/index.html?focusFilter=1',
+      url: `chrome-extension://tab-out/index.html?focusFilter=1&${nativePlacementToken}`,
       focused: false,
       left: -1820,
       top: 75,
@@ -99,14 +108,21 @@ test('filter bridge supplies target geometry at creation so Chrome cannot expose
   ])
 })
 
-test('new-page bridge creates an inactive native new-tab window at the target bounds', async () => {
+test('new-page bridge creates an inactive tokenized Tab Out window at the target bounds', async () => {
   const { calls, chromeApi } = createChromeApi()
 
-  await createInactiveWindow('newPage', targetBounds, chromeApi)
+  const browserWindowId = await createInactiveWindow(
+    'newPage',
+    targetBounds,
+    nativePlacementRequestId,
+    chromeApi
+  )
 
+  assert.equal(browserWindowId, 52)
   assert.deepEqual(calls.create, [
     {
       type: 'normal',
+      url: `chrome-extension://tab-out/index.html?${nativePlacementToken}`,
       focused: false,
       left: -1820,
       top: 75,
@@ -125,7 +141,7 @@ test('bridge ignores a target-display Chrome window that Hammerspoon found on an
   } as chrome.windows.Window
   const { calls, chromeApi } = createChromeApi({ windows: [remoteWindow, inactiveSpaceWindow] })
 
-  await createInactiveWindow('filter', targetBounds, chromeApi)
+  await createInactiveWindow('filter', targetBounds, nativePlacementRequestId, chromeApi)
 
   assert.equal(calls.create.length, 1)
   assert.equal(calls.create[0]?.state, undefined)
@@ -135,12 +151,12 @@ test('bridge ignores a target-display Chrome window that Hammerspoon found on an
 test('filter bridge creates on the addressed display when both displays have no Chrome window', async () => {
   const { calls, chromeApi } = createChromeApi({ windows: [] })
 
-  await createInactiveWindow('filter', targetBounds, chromeApi)
+  await createInactiveWindow('filter', targetBounds, nativePlacementRequestId, chromeApi)
 
   assert.deepEqual(calls.create, [
     {
       type: 'normal',
-      url: 'chrome-extension://tab-out/index.html?focusFilter=1',
+      url: `chrome-extension://tab-out/index.html?focusFilter=1&${nativePlacementToken}`,
       focused: false,
       left: -1920,
       top: 0,
@@ -153,11 +169,17 @@ test('filter bridge creates on the addressed display when both displays have no 
 test('new-page bridge creates on one display when it has no Chrome window', async () => {
   const { calls, chromeApi } = createChromeApi({ displays: [displays[0]!], windows: [] })
 
-  await createInactiveWindow('newPage', displays[0]!.bounds, chromeApi)
+  await createInactiveWindow(
+    'newPage',
+    displays[0]!.bounds,
+    nativePlacementRequestId,
+    chromeApi
+  )
 
   assert.deepEqual(calls.create, [
     {
       type: 'normal',
+      url: `chrome-extension://tab-out/index.html?${nativePlacementToken}`,
       focused: false,
       left: 0,
       top: 25,
@@ -176,12 +198,12 @@ test('bridge addresses a third display without adding another extension command'
   }
   const { calls, chromeApi } = createChromeApi({ displays: [...displays, thirdDisplay] })
 
-  await createInactiveWindow('filter', thirdDisplay.bounds, chromeApi)
+  await createInactiveWindow('filter', thirdDisplay.bounds, nativePlacementRequestId, chromeApi)
 
   assert.deepEqual(calls.create, [
     {
       type: 'normal',
-      url: 'chrome-extension://tab-out/index.html?focusFilter=1',
+      url: `chrome-extension://tab-out/index.html?focusFilter=1&${nativePlacementToken}`,
       focused: false,
       left: 1520,
       top: 100,
@@ -195,7 +217,12 @@ test('bridge aborts before mutation when target bounds do not identify a display
   const { calls, chromeApi } = createChromeApi()
 
   await assert.rejects(
-    () => createInactiveWindow('filter', { left: 9000, top: 9000, width: 100, height: 100 }, chromeApi),
+    () => createInactiveWindow(
+      'filter',
+      { left: 9000, top: 9000, width: 100, height: 100 },
+      nativePlacementRequestId,
+      chromeApi
+    ),
     /do not identify one enabled display/
   )
 
@@ -206,7 +233,12 @@ test('bridge aborts before mutation when target bounds only partially match a di
   const { calls, chromeApi } = createChromeApi()
 
   await assert.rejects(
-    () => createInactiveWindow('filter', { left: 100, top: 100, width: 100, height: 100 }, chromeApi),
+    () => createInactiveWindow(
+      'filter',
+      { left: 100, top: 100, width: 100, height: 100 },
+      nativePlacementRequestId,
+      chromeApi
+    ),
     /do not identify one enabled display/
   )
 
@@ -218,7 +250,7 @@ test('bridge rejects a placed window without an identity', async () => {
   const { calls, chromeApi } = createChromeApi({ createWithoutIdentity: true })
 
   await assert.rejects(
-    () => createInactiveWindow('filter', targetBounds, chromeApi),
+    () => createInactiveWindow('filter', targetBounds, nativePlacementRequestId, chromeApi),
     /placed window identity/
   )
 
@@ -229,7 +261,7 @@ test('bridge propagates a target-bounded Chrome creation failure', async () => {
   const { calls, chromeApi } = createChromeApi({ createError: new Error('creation failed') })
 
   await assert.rejects(
-    () => createInactiveWindow('filter', targetBounds, chromeApi),
+    () => createInactiveWindow('filter', targetBounds, nativePlacementRequestId, chromeApi),
     /creation failed/
   )
 

@@ -537,14 +537,21 @@ function M.new(options)
     return true
   end
 
-  local function focusWindowPrivately(window, expectedProfileDirectory)
+  local function focusWindowPrivately(
+    window,
+    allowCreatedWindowWithoutOnScreenMetadata
+  )
     local windowId = window and window:id() or nil
     local application = window and window:application() or nil
     local processId = application and application:pid() or nil
+    local windowScreen = window and window:screen() or nil
     local request = currentRequest()
     if not windowId
+      or not window:isStandard()
+      or window:isMinimized()
       or not application
       or application:bundleID() ~= chromeBundleId
+      or application:isHidden()
       or type(processId) ~= "number"
     then
       return false, "The exact Chrome window identity is unavailable"
@@ -552,11 +559,11 @@ function M.new(options)
 
     local windowSpaces = hs.spaces.windowSpaces(window)
     if not request
-      or screenUuid(window:screen()) ~= request.screenUuid
+      or screenUuid(windowScreen) ~= request.screenUuid
+      or hs.spaces.activeSpaceOnScreen(windowScreen) ~= request.targetSpaceId
       or not windowSpaces
       or not containsValue(windowSpaces, request.targetSpaceId)
-      or (expectedProfileDirectory or catalog:profileFor(windowId))
-        ~= configuredProfileDirectory
+      or catalog:profileFor(windowId) ~= configuredProfileDirectory
     then
       return false, "The Chrome window no longer matches the target display, Desktop, and profile"
     end
@@ -565,16 +572,17 @@ function M.new(options)
       return false, privateFocusError or "The private focus helper is unavailable"
     end
 
-    local called, focused, focusError = pcall(privateFocus.focus, processId, windowId)
+    local called, focused, focusError = pcall(
+      privateFocus.focus,
+      processId,
+      windowId,
+      allowCreatedWindowWithoutOnScreenMetadata == true
+    )
     if not called then
       return false, focused
     end
     if not focused then
       return false, focusError or "The private focus helper rejected the target window"
-    end
-
-    if expectedProfileDirectory then
-      catalog:confirm(windowId, expectedProfileDirectory)
     end
 
     return true
@@ -591,8 +599,15 @@ function M.new(options)
     finish()
   end
 
-  local function privatelyActivateWindow(window, onActivated, expectedProfileDirectory)
-    local focused, focusError = focusWindowPrivately(window, expectedProfileDirectory)
+  local function privatelyActivateWindow(
+    window,
+    onActivated,
+    allowCreatedWindowWithoutOnScreenMetadata
+  )
+    local focused, focusError = focusWindowPrivately(
+      window,
+      allowCreatedWindowWithoutOnScreenMetadata
+    )
     if not focused then
       fail("The Tab Out window could not be focused privately", focusError)
       return
@@ -614,7 +629,7 @@ function M.new(options)
       end, function(controlError)
         fail("The Tab Out destination did not become ready", controlError)
       end)
-    end, configuredProfileDirectory)
+    end, true)
   end
 
   local function activateExistingWindow(kind, window)

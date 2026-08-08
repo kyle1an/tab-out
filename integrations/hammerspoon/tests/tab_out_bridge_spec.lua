@@ -26,7 +26,7 @@ local taskPath
 
 local function response(status, overrides)
   local value = {
-    version = 1,
+    version = 3,
     type = "response",
     requestId = encodedPayload and encodedPayload.requestId or "missing-request",
     status = status,
@@ -54,13 +54,22 @@ local fakeHs = {
       if value == "wrong-version" then
         return response("accepted", { version = 2 })
       end
+      if value == "wrong-request-id" then
+        return response("accepted", { requestId = "another-request" })
+      end
       if value == "rejected" then
         return response("rejected", { reason = "extension rejected request" })
       end
       if value == "profile-windows" then
         return response("accepted", { windowIds = { 71, 72 } })
       end
-      return response("accepted")
+      if value == "missing-created-window" then
+        return response("accepted")
+      end
+      if value == "invalid-created-window" then
+        return response("accepted", { browserWindowId = 91.5 })
+      end
+      return response("accepted", { browserWindowId = 91 })
     end,
     encode = function(value)
       encodedPayload = value
@@ -115,9 +124,18 @@ assertEqual(initialStatus.connected, false, "native bridge status should not cla
 
 local callbackAccepted
 local callbackError
-local started, startError = bridge:createWindow(createOptions(), function(accepted, requestError)
+local callbackBrowserWindowId
+local callbackCreationToken
+local started, startError = bridge:createWindow(createOptions(), function(
+  accepted,
+  requestError,
+  browserWindowId,
+  creationToken
+)
   callbackAccepted = accepted
   callbackError = requestError
+  callbackBrowserWindowId = browserWindowId
+  callbackCreationToken = creationToken
 end)
 
 assertEqual(started, true, "installed native bridge should start its client")
@@ -125,7 +143,7 @@ assertEqual(startError, nil, "successful native bridge start should not return a
 assertEqual(taskPath, "/tmp/tab-out-native-bridge", "native bridge should launch the configured host")
 assertEqual(taskArguments[1], "--request", "native bridge should use client request mode")
 assertEqual(taskArguments[2], "encoded-request", "native bridge should pass the encoded request as one argument")
-assertEqual(encodedPayload.version, 1, "native bridge should own the protocol version")
+assertEqual(encodedPayload.version, 3, "native bridge should own the protocol version")
 assertEqual(encodedPayload.type, "create-window", "native bridge should own the wire request type")
 assertEqual(encodedPayload.requestId, "hs-1800000000000-1", "native bridge should generate the request ID")
 assertEqual(encodedPayload.expiresAtMs, 1800000012000, "native bridge should derive the wire deadline")
@@ -133,6 +151,8 @@ assertEqual(encodedPayload.operation, "filter", "native bridge should encode the
 assertEqual(encodedPayload.targetBounds.left, 1440, "native bridge should encode the target display bounds")
 assertEqual(callbackAccepted, true, "accepted native bridge response should report semantic success")
 assertEqual(callbackError, nil, "accepted native bridge response should not return an error")
+assertEqual(callbackBrowserWindowId, 91, "accepted native bridge response should return its browser window ID")
+assertEqual(callbackCreationToken, "hs-1800000000000-1", "accepted response should return its exact request token")
 assertEqual(bridge:status().connected, true, "accepted native bridge response should prove connectivity")
 
 nextStandardOutput = "profile-windows"
@@ -161,6 +181,31 @@ assertEqual(callbackAccepted, false, "extension rejection should report semantic
 assertEqual(callbackError, "extension rejected request", "extension rejection reason should be preserved")
 assertEqual(bridge:status().connected, true, "structured extension rejection should preserve connectivity")
 
+nextStandardOutput = "missing-created-window"
+callbackAccepted = nil
+callbackError = nil
+callbackBrowserWindowId = nil
+bridge:createWindow(createOptions(), function(accepted, requestError, browserWindowId)
+  callbackAccepted = accepted
+  callbackError = requestError
+  callbackBrowserWindowId = browserWindowId
+end)
+assertEqual(callbackAccepted, false, "missing created-window identity should reject the bridge response")
+assertMatch(callbackError, "created browser window identity", "missing identity should explain the protocol failure")
+assertEqual(callbackBrowserWindowId, nil, "missing created-window identity should not leak a candidate")
+assertEqual(bridge:status().connected, false, "missing created-window identity should clear connectivity")
+
+nextStandardOutput = "invalid-created-window"
+callbackAccepted = nil
+callbackError = nil
+bridge:createWindow(createOptions(), function(accepted, requestError)
+  callbackAccepted = accepted
+  callbackError = requestError
+end)
+assertEqual(callbackAccepted, false, "nonintegral created-window identity should reject the bridge response")
+assertMatch(callbackError, "created browser window identity", "invalid identity should explain the protocol failure")
+assertEqual(bridge:status().connected, false, "invalid created-window identity should clear connectivity")
+
 nextExitCode = 1
 nextStandardError = "bridge is disconnected"
 callbackAccepted = nil
@@ -185,6 +230,17 @@ end)
 assertEqual(callbackAccepted, false, "invalid bridge response should report semantic rejection")
 assertMatch(callbackError, "version does not match", "invalid bridge response should explain the protocol failure")
 assertEqual(bridge:status().connected, false, "invalid bridge response should clear connectivity")
+
+nextStandardOutput = "wrong-request-id"
+callbackAccepted = nil
+callbackError = nil
+bridge:createWindow(createOptions(), function(accepted, requestError)
+  callbackAccepted = accepted
+  callbackError = requestError
+end)
+assertEqual(callbackAccepted, false, "another request's response should report semantic rejection")
+assertMatch(callbackError, "another request", "another request's response should explain the protocol failure")
+assertEqual(bridge:status().connected, false, "another request's response should clear connectivity")
 
 filePresent = false
 local missingStarted, missingError = bridge:createWindow(createOptions(), function() end)

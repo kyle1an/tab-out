@@ -71,18 +71,49 @@ function createRequest(overrides: Record<string, unknown> = {}) {
 
 test('native placement bridge creates the requested inactive window at target bounds', async () => {
   const { chromeApi, createCalls } = createChromeApi()
+  const creationToken = 'hs:1800000000000:filter'
 
-  const result = await handleNativePlacementBridgeMessage(createRequest(), chromeApi, nowMs)
+  const result = await handleNativePlacementBridgeMessage(createRequest({
+    requestId: creationToken
+  }), chromeApi, nowMs)
 
   assert.deepEqual(result, {
     version: NATIVE_PLACEMENT_BRIDGE_VERSION,
     type: 'response',
-    requestId: 'hs-1800000000000-1',
-    status: 'accepted'
+    requestId: creationToken,
+    status: 'accepted',
+    browserWindowId: 91
   })
   assert.deepEqual(createCalls, [{
     type: 'normal',
-    url: 'chrome-extension://tab-out/index.html?focusFilter=1',
+    url: 'chrome-extension://tab-out/index.html?focusFilter=1&tabOutPlacement=hs%3A1800000000000%3Afilter',
+    focused: false,
+    left: 1440,
+    top: 25,
+    width: 1920,
+    height: 1055
+  }])
+})
+
+test('native placement bridge creates new-page requests through a uniquely tokenized Tab Out document', async () => {
+  const { chromeApi, createCalls } = createChromeApi()
+  const creationToken = 'hs:1800000000000:newPage'
+
+  const result = await handleNativePlacementBridgeMessage(createRequest({
+    operation: 'newPage',
+    requestId: creationToken
+  }), chromeApi, nowMs)
+
+  assert.deepEqual(result, {
+    version: NATIVE_PLACEMENT_BRIDGE_VERSION,
+    type: 'response',
+    requestId: creationToken,
+    status: 'accepted',
+    browserWindowId: 91
+  })
+  assert.deepEqual(createCalls, [{
+    type: 'normal',
+    url: 'chrome-extension://tab-out/index.html?tabOutPlacement=hs%3A1800000000000%3AnewPage',
     focused: false,
     left: 1440,
     top: 25,

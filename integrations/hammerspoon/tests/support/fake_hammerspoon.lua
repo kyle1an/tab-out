@@ -18,17 +18,26 @@ local function runShortcut(kind, options)
   local privateFocusAvailable = options.privateFocusAvailable ~= false
   local clock = 0
   local addressBarFocused = false
+  local browserInventoryReadCount = 0
   local closeGestureCallback
   local closeGestureConsumed = false
   local closeMouseUpConsumed = false
   local chromeLaunchCount = 0
+  local chromeApplicationHidden = false
+  local createdBrowserWindowId = 4004
+  local createdPlacementToken = "hs-1800000000000-1"
   local createdWindowNativeTabCloseAllowed = false
   local createdWindowClosed = false
   local createdWindowMoved = false
+  local createdWindowPublished = false
+  local createdWindowSpaceId
   local filterInputFocused = false
   local nativeBridgeRequest
   local extensionFocusRequested = false
   local privateFocusCount = 0
+  local privateFocusAttemptCount = 0
+  local unrelatedPrivateFocusAttempted = false
+  local missingOnScreenMetadataAllowed
   local createdChromeWindow
   local remoteDestinationFocusCount = 0
   local remoteTopHidden = false
@@ -50,9 +59,23 @@ local function runShortcut(kind, options)
   local windowCreatedCallback
   local windowDestroyedCallback
   local targetBrowserWindowId = 1001
+  local inactiveSpaceBrowserWindowId = 1002
   local otherBrowserWindowId = 2002
   local targetDocumentUrl = "https://example.test/target"
+  local inactiveSpaceDocumentUrl = "https://example.test/inactive"
   local otherDocumentUrl = "https://example.test/remote"
+  local createdDocumentUrl = "chrome-extension://" .. string.rep("a", 32)
+    .. "/index.html?"
+    .. (kind == "filter" and "focusFilter=1&" or "")
+    .. "tabOutPlacement=" .. createdPlacementToken
+  local createdAxDocumentUrl = options.createdAxClearsFocusFilter and kind == "filter"
+    and "chrome-extension://" .. string.rep("a", 32)
+      .. "/index.html?tabOutPlacement=" .. createdPlacementToken
+    or createdDocumentUrl
+  local createdAxDocumentReadCount = 0
+  local unrelatedBrowserWindowId = 5005
+  local unrelatedDocumentUrl = "https://example.test/unrelated"
+  local unrelatedNewChromeWindow
 
   local function noOp() end
   local function returnSelf(self) return self end
@@ -86,7 +109,7 @@ local function runShortcut(kind, options)
       })
     end,
     isHidden = function()
-      return false
+      return chromeApplicationHidden
     end,
     pid = function()
       return 43250
@@ -195,8 +218,11 @@ local function runShortcut(kind, options)
     if not chromeIsRunning then
       return windows
     end
-    if createdChromeWindow then
+    if createdChromeWindow and createdWindowPublished then
       table.insert(windows, createdChromeWindow)
+    end
+    if unrelatedNewChromeWindow then
+      table.insert(windows, unrelatedNewChromeWindow)
     end
     if targetHasChromeWindow then
       table.insert(windows, targetChromeWindow)
@@ -222,9 +248,10 @@ local function runShortcut(kind, options)
     end
 
     append(focusedWindow)
-    if createdChromeWindow and not createdChromeWindow:isMinimized() then
+    if createdChromeWindow and createdWindowPublished and not createdChromeWindow:isMinimized() then
       append(createdChromeWindow)
     end
+    append(unrelatedNewChromeWindow)
     append(originalWindow)
     if targetHasChromeWindow then
       append(targetChromeWindow)
@@ -258,13 +285,14 @@ local function runShortcut(kind, options)
   end
 
   local axRoot
+  local createdAxRoot
   local function destinationControl(roleDescription, focused, onFocus)
     return newAxElement({
       AXChildren = {},
       AXDescription = roleDescription,
       AXFocused = focused,
       AXRole = "AXTextField",
-      AXWindow = function() return axRoot end,
+      AXWindow = function() return createdChromeWindow and createdAxRoot or axRoot end,
     }, function(attribute, value)
       if attribute == "AXFocused" and value == true then
         onFocus()
@@ -304,9 +332,39 @@ local function runShortcut(kind, options)
     AXDocument = targetDocumentUrl,
     AXRole = "AXWindow",
   })
+  createdAxRoot = newAxElement({
+    AXChildren = function()
+      return secondTabButton and { filterInput, addressBar, tabButton, secondTabButton }
+        or { filterInput, addressBar, tabButton }
+    end,
+    AXCloseButton = closeButton,
+    AXDocument = function()
+      createdAxDocumentReadCount = createdAxDocumentReadCount + 1
+      if options.createdWindowAxDocumentUnavailable then
+        return nil
+      end
+      if createdAxDocumentReadCount <= (options.createdWindowAxDocumentUnavailableReads or 0) then
+        return nil
+      end
+      return createdAxDocumentUrl
+    end,
+    AXRole = "AXWindow",
+  })
   local remoteAxRoot = newAxElement({
     AXChildren = {},
     AXDocument = otherDocumentUrl,
+    AXRole = "AXWindow",
+  })
+  local unrelatedAxRoot = newAxElement({
+    AXChildren = {},
+    AXDocument = function()
+      if options.emitBoundsOnlyNativeWindowAfterBridge then
+        return nil
+      end
+      return options.emitMatchingNativeOnlyWindowAfterBridge
+        and createdDocumentUrl
+        or unrelatedDocumentUrl
+    end,
     AXRole = "AXWindow",
   })
   local remoteDestinationControl = newAxElement({
@@ -332,8 +390,8 @@ local function runShortcut(kind, options)
   })
   local fakeAxElements = {}
   for _, element in ipairs({
-    addressBar, axRoot, closeButton, filterInput, remoteAxRoot,
-    remoteDestinationControl, systemWideElement, tabButton, secondTabButton,
+    addressBar, axRoot, closeButton, createdAxRoot, filterInput, remoteAxRoot,
+    remoteDestinationControl, systemWideElement, tabButton, secondTabButton, unrelatedAxRoot,
   }) do
     if element then fakeAxElements[element] = true end
   end
@@ -390,6 +448,12 @@ local function runShortcut(kind, options)
         if window == otherChromeWindow then
           return remoteAxRoot
         end
+        if window == createdChromeWindow then
+          return createdAxRoot
+        end
+        if window == unrelatedNewChromeWindow then
+          return unrelatedAxRoot
+        end
         return axRoot
       end,
     },
@@ -413,6 +477,9 @@ local function runShortcut(kind, options)
     },
     hotkey = {
       bind = function() return {} end,
+    },
+    http = {
+      urlParts = _G.hs.http.urlParts,
     },
     json = {
       read = function(path)
@@ -461,6 +528,7 @@ local function runShortcut(kind, options)
     osascript = {
       applescript = function(script)
         if script:find("TAB_OUT_PROFILE_WINDOW_INVENTORY", 1, true) then
+          browserInventoryReadCount = browserInventoryReadCount + 1
           local descriptors = {}
           if targetHasChromeWindow then
             local frame = targetChromeWindow:frame()
@@ -470,12 +538,39 @@ local function runShortcut(kind, options)
               targetDocumentUrl,
             })
           end
+          if targetHasInactiveSpaceChromeWindow then
+            local frame = inactiveSpaceChromeWindow:frame()
+            table.insert(descriptors, {
+              inactiveSpaceBrowserWindowId,
+              { frame.x, frame.y, frame.x + frame.w, frame.y + frame.h },
+              inactiveSpaceDocumentUrl,
+            })
+          end
           if otherHasChromeWindow and chromeIsRunning then
             local frame = otherChromeWindow:frame()
             table.insert(descriptors, {
               otherBrowserWindowId,
               { frame.x, frame.y, frame.x + frame.w, frame.y + frame.h },
               otherDocumentUrl,
+            })
+          end
+          if createdChromeWindow then
+            local frame = createdChromeWindow:frame()
+            table.insert(descriptors, {
+              createdBrowserWindowId,
+              { frame.x, frame.y, frame.x + frame.w, frame.y + frame.h },
+              createdDocumentUrl,
+            })
+          end
+          if unrelatedNewChromeWindow
+            and not options.emitMatchingNativeOnlyWindowAfterBridge
+            and not options.emitBoundsOnlyNativeWindowAfterBridge
+          then
+            local frame = unrelatedNewChromeWindow:frame()
+            table.insert(descriptors, {
+              unrelatedBrowserWindowId,
+              { frame.x, frame.y, frame.x + frame.w, frame.y + frame.h },
+              unrelatedDocumentUrl,
             })
           end
           if options.ambiguousProfileWindowIdentity then
@@ -571,7 +666,10 @@ local function runShortcut(kind, options)
           return { 11 }
         end
         if window == createdChromeWindow then
-          return { targetActiveSpace }
+          return { createdWindowSpaceId or targetActiveSpace }
+        end
+        if window == unrelatedNewChromeWindow then
+          return { createdWindowSpaceId or targetActiveSpace }
         end
         if window == originalWindow and targetSpaceType == "fullscreen" then
           return { 11 }
@@ -648,6 +746,9 @@ local function runShortcut(kind, options)
         if createdChromeWindow and createdChromeWindow:id() == windowId then
           return createdChromeWindow
         end
+        if unrelatedNewChromeWindow and unrelatedNewChromeWindow:id() == windowId then
+          return unrelatedNewChromeWindow
+        end
         for _, window in ipairs({
           targetChromeWindow,
           inactiveSpaceChromeWindow,
@@ -722,13 +823,26 @@ local function runShortcut(kind, options)
       end
       return true
     end,
-    focus = function(pid, windowId)
+    focus = function(pid, windowId, allowCreatedWindowWithoutOnScreenMetadata)
+      privateFocusAttemptCount = privateFocusAttemptCount + 1
+      unrelatedPrivateFocusAttempted = unrelatedPrivateFocusAttempted
+        or (unrelatedNewChromeWindow ~= nil and windowId == unrelatedNewChromeWindow:id())
       local targetWindow = createdChromeWindow or targetChromeWindow
       if pid ~= 43250 or windowId ~= targetWindow:id() then
         return nil, "unknown Chrome window"
       end
       privateFocusCount = privateFocusCount + 1
+      missingOnScreenMetadataAllowed = allowCreatedWindowWithoutOnScreenMetadata == true
       shieldVisibleAtPrivateFocus = shieldVisible
+      if targetWindow == createdChromeWindow
+        and options.createdWindowOmitsOnScreenMetadata == true
+        and allowCreatedWindowWithoutOnScreenMetadata ~= true
+      then
+        return nil, "window-id is not a normal window owned by that Chrome pid"
+      end
+      if targetWindow == createdChromeWindow and options.createdWindowReportsOffscreen == true then
+        return nil, "window-id is not a normal window owned by that Chrome pid"
+      end
       if options.privateFocusSucceeds == false then
         return nil, "mock private focus failure"
       end
@@ -774,7 +888,30 @@ local function runShortcut(kind, options)
       else
         openedNewPage = true
       end
-      createdChromeWindow = newChromeWindow(404, targetScreen, false, false)
+      createdWindowSpaceId = targetActiveSpace
+      createdChromeWindow = newChromeWindow(
+        404,
+        targetScreen,
+        false,
+        options.createdWindowStartsMinimized == true
+      )
+      createdWindowPublished = not options.deferCreatedWindowPublication
+        and not options.createdWindowNeverPublishedToAccessibility
+      if options.emitUnrelatedCreatedWindowAfterBridge
+        or options.emitMatchingNativeOnlyWindowAfterBridge
+        or options.emitBoundsOnlyNativeWindowAfterBridge
+      then
+        unrelatedNewChromeWindow = newChromeWindow(405, targetScreen, false, false)
+      end
+      if options.hideChromeAfterCreatedWindow then
+        chromeApplicationHidden = true
+      end
+      if options.changeTargetSpaceAfterCreatedWindow then
+        targetActiveSpace = 12
+      end
+      if options.quitChromeAfterCreatedWindow then
+        chromeIsRunning = false
+      end
       function createdChromeWindow:close()
         local closingWindow = self
         if focusedWindow == closingWindow and targetHasChromeWindow then
@@ -785,23 +922,43 @@ local function runShortcut(kind, options)
           otherChromeWindow:focus()
         end
         createdChromeWindow = nil
+        createdWindowPublished = false
         createdWindowClosed = true
         if windowDestroyedCallback and not options.suppressWindowDestroyedCallback then
           windowDestroyedCallback(closingWindow)
         end
         return true
       end
-      if windowCreatedCallback then
+      if not options.deferCreatedWindowPublication and windowCreatedCallback then
         windowCreatedCallback(createdChromeWindow)
       end
-      callback(true)
+      callback(
+        true,
+        nil,
+        options.returnWrongCreatedBrowserWindowId and 9999 or createdBrowserWindowId,
+        createdPlacementToken
+      )
+      if options.emitBaselineWindowAfterBridge and windowCreatedCallback then
+        windowCreatedCallback(inactiveSpaceChromeWindow)
+      end
+      if unrelatedNewChromeWindow and windowCreatedCallback then
+        windowCreatedCallback(unrelatedNewChromeWindow)
+      end
+      if options.deferCreatedWindowPublication
+        and not options.createdWindowNeverPublishedToAccessibility
+      then
+        createdWindowPublished = true
+        if windowCreatedCallback then
+          windowCreatedCallback(createdChromeWindow)
+        end
+      end
       return true
     end,
     status = function()
       return {
         connected = nativeBridgeRequest ~= nil and options.nativeBridgeStarts ~= false,
         hostInstalled = options.nativeBridgeStarts ~= false,
-        version = 1,
+        version = 3,
       }
     end,
   }
@@ -890,6 +1047,7 @@ local function runShortcut(kind, options)
     failed = failureAlert ~= nil,
     filterInputFocused = filterInputFocused,
     bridgeUsed = nativeBridgeRequest ~= nil,
+    browserInventoryReadCount = browserInventoryReadCount,
     nativeBridgeInstalled = diagnostics.nativeBridgeInstalled,
     nativeBridgeReady = diagnostics.nativeBridgeReady,
     navigationAfterPrivateFocus = navigationAfterPrivateFocus,
@@ -901,6 +1059,9 @@ local function runShortcut(kind, options)
     remoteTopFocused = focusedWindow == remoteTopWindow,
     originalWindowFocused = focusedWindow == originalWindow,
     privateFocusUsed = privateFocusCount > 0,
+    privateFocusAttemptCount = privateFocusAttemptCount,
+    unrelatedPrivateFocusAttempted = unrelatedPrivateFocusAttempted,
+    missingOnScreenMetadataAllowed = missingOnScreenMetadataAllowed,
     spaceSwitchCount = spaceSwitchCount,
     shieldUsed = shieldUsed,
     shieldVisibleAtPrivateFocus = shieldVisibleAtPrivateFocus,

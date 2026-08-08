@@ -109,15 +109,23 @@ function workAreaBounds(
   }
 }
 
-function filterFocusUrl(chromeApi: ChromeApi): string {
-  return `chrome-extension://${chromeApi.runtime.id}/index.html?focusFilter=1`
+function nativePlacementDocumentUrl(
+  kind: InactiveWindowKind,
+  creationToken: string,
+  chromeApi: ChromeApi
+): string {
+  const search = new URLSearchParams()
+  if (kind === 'filter') search.set('focusFilter', '1')
+  search.set('tabOutPlacement', creationToken)
+  return `chrome-extension://${chromeApi.runtime.id}/index.html?${search}`
 }
 
 export async function createInactiveWindow(
   kind: InactiveWindowKind,
   targetBounds: TargetDisplayBounds,
+  creationToken: string,
   chromeApi: ChromeApi = chrome
-): Promise<void> {
+): Promise<number> {
   const displays = (await chromeApi.system.display.getInfo())
     .filter((display) => display.isEnabled !== false)
   const targetDisplay = targetDisplayForBounds(targetBounds, displays)
@@ -141,13 +149,15 @@ export async function createInactiveWindow(
   const placement = source
     ? translatedBounds(source.window, source.display, targetDisplay)
     : workAreaBounds(targetDisplay)
+  const documentUrl = nativePlacementDocumentUrl(kind, creationToken, chromeApi)
   const createdWindow = await chromeApi.windows.create({
     type: 'normal',
-    ...(kind === 'filter' ? { url: filterFocusUrl(chromeApi) } : {}),
+    url: documentUrl,
     focused: false,
     ...placement
   })
   if (typeof createdWindow?.id !== 'number') {
     throw new Error('Chrome did not return the placed window identity')
   }
+  return createdWindow.id
 }

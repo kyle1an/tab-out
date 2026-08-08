@@ -40,14 +40,14 @@ class NativeSocketPending extends Schema.TaggedErrorClass<NativeSocketPending>()
 ) {}
 
 const NativeRequest = Schema.Struct({
-  version: Schema.Literal(1),
+  version: Schema.Literal(3),
   type: Schema.Literal('status'),
   requestId: Schema.String,
   expiresAtMs: Schema.Number
 })
 
 const AcceptedResponse = Schema.Struct({
-  version: Schema.Literal(1),
+  version: Schema.Literal(3),
   type: Schema.Literal('response'),
   requestId: Schema.Literal('integration-round-trip'),
   status: Schema.Literal('accepted')
@@ -120,7 +120,7 @@ function makeNativeRequestResponder(input: Queue.Queue<Uint8Array, Cause.Done<vo
         Effect.mapError((cause) => nativeHostTestError('decode native messaging request', cause))
       )
       const response = yield* encodeNativeMessage({
-        version: 1,
+        version: 3,
         type: 'response',
         requestId: request.requestId,
         status: 'accepted'
@@ -304,7 +304,7 @@ const testRoundTrip = Effect.fn('nativeHostTest.roundTrip')(function*(hostPath: 
 
   const currentTime = yield* Clock.currentTimeMillis
   const request = JSON.stringify({
-    version: 1,
+    version: 3,
     type: 'status',
     requestId: 'integration-round-trip',
     expiresAtMs: currentTime + 5_000
@@ -363,7 +363,7 @@ const testSocketHandoff = Effect.fn('nativeHostTest.socketHandoff')(function*(ho
 
 const testDeadlineOverflow = Effect.fn('nativeHostTest.deadlineOverflow')(function*(hostPath: string) {
   const result = yield* runClient(hostPath, JSON.stringify({
-    version: 1,
+    version: 3,
     type: 'status',
     requestId: 'deadline-overflow',
     expiresAtMs: 1e100

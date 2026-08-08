@@ -1,6 +1,6 @@
 local M = {}
 
-local BRIDGE_VERSION = 1
+local BRIDGE_VERSION = 3
 local MAXIMUM_COORDINATE = 100000
 local MAXIMUM_REQUEST_TIMEOUT_SECONDS = 60
 
@@ -157,7 +157,23 @@ function M.new(config)
       expiresAtMs = timestampMs + math.floor(options.timeoutSeconds * 1000),
       operation = options.operation,
       targetBounds = options.targetBounds,
-    }, callback)
+    }, function(accepted, requestError, response)
+      if not accepted then
+        callback(false, requestError)
+        return
+      end
+
+      local browserWindowId = response and response.browserWindowId or nil
+      if not finiteNumber(browserWindowId)
+        or browserWindowId <= 0
+        or browserWindowId % 1 ~= 0
+      then
+        self.connected = false
+        callback(false, "The native bridge returned an invalid created browser window identity")
+        return
+      end
+      callback(true, nil, browserWindowId, requestId)
+    end)
   end
 
   function client:listProfileWindows(options, callback)

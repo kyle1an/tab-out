@@ -51,13 +51,49 @@ local function fingerprint(bounds, documentUrl)
     return nil
   end
 
-  return table.concat({
+  local boundsKey = table.concat({
     roundedCoordinate(bounds[1]),
     roundedCoordinate(bounds[2]),
     roundedCoordinate(bounds[3]),
     roundedCoordinate(bounds[4]),
-    documentUrl,
   }, "\0")
+  return boundsKey .. "\0" .. documentUrl
+end
+
+local function creationTokenIsValid(value)
+  return type(value) == "string"
+    and #value > 0
+    and #value <= 128
+    and value:match("^[A-Za-z0-9._:%-]+$") ~= nil
+end
+
+local function documentCarriesCreationToken(documentUrl, extensionId, creationToken)
+  if type(documentUrl) ~= "string" then
+    return false
+  end
+
+  local parts = hs.http.urlParts(documentUrl)
+  if not parts
+    or parts.scheme ~= "chrome-extension"
+    or parts.host ~= extensionId
+    or parts.path ~= "/index.html"
+  then
+    return false
+  end
+
+  local matchedValues = 0
+  for _, queryItem in ipairs(parts.queryItems or {}) do
+    local value = queryItem.tabOutPlacement
+    if value ~= nil then
+      matchedValues = matchedValues + 1
+      if value ~= creationToken then
+        return false
+      end
+    elseif queryItem[1] == "tabOutPlacement" then
+      return false
+    end
+  end
+  return matchedValues == 1
 end
 
 local function profileTokens(profile)
@@ -123,6 +159,9 @@ local function hammerspoonPlatform(options)
       return window and window:id() or nil
     end,
     readBrowserWindows = function()
+      if not hs.application.get(bundleId) then
+        return nil, "Google Chrome is no longer running"
+      end
       local succeeded, records, descriptor = hs.osascript.applescript(PROFILE_WINDOW_INVENTORY_SCRIPT)
       if not succeeded or type(records) ~= "table" then
         return nil, "Chrome's focus-independent window inventory is unavailable: " .. tostring(descriptor)
@@ -238,13 +277,6 @@ function M.new(options)
   function catalog:profileFor(windowOrId)
     local id = windowId(windowOrId)
     return id and profileByWindow[id] or nil
-  end
-
-  function catalog:confirm(windowOrId, profileDirectory)
-    local id = windowId(windowOrId)
-    if id and profileDirectory then
-      profileByWindow[id] = profileDirectory
-    end
   end
 
   function catalog:forget(windowOrId)
@@ -382,6 +414,99 @@ function M.new(options)
     end
 
     return "chrome-extension://" .. id .. "/index.html?focusFilter=1"
+  end
+
+  function catalog:matchCreatedBrowserWindow(
+    browserWindowId,
+    creationToken,
+    candidates
+  )
+    if type(browserWindowId) ~= "number"
+      or browserWindowId <= 0
+      or browserWindowId % 1 ~= 0
+    then
+      return nil, "The created browser window identity is invalid", true
+    end
+    if not creationTokenIsValid(creationToken) then
+      return nil, "The created window token is invalid", true
+    end
+
+    local expectedExtensionId, extensionError = self:extensionId()
+    if not expectedExtensionId then
+      return nil, extensionError, true
+    end
+
+    local browserWindows, inventoryError = platform.readBrowserWindows()
+    if not browserWindows then
+      return nil, inventoryError
+    end
+
+    local targetFound = false
+    local targetCarriesToken = false
+    local tokenDocumentCount = 0
+    for _, browserWindow in ipairs(browserWindows) do
+      local documentUrl = type(browserWindow) == "table"
+        and browserWindow.documentUrl
+        or nil
+      local carriesToken = documentCarriesCreationToken(
+        documentUrl,
+        expectedExtensionId,
+        creationToken
+      )
+      if carriesToken then
+        tokenDocumentCount = tokenDocumentCount + 1
+      end
+      if type(browserWindow) == "table"
+        and tonumber(browserWindow.browserWindowId) == browserWindowId
+      then
+        if targetFound then
+          return nil, "Chrome returned duplicate records for the created browser window", true
+        end
+        targetFound = true
+        targetCarriesToken = carriesToken
+      end
+    end
+
+    if not targetFound then
+      return nil, "The created browser window is not yet available in Chrome's window inventory"
+    end
+    if tokenDocumentCount == 0 then
+      return nil, "The created browser window token is not yet available in Chrome's window inventory"
+    end
+    if tokenDocumentCount > 1 then
+      return nil, "Chrome returned an ambiguous created window token", true
+    end
+    if not targetCarriesToken then
+      return nil, "Chrome attached the created window token to another browser window", true
+    end
+
+    local matchedWindow
+    for _, window in ipairs(candidates or {}) do
+      local descriptor = platform.describeWindow(window)
+      local matches = descriptor
+        and documentCarriesCreationToken(
+          descriptor.documentUrl,
+          expectedExtensionId,
+          creationToken
+        )
+      if matches then
+        if matchedWindow then
+          return nil, "Multiple native Chrome windows match the created browser window", true
+        end
+        matchedWindow = window
+      end
+    end
+
+    if not matchedWindow then
+      return nil, "The created window token is not yet available to macOS accessibility"
+    end
+
+    local id = windowId(matchedWindow)
+    if not id then
+      return nil, "The matched native Chrome window identity is unavailable", true
+    end
+    profileByWindow[id] = configuredProfileDirectory
+    return matchedWindow
   end
 
   local function cacheFocusIndependentProfiles(candidates, profileWindowIds)

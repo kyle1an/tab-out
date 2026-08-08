@@ -1852,7 +1852,7 @@ test('native placement bridge directly places a requested window without focusin
   assert.equal(typeof onNativeMessage, 'function')
 
   onNativeMessage({
-    version: 1,
+    version: 3,
     type: 'create-window',
     requestId: 'hs-bridge-test-1',
     expiresAtMs: Date.now() + 12_000,
@@ -1867,7 +1867,7 @@ test('native placement bridge directly places a requested window without focusin
   assert.deepEqual(mock.calls.windowCreate, [
     {
       type: 'normal',
-      url: 'chrome-extension://tab-out/index.html?focusFilter=1',
+      url: 'chrome-extension://tab-out/index.html?focusFilter=1&tabOutPlacement=hs-bridge-test-1',
       focused: false,
       left: -1820,
       top: 75,
@@ -1880,10 +1880,11 @@ test('native placement bridge directly places a requested window without focusin
   assert.equal(mock.state.windowsById[2].state, 'normal')
   assert.deepEqual(mock.calls.nativeHostNames, ['com.tabout.native_bridge'])
   assert.deepEqual(mock.calls.nativeMessages, [{
-    version: 1,
+    version: 3,
     type: 'response',
     requestId: 'hs-bridge-test-1',
-    status: 'accepted'
+    status: 'accepted',
+    browserWindowId: 2
   }])
 })
 

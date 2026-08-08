@@ -13,7 +13,7 @@ import {
   type TargetDisplayBounds
 } from './native-window-placement.js'
 
-export const NATIVE_PLACEMENT_BRIDGE_VERSION = 1
+export const NATIVE_PLACEMENT_BRIDGE_VERSION = 3
 // The final delay deliberately exceeds Chrome's normal 30-second MV3 idle
 // window. A missing optional host can therefore let an otherwise idle worker
 // terminate, while a later worker wake restarts the fast reconnect sequence.
@@ -27,6 +27,7 @@ const NATIVE_PLACEMENT_RECONNECT_DELAYS_MS = [
 const NATIVE_PLACEMENT_HOST_NAME = 'com.tabout.native_bridge'
 
 export type NativePlacementBridgeResponse = {
+  browserWindowId?: number
   reason?: string
   requestId: string
   status: 'accepted' | 'rejected'
@@ -144,13 +145,16 @@ export const handleNativePlacementBridgeMessageEffect = Effect.fn('nativePlaceme
   const targetBounds = candidate.targetBounds
 
   const placementResult = yield* Effect.result(Effect.tryPromise({
-    try: () => createInactiveWindow(operation, targetBounds, chromeApi),
+    try: () => createInactiveWindow(operation, targetBounds, requestId, chromeApi),
     catch: (cause) => new NativePlacementOperationError({ cause })
   }))
   if (Result.isFailure(placementResult)) {
     return response(requestId, 'rejected', errorMessage(placementResult.failure.cause))
   }
-  return response(requestId, 'accepted')
+  return {
+    ...response(requestId, 'accepted'),
+    browserWindowId: placementResult.success
+  }
 })
 
 export class NativePlacementBridge extends Context.Service<NativePlacementBridge, {

@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-01
+- Creation-window identity refined by: ADR 0017
 
 ## Context
 

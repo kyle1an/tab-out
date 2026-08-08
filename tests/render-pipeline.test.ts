@@ -2323,6 +2323,7 @@ test('filter URL helpers preserve restorable filter state without history churn'
   assert.equal(urlForFilterInput('github', { pathname: '/index.html', search: '?focusFilter=1', hash: '#top' }), '/index.html?focusFilter=1&filter=github#top')
   assert.equal(urlForFilterInput('', { pathname: '/index.html', search: '?filter=github&focusFilter=1', hash: '' }), '/index.html?focusFilter=1')
   assert.equal(urlForFilterInput('qa env', { pathname: '/index.html', search: '', hash: '' }), '/index.html?filter=qa+env')
+  assert.equal(urlForFilterInput('', { pathname: '/index.html', search: '?tabOutPlacement=request-1&filter=github', hash: '' }), '/index.html?tabOutPlacement=request-1')
 })
 
 test('filter focus shortcut matches Cmd+K on macOS and Ctrl+K elsewhere', () => {

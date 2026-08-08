@@ -213,6 +213,7 @@ static int focusExactWindow(lua_State *L) {
   @autoreleasepool {
     lua_Integer luaPID = luaL_checkinteger(L, 1);
     lua_Integer luaWindowID = luaL_checkinteger(L, 2);
+    BOOL allowCreatedWindowWithoutOnScreenMetadata = lua_toboolean(L, 3);
     if (luaPID <= 1 || luaPID > INT_MAX || luaWindowID <= 0 || (uint64_t)luaWindowID > UINT32_MAX) {
       return pushFailure(L, @"pid and window-id must be positive integers in range");
     }
@@ -254,7 +255,11 @@ static int focusExactWindow(lua_State *L) {
       && ownerPID.intValue == pid
       && layer.intValue == 0
       && [ownerName isEqualToString:@"Google Chrome"]
-      && (onScreen.boolValue || wasMinimized);
+      // Chrome can publish a newly created focused:false window without this
+      // optional key until the exact-window foreground call materializes it.
+      && (onScreen.boolValue
+        || wasMinimized
+        || (allowCreatedWindowWithoutOnScreenMetadata && !onScreen));
     if ((info && !validWindowInfo) || (!info && !wasMinimized)) {
       CFRelease(targetWindow);
       closePrivateSymbols(&symbols);

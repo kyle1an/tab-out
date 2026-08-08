@@ -4,7 +4,7 @@ local CHROME_LAUNCH_TIMEOUT_SECONDS = 20
 local CHROME_LAUNCH_RETRY_INTERVAL_SECONDS = 0.2
 local CHROME_OPEN_EXECUTABLE = "/usr/bin/open"
 local LAST_USER_SPACES_KEY = "tabOut.lastUserSpaces.v1"
-local NEW_WINDOW_POLL_INTERVAL_SECONDS = 0.005
+local NEW_WINDOW_POLL_INTERVAL_SECONDS = 0.05
 local NEW_WINDOW_TIMEOUT_SECONDS = 12
 local PROFILE_WINDOW_INVENTORY_TIMEOUT_SECONDS = 3
 
@@ -336,7 +336,10 @@ function M.new(options)
   local function expectNativePlacementWindow(request)
     local pending = {
       baselineWindowIds = {},
+      browserWindowId = nil,
       bridgeAccepted = false,
+      creationToken = nil,
+      identityError = nil,
       poll = nil,
       request = request,
       timeout = nil,
@@ -358,25 +361,67 @@ function M.new(options)
       pendingNativePlacement = nil
       fail(
         "Timed out waiting for Tab Out's directly placed Chrome window",
-        "Check the native bridge status and reload the Tab Out extension"
+        pending.identityError or "Check the native bridge status and reload the Tab Out extension"
       )
     end, true)
     return pending
   end
 
-  local function handlePendingChromeWindow(window)
-    local pending = pendingNativePlacement
-    local windowId = window and window:id() or nil
-    if not pending
-      or not pending.bridgeAccepted
+  local function pendingNativePlacementCandidates(pending)
+    local request = pending.request
+    local targetScreen = screenForUuid(request.screenUuid)
+    if not targetScreen
+      or hs.spaces.activeSpaceOnScreen(targetScreen) ~= request.targetSpaceId
+    then
+      return {}
+    end
+
+    local candidates = {}
+    local application = chromeApplication()
+    for _, window in ipairs(application and application:allWindows() or {}) do
+      local windowId = window and window:id() or nil
+      if windowId
+        and not pending.baselineWindowIds[windowId]
+        and isChromeWindow(window)
+        and screenUuid(window:screen()) == request.screenUuid
+      then
+        local windowSpaces = hs.spaces.windowSpaces(window)
+        if windowSpaces and containsValue(windowSpaces, request.targetSpaceId) then
+          table.insert(candidates, window)
+        end
+      end
+    end
+    return candidates
+  end
+
+  local function tryMatchNativePlacementWindow(pending)
+    if pendingNativePlacement ~= pending
       or pending.windowFound
-      or not windowId
-      or not window:isStandard()
+      or not pending.bridgeAccepted
+      or not pending.browserWindowId
+      or not pending.creationToken
     then
       return
     end
 
-    acceptNativePlacementWindow(pending, window)
+    if not chromeApplication() then
+      fail("Tab Out could not verify its created Chrome window", "Google Chrome is no longer running")
+      return
+    end
+
+    local window, identityError, fatal = catalog:matchCreatedBrowserWindow(
+      pending.browserWindowId,
+      pending.creationToken,
+      pendingNativePlacementCandidates(pending)
+    )
+    pending.identityError = identityError
+    if fatal then
+      fail("Tab Out could not verify its created Chrome window", identityError)
+      return
+    end
+    if window then
+      acceptNativePlacementWindow(pending, window)
+    end
   end
 
   local function startNativePlacementPoll(pending)
@@ -392,16 +437,7 @@ function M.new(options)
           return
         end
 
-        local application = chromeApplication()
-        for _, window in ipairs(application and application:allWindows() or {}) do
-          local windowId = window:id()
-          if windowId and not pending.baselineWindowIds[windowId] then
-            handlePendingChromeWindow(window)
-            if pending.windowFound then
-              return
-            end
-          end
-        end
+        tryMatchNativePlacementWindow(pending)
       end, debug.traceback)
 
       if not ok and isBusy() then
@@ -444,7 +480,7 @@ function M.new(options)
       operation = request.kind,
       targetBounds = targetBounds,
       timeoutSeconds = NEW_WINDOW_TIMEOUT_SECONDS,
-    }, function(accepted, bridgeError)
+    }, function(accepted, bridgeError, browserWindowId, creationToken)
       local ok, callbackError = xpcall(function()
         if pendingNativePlacement ~= pending or pending.windowFound then
           return
@@ -458,7 +494,10 @@ function M.new(options)
           )
           return
         end
+        pending.browserWindowId = browserWindowId
+        pending.creationToken = creationToken
         pending.bridgeAccepted = true
+        tryMatchNativePlacementWindow(pending)
       end, debug.traceback)
 
       if not ok and isBusy() then
@@ -744,7 +783,12 @@ function M.new(options)
     return true
   end
 
-  function router:handleChromeWindowCreated(window) handlePendingChromeWindow(window) end
+  function router:handleChromeWindowCreated()
+    local pending = pendingNativePlacement
+    if pending then
+      tryMatchNativePlacementWindow(pending)
+    end
+  end
 
   function router:isBusy() return busy end
 
