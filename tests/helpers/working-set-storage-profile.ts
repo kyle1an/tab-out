@@ -15,7 +15,11 @@ const FIXTURE_TITLE_LENGTH = 80
 
 export const workingSetStorageProfileNameSchema = Schema.Literals([
   'empty',
+  '50x20',
+  '100x20',
+  '250x20',
   '500x20',
+  '500x1',
   '500x80',
   '250-live-250-expired',
   '2000x80'
@@ -123,8 +127,16 @@ function profileShape(name: WorkingSetStorageProfileName): ProfileShape {
   switch (name) {
     case 'empty':
       return { liveRecordCount: 0, expiredRecordCount: 0, eventsPerRecord: 0 }
+    case '50x20':
+      return { liveRecordCount: 50, expiredRecordCount: 0, eventsPerRecord: 20 }
+    case '100x20':
+      return { liveRecordCount: 100, expiredRecordCount: 0, eventsPerRecord: 20 }
+    case '250x20':
+      return { liveRecordCount: 250, expiredRecordCount: 0, eventsPerRecord: 20 }
     case '500x20':
       return { liveRecordCount: 500, expiredRecordCount: 0, eventsPerRecord: 20 }
+    case '500x1':
+      return { liveRecordCount: 500, expiredRecordCount: 0, eventsPerRecord: 1 }
     case '500x80':
       return { liveRecordCount: 500, expiredRecordCount: 0, eventsPerRecord: 80 }
     case '250-live-250-expired':

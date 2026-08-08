@@ -13,6 +13,7 @@ import {
   encodeCompactActivityEnvelope,
   encodeCompactActivityRecord,
   makeMutationDiagnostics,
+  makeReadDiagnostics,
   type BenchmarkChromeStorageArea,
   type WorkingSetBenchmarkBackend
 } from './extension/working-set-backends/benchmark-backend.js'
@@ -132,6 +133,32 @@ test('mutation diagnostics defer payload serialization until metrics are read', 
   assert.equal(serializationCount, 1)
   assert.equal(diagnostics.lastMutationLogicalBytes(), logicalBytes)
   assert.equal(serializationCount, 1)
+})
+
+test('read diagnostics retain an isolated last sample and reset cleanly', () => {
+  const diagnostics = makeReadDiagnostics()
+  const sample = {
+    backendReadTotalMs: 12,
+    openDatabaseMs: 2,
+    expiryScanMs: 1,
+    expiryDeleteMs: 0,
+    retainedFetchMs: 3,
+    decodeMaterializeMs: 5,
+    fetchedRows: 4,
+    validRows: 3,
+    invalidRows: 1,
+    fetchedEvents: 8,
+    validEvents: 7,
+    invalidEvents: 1
+  }
+
+  assert.equal(diagnostics.last(), null)
+  diagnostics.record(sample)
+  sample.fetchedRows = 99
+  assert.equal(diagnostics.last()?.fetchedRows, 4)
+  assert.notEqual(diagnostics.last(), diagnostics.last())
+  diagnostics.reset()
+  assert.equal(diagnostics.last(), null)
 })
 
 test('compact Working Set tuples round-trip exact semantic records and isolate malformed rows', async () => {

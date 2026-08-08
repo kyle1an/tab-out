@@ -102,7 +102,8 @@ const captureDiagnostics = Effect.fn(
       ownedStorage: selectedBackend.ownedStorage,
       lastMutationLogicalBytes: selectedBackend.lastMutationLogicalBytes(),
       lastMutationPhysicalWrites: selectedBackend.lastMutationPhysicalWrites(),
-      writeInvocationCount: selectedBackend.writeInvocationCount()
+      writeInvocationCount: selectedBackend.writeInvocationCount(),
+      lastReadDiagnostics: selectedBackend.lastReadDiagnostics?.() ?? null
     }),
     catch: (cause) => WorkingSetStorageBenchmarkControllerError.make({
       operation: 'diagnostics',
@@ -130,6 +131,13 @@ const runCommand = Effect.fn('WorkingSetStorageBenchmark.runCommand')(
     | WorkingSetStorageError
   > {
     switch (message.operation) {
+      case 'wake-only':
+        return {
+          operation: message.operation,
+          timings: {
+            listenerToCommitMs: elapsedSince(listenerStartedAt)
+          }
+        }
       case 'seed-profile': {
         const profile = yield* Effect.try({
           try: () => makeWorkingSetStorageProfile(message.profile, message.now),
