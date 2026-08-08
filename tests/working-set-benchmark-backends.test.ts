@@ -205,7 +205,7 @@ test('compact Working Set tuples round-trip exact semantic records and isolate m
   await assert.rejects(() => decodeCompactActivityEnvelope([2, []]))
 })
 
-test('IndexedDB projection keeps the key out-of-line and rejects inconsistent lastEventAt', async () => {
+test('IndexedDB projection isolates malformed events and rejects invalid projections', async () => {
   const activatedAt = NOW
   const navigatedAt = NOW - 1000
   const record: WorkingSetActivityRecord = {
@@ -228,8 +228,26 @@ test('IndexedDB projection keeps the key out-of-line and rejects inconsistent la
   assert.deepEqual(await decodeIndexedDbEntry(key, value), record)
   assert.deepEqual(await decodeIndexedDbEntry(key, {
     ...value,
-    events: [...value.events, ['malformed-event']]
+    events: [
+      value.events[0],
+      'malformed-event',
+      [2, activatedAt + 10_000],
+      [0, Number.POSITIVE_INFINITY],
+      [1],
+      { kind: 'navigation', at: navigatedAt },
+      value.events[1]
+    ]
   }), record)
+  await assert.rejects(() => decodeIndexedDbEntry(key, {
+    ...value,
+    events: [
+      'malformed-event',
+      [2, activatedAt],
+      [0, Number.POSITIVE_INFINITY],
+      [1],
+      { kind: 'activation', at: activatedAt }
+    ]
+  }))
   await assert.rejects(() => decodeIndexedDbEntry(key, {
     ...value,
     lastEventAt: value.lastEventAt + 1

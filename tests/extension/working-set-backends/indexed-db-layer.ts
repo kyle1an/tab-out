@@ -25,8 +25,6 @@ import {
   makeMutationDiagnostics,
   makePromiseSerializer,
   makeReadDiagnostics,
-  materializeCompactActivityRows,
-  type CompactActivityRow,
   type WorkingSetBenchmarkBackend
 } from './benchmark-backend.js'
 
@@ -56,6 +54,14 @@ const indexedDbStoredActivityValueSchema = Schema.Struct({
 
 export type IndexedDbActivityValue =
   typeof indexedDbActivityValueSchema.Type
+type IndexedDbStoredActivityValue =
+  typeof indexedDbStoredActivityValueSchema.Type
+
+const isIndexedDbActivityValue = Schema.is(indexedDbActivityValueSchema)
+const isIndexedDbStoredActivityValue = Schema.is(
+  indexedDbStoredActivityValueSchema
+)
+const isCompactActivityEvent = Schema.is(compactActivityEventSchema)
 
 interface WorkingSetBenchmarkDatabase extends DBSchema {
   readonly [INDEXED_DB_RECORDS_STORE]: {
@@ -283,28 +289,30 @@ function makeIndexedDbBackend(
         0
       )
       const decodeStartedAt = performance.now()
-      const decodedRecords = await Promise.allSettled(storedKeys.map(
-        (key, index) => decodeIndexedDbEntry(key, storedValues[index])
-      ))
+      const recordsByKey = new Map<string, WorkingSetActivityRecord>()
+      let validEventCount = 0
+      for (const [index, key] of storedKeys.entries()) {
+        try {
+          const record = decodeIndexedDbEntrySync(key, storedValues[index])
+          const previous = recordsByKey.get(record.key)
+          if (previous !== undefined) validEventCount -= previous.events.length
+          recordsByKey.set(record.key, record)
+          validEventCount += record.events.length
+        } catch {
+          // A malformed row remains isolated from valid retained siblings.
+        }
+      }
       const activity: WorkingSetActivityStore = {
         version: 1,
-        records: Object.fromEntries(decodedRecords.flatMap((result) =>
-          result.status === 'fulfilled'
-            ? [[result.value.key, result.value]]
-            : []
-        ))
+        records: Object.fromEntries(recordsByKey)
       }
       currentReadDiagnostics.decodeMaterializeMs = elapsedSince(decodeStartedAt)
-      const validRecords = Object.values(activity.records)
-      currentReadDiagnostics.validRows = validRecords.length
+      currentReadDiagnostics.validRows = recordsByKey.size
       currentReadDiagnostics.invalidRows = Math.max(
         0,
         currentReadDiagnostics.fetchedRows - currentReadDiagnostics.validRows
       )
-      currentReadDiagnostics.validEvents = validRecords.reduce(
-        (total, record) => total + record.events.length,
-        0
-      )
+      currentReadDiagnostics.validEvents = validEventCount
       currentReadDiagnostics.invalidEvents = Math.max(
         0,
         currentReadDiagnostics.fetchedEvents - currentReadDiagnostics.validEvents
@@ -343,32 +351,92 @@ export async function decodeIndexedDbEntry(
   key: unknown,
   value: unknown
 ): Promise<WorkingSetActivityRecord> {
-  const [decodedKey, storedValue] = await Promise.all([
-    Schema.decodeUnknownPromise(Schema.String)(key),
-    Schema.decodeUnknownPromise(indexedDbStoredActivityValueSchema)(value)
-  ])
-  const decodedEvents = await Promise.allSettled(storedValue.events.map(
-    (event) => Schema.decodeUnknownPromise(compactActivityEventSchema)(event)
-  ))
-  const validEvents = decodedEvents.flatMap((result) =>
-    result.status === 'fulfilled' ? [result.value] : []
-  )
-  const latestStoredEventAt = latestCompactEventAt(validEvents)
-  if (latestStoredEventAt !== storedValue.lastEventAt) {
+  return decodeIndexedDbEntrySync(key, value)
+}
+
+interface MutableIndexedDbProjection {
+  readonly events: WorkingSetActivityEvent[]
+  latestStoredEventAt: number | undefined
+  lastSeenAt: number
+  lastActivatedAt: number
+  lastNavigatedAt: number
+}
+
+function decodeIndexedDbEntrySync(
+  key: unknown,
+  value: unknown
+): WorkingSetActivityRecord {
+  if (typeof key !== 'string') {
+    throw new Error('IndexedDB Working Set key must be a string')
+  }
+
+  const projection: MutableIndexedDbProjection = {
+    events: [],
+    latestStoredEventAt: undefined,
+    lastSeenAt: 0,
+    lastActivatedAt: 0,
+    lastNavigatedAt: 0
+  }
+  let storedValue: IndexedDbStoredActivityValue
+
+  if (isIndexedDbActivityValue(value)) {
+    storedValue = value
+    for (const event of value.events) appendCompactEvent(projection, event)
+  } else {
+    if (!isIndexedDbStoredActivityValue(value)) {
+      throw new Error('IndexedDB Working Set row is malformed')
+    }
+    storedValue = value
+    for (const event of value.events) {
+      if (isCompactActivityEvent(event)) appendCompactEvent(projection, event)
+    }
+  }
+
+  if (projection.latestStoredEventAt === undefined) {
+    throw new Error('IndexedDB Working Set rows require at least one valid event')
+  }
+  if (projection.latestStoredEventAt !== storedValue.lastEventAt) {
     throw new Error('IndexedDB Working Set lastEventAt projection is inconsistent')
   }
-  const compactRow: CompactActivityRow = [
-    decodedKey,
-    storedValue.title,
-    storedValue.dismissedAt ?? null,
-    storedValue.dismissedUntil ?? null,
-    validEvents
-  ]
-  const record = materializeCompactActivityRows([compactRow]).records[decodedKey]
-  if (record === undefined) {
-    throw new Error('IndexedDB Working Set row could not be materialized')
+
+  return {
+    key,
+    url: key,
+    title: storedValue.title,
+    domain: URL.parse(key)?.hostname || '',
+    lastSeenAt: projection.lastSeenAt,
+    ...(projection.lastActivatedAt === 0
+      ? {}
+      : { lastActivatedAt: projection.lastActivatedAt }),
+    ...(projection.lastNavigatedAt === 0
+      ? {}
+      : { lastNavigatedAt: projection.lastNavigatedAt }),
+    ...(storedValue.dismissedAt === undefined
+      ? {}
+      : { dismissedAt: storedValue.dismissedAt }),
+    ...(storedValue.dismissedUntil === undefined
+      ? {}
+      : { dismissedUntil: storedValue.dismissedUntil }),
+    events: projection.events
   }
-  return record
+}
+
+function appendCompactEvent(
+  projection: MutableIndexedDbProjection,
+  event: IndexedDbActivityValue['events'][number]
+): void {
+  const kind = event[0] === 0 ? 'activation' : 'navigation'
+  const at = event[1]
+  projection.events.push({ kind, at })
+  projection.latestStoredEventAt = projection.latestStoredEventAt === undefined
+    ? at
+    : Math.max(projection.latestStoredEventAt, at)
+  projection.lastSeenAt = Math.max(projection.lastSeenAt, at)
+  if (kind === 'activation') {
+    projection.lastActivatedAt = Math.max(projection.lastActivatedAt, at)
+  } else {
+    projection.lastNavigatedAt = Math.max(projection.lastNavigatedAt, at)
+  }
 }
 
 function storedEventCount(value: unknown): number {
@@ -382,21 +450,6 @@ function latestEventAt(events: readonly WorkingSetActivityEvent[]): number {
     (maximum, event) => maximum === undefined
       ? event.at
       : Math.max(maximum, event.at),
-    undefined
-  )
-  if (latest === undefined) {
-    throw new Error('IndexedDB Working Set rows require at least one event')
-  }
-  return latest
-}
-
-function latestCompactEventAt(
-  events: IndexedDbActivityValue['events']
-): number {
-  const latest = events.reduce<number | undefined>(
-    (maximum, event) => maximum === undefined
-      ? event[1]
-      : Math.max(maximum, event[1]),
     undefined
   )
   if (latest === undefined) {
