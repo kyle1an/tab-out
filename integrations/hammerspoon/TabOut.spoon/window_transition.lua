@@ -494,19 +494,55 @@ function M.new(options)
     end, true)
   end
 
+  local function activeTargetWindowError(window, expectedWindowId)
+    local windowId = window and window:id() or nil
+    local application = window and window:application() or nil
+    if not windowId
+      or windowId ~= expectedWindowId
+      or not application
+      or application:bundleID() ~= chromeBundleId
+    then
+      return "The Chrome window is no longer available"
+    end
+
+    local request = currentRequest()
+    local windowScreen = window:screen()
+    local windowSpaces = hs.spaces.windowSpaces(window)
+    local frontmostApplication = hs.application.frontmostApplication()
+    local focusedWindow = hs.window.focusedWindow()
+    if not request
+      or not window:isStandard()
+      or window:isMinimized()
+      or application:isHidden()
+      or not frontmostApplication
+      or frontmostApplication:bundleID() ~= chromeBundleId
+      or not focusedWindow
+      or focusedWindow:id() ~= expectedWindowId
+      or screenUuid(windowScreen) ~= request.screenUuid
+      or hs.spaces.activeSpaceOnScreen(windowScreen) ~= request.targetSpaceId
+      or not windowSpaces
+      or not containsValue(windowSpaces, request.targetSpaceId)
+      or catalog:profileFor(expectedWindowId) ~= configuredProfileDirectory
+    then
+      return "The exact Chrome window is no longer keyboard-active on the target Desktop"
+    end
+    return nil
+  end
+
   local function waitForDestinationControl(kind, window, onReady, onFailure)
     local expectedWindowId = window and window:id() or nil
     pollUntil(DESTINATION_CONTROL_TIMEOUT_SECONDS, "Timed out waiting for the Tab Out destination control", function()
-      local windowId = window and window:id() or nil
-      local application = window and window:application() or nil
-      if not windowId
-        or windowId ~= expectedWindowId
-        or not application
-        or application:bundleID() ~= chromeBundleId
-      then
-        return false, nil, "The Chrome window is no longer available"
+      local targetError = activeTargetWindowError(window, expectedWindowId)
+      if targetError then
+        return false, nil, targetError
       end
       local control = destinationControl(kind, window)
+      if kind == "newPage"
+        and control
+        and control:attributeValue("AXValue") ~= ""
+      then
+        return false
+      end
       return control ~= nil, control
     end, onReady, onFailure)
   end
@@ -524,6 +560,12 @@ function M.new(options)
   end
 
   local function focusDestinationControl(kind, window, control)
+    local expectedWindowId = window and window:id() or nil
+    local targetError = activeTargetWindowError(window, expectedWindowId)
+    if targetError then
+      return false, targetError
+    end
+
     control = control or destinationControl(kind, window)
     if not control then
       return false, "Chrome's destination control is unavailable"
@@ -532,6 +574,9 @@ function M.new(options)
     local focused = control:setAttributeValue("AXFocused", true)
     if not focused or control:attributeValue("AXFocused") ~= true then
       return false, "Chrome's destination control could not be focused"
+    end
+    if kind == "newPage" and control:attributeValue("AXValue") ~= "" then
+      return false, "Chrome's address bar is not empty"
     end
 
     return true
@@ -618,12 +663,71 @@ function M.new(options)
     end)
   end
 
+  local function replaceCreatedNewPageBootstrap(browserWindowId, creationToken)
+    if type(browserWindowId) ~= "number"
+      or browserWindowId <= 0
+      or browserWindowId % 1 ~= 0
+    then
+      return false, "The created browser window identity is unavailable"
+    end
+    if type(creationToken) ~= "string"
+      or creationToken:match("^hs%-%d+%-%d+$") == nil
+    then
+      return false, "The created window token is unavailable"
+    end
+
+    local extensionId, extensionError = catalog:extensionId()
+    if not extensionId then
+      return false, extensionError
+    end
+    local expectedBootstrapUrl = "chrome-extension://"
+      .. extensionId
+      .. "/index.html?tabOutPlacement="
+      .. creationToken
+
+    local script = string.format([[
+tell application "Google Chrome"
+  set candidateWindow to window id %d
+  if (id of front window) is not %d then error "The privately focused Chrome window changed before new-page finalization"
+  set bootstrapTab to active tab of candidateWindow
+  if (URL of bootstrapTab) is not "%s" then error "The created new-page bootstrap tab changed before finalization"
+  set URL of bootstrapTab to "%s"
+end tell
+]], browserWindowId, browserWindowId, expectedBootstrapUrl, NEW_TAB_URL)
+
+    local succeeded, _, descriptor = hs.osascript.applescript(script)
+    if succeeded then
+      return true
+    end
+
+    local errorNumber = type(descriptor) == "table" and descriptor.NSAppleScriptErrorNumber or nil
+    if errorNumber then
+      return false, "Chrome AppleScript error " .. tostring(errorNumber)
+    end
+    return false, "Chrome did not accept the created new-page finalization"
+  end
+
   -- Native Placement Bridge windows already contain their destination and are
   -- created inactive at final target bounds. The target-display snapshot stays
   -- above the inactive window until private activation and destination focus
   -- complete, so the created window is first exposed in its final frontmost state.
-  local function finishExtensionWindowActivation(kind, window)
+  local function finishExtensionWindowActivation(
+    kind,
+    window,
+    browserWindowId,
+    creationToken
+  )
     privatelyActivateWindow(window, function()
+      if kind == "newPage" then
+        local replaced, replaceError = replaceCreatedNewPageBootstrap(
+          browserWindowId,
+          creationToken
+        )
+        if not replaced then
+          fail("The Tab Out new page could not be prepared", replaceError)
+          return
+        end
+      end
       waitForDestinationControl(kind, window, function(control)
         finishDestinationControlFocus(kind, window, control)
       end, function(controlError)
@@ -744,7 +848,9 @@ function M.new(options)
 
   function transition:captureShield(screen) return captureTransitionShield(screen) end
   function transition:releaseShield() releaseTransitionShield() end
-  function transition:activateCreated(kind, window) finishExtensionWindowActivation(kind, window) end
+  function transition:activateCreated(kind, window, browserWindowId, creationToken)
+    finishExtensionWindowActivation(kind, window, browserWindowId, creationToken)
+  end
   function transition:activateExisting(kind, window) activateExistingWindow(kind, window) end
   function transition:registerCreatedWindow(request, window) registerCreatedWindowCloseRecovery(request, window) end
 

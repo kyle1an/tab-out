@@ -309,7 +309,12 @@ function M.new(options)
     local request = pending.request
     transition():registerCreatedWindow(request, window)
     log.df("Tab Out created the %s window directly on the target Desktop", request.kind)
-    transition():activateCreated(request.kind, window)
+    transition():activateCreated(
+      request.kind,
+      window,
+      pending.browserWindowId,
+      pending.creationToken
+    )
   end
 
   local function screenBoundsForBridge(targetScreen)

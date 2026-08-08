@@ -18,14 +18,22 @@ local function runShortcut(kind, options)
   local privateFocusAvailable = options.privateFocusAvailable ~= false
   local clock = 0
   local addressBarFocused = false
+  local addressBarInputEmpty = false
   local browserInventoryReadCount = 0
+  local createdBrowserIdentityCheckedBeforeFinalization = false
+  local createdBootstrapTokenCheckedBeforeFinalization = false
   local closeGestureCallback
   local closeGestureConsumed = false
   local closeMouseUpConsumed = false
   local chromeLaunchCount = 0
   local chromeApplicationHidden = false
   local createdBrowserWindowId = 4004
+  local createdBootstrapReplaced = false
+  local createdNewPageFinalizedAfterPrivateFocus = false
+  local createdNewPageNavigationPending = false
+  local createdNewPageNavigationReadCount = 0
   local createdPlacementToken = "hs-1800000000000-1"
+  local createdTokenObservedBeforeFinalization = false
   local createdWindowNativeTabCloseAllowed = false
   local createdWindowClosed = false
   local createdWindowMoved = false
@@ -41,12 +49,14 @@ local function runShortcut(kind, options)
   local createdChromeWindow
   local remoteDestinationFocusCount = 0
   local remoteTopHidden = false
+  local remoteTopApplication
   local failureAlert
   local focusedWindow
   local frontmostApplication
   local navigationAfterPrivateFocus = false
   local otherChromeReceivedFocus = false
   local otherChromeRaised = false
+  local originalWindow
   local openedFilter = false
   local openedNewPage = false
   local pendingTimers = {}
@@ -76,6 +86,32 @@ local function runShortcut(kind, options)
   local unrelatedBrowserWindowId = 5005
   local unrelatedDocumentUrl = "https://example.test/unrelated"
   local unrelatedNewChromeWindow
+  local nonBootstrapTabOverwritten = false
+
+  local function finishCreatedNewPageNavigation()
+    createdNewPageNavigationPending = false
+    createdDocumentUrl = "chrome://newtab/"
+    createdAxDocumentUrl = createdDocumentUrl
+  end
+
+  local function addressBarValue()
+    if createdChromeWindow and createdNewPageNavigationPending then
+      createdNewPageNavigationReadCount = createdNewPageNavigationReadCount + 1
+      if options.changeFocusDuringCreatedNewPageNavigation
+        and createdNewPageNavigationReadCount == 1
+      then
+        focusedWindow = originalWindow
+        frontmostApplication = remoteTopApplication
+      end
+      if createdNewPageNavigationReadCount > (options.createdNewPageNavigationDelayReads or 0) then
+        finishCreatedNewPageNavigation()
+      end
+    end
+    if createdChromeWindow then
+      return createdDocumentUrl == "chrome://newtab/" and "" or createdDocumentUrl
+    end
+    return openedNewPage and "" or targetDocumentUrl
+  end
 
   local function noOp() end
   local function returnSelf(self) return self end
@@ -167,7 +203,7 @@ local function runShortcut(kind, options)
   local targetChromeWindow = newChromeWindow(101, targetScreen)
   local inactiveSpaceChromeWindow = newChromeWindow(102, targetScreen)
   local otherChromeWindow = newChromeWindow(202, otherScreen, true)
-  local remoteTopApplication = {
+  remoteTopApplication = {
     bundleID = function()
       return "com.example.Editor"
     end,
@@ -205,7 +241,7 @@ local function runShortcut(kind, options)
       end
     end, function() otherChromeRaised = false end)
   frontmostApplication = remoteTopApplication
-  local originalWindow = newNonChromeWindow(304, targetScreen, function(window)
+  originalWindow = newNonChromeWindow(304, targetScreen, function(window)
       frontmostApplication = remoteTopApplication
       focusedWindow = window
     end)
@@ -286,12 +322,13 @@ local function runShortcut(kind, options)
 
   local axRoot
   local createdAxRoot
-  local function destinationControl(roleDescription, focused, onFocus)
+  local function destinationControl(roleDescription, focused, onFocus, value)
     return newAxElement({
       AXChildren = {},
       AXDescription = roleDescription,
       AXFocused = focused,
       AXRole = "AXTextField",
+      AXValue = value,
       AXWindow = function() return createdChromeWindow and createdAxRoot or axRoot end,
     }, function(attribute, value)
       if attribute == "AXFocused" and value == true then
@@ -307,7 +344,8 @@ local function runShortcut(kind, options)
       or (createdChromeWindow ~= nil and privateFocusCount > 0 and kind == "newPage")
   end, function()
     addressBarFocused = true
-  end)
+    addressBarInputEmpty = addressBarValue() == ""
+  end, addressBarValue)
   local filterInput = destinationControl("Filter tabs, bookmarks, history…", function()
     return filterInputFocused
       or (createdChromeWindow ~= nil and privateFocusCount > 0 and kind == "filter")
@@ -587,9 +625,52 @@ local function runShortcut(kind, options)
         local focusesFilter = script:find("focusFilter=1", 1, true) ~= nil
         local focusesWindow = script:find("focusWindow=1", 1, true) ~= nil
         local opensNewPage = script:find("chrome://newtab/", 1, true) ~= nil
+        local replacesCreatedBootstrap = script:find(
+          'set URL of bootstrapTab to "chrome://newtab/"',
+          1,
+          true
+        ) ~= nil
         navigationAfterPrivateFocus = privateFocusCount > 0 and focusedWindow == targetChromeWindow
         openedFilter = focusesFilter
         openedNewPage = opensNewPage
+        if replacesCreatedBootstrap and createdChromeWindow then
+          createdBrowserIdentityCheckedBeforeFinalization = script:find(
+            "set candidateWindow to window id " .. createdBrowserWindowId,
+            1,
+            true
+          ) ~= nil and script:find(
+            "if (id of front window) is not " .. createdBrowserWindowId,
+            1,
+            true
+          ) ~= nil
+          createdBootstrapTokenCheckedBeforeFinalization = script:find(
+            "set bootstrapTab to active tab of candidateWindow",
+            1,
+            true
+          ) ~= nil and script:find(
+            'if (URL of bootstrapTab) is not "' .. createdDocumentUrl .. '"',
+            1,
+            true
+          ) ~= nil
+          if options.createdFinalizationBrowserIdentityMismatch then
+            return false, nil, { NSAppleScriptErrorNumber = -2700 }
+          end
+          if options.createdFinalizationTabChanged
+            and createdBootstrapTokenCheckedBeforeFinalization
+          then
+            return false, nil, { NSAppleScriptErrorNumber = -2700 }
+          elseif options.createdFinalizationTabChanged then
+            nonBootstrapTabOverwritten = true
+          end
+          createdBootstrapReplaced = true
+          createdNewPageFinalizedAfterPrivateFocus = privateFocusCount > 0
+            and focusedWindow == createdChromeWindow
+          createdTokenObservedBeforeFinalization = createdAxDocumentReadCount > 0
+          createdNewPageNavigationPending = true
+          if (options.createdNewPageNavigationDelayReads or 0) == 0 then
+            finishCreatedNewPageNavigation()
+          end
+        end
         if focusesWindow then
           extensionFocusRequested = true
           if focusesFilter then
@@ -1036,9 +1117,15 @@ local function runShortcut(kind, options)
 
   return {
     addressBarFocused = addressBarFocused,
+    addressBarInputEmpty = addressBarInputEmpty,
     closeGestureConsumed = closeGestureConsumed,
     closeMouseUpConsumed = closeMouseUpConsumed,
     createdWindow = createdChromeWindow ~= nil,
+    createdBootstrapReplaced = createdBootstrapReplaced,
+    createdBootstrapTokenCheckedBeforeFinalization = createdBootstrapTokenCheckedBeforeFinalization,
+    createdBrowserIdentityCheckedBeforeFinalization = createdBrowserIdentityCheckedBeforeFinalization,
+    createdNewPageFinalizedAfterPrivateFocus = createdNewPageFinalizedAfterPrivateFocus,
+    createdTokenObservedBeforeFinalization = createdTokenObservedBeforeFinalization,
     createdWindowClosed = createdWindowClosed,
     createdWindowMoved = createdWindowMoved,
     createdWindowNativeTabCloseAllowed = createdWindowNativeTabCloseAllowed,
@@ -1051,6 +1138,7 @@ local function runShortcut(kind, options)
     nativeBridgeInstalled = diagnostics.nativeBridgeInstalled,
     nativeBridgeReady = diagnostics.nativeBridgeReady,
     navigationAfterPrivateFocus = navigationAfterPrivateFocus,
+    nonBootstrapTabOverwritten = nonBootstrapTabOverwritten,
     openedFilter = openedFilter,
     openedNewPage = openedNewPage,
     otherChromeReceivedFocus = otherChromeReceivedFocus,

@@ -27,9 +27,14 @@ test even though it was not created by the bridge request.
   keeps its original request-ID token echo so an already-loaded v3 Hammerspoon
   client remains compatible during an extension-only reload. Current
   Hammerspoon retains its generated request ID as the known token instead of
-  depending on that echo. Both routes use this tokenized extension document;
-  the filter route also starts with `focusFilter=1`, while the new-page route
-  focuses Chrome's address bar after exact activation.
+  depending on that echo. Both routes initially use this tokenized extension
+  document, and the filter route also starts with `focusFilter=1`. After exact
+  new-page correlation and private activation, Hammerspoon requires Chrome's
+  front browser-window ID to equal the returned ID and the active tab still to
+  carry the exact request token, then replaces that same bootstrap tab with
+  `chrome://newtab/`. It revalidates native focus, display, Space, and profile
+  while waiting for the address bar to become empty and immediately before
+  focusing it.
 - Hammerspoon excludes every native Chrome window present before the request
   and considers only standard, non-minimized candidates on the captured display
   and active Space. A window-created event wakes matching but never proves
@@ -57,6 +62,11 @@ An inactive bridge-created window can now be materialized by the exact private
 activation that makes its WindowServer state complete, fixing creation on an
 otherwise Chrome-empty Desktop. The allowance cannot be transferred to the
 first unrelated window that happens to appear during the request.
+
+The new-page token is transient correlation data rather than final navigation
+state. Replacing the bootstrap tab only after exact activation preserves
+Chrome's native empty-omnibox behavior without creating a second tab or
+allowing bounds to authorize navigation.
 
 Creation becomes intentionally availability-conservative when Chrome and
 Accessibility cannot expose the unique token before the deadline. A window
