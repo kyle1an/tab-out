@@ -173,8 +173,12 @@ interface SuccessfulHeapSample {
   readonly profile: WorkingSetStorageProfileName
   readonly baseline: ServiceWorkerHeapUsage
   readonly afterRead: ServiceWorkerHeapUsage
+  readonly afterIdle50Ms: ServiceWorkerHeapUsage
+  readonly afterIdle250Ms: ServiceWorkerHeapUsage
   readonly afterForcedGc: ServiceWorkerHeapUsage
   readonly afterReadMinusBaseline: HeapDelta
+  readonly afterIdle50MsMinusBaseline: HeapDelta
+  readonly afterIdle250MsMinusBaseline: HeapDelta
   readonly afterForcedGcMinusBaseline: HeapDelta
   readonly sampling: ServiceWorkerHeapSamplingSummary
   readonly instrumentedServiceReadMs: number
@@ -470,6 +474,10 @@ async function measureHeap(
       `${candidate.variant}/${profileName} heap read returned the wrong record count`
     )
     const afterRead = await cdp.getHeapUsage()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    const afterIdle50Ms = await cdp.getHeapUsage()
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    const afterIdle250Ms = await cdp.getHeapUsage()
     await cdp.collectGarbage()
     const afterForcedGc = await cdp.getHeapUsage()
     const sampling = await cdp.stopSampling()
@@ -483,8 +491,12 @@ async function measureHeap(
       profile: profileName,
       baseline,
       afterRead,
+      afterIdle50Ms,
+      afterIdle250Ms,
       afterForcedGc,
       afterReadMinusBaseline: heapDelta(afterRead, baseline),
+      afterIdle50MsMinusBaseline: heapDelta(afterIdle50Ms, baseline),
+      afterIdle250MsMinusBaseline: heapDelta(afterIdle250Ms, baseline),
       afterForcedGcMinusBaseline: heapDelta(afterForcedGc, baseline),
       sampling,
       instrumentedServiceReadMs,
@@ -665,6 +677,14 @@ function summarizeHeap(samples: readonly HeapSample[]) {
         failedCount,
         baseline: summarizeHeapUsage(measured, (sample) => sample.baseline),
         afterRead: summarizeHeapUsage(measured, (sample) => sample.afterRead),
+        afterIdle50Ms: summarizeHeapUsage(
+          measured,
+          (sample) => sample.afterIdle50Ms
+        ),
+        afterIdle250Ms: summarizeHeapUsage(
+          measured,
+          (sample) => sample.afterIdle250Ms
+        ),
         afterForcedGc: summarizeHeapUsage(
           measured,
           (sample) => sample.afterForcedGc
@@ -672,6 +692,14 @@ function summarizeHeap(samples: readonly HeapSample[]) {
         afterReadMinusBaseline: summarizeHeapUsage(
           measured,
           (sample) => sample.afterReadMinusBaseline
+        ),
+        afterIdle50MsMinusBaseline: summarizeHeapUsage(
+          measured,
+          (sample) => sample.afterIdle50MsMinusBaseline
+        ),
+        afterIdle250MsMinusBaseline: summarizeHeapUsage(
+          measured,
+          (sample) => sample.afterIdle250MsMinusBaseline
         ),
         afterForcedGcMinusBaseline: summarizeHeapUsage(
           measured,
@@ -776,7 +804,8 @@ test('explores cold Working Set reads without selecting a backend', async ({}, t
         'Runtime.getHeapUsage for the service-worker V8 isolate through a nested CDP target session.',
       heapSequence:
         'wake-only; attach; forced GC; baseline; start sampling; service-read; ' +
-        'immediate heap; forced GC; retained heap; stop sampling.',
+        'immediate heap; 50ms natural-idle heap; 250ms cumulative natural-idle ' +
+        'heap; forced GC; retained heap; stop sampling.',
       heapSamplingOptions: HEAP_SAMPLING_OPTIONS,
       heapCaveat:
         'Heap data is isolate JS/embedder/backing-store usage, not whole-browser ' +
