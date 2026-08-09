@@ -1,0 +1,227 @@
+#!/bin/zsh
+
+set -u
+set -o pipefail
+
+usage() {
+  printf '%s\n' "Usage: scripts/doctor-macos-integration [hammerspoon-config-directory]"
+  printf '%s\n' "Defaults to TAB_OUT_HAMMERSPOON_CONFIG_DIR or ~/.hammerspoon. Performs read-only checks."
+}
+
+if (( $# > 1 )); then
+  usage >&2
+  exit 64
+fi
+
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+script_directory=${0:A:h}
+tab_out_checkout=${script_directory:h:A}
+config_directory=${1:-${TAB_OUT_HAMMERSPOON_CONFIG_DIR:-}}
+if [[ -z $config_directory ]]; then
+  config_directory="$HOME/.hammerspoon"
+fi
+config_directory=${config_directory:A}
+
+typeset -i failures=0
+typeset -i actions=0
+typeset -i warnings=0
+
+pass() {
+  printf '%-7s %s\n' "PASS" "$1"
+}
+
+info() {
+  printf '%-7s %s\n' "INFO" "$1"
+}
+
+warn() {
+  printf '%-7s %s\n' "WARN" "$1"
+  (( warnings += 1 ))
+}
+
+fail() {
+  printf '%-7s %s\n' "FAIL" "$1"
+  (( failures += 1 ))
+}
+
+action() {
+  printf '%-7s %s\n' "ACTION" "$1"
+  (( actions += 1 ))
+}
+
+repo_summary() {
+  local label=$1
+  local directory=$2
+  local branch
+  local revision
+
+  branch=$(git -C "$directory" branch --show-current 2>/dev/null)
+  [[ -n $branch ]] || branch="detached HEAD"
+  revision=$(git -C "$directory" rev-parse --short=12 HEAD 2>/dev/null)
+
+  if [[ -n $(git -C "$directory" status --porcelain=v1 2>/dev/null) ]]; then
+    warn "$label is dirty: $branch at $revision"
+  else
+    pass "$label is clean: $branch at $revision"
+  fi
+}
+
+check_directory() {
+  local path=$1
+  local label=$2
+  local remediation=$3
+
+  if [[ -d $path ]]; then
+    pass "$label"
+  else
+    action "$remediation"
+  fi
+}
+
+info "Tab Out checkout: $tab_out_checkout"
+info "Hammerspoon config directory: $config_directory"
+
+if [[ $(uname -s 2>/dev/null) == "Darwin" ]]; then
+  pass "Operating system is macOS"
+else
+  fail "This integration is supported only on macOS"
+fi
+
+if command -v git >/dev/null 2>&1; then
+  if git -C "$tab_out_checkout" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    repo_summary "Tab Out checkout" "$tab_out_checkout"
+  else
+    info "Tab Out source directory is not a Git worktree"
+  fi
+
+  if [[ -d $config_directory ]] \
+    && git -C "$config_directory" rev-parse --is-inside-work-tree >/dev/null 2>&1
+  then
+    repo_summary "Hammerspoon config directory" "$config_directory"
+  else
+    info "Hammerspoon config directory is not a Git worktree"
+  fi
+else
+  warn "Git is unavailable; source revisions and worktree state were not inspected"
+fi
+
+integration_installer="$tab_out_checkout/scripts/install-macos-integration"
+if [[ -x $integration_installer ]]; then
+  pass "Tab Out's canonical macOS installer is available"
+else
+  fail "Tab Out's canonical macOS installer is missing: $integration_installer"
+fi
+
+private_helper="$tab_out_checkout/integrations/hammerspoon/TabOut.spoon/native/tab_out_private_focus.m"
+if [[ -f $private_helper ]]; then
+  pass "Tab Out private helper source is available"
+else
+  fail "Tab Out private helper source is missing: $private_helper"
+fi
+
+check_directory /Applications/Hammerspoon.app \
+  "Hammerspoon is installed in /Applications" \
+  "Install Hammerspoon in /Applications"
+check_directory "/Applications/Google Chrome.app" \
+  "Google Chrome is installed in /Applications" \
+  "Install Google Chrome in /Applications"
+
+for compiler in clang swiftc; do
+  if command -v xcrun >/dev/null 2>&1 && xcrun --find "$compiler" >/dev/null 2>&1; then
+    pass "xcrun $compiler is available"
+  else
+    action "Install Xcode command-line tools so xcrun $compiler is available"
+  fi
+done
+
+if [[ -d $config_directory ]]; then
+  pass "Hammerspoon config directory exists"
+else
+  action "Create or select a Hammerspoon config directory: $config_directory"
+fi
+
+config_entry="$HOME/.hammerspoon"
+if [[ -e $config_entry || -L $config_entry ]]; then
+  resolved_config_entry=${config_entry:A}
+  if [[ $resolved_config_entry == "$config_directory" ]]; then
+    pass "~/.hammerspoon resolves to the selected config directory"
+  else
+    fail "~/.hammerspoon resolves to $resolved_config_entry; expected $config_directory"
+  fi
+else
+  action "Activate the selected config directory at ~/.hammerspoon after confirming the path is unused"
+fi
+
+if [[ -f "$config_directory/init.lua" ]]; then
+  pass "Hammerspoon init.lua is available"
+else
+  action "Add an init.lua that loads and starts the Tab Out Spoon"
+fi
+
+spoon_source="$tab_out_checkout/integrations/hammerspoon/TabOut.spoon"
+spoon_destination="$config_directory/Spoons/TabOut.spoon"
+if [[ ! -d $spoon_source ]]; then
+  fail "Tab Out Spoon source is missing: $spoon_source"
+elif [[ -L $spoon_destination ]]; then
+  if [[ ${spoon_destination:A} == "${spoon_source:A}" ]]; then
+    pass "Installed Tab Out Spoon resolves to this checkout"
+  else
+    fail "Installed Tab Out Spoon resolves to ${spoon_destination:A}; expected ${spoon_source:A}"
+  fi
+elif [[ -e $spoon_destination ]]; then
+  fail "Installed Tab Out Spoon is not a symlink: $spoon_destination"
+else
+  action "Run Tab Out's macOS integration installer to install the Spoon"
+fi
+
+native_status_command="$tab_out_checkout/scripts/native-host/status"
+if [[ -x $native_status_command ]]; then
+  if native_status_output=$("$native_status_command" 2>&1); then
+    pass "${native_status_output%%$'\n'*}"
+  else
+    action "Native host is not ready: ${native_status_output%%$'\n'*}"
+  fi
+else
+  fail "Tab Out native-host status command is missing or not executable"
+fi
+
+if command -v hs >/dev/null 2>&1; then
+  if runtime_output=$(hs -c 'local tabOut = spoon and spoon.TabOut; if not tabOut or type(tabOut.status) ~= "function" then return "missing:Tab Out Spoon" end; local status = tabOut.status(); local checks = { { "Spoon start", status.started }, { "Accessibility permission", hs.accessibilityState(false) }, { "private exact-window focus", status.privateFocusReady }, { "Native Placement Bridge", status.nativeBridgeReady }, { "configured-profile metadata", status.profileMetadataReady }, { "configured-profile extension discovery", status.extensionReady } }; local missing = {}; for _, check in ipairs(checks) do if not check[2] then table.insert(missing, check[1]) end end; return #missing == 0 and "ready" or "missing:" .. table.concat(missing, ", ")' 2>/dev/null); then
+    if [[ $runtime_output == "ready" ]]; then
+      pass "Loaded Hammerspoon and Tab Out runtime checks are ready"
+    elif [[ $runtime_output == missing:* ]]; then
+      action "Hammerspoon runtime is not ready: ${runtime_output#missing:}"
+    else
+      action "Hammerspoon returned an unrecognized Tab Out status"
+    fi
+
+    if screen_recording_output=$(hs -c 'if type(hs.screenRecordingState) ~= "function" then return "unsupported" end; return hs.screenRecordingState() and "ready" or "unavailable"' 2>/dev/null); then
+      if [[ $screen_recording_output == "ready" ]]; then
+        pass "Screen Recording permission enables transition shielding"
+      elif [[ $screen_recording_output == "unavailable" ]]; then
+        warn "Screen Recording permission is unavailable; transition shielding will be skipped"
+      else
+        info "Screen Recording permission state is unavailable from this Hammerspoon version"
+      fi
+    fi
+  else
+    action "Hammerspoon IPC is unavailable; open Hammerspoon and reload its configuration"
+  fi
+else
+  action "The hs command is unavailable; open Hammerspoon after activating its configuration"
+fi
+
+printf '%-7s %s\n' "MANUAL" "Exercise both shortcuts over create and reuse routes with every display observed"
+printf '%-7s %s\n' "MANUAL" "Confirm destination focus plus remote focus, ordering, and created-window close behavior"
+
+printf '\n'
+if (( failures > 0 || actions > 0 )); then
+  printf 'RESULT  Setup incomplete: %d failure(s), %d action(s), %d warning(s).\n' "$failures" "$actions" "$warnings"
+  exit 1
+fi
+
+printf 'RESULT  Automated setup checks passed with %d warning(s); live acceptance remains.\n' "$warnings"

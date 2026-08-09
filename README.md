@@ -83,14 +83,18 @@ host:
 scripts/install-macos-integration <extension-id>
 ```
 
-Add your Chrome profile and keybindings to `~/.hammerspoon/init.lua`, then
-reload Tab Out from `chrome://extensions` and reload Hammerspoon. The complete
-configuration, verification, and permission guide is in
+Configure `spoon.TabOut:start(config)` through your Hammerspoon configuration;
+the companion `hammerspoon-config` repository keeps its profile and keybindings
+in ignored `tab-out.local.lua`. Then reload Tab Out from `chrome://extensions`
+and reload Hammerspoon. The complete configuration, diagnostic, permission,
+and live-acceptance guide is in
 [`integrations/hammerspoon/README.md`](integrations/hammerspoon/README.md).
 
-Check the bridge or remove the whole macOS integration with:
+Run the read-only integration doctor, inspect the lower-level host, or remove
+the whole macOS integration with:
 
 ```bash
+scripts/doctor-macos-integration ~/.hammerspoon
 scripts/native-host/status
 scripts/uninstall-macos-integration
 ```

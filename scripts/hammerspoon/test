@@ -11,3 +11,4 @@ escaped_test_directory=${escaped_test_directory//\"/\\\"}
 hs -c "return dofile(\"$escaped_test_directory/tab_out_spoon_spec.lua\")"
 hs -c "return dofile(\"$escaped_test_directory/tab_out_bridge_spec.lua\")"
 "$script_directory/test-install"
+"$script_directory/test-doctor"

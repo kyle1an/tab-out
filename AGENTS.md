@@ -29,7 +29,7 @@ This repo is a Chrome Manifest V3 extension. Treat `AGENTS.md` as the day-to-day
   - `src/extension/filter-focus-boot.ts` to `extension/dist/filter-focus-boot.js`
   - `src/extension/background.ts` to `extension/dist/background.js`
   - `src/styles/app.css` plus extension styles to `extension/dist/assets/app.css`
-- The optional macOS integration owns its Hammerspoon Spoon under `integrations/hammerspoon/TabOut.spoon/` and its Native Placement Bridge host under `native/bridge-host/`. `pnpm hammerspoon:build` and `pnpm native-host:build` create ignored local artifacts; both remain deliberately outside the cross-platform extension build.
+- The optional macOS integration owns its Hammerspoon Spoon under `integrations/hammerspoon/TabOut.spoon/`, its Native Placement Bridge host under `native/bridge-host/`, its read-only setup diagnostic at `scripts/doctor-macos-integration`, and its canonical setup and acceptance guide in `integrations/hammerspoon/README.md`. `pnpm hammerspoon:build` and `pnpm native-host:build` create ignored local artifacts; both remain deliberately outside the cross-platform extension build.
 - `pnpm build` imports the manifest and dashboard-page generators directly before running entry-specific Vite builds, so the MV3 service worker stays a standalone `extension/dist/background.js`; use the package scripts instead of raw `vite build` when regenerating committed bundles.
 - `src/`, `extension/base.css`, `chrome-support.json`, `package.json`, `scripts/build-extension.ts`, and `vite.config.ts` are watched by `pnpm dev` through native filesystem events.
 - `extension/index.html` and `extension/manifest.json` are generated runtime package files. HTML changes need a page or extension reload; manifest, permission, and service-worker changes need an extension reload in `chrome://extensions`.
@@ -70,6 +70,7 @@ pnpm dev
 - UI/layout changes: run `pnpm verify`; also run `pnpm test:browser`, `pnpm verify:browser`, or perform real Chrome visual inspection when practical. The Playwright harness runs its bundled Chromium at the declared minimum Chrome major, owns its local server instead of reusing another worktree's process, and accepts `TAB_OUT_PLAYWRIGHT_PORT` for concurrent worktree runs; install Chromium once with `pnpm exec playwright install chromium`. If browser verification is skipped, say why.
 - Extension API, shortcut, service-worker, tab/window, new-tab override, or focus behavior: prefer real Chrome inspection because harness tests cannot prove `chrome.*` runtime behavior.
 - Native Placement Bridge, macOS placement, or private-focus changes additionally require both `pnpm native-host:test` and `pnpm hammerspoon:test` on macOS.
+- macOS installer or setup-diagnostic changes require `pnpm hammerspoon:test` plus a focused run of `scripts/doctor-macos-integration`; the diagnostic is read-only and does not replace user-observed live acceptance.
 - Docs-only changes: focused checks are enough, such as `git diff --check -- AGENTS.md README.md`.
 - Commits: the pre-commit hook runs `pnpm verify`; enable it once per clone with `pnpm setup:hooks`.
 

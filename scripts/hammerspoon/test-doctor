@@ -1,0 +1,53 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+script_directory=${0:A:h}
+repository_root=${script_directory:h:h}
+doctor="$repository_root/scripts/doctor-macos-integration"
+temporary_root=$(mktemp -d)
+trap 'rm -rf "$temporary_root"' EXIT
+
+help_output=$("$doctor" --help)
+[[ ${help_output%%$'\n'*} == "Usage: scripts/doctor-macos-integration [hammerspoon-config-directory]" ]]
+
+set +e
+invalid_output=$("$doctor" first second 2>&1)
+invalid_status=$?
+set -e
+[[ $invalid_status -eq 64 ]]
+[[ $invalid_output == *"Usage: scripts/doctor-macos-integration"* ]]
+
+temporary_home="$temporary_root/home"
+temporary_config="$temporary_root/config"
+mkdir -p "$temporary_home" "$temporary_config"
+resolved_temporary_config=${temporary_config:A}
+
+set +e
+diagnostic_output=$(HOME="$temporary_home" "$doctor" "$temporary_config" 2>&1)
+diagnostic_status=$?
+set -e
+
+[[ $diagnostic_status -eq 1 ]]
+[[ $diagnostic_output == *"Tab Out checkout: $repository_root"* ]]
+[[ $diagnostic_output == *"Hammerspoon config directory: $resolved_temporary_config"* ]]
+[[ $diagnostic_output == *"PASS    Tab Out's canonical macOS installer is available"* ]]
+[[ $diagnostic_output == *"PASS    Tab Out private helper source is available"* ]]
+[[ $diagnostic_output == *"ACTION  Run Tab Out's macOS integration installer to install the Spoon"* ]]
+[[ $diagnostic_output == *"ACTION  Native host is not ready:"* ]]
+[[ $diagnostic_output == *"RESULT  Setup incomplete:"* ]]
+[[ $diagnostic_output != *"tab-out.local.lua"* ]]
+
+set +e
+environment_output=$(
+  HOME="$temporary_home" \
+    TAB_OUT_HAMMERSPOON_CONFIG_DIR="$temporary_config" \
+    "$doctor" 2>&1
+)
+environment_status=$?
+set -e
+
+[[ $environment_status -eq 1 ]]
+[[ $environment_output == *"Hammerspoon config directory: $resolved_temporary_config"* ]]
+
+printf '%s\n' "macOS integration doctor regression: ok"
