@@ -28,9 +28,9 @@ import {
   type GlobalTabHistoryInput
 } from './tab-history-state.js'
 import { normalizeWorkingSetActivity, pageIdentityForWorkingSet } from '../working-set.js'
-import { WORKING_SET_ACTIVITY_KEY } from './working-set-service.js'
 import type { ChromeApi } from './chrome-api.js'
 import { readChromeStorageValue, writeChromeStorageValue } from './chrome-storage.js'
+import { WorkingSetActivityStorage } from './working-set-activity-storage.js'
 import {
   focusExistingTabTargetEffect,
   type ExistingTabFocusResult
@@ -145,7 +145,9 @@ export class TabHistory extends Context.Service<TabHistory, {
   ) => Effect.Effect<void, TabHistoryTaskError>
   readonly switchTabHistory: (direction: number) => Effect.Effect<void, TabHistoryTaskError>
 }>()('@tab-out/background/TabHistory') {
-  static layer(chromeApi: ChromeApi): Layer.Layer<TabHistory> {
+  static layer(
+    chromeApi: ChromeApi
+  ): Layer.Layer<TabHistory, never, WorkingSetActivityStorage> {
     return makeTabHistoryLayer(chromeApi).pipe(Layer.provide(BrowserTabs.layer()))
   }
 }
@@ -203,6 +205,7 @@ function historyEntryMatchesTab(entry: { tabId: number; url: string }, tab: chro
 const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
   chromeApi: ChromeApi
 ) {
+  const workingSetActivityStorage = yield* WorkingSetActivityStorage
   const tabHistoryCache = yield* Ref.make<GlobalTabHistory | null>(null)
   const browserStartupResetPending = yield* Ref.make(false)
   const trustedTabIds = new Set<number>()
@@ -274,13 +277,9 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
   })
 
   const readActivityTimestamps = Effect.fn('TabHistory.readActivityTimestamps')(function*() {
-    const storage = tabHistoryStorageArea()
-    if (!storage) return new Map()
-    const stored = yield* Effect.result(
-      tryTask(() => readChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY))
-    )
+    const stored = yield* Effect.result(workingSetActivityStorage.read())
     if (Result.isFailure(stored)) return new Map()
-    const activity = normalizeWorkingSetActivity(stored.success)
+    const activity = stored.success
     const map = new Map<string, number>()
     for (const [key, record] of Object.entries(activity.records)) {
       const ts = Math.max(record.lastActivatedAt || 0, record.lastNavigatedAt || 0)

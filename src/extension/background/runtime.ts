@@ -30,6 +30,7 @@ import { RetainedPages } from './retained-pages-service.js'
 import { StartupSnapshot } from './startup-snapshot-service.js'
 import { TabHistory } from './tab-history-service.js'
 import { WorkingSet } from './working-set-service.js'
+import { makeWorkingSetActivityStorageLayer } from './working-set-activity-storage-layer.js'
 
 const dashboardRetainedPagesWireCache =
   createDashboardRetainedPagesWireEncodeCache()
@@ -162,14 +163,18 @@ export function createBackgroundRuntime(chromeApi: ChromeApi) {
     openSurfaceStorage,
     retentionHealth
   )))
+  const workingSetActivityStorage = makeWorkingSetActivityStorageLayer(chromeApi)
+  const activityServices = Layer.mergeAll(
+    TabHistory.layer(chromeApi),
+    WorkingSet.layer(chromeApi)
+  ).pipe(Layer.provideMerge(workingSetActivityStorage))
   const coreServices = Layer.mergeAll(
     BrowserTabs.layer(),
     Badge.layer(chromeApi),
     NativePlacementBridge.layer(chromeApi),
     retainedPages,
     retentionHealth,
-    TabHistory.layer(chromeApi),
-    WorkingSet.layer(chromeApi)
+    activityServices
   )
   const runtimeLayer = StartupSnapshot.layer({
     alarms: chromeApi.alarms,

@@ -1,4 +1,5 @@
 import process from 'node:process'
+import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import * as NodeRuntime from '@effect/platform-node/NodeRuntime'
@@ -8,10 +9,16 @@ import * as ChildProcess from 'effect/unstable/process/ChildProcess'
 import * as ChildProcessSpawner from 'effect/unstable/process/ChildProcessSpawner'
 
 import packageJson from '../package.json' with { type: 'json' }
+import { resolveWorkingSetBuildSelection } from './working-set-benchmark-build-config.js'
 import { createExtensionManifest } from '../src/extension/manifest.js'
 import { createIndexHtml } from '../src/index-html.js'
 
 type BuildEntry = 'app' | 'background'
+
+const repositoryRoot = fileURLToPath(new URL('../', import.meta.url))
+const extensionPackageDirectory = resolveWorkingSetBuildSelection(
+  repositoryRoot
+).extensionDirectory
 
 class ExtensionBuildError extends Schema.TaggedErrorClass<ExtensionBuildError>()(
   'ExtensionBuildError',
@@ -53,7 +60,7 @@ const writeGeneratedExtensionFiles = Effect.fn('extensionBuild.writeGeneratedFil
   })
   const fileSystem = yield* FileSystem.FileSystem
   yield* fileSystem.writeFileString(
-    fileURLToPath(new URL('../extension/manifest.json', import.meta.url)),
+    resolve(extensionPackageDirectory, 'manifest.json'),
     `${JSON.stringify(manifest, null, 2)}\n`
   ).pipe(
     Effect.mapError((cause) => extensionBuildError('write generated extension manifest', cause))
@@ -63,7 +70,7 @@ const writeGeneratedExtensionFiles = Effect.fn('extensionBuild.writeGeneratedFil
     catch: (cause) => extensionBuildError('create dashboard page', cause)
   })
   yield* fileSystem.writeFileString(
-    fileURLToPath(new URL('../extension/index.html', import.meta.url)),
+    resolve(extensionPackageDirectory, 'index.html'),
     indexHtml
   ).pipe(
     Effect.mapError((cause) => extensionBuildError('write generated dashboard page', cause))

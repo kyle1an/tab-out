@@ -67,8 +67,8 @@ import {
 } from './runtime-messages.js'
 
 const chromeApi = chrome
-const backgroundRuntime = createBackgroundRuntime(chromeApi)
-const workingSetService = backgroundRuntime.runSync(WorkingSet.WorkingSet)
+export const backgroundRuntime = createBackgroundRuntime(chromeApi)
+export const workingSetService = backgroundRuntime.runSync(WorkingSet.WorkingSet)
 const tabHistoryService = backgroundRuntime.runSync(TabHistory.TabHistory)
 const startupSnapshotService = backgroundRuntime.runSync(StartupSnapshot)
 const retainedPagesService = backgroundRuntime.runSync(RetainedPages)

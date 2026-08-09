@@ -18,7 +18,7 @@ export const WORKING_SET_DEFAULT_LIMIT = 8
 export const WORKING_SET_EXPANDED_LIMIT = 16
 const WORKING_SET_MIN_ITEMS = 3
 
-const WORKING_SET_ACTIVITY_VERSION = 1
+export const WORKING_SET_ACTIVITY_VERSION = 1
 const ACTIVITY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 const SAME_DAY_MS = 24 * 60 * 60 * 1000
 const CURRENT_WEEK_MS = 7 * 24 * 60 * 60 * 1000
@@ -27,6 +27,10 @@ const MAX_EVENTS_PER_RECORD = 80
 const workingSetActivityEnvelopeSchema = Schema.Struct({
   version: Schema.Literals([WORKING_SET_ACTIVITY_VERSION]),
   records: Schema.Record(Schema.String, Schema.Unknown)
+})
+
+const workingSetActivityVersionedValueSchema = Schema.Struct({
+  version: Schema.Finite
 })
 
 const workingSetActivityRecordCandidateSchema = Schema.Struct({
@@ -44,6 +48,7 @@ const workingSetActivityEventSchema = Schema.Struct({
 }) satisfies Schema.Schema<WorkingSetActivityEvent>
 
 const isWorkingSetActivityEnvelope = Schema.is(workingSetActivityEnvelopeSchema)
+const isWorkingSetActivityVersionedValue = Schema.is(workingSetActivityVersionedValueSchema)
 const isWorkingSetActivityRecordCandidate = Schema.is(workingSetActivityRecordCandidateSchema)
 const isWorkingSetActivityEvent = Schema.is(workingSetActivityEventSchema)
 const isUnknownArray = Schema.is(Schema.Array(Schema.Unknown))
@@ -63,6 +68,18 @@ type WorkingSetActivityInput = {
   tab: Pick<DashboardTab, 'url' | 'rawUrl' | 'title'>
 }
 
+export type WorkingSetActivityStorageParseResult =
+  | { readonly status: 'missing'; readonly activity: WorkingSetActivityStore }
+  | { readonly status: 'valid'; readonly activity: WorkingSetActivityStore }
+  | { readonly status: 'malformed' }
+  | { readonly status: 'unsupported-version'; readonly version: number }
+
+export type WorkingSetActivityRecordMutation = {
+  readonly activity: WorkingSetActivityStore
+  readonly upsert: WorkingSetActivityRecord | null
+  readonly deleteKeys: readonly string[]
+}
+
 type WorkingSetSnapshotOptions = {
   tabs: DashboardTab[]
   activity: WorkingSetActivityStore | null | undefined
@@ -73,30 +90,14 @@ type WorkingSetSnapshotOptions = {
   currentWindowId?: number | null
 }
 
-function cloneStore(store: WorkingSetActivityStore): WorkingSetActivityStore {
-  return {
-    version: WORKING_SET_ACTIVITY_VERSION,
-    records: Object.fromEntries(
-      Object.entries(store.records).map(([key, record]) => [
-        key,
-        {
-          ...record,
-          events: record.events.map((event) => ({ ...event }))
-        }
-      ])
-    )
-  }
-}
-
 export function emptyWorkingSetActivity(): WorkingSetActivityStore {
   return { version: WORKING_SET_ACTIVITY_VERSION, records: {} }
 }
 
-export function normalizeWorkingSetActivity(value: unknown, now = Date.now()): WorkingSetActivityStore {
-  if (!isWorkingSetActivityEnvelope(value)) {
-    return emptyWorkingSetActivity()
-  }
-
+function normalizeWorkingSetActivityEnvelope(
+  value: typeof workingSetActivityEnvelopeSchema.Type,
+  now: number
+): WorkingSetActivityStore {
   const minAt = now - ACTIVITY_RETENTION_MS
   const records: Record<string, WorkingSetActivityRecord> = {}
   for (const [key, record] of Object.entries(value.records)) {
@@ -140,6 +141,35 @@ export function normalizeWorkingSetActivity(value: unknown, now = Date.now()): W
   return { version: WORKING_SET_ACTIVITY_VERSION, records }
 }
 
+export function parseWorkingSetActivityStorageValue(
+  value: unknown,
+  now = Date.now()
+): WorkingSetActivityStorageParseResult {
+  if (value === undefined) {
+    return { status: 'missing', activity: emptyWorkingSetActivity() }
+  }
+  if (isWorkingSetActivityEnvelope(value)) {
+    return {
+      status: 'valid',
+      activity: normalizeWorkingSetActivityEnvelope(value, now)
+    }
+  }
+  if (
+    isWorkingSetActivityVersionedValue(value) &&
+    value.version !== WORKING_SET_ACTIVITY_VERSION
+  ) {
+    return { status: 'unsupported-version', version: value.version }
+  }
+  return { status: 'malformed' }
+}
+
+export function normalizeWorkingSetActivity(value: unknown, now = Date.now()): WorkingSetActivityStore {
+  const parsed = parseWorkingSetActivityStorageValue(value, now)
+  return parsed.status === 'missing' || parsed.status === 'valid'
+    ? parsed.activity
+    : emptyWorkingSetActivity()
+}
+
 export function pageIdentityForWorkingSet(url = ''): string {
   const effectiveUrl = unwrapSuspenderUrl(url || '')
   if (!effectiveUrl) return ''
@@ -176,15 +206,27 @@ export function recordWorkingSetActivity(
   store: Partial<WorkingSetActivityStore> | null | undefined,
   { kind, at, tab }: WorkingSetActivityInput
 ): WorkingSetActivityStore {
-  const key = pageIdentityForWorkingSet(tab.url || tab.rawUrl || '')
-  if (!key || !Number.isFinite(at)) return normalizeWorkingSetActivity(store, Number.isFinite(at) ? at : Date.now())
+  return recordWorkingSetActivityMutation(store, { kind, at, tab }).activity
+}
 
-  const next = cloneStore(normalizeWorkingSetActivity(store, at))
-  const existing = next.records[key]
+export function recordWorkingSetActivityMutation(
+  store: Partial<WorkingSetActivityStore> | null | undefined,
+  { kind, at, tab }: WorkingSetActivityInput
+): WorkingSetActivityRecordMutation {
+  const before = normalizeWorkingSetActivity(store, Number.isFinite(at) ? at : Date.now())
+  const key = pageIdentityForWorkingSet(tab.url || tab.rawUrl || '')
+  const deleteKeys = Object.keys(store?.records ?? {}).filter(
+    (recordKey) => before.records[recordKey] === undefined
+  )
+  if (!key || !Number.isFinite(at)) {
+    return { activity: before, upsert: null, deleteKeys }
+  }
+
+  const existing = before.records[key]
   const events = [...(existing?.events || []), { kind, at }]
     .filter((event) => event.at >= at - ACTIVITY_RETENTION_MS)
     .slice(-MAX_EVENTS_PER_RECORD)
-  next.records[key] = {
+  const upsert: WorkingSetActivityRecord = {
     key,
     url: key,
     title: tab.title || existing?.title || displayUrlForPageIdentity(key),
@@ -202,7 +244,14 @@ export function recordWorkingSetActivity(
         : { lastNavigatedAt: existing.lastNavigatedAt }),
     events
   }
-  return next
+  return {
+    activity: {
+      version: WORKING_SET_ACTIVITY_VERSION,
+      records: { ...before.records, [key]: upsert }
+    },
+    upsert,
+    deleteKeys: deleteKeys.filter((recordKey) => recordKey !== key)
+  }
 }
 
 export function buildWorkingSetSnapshot({

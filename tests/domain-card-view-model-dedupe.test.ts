@@ -262,3 +262,34 @@ test('ordinary Tab Out aliases collapse into one stacked display chip', () => {
     else g.chrome = previous
   }
 })
+
+test('an ordinary Tab Out bucket keeps its render identity when its representative closes', () => {
+  const g = globalThis as { chrome?: unknown }
+  const previous = g.chrome
+  g.chrome = { runtime: { id: 'tab-out' } }
+  try {
+    const base = 'chrome-extension://tab-out/index.html'
+    const newTab = 'chrome://newtab/'
+    const makeGroup = (tabs: DomainGroup['tabs']): DomainGroup => ({
+      domain: '__tab-out__',
+      tabs
+    })
+    const before = collectDashboardChips(computeDomainCardViewModel(makeGroup([
+      makeDashboardTab({ id: 20, url: base, title: 'Tab Out', windowId: 2, isTabOut: true }),
+      makeDashboardTab({ id: 21, url: newTab, title: 'New Tab', windowId: 2, isTabOut: true })
+    ]), { currentWindowId: 1 }))[0]
+    const after = collectDashboardChips(computeDomainCardViewModel(makeGroup([
+      makeDashboardTab({ id: 21, url: newTab, title: 'New Tab', windowId: 2, isTabOut: true })
+    ]), { currentWindowId: 1 }))[0]
+
+    assert.ok(before)
+    assert.ok(after)
+    assert.notEqual(before.tabId, after.tabId)
+    assert.notEqual(before.rawUrl, after.rawUrl)
+    assert.equal(before.renderKey, `tab-out:${base}\0ordinary`)
+    assert.equal(after.renderKey, before.renderKey)
+  } finally {
+    if (previous === undefined) delete g.chrome
+    else g.chrome = previous
+  }
+})

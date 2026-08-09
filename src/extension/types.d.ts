@@ -133,6 +133,8 @@ export interface DashboardChipEnv {
 
 export interface DashboardChipData {
   tabId?: number | string
+  /** Stable rendered-sibling identity when physical raw URLs are non-unique. */
+  renderKey?: string
   tabUrl: string
   rawUrl: string
   sourceType?: 'tab' | 'bookmark' | 'history' | 'saved-page' | 'retained-page'

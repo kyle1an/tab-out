@@ -90,6 +90,7 @@ type ChipBuildEntry = {
 type TabOutDisplayBucketKind = 'current' | 'chrome-pinned' | 'chrome-grouped' | 'ordinary'
 type TabOutDisplayMeta = {
   tabs: DashboardTab[]
+  renderKey: string
   isCurrentTabOut: boolean
   chromePinned: boolean
   pagePinDisabled: boolean
@@ -748,12 +749,18 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     return { key: 'ordinary', kind: 'ordinary', rank: 3, groupId: -1 }
   }
 
-  function tabOutDisplayTabsForUrl(urlTabs: DashboardTab[]): DashboardTab[] {
+  function tabOutDisplayRenderKey(canonicalIdentity: string, bucketKey: string): string {
+    return `tab-out:${canonicalIdentity}\0${bucketKey}`
+  }
+
+  function tabOutDisplayTabsForUrl(canonicalIdentity: string, urlTabs: DashboardTab[]): DashboardTab[] {
     if (urlTabs.length <= 1) {
       const tab = urlTabs[0]
       if (tab) {
+        const bucket = tabOutBucketForTab(tab)
         tabOutDisplayMeta.set(tab, {
           tabs: [tab],
+          renderKey: tabOutDisplayRenderKey(canonicalIdentity, bucket.key),
           isCurrentTabOut: isCurrentTabOutPage(tab, currentWindowId),
           chromePinned: !!tab.pinned,
           pagePinDisabled: false
@@ -763,6 +770,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     }
 
     const buckets = new Map<string, {
+      key: string
       kind: TabOutDisplayBucketKind
       rank: number
       groupId: number
@@ -783,6 +791,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
         if (!representative) return []
         tabOutDisplayMeta.set(representative, {
           tabs: bucket.tabs,
+          renderKey: tabOutDisplayRenderKey(canonicalIdentity, bucket.key),
           isCurrentTabOut: bucket.kind === 'current',
           chromePinned: bucket.tabs.some((tab) => tab.pinned),
           pagePinDisabled: true
@@ -796,8 +805,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   const uniqueTabs: DashboardTab[] = []
   if (isTabOutGroup) {
     const displayTabsByUrl = Map.groupBy(tabs, keyOf)
-    for (const urlTabs of displayTabsByUrl.values()) {
-      uniqueTabs.push(...tabOutDisplayTabsForUrl(urlTabs))
+    for (const [canonicalIdentity, urlTabs] of displayTabsByUrl) {
+      uniqueTabs.push(...tabOutDisplayTabsForUrl(canonicalIdentity, urlTabs))
     }
   } else {
     const seen = new Set<string>()
@@ -1373,6 +1382,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     const { activeInOtherWindow, activeChipFrame } = activeFrameStateForDuplicateSet(duplicateTabs, currentWindowId)
     return {
       ...(tab.id === undefined ? {} : { tabId: tab.id }),
+      ...(tabOutMeta ? { renderKey: tabOutMeta.renderKey } : {}),
       tabUrl: tab.url,
       rawUrl: tab.rawUrl || tab.url,
       sourceType: tab.sourceType || 'tab',
@@ -1735,6 +1745,12 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     const primary = tabs[0]
     if (!primary) throw new Error('Folded chip requires at least one tab')
     const liveTabs = tabs.filter((tab) => !isClosedSavedDashboardTab(tab))
+    // `tabs` contains one display representative per environment URL. Expand
+    // those representatives back to their open duplicate sets so a loading
+    // copy cannot disappear behind an already-complete representative.
+    const representedTabs = tabs.flatMap((tab) => (
+      isClosedSavedDashboardTab(tab) ? [tab] : tabsByUrl.get(keyOf(tab)) || [tab]
+    ))
     const stateRepresentative = liveTabs[0] || primary
     const presentation = titlePresentation(primary)
     const label = presentation.displayTitle
@@ -1779,7 +1795,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       sourceType: stateRepresentative.sourceType || 'tab',
       closedSaved: liveTabs.length === 0,
       suspended: allOpenTargetsSuspended(tabs),
-      loading: tabs.some(isOpenTabLoading),
+      loading: representedTabs.some(isOpenTabLoading),
       leadPrefix: '',
       pathGroupLabel: '',
       displaySegments,

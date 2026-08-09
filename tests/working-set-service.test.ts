@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict'
 import test, { type TestContext } from 'node:test'
 import { setImmediate } from 'node:timers/promises'
-import { Effect } from 'effect'
+import { Effect, Layer, ManagedRuntime } from 'effect'
 
-import { createBackgroundRuntime } from '../src/extension/background/runtime.js'
+import {
+  readChromeStorageValue,
+  writeChromeStorageValue
+} from '../src/extension/background/chrome-storage.js'
+import { WorkingSetActivityStorage } from '../src/extension/background/working-set-activity-storage.js'
 import * as WorkingSet from '../src/extension/background/working-set-service.js'
 import type { ChromeApi } from '../src/extension/background/chrome-api.js'
 import type { WorkingSetActivityStore } from '../src/extension/types'
@@ -30,7 +34,34 @@ function chromeTab(id: number, path: string, audio: { audible?: boolean; muted?:
 }
 
 function createWorkingSetService(t: TestContext, chromeApi: ChromeApi) {
-  const runtime = createBackgroundRuntime(chromeApi)
+  const storage = chromeApi.storage?.local
+  const unavailable = (): Promise<never> => Promise.reject(
+    new Error('Chrome local storage is unavailable for Working Set activity')
+  )
+  const activityStorage = WorkingSetActivityStorage.layer({
+    read: () => storage
+      ? readChromeStorageValue(storage, WorkingSet.WORKING_SET_ACTIVITY_KEY)
+      : unavailable(),
+    write: (change) => storage
+      ? writeChromeStorageValue(
+          storage,
+          WorkingSet.WORKING_SET_ACTIVITY_KEY,
+          change.activity
+        )
+      : unavailable(),
+    replace: (activity) => storage
+      ? writeChromeStorageValue(
+          storage,
+          WorkingSet.WORKING_SET_ACTIVITY_KEY,
+          activity
+        )
+      : unavailable()
+  })
+  const runtime = ManagedRuntime.make(
+    WorkingSet.WorkingSet.layer(chromeApi).pipe(
+      Layer.provide(activityStorage)
+    )
+  )
   t.after(() => runtime.dispose())
   const service = runtime.runSync(WorkingSet.WorkingSet)
   const run = <Value>(
@@ -253,6 +284,35 @@ test('Working Set tab lookup failures do not rewrite unchanged activity', async 
   } as unknown as ChromeApi
 
   await createWorkingSetService(t, chromeApi).recordTabActivation(1, 1)
+
+  assert.equal(writeCount, 0)
+})
+
+test('Working Set ignores active navigation for an unsupported page identity without writing', async (t) => {
+  const tab = {
+    ...chromeTab(1, 'ignored'),
+    url: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop/index.html'
+  }
+  let writeCount = 0
+  const chromeApi = {
+    tabs: { query: async () => [tab] },
+    windows: {
+      WINDOW_ID_NONE: -1,
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' }]
+    },
+    storage: {
+      local: {
+        get: async () => ({ [WorkingSet.WORKING_SET_ACTIVITY_KEY]: emptyWorkingSetActivity() }),
+        set: async () => { writeCount += 1 }
+      }
+    }
+  } as unknown as ChromeApi
+
+  await createWorkingSetService(t, chromeApi).recordTabNavigation(
+    1,
+    { url: tab.url },
+    tab
+  )
 
   assert.equal(writeCount, 0)
 })

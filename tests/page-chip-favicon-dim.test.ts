@@ -35,6 +35,8 @@ test('a live tab chip keeps its favicon at full strength', () => {
   const html = renderChip()
   assert.match(html, /chip-favicon /)
   assert.doesNotMatch(html, /chip-favicon-dimmed/)
+  assert.doesNotMatch(html, /data-loading=/)
+  assert.doesNotMatch(html, /aria-busy=/)
 })
 
 test('a loading live tab chip replaces its favicon with a loading indicator', () => {
@@ -42,7 +44,42 @@ test('a loading live tab chip replaces its favicon with a loading indicator', ()
   assert.match(html, /data-tabout-part="loading-indicator"/)
   assert.match(html, /style="color:#0b57d0"/)
   assert.doesNotMatch(html, /chip-favicon /)
+  assert.match(html, /aria-busy="true"/)
   assert.match(html, /aria-label="Example Page · Loading"/)
+})
+
+test('loading title-variant and folded chips expose one busy semantic group', () => {
+  const titleVariantChip = {
+    titleVariantChips: [
+      makeChip({ tabUrl: 'https://site.example/a', rawUrl: 'https://site.example/a', pathSuffix: '/a', loading: true }),
+      makeChip({ tabUrl: 'https://site.example/b', rawUrl: 'https://site.example/b', pathSuffix: '/b' })
+    ]
+  }
+  const foldedChip = {
+    envs: [
+      { prefix: 'env-alpha', tabUrl: 'https://env-alpha.site.example/page', rawUrl: 'https://env-alpha.site.example/page' },
+      { prefix: 'env-beta', tabUrl: 'https://env-beta.site.example/page', rawUrl: 'https://env-beta.site.example/page' }
+    ]
+  }
+  const loadingHtml = [
+    renderChip({ ...titleVariantChip, loading: true }),
+    renderChip({ ...foldedChip, loading: true })
+  ]
+  const completeHtml = [renderChip(titleVariantChip), renderChip(foldedChip)]
+
+  for (const html of loadingHtml) {
+    assert.match(html, /data-tabout="page-chip"/)
+    assert.match(html, /data-loading="true"/)
+    assert.match(html, /role="group"/)
+    assert.match(html, /aria-busy="true"/)
+    assert.match(html, /aria-label="[^"]*Loading[^"]*"/)
+  }
+  for (const html of completeHtml) {
+    assert.match(html, /role="group"/)
+    assert.doesNotMatch(html, /data-loading=/)
+    assert.doesNotMatch(html, /aria-busy=/)
+    assert.doesNotMatch(html, /aria-label="[^"]*Loading[^"]*"/)
+  }
 })
 
 test('a suspended tab chip dims its favicon', () => {

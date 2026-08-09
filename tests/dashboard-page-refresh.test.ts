@@ -7,20 +7,56 @@ import {
   dashboardTabUpdateRefreshOptions
 } from '../src/extension/dashboard-page-refresh.js'
 
-test('dashboard tab load updates do not invalidate their own Startup Frame', () => {
+test('Tab Out and native new-tab items refresh for every material tab update', () => {
   const runtimeId = 'tab-out-runtime'
   const dashboardUrl = `chrome-extension://${runtimeId}/index.html`
 
-  assert.equal(dashboardTabUpdateRefreshOptions(
+  assert.deepEqual(dashboardTabUpdateRefreshOptions(
     { status: 'complete' },
     { url: dashboardUrl },
     runtimeId
-  ), null)
-  assert.equal(dashboardTabUpdateRefreshOptions(
+  ), { animateCards: false })
+  assert.deepEqual(dashboardTabUpdateRefreshOptions(
+    { status: 'loading' },
+    { pendingUrl: dashboardUrl, url: 'chrome://newtab/' },
+    runtimeId
+  ), { animateCards: false })
+  assert.deepEqual(dashboardTabUpdateRefreshOptions(
     { title: 'New Tab' },
     { url: 'chrome://newtab/' },
     runtimeId
-  ), null)
+  ), { animateCards: false })
+  assert.deepEqual(dashboardTabUpdateRefreshOptions(
+    { favIconUrl: `chrome-extension://${runtimeId}/icons/icon16.png` },
+    { url: 'chrome://newtab/' },
+    runtimeId
+  ), { animateCards: false })
+  for (const changeInfo of [
+    { audible: true },
+    { mutedInfo: { muted: true } }
+  ]) {
+    assert.deepEqual(dashboardTabUpdateRefreshOptions(
+      changeInfo,
+      { url: dashboardUrl },
+      runtimeId
+    ), { animateCards: false })
+  }
+  for (const changeInfo of [
+    { groupId: 7 },
+    { pinned: true },
+    { discarded: true }
+  ]) {
+    assert.deepEqual(dashboardTabUpdateRefreshOptions(
+      changeInfo,
+      { url: dashboardUrl },
+      runtimeId
+    ), { animateCards: true })
+  }
+  assert.deepEqual(dashboardTabUpdateRefreshOptions(
+    { url: dashboardUrl },
+    { url: dashboardUrl },
+    runtimeId
+  ), { animateCards: false })
   assert.deepEqual(dashboardTabUpdateRefreshOptions(
     { title: 'Example Article' },
     { url: 'https://example.test/article' },
@@ -31,6 +67,11 @@ test('dashboard tab load updates do not invalidate their own Startup Frame', () 
     { url: 'https://example.test/next' },
     runtimeId
   ), { animateCards: true })
+  assert.equal(dashboardTabUpdateRefreshOptions(
+    {},
+    { url: dashboardUrl },
+    runtimeId
+  ), null)
 })
 
 test('hidden dashboard event bursts do no refresh work and catch up once when visible', async () => {

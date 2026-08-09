@@ -4,7 +4,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { TabHistoryPanel } from '../../src/components/TabHistoryPanel.js'
 import type {
   TabHistoryEntry,
-  TabHistorySnapshot
+  TabHistorySnapshot,
+  WorkingSetSnapshot
 } from '../../src/extension/types'
 
 export function makeHistoryEntry(
@@ -54,11 +55,18 @@ function makeHistorySnapshot(
   }
 }
 
-export function renderHistoryPanel(entries: TabHistoryEntry[], snapshotOverrides: Partial<TabHistorySnapshot> = {}): string {
+export function renderHistoryPanel(
+  entries: TabHistoryEntry[],
+  snapshotOverrides: Partial<TabHistorySnapshot> = {},
+  workingSet: WorkingSetSnapshot | null = null
+): string {
   return renderToStaticMarkup(
     React.createElement(
-      TabHistoryPanel as React.ComponentType<{ snapshot: TabHistorySnapshot }>,
-      { snapshot: makeHistorySnapshot(entries, snapshotOverrides) }
+      TabHistoryPanel as React.ComponentType<{
+        snapshot: TabHistorySnapshot
+        workingSet?: WorkingSetSnapshot | null
+      }>,
+      { snapshot: makeHistorySnapshot(entries, snapshotOverrides), workingSet }
     )
   )
 }

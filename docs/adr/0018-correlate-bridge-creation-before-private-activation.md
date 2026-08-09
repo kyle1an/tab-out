@@ -1,4 +1,4 @@
-# ADR 0017: Correlate Bridge Creation Before Private Activation
+# ADR 0018: Correlate Bridge Creation Before Private Activation
 
 - Status: Accepted
 - Date: 2026-08-08

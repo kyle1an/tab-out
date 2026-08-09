@@ -22,6 +22,8 @@ import { startPageChipCloseAnimation } from './PageChipCloseAnimation'
 import { capturePageChipFocusRecovery, type PageChipFocusRecovery } from './PageChipFocusRecovery'
 import { TooltipAnchor } from './ui/tooltip'
 import { PageChipContextMenu } from './PageChipContextMenu'
+import { isOutsidePressInsideElement } from './context-menu-outside-press'
+import type { ContextMenuChangeEventDetails } from './context-menu-outside-press'
 import { SavedPageIcon } from './SavedPageIcon'
 import { TabAudioButton } from './TabAudioButton'
 import { TabLoadingIndicator } from './TabLoadingIndicator'
@@ -1653,7 +1655,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     )
   }
 
-  function onChipContextMenuOpenChange(open: boolean) {
+  function onChipContextMenuOpenChange(open: boolean, details: ContextMenuChangeEventDetails) {
     contextMenuOpenRef.current = open
     if (open) {
       captureContextMenuFocusRecovery()
@@ -1665,7 +1667,8 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       }
       return
     }
-    closeChipExpansion()
+    const currentChip = chipSlotRef.current?.querySelector<HTMLElement>('.page-chip')
+    if (!isOutsidePressInsideElement(details, currentChip)) closeChipExpansion()
     setPreview('')
   }
 
@@ -2802,7 +2805,6 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
 
   const chipInteractionProps = parentInteractive
     ? {
-        role: 'button',
         tabIndex: 0,
         onClick: onFocus,
         onMouseDown: onChipPointerDown,
@@ -2835,6 +2837,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
 
   const chipElement = (
       <div
+        role={parentInteractive ? 'button' : 'group'}
         id={hasFilter && parentInteractive ? chipFilterResultCandidate.domId : undefined}
         data-tabout="page-chip"
         data-tabout-retained-page-identity={chip.sourceType === 'retained-page' ? chip.retainedPageIdentity : undefined}
@@ -2842,6 +2845,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
         data-tabout-filter-result={hasFilter && parentInteractive ? '' : undefined}
         data-tabout-filter-result-key={hasFilter && parentInteractive ? chipFilterResultCandidate.key : undefined}
         data-expanded={chipExpanded ? 'true' : undefined}
+        data-loading={chip.loading ? 'true' : undefined}
         className={cn(
           "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-1.25 pr-1 pl-3 text-left text-[13px] leading-tight text-tab-live font-[inherit] [corner-shape:squircle] transition-[color] duration-100 before:pointer-events-none before:absolute before:top-1.75 before:bottom-1.75 before:left-1 before:w-0.5 before:rounded-[1px] before:bg-(--group-color,transparent) before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-(--chip-hover-fade-width) after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_34%,var(--chip-hover-fade-bg)_100%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transform-[scale(0.96)] motion-reduce:[&.closing]:transform-none",
           !chip.iconOnly && 'w-full',
@@ -2860,6 +2864,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
           trim.iconChipClasses
         )}
         aria-label={chipLabel}
+        aria-busy={chip.loading ? true : undefined}
         style={chipStyle}
         onPointerEnter={onChipPointerEnter}
         onPointerMove={onChipPointerMove}

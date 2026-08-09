@@ -7,6 +7,8 @@ import {
   emptyWorkingSetActivity,
   normalizeWorkingSetActivity,
   pageIdentityForWorkingSet,
+  parseWorkingSetActivityStorageValue,
+  recordWorkingSetActivityMutation,
   recordWorkingSetActivity
 } from '../src/extension/working-set.js'
 import type { DashboardTab, WorkingSetActivityStore, WorkingSetItem } from '../src/extension/types'
@@ -97,6 +99,64 @@ test('Working Set schema repairs valid records independently from malformed even
     { kind: 'activation', at: now - 1000 }
   ])
   assert.deepEqual(normalizeWorkingSetActivity({ version: 1, records: [] }, now), emptyWorkingSetActivity())
+})
+
+test('Working Set storage parsing distinguishes missing, malformed, and unsupported envelopes', () => {
+  assert.equal(parseWorkingSetActivityStorageValue(undefined).status, 'missing')
+  assert.equal(
+    parseWorkingSetActivityStorageValue({ version: 1, records: [] }).status,
+    'malformed'
+  )
+  assert.deepEqual(
+    parseWorkingSetActivityStorageValue({ version: 2, records: {} }),
+    { status: 'unsupported-version', version: 2 }
+  )
+})
+
+test('Working Set activity mutations expose one upsert and independently pruned record keys', () => {
+  const now = Date.UTC(2026, 4, 17, 12)
+  const expiredAt = now - 31 * 24 * 60 * 60_000
+  const currentAt = now - 60_000
+  const expiredKey = 'https://example.test/expired'
+  const currentKey = 'https://example.test/current'
+  const nextKey = 'https://example.test/next'
+  const store: WorkingSetActivityStore = {
+    version: 1,
+    records: {
+      [expiredKey]: {
+        key: expiredKey,
+        url: expiredKey,
+        title: 'Expired',
+        domain: 'example.test',
+        lastSeenAt: expiredAt,
+        lastActivatedAt: expiredAt,
+        events: [{ kind: 'activation', at: expiredAt }]
+      },
+      [currentKey]: {
+        key: currentKey,
+        url: currentKey,
+        title: 'Current',
+        domain: 'example.test',
+        lastSeenAt: currentAt,
+        lastActivatedAt: currentAt,
+        events: [{ kind: 'activation', at: currentAt }]
+      }
+    }
+  }
+
+  const mutation = recordWorkingSetActivityMutation(store, {
+    kind: 'navigation',
+    at: now,
+    tab: { url: nextKey, rawUrl: nextKey, title: 'Next' }
+  })
+
+  assert.equal(mutation.upsert?.key, nextKey)
+  assert.deepEqual(mutation.deleteKeys, [expiredKey])
+  assert.equal(mutation.activity.records[expiredKey], undefined)
+  assert.ok(mutation.activity.records[currentKey])
+  assert.deepEqual(mutation.activity.records[nextKey]?.events, [
+    { kind: 'navigation', at: now }
+  ])
 })
 
 test('buildWorkingSetSnapshot ranks open tabs by recency-dominant activity and folds duplicates', () => {
@@ -237,6 +297,27 @@ test('buildWorkingSetSnapshot marks a grouped item loading when any awake duplic
 
   assert.equal(byUrl.get('https://example.test/docs')?.loading, true)
   assert.equal(byUrl.get('https://example.test/suspended')?.loading, false)
+})
+
+test('buildWorkingSetSnapshot clears grouped loading after every awake duplicate completes', () => {
+  const now = Date.UTC(2026, 4, 17, 12)
+  const loadingTabs = [
+    makeTab({ id: 1, url: 'https://example.test/docs', title: 'Example Docs', status: 'complete' }),
+    makeTab({ id: 2, url: 'https://example.test/docs?utm_source=mail', title: 'Example Docs', status: 'loading' })
+  ]
+  let store = emptyWorkingSetActivity()
+  for (const tab of loadingTabs) store = record(store, tab, 'activation', now - 60_000)
+
+  const loading = buildWorkingSetSnapshot({ tabs: loadingTabs, activity: store, now, minItems: 1 })
+  const complete = buildWorkingSetSnapshot({
+    tabs: loadingTabs.map((tab) => ({ ...tab, status: 'complete' })),
+    activity: store,
+    now,
+    minItems: 1
+  })
+
+  assert.equal(loading.items[0]?.loading, true)
+  assert.equal(complete.items[0]?.loading, false)
 })
 
 test('normalizeWorkingSetSnapshot preserves loading state from the background snapshot', () => {

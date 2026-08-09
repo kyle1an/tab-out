@@ -5,10 +5,22 @@ import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
 import tailwindcss from '@tailwindcss/vite'
 
+import {
+  resolveWorkingSetBuildSelection,
+  workingSetBackgroundEntryPath,
+  workingSetBenchmarkAliases,
+  workingSetBenchmarkModuleGraphPlugin,
+  workingSetReadDiagnosticsEnabled,
+  workingSetRealTabsProofEnabled
+} from './scripts/working-set-benchmark-build-config.js'
 import { CHROME_BUILD_TARGET } from './src/extension/chrome-support.js'
 
 const repoRoot = import.meta.dirname
 const buildEntry = process.env.TAB_OUT_BUILD_ENTRY
+const workingSetBuildSelection = resolveWorkingSetBuildSelection(repoRoot)
+const workingSetBenchmarkModuleGraph = buildEntry === 'background'
+  ? workingSetBenchmarkModuleGraphPlugin(workingSetBuildSelection, repoRoot)
+  : null
 const tldtsMinifiedEsm = resolve(repoRoot, 'node_modules/tldts/dist/index.esm.min.js')
 if (!existsSync(tldtsMinifiedEsm)) {
   throw new Error('The installed tldts package no longer ships dist/index.esm.min.js')
@@ -20,16 +32,40 @@ const buildInputs: Record<string, string> =
         'filter-focus-boot': resolve(repoRoot, 'src/extension/filter-focus-boot.ts')
       }
     : buildEntry === 'background'
-      ? { background: resolve(repoRoot, 'src/extension/background.ts') }
+      ? {
+          background: workingSetBackgroundEntryPath(
+            repoRoot,
+            workingSetBuildSelection
+          )
+        }
       : {
           app: resolve(repoRoot, 'src/app.tsx'),
-          background: resolve(repoRoot, 'src/extension/background.ts')
+          background: workingSetBackgroundEntryPath(
+            repoRoot,
+            workingSetBuildSelection
+          )
         }
 
 export default defineConfig({
-  plugins: [tailwindcss(), react(), babel({ presets: [reactCompilerPreset()] })],
+  define: {
+    __TAB_OUT_WORKING_SET_READ_DIAGNOSTICS__: JSON.stringify(
+      workingSetReadDiagnosticsEnabled(workingSetBuildSelection)
+    ),
+    __TAB_OUT_WORKING_SET_REAL_TABS_PROOF__: JSON.stringify(
+      workingSetRealTabsProofEnabled(workingSetBuildSelection)
+    )
+  },
+  plugins: [
+    tailwindcss(),
+    react(),
+    babel({ presets: [reactCompilerPreset()] }),
+    ...(workingSetBenchmarkModuleGraph
+      ? [workingSetBenchmarkModuleGraph]
+      : [])
+  ],
   resolve: {
     alias: [
+      ...workingSetBenchmarkAliases(workingSetBuildSelection),
       { find: '@', replacement: resolve(repoRoot, 'src') },
       // Keep source and TypeScript on the public `tldts` API while directing
       // both production entries to its complete, pre-minified PSL bundle.
@@ -40,7 +76,7 @@ export default defineConfig({
   },
   build: {
     target: CHROME_BUILD_TARGET,
-    outDir: 'extension/dist',
+    outDir: workingSetBuildSelection.distDirectory,
     emptyOutDir: buildEntry !== 'background',
     modulePreload: false,
     rolldownOptions: {
