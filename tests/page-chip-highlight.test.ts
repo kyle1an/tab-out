@@ -1453,14 +1453,14 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
 
   // The extracted wrapper owns the eager Base UI trigger and visual-open lifecycle.
   assert.match(contextMenuComponentSource, /export function PageChipContextMenu\(/)
-  assert.match(contextMenuComponentSource, /onOpenChange\?: \(\(open: boolean\) => void\) \| undefined/)
+  assert.match(contextMenuComponentSource, /onOpenChange\?: \(\(open: boolean, details: ContextMenuChangeEventDetails\) => void\) \| undefined/)
   assert.match(contextMenuComponentSource, /from '\.\/ui\/context-menu'/)
   assert.doesNotMatch(contextMenuComponentSource, /PageChipContextMenuLoaded|import\(/)
   assert.doesNotMatch(contextMenuComponentSource, /\blazy\b|\bSuspense\b/)
   assert.match(tabHistoryPanelSource, /data-tabout-part="focus-button"[\s\S]*aria-label=\{entryLabel\}/)
 
   assert.match(contextMenuComponentSource, /PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS = 80/)
-  assert.match(contextMenuComponentSource, /function handleOpenChange\(nextOpen: boolean\)/)
+  assert.match(contextMenuComponentSource, /function handleOpenChange\(nextOpen: boolean, details: ContextMenuChangeEventDetails\)/)
   assert.match(contextMenuComponentSource, /const \[visualOpen, setVisualOpen\] = useState\(false\)/)
   assert.match(contextMenuComponentSource, /window\.setTimeout\(\(\) => \{[\s\S]*setVisualOpen\(false\)[\s\S]*PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS/)
   assert.match(contextMenuComponentSource, /const trigger = visualOpen/)

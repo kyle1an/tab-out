@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { ContextMenu, ContextMenuTrigger } from './ui/context-menu'
 import { PageChipContextMenuContent } from './PageChipContextMenuContent'
 import type { PageChipContextMenuContentProps } from './PageChipContextMenuContent'
+import type { ContextMenuChangeEventDetails } from './context-menu-outside-press'
 
 const PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS = 80
 
@@ -14,7 +15,7 @@ export type PageChipContextMenuTriggerElement = ReactElement<{
 
 type PageChipContextMenuProps = PageChipContextMenuContentProps & {
   children: PageChipContextMenuTriggerElement
-  onOpenChange?: ((open: boolean) => void) | undefined
+  onOpenChange?: ((open: boolean, details: ContextMenuChangeEventDetails) => void) | undefined
 }
 
 export function PageChipContextMenu({
@@ -37,7 +38,7 @@ export function PageChipContextMenu({
     }
   }, [])
 
-  function handleOpenChange(nextOpen: boolean) {
+  function handleOpenChange(nextOpen: boolean, details: ContextMenuChangeEventDetails) {
     clearVisualCloseTimer()
     if (nextOpen) {
       setVisualOpen(true)
@@ -47,7 +48,7 @@ export function PageChipContextMenu({
         setVisualOpen(false)
       }, PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS)
     }
-    onOpenChange?.(nextOpen)
+    onOpenChange?.(nextOpen, details)
   }
 
   const trigger = visualOpen

@@ -22,6 +22,8 @@ import { startPageChipCloseAnimation } from './PageChipCloseAnimation'
 import { capturePageChipFocusRecovery, type PageChipFocusRecovery } from './PageChipFocusRecovery'
 import { TooltipAnchor } from './ui/tooltip'
 import { PageChipContextMenu } from './PageChipContextMenu'
+import { isOutsidePressInsideElement } from './context-menu-outside-press'
+import type { ContextMenuChangeEventDetails } from './context-menu-outside-press'
 import { SavedPageIcon } from './SavedPageIcon'
 import { TabAudioButton } from './TabAudioButton'
 import { TabLoadingIndicator } from './TabLoadingIndicator'
@@ -1653,7 +1655,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     )
   }
 
-  function onChipContextMenuOpenChange(open: boolean) {
+  function onChipContextMenuOpenChange(open: boolean, details: ContextMenuChangeEventDetails) {
     contextMenuOpenRef.current = open
     if (open) {
       captureContextMenuFocusRecovery()
@@ -1665,7 +1667,8 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       }
       return
     }
-    closeChipExpansion()
+    const currentChip = chipSlotRef.current?.querySelector<HTMLElement>('.page-chip')
+    if (!isOutsidePressInsideElement(details, currentChip)) closeChipExpansion()
     setPreview('')
   }
 

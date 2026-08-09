@@ -17,6 +17,8 @@ import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-a
 import { historyEntrySaveTarget, historyEntrySaved, historyEntrySavedPageKey, isHistoryEntrySaveEligible } from '../extension/history-saved-page.js'
 import { PageChipContextMenu } from './PageChipContextMenu'
 import type { PageChipContextMenuTriggerElement } from './PageChipContextMenu'
+import { isOutsidePressInsideElement } from './context-menu-outside-press'
+import type { ContextMenuChangeEventDetails } from './context-menu-outside-press'
 import { DefaultFavicon } from './DefaultFavicon'
 import { FaviconImage } from './FaviconImage'
 import { FAVICON_DIM_CLASS_NAME } from './liveness-dim'
@@ -652,7 +654,7 @@ type HistoryEntryExpansion = {
   onHistoryEntryPointerLeave: (e: PointerEvent<HTMLDivElement>) => void
   onHistoryEntryFocus: (e: FocusEvent<HTMLDivElement>) => void
   onHistoryEntryBlur: (e: FocusEvent<HTMLDivElement>) => void
-  onHistoryEntryContextMenuOpenChange: (open: boolean) => void
+  onHistoryEntryContextMenuOpenChange: (open: boolean, details: ContextMenuChangeEventDetails) => void
 }
 
 function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleClampKey: string): HistoryEntryExpansion {
@@ -849,9 +851,9 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
   // history rows only keep an already-open expansion from collapsing while the
   // menu is open — they don't force-expand on right-click. The hover preview is
   // driven separately by the row's onMouseEnter/onMouseLeave.
-  function onHistoryEntryContextMenuOpenChange(open: boolean) {
+  function onHistoryEntryContextMenuOpenChange(open: boolean, details: ContextMenuChangeEventDetails) {
     contextMenuOpenRef.current = open
-    if (!open) closeTitleExpansion()
+    if (!open && !isOutsidePressInsideElement(details, entryRef.current)) closeTitleExpansion()
   }
 
   function onHistoryEntryPointerEnter() {
@@ -1211,7 +1213,7 @@ type HistoryEntryContextMenuProps = {
   entry: TabHistoryEntry
   savedKeys?: ReadonlySet<string> | undefined
   retainedPageSurfaceMatches?: readonly RetainedPageSurfaceMatch[] | undefined
-  onOpenChange: (open: boolean) => void
+  onOpenChange: (open: boolean, details: ContextMenuChangeEventDetails) => void
   children: PageChipContextMenuTriggerElement
 }
 
@@ -1403,8 +1405,8 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
       nextMutedForAudioState(audioState)
     )
   }
-  function onHistoryEntryMenuOpenChange(open: boolean) {
-    onHistoryEntryContextMenuOpenChange(open)
+  function onHistoryEntryMenuOpenChange(open: boolean, details: ContextMenuChangeEventDetails) {
+    onHistoryEntryContextMenuOpenChange(open, details)
     if (open) {
       onMouseEnter()
     } else {

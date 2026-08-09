@@ -603,6 +603,68 @@ async function waitForContextMenuState(session: CdpSession, open: boolean) {
   )
 }
 
+type ClassRetentionProbeTarget = {
+  selector: string
+  label: string
+  className: string
+}
+
+async function startClassRetentionProbe(session: CdpSession, target: ClassRetentionProbeTarget) {
+  const result = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      const target = Array.from(document.querySelectorAll(${JSON.stringify(target.selector)}))
+        .find((candidate) => candidate.textContent?.includes(${JSON.stringify(target.label)}))
+      if (!(target instanceof HTMLElement) || !target.classList.contains(${JSON.stringify(target.className)})) {
+        return false
+      }
+
+      const classListIncludes = (value) => (value || '').split(/\\s+/).includes(${JSON.stringify(target.className)})
+      const probe = {
+        target,
+        classWasRemoved: false,
+        observer: null,
+        consume(records) {
+          for (let index = 0; index < records.length; index += 1) {
+            const before = classListIncludes(records[index].oldValue)
+            const after = classListIncludes(records[index + 1]?.oldValue ?? target.getAttribute('class'))
+            if (before && !after) probe.classWasRemoved = true
+          }
+        }
+      }
+      const observer = new MutationObserver((records) => probe.consume(records))
+      probe.observer = observer
+      observer.observe(target, {
+        attributes: true,
+        attributeFilter: ['class'],
+        attributeOldValue: true
+      })
+      window.__tabOutSmokeClassRetentionProbe = probe
+      return true
+    })()`
+  })
+  return result.result.value
+}
+
+async function finishClassRetentionProbe(session: CdpSession) {
+  const result = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      const probe = window.__tabOutSmokeClassRetentionProbe
+      if (!probe) return null
+      // MutationObserver callbacks may batch the removal and re-addition. The
+      // next record's oldValue is the state after this record, so it preserves
+      // transitions that are already healed by the time the callback runs.
+      probe.consume(probe.observer.takeRecords())
+      probe.observer.disconnect()
+      const classWasRemoved = probe.classWasRemoved
+      delete window.__tabOutSmokeClassRetentionProbe
+      return classWasRemoved
+    })()`
+  })
+  return result.result.value
+}
+
 async function waitForFocusUpdates(session: CdpSession) {
   await waitForBrowserCondition(
     session,
@@ -2821,10 +2883,13 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
             candidate.closest('.history-entry-row')?.textContent?.includes('Low score history item with enough tooltip text')
           )
         const row = title?.closest('.history-entry-row')
+        const entry = title?.closest('.history-entry')
         row?.scrollIntoView({ block: 'center', inline: 'nearest' })
         const rect = title?.getBoundingClientRect()
-        if (rect && rect.width > 120 && rect.height > 8) {
+        const entryRect = entry?.getBoundingClientRect()
+        if (rect && rect.width > 120 && rect.height > 8 && entryRect && entryRect.width > 40) {
           resolve({
+            dismissX: Math.round(entryRect.left + 20),
             x: Math.round(rect.left + Math.min(24, rect.width / 2)),
             y: Math.round(rect.top + rect.height / 2)
           })
@@ -2866,6 +2931,55 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
 	      }
     })()`
   }).then((result: any) => result.result.value)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    button: 'right',
+    buttons: 2,
+    clickCount: 1,
+    x: target.x,
+    y: target.y
+  })
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    button: 'right',
+    buttons: 0,
+    clickCount: 1,
+    x: target.x,
+    y: target.y
+  })
+  await waitForContextMenuState(session, true)
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.dismissX,
+    y: target.y
+  })
+  await wait(80)
+  const expansionCollapseProbeStarted = await startClassRetentionProbe(session, {
+    selector: '[data-tabout="activation-history-entry"]',
+    label: 'Low score history item with enough tooltip text',
+    className: 'history-entry-row-expanded-open'
+  })
+  assert.equal(expansionCollapseProbeStarted, true, `expected to observe history-entry expansion during backdrop dismissal: ${JSON.stringify({ target, first })}`)
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    button: 'left',
+    buttons: 1,
+    clickCount: 1,
+    x: target.dismissX,
+    y: target.y
+  })
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    button: 'left',
+    buttons: 0,
+    clickCount: 1,
+    x: target.dismissX,
+    y: target.y
+  })
+  await waitForContextMenuState(session, false)
+  const expansionCollapsedDuringBackdropDismissal = await finishClassRetentionProbe(session)
+  assert.equal(expansionCollapsedDuringBackdropDismissal, false, `clicking the context menu backdrop over the original history-entry slot should not collapse and reopen its expansion: ${JSON.stringify({ target, first })}`)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -3295,6 +3409,12 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     y: backdropDismissPoint.y
   })
   await wait(80)
+  const expansionCollapseProbeStarted = await startClassRetentionProbe(session, {
+    selector: '[data-tabout="page-chip"]',
+    label: replacementTarget.label,
+    className: 'page-chip-expanded'
+  })
+  assert.equal(expansionCollapseProbeStarted, true, `expected to observe page-chip expansion during backdrop dismissal: ${JSON.stringify({ replacementTarget })}`)
   await session.send('Input.dispatchMouseEvent', {
     type: 'mousePressed',
     button: 'left',
@@ -3315,6 +3435,8 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
   })
   await wait(20)
   const backdropDismissReleasedState = await readPageChipVisualState(replacementTarget)
+  await waitForContextMenuState(session, false)
+  const expansionCollapsedDuringBackdropDismissal = await finishClassRetentionProbe(session)
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
@@ -3332,6 +3454,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
   assert.equal(backdropDismissPressedState?.contextMenuOpen, true, `page chip should keep the context-menu-open visual class during backdrop dismissal: ${JSON.stringify({ backdropDismissPressedState })}`)
   assert.equal(backdropDismissPressedState?.backgroundColor, backdropDismissOpenState?.backgroundColor, `clicking the context menu backdrop over the page chip should not flash the chip background: ${JSON.stringify({ backdropDismissOpenState, backdropDismissPressedState })}`)
   assert.equal(backdropDismissReleasedState?.backgroundColor, backdropDismissOpenState?.backgroundColor, `page chip should bridge the first backdrop dismissal frame without a background flash: ${JSON.stringify({ backdropDismissOpenState, backdropDismissReleasedState })}`)
+  assert.equal(expansionCollapsedDuringBackdropDismissal, false, `clicking the context menu backdrop over the expanded page chip should not collapse and reopen its expansion: ${JSON.stringify({ backdropDismissOpenState, backdropDismissPressedState, backdropDismissReleasedState })}`)
   assert.equal(backdropDismissAfterState?.contextMenuOpen, false, `page chip should clear the context-menu-open class after backdrop dismissal: ${JSON.stringify({ backdropDismissOpenState, backdropDismissAfterState })}`)
   assert.equal(backdropDismissAfterState?.expanded, false, `page chip should close its in-place expansion after backdrop dismissal and pointer exit: ${JSON.stringify({ backdropDismissOpenState, backdropDismissAfterState })}`)
   assert.equal(backdropDismissMenuState.visibleMenuCount, 0, `backdrop dismissal over the page chip should close the context menu: ${JSON.stringify({ backdropDismissMenuState })}`)
