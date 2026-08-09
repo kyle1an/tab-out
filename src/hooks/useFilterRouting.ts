@@ -73,6 +73,10 @@ export function useFilterRouting({ onBeforeFilterChange }: UseFilterRoutingOptio
   }, [filterInput])
 
   useEffect(() => {
+    // The attaching render is intentionally blank. Ignore it after the layout
+    // handoff or an input event has already advanced the authoritative intent.
+    if (filterInput !== filterInputRef.current) return
+
     if (filterInput === '') {
       syncFilterInputToUrl('')
       return

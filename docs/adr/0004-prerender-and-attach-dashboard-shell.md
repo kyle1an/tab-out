@@ -26,9 +26,11 @@ cannot participate in the client's attaching render.
 - `src/app.tsx` calls `hydrateRoot` synchronously, before startup storage reads
   resolve. Recoverable hydration errors are logged as defects rather than
   suppressed.
-- The server and client's attaching render both use build-time defaults. URL
-  filter state, the pre-app typed-value buffer, stored history range, cached
-  dashboard data, and local pin state arrive only after attachment.
+- The server and client's attaching render both use build-time defaults. Before
+  attachment, the classic boot script may seed the existing input's DOM value
+  from the URL and buffer edits without changing that render tree. React-owned
+  filter state, stored history range, cached dashboard data, and local pin state
+  arrive only after attachment.
 - Cached snapshot, local state, and history range cross one external startup
   boundary. The app applies them together before paint; dashboard, Activation
   History, Working Set, and recently closed rows remain one startup update.
@@ -53,8 +55,9 @@ placeholder correction, early interactivity, and atomic startup content.
 
 The first-render-default rule is durable: any future stored value that affects
 markup or attributes must begin at its build-time default and update after
-attachment. A mismatch must be fixed at its source; `suppressHydrationWarning`
-is not an acceptable escape hatch.
+attachment. The filter's pre-app DOM-value handoff must preserve the URL until
+React adopts that intent. A mismatch must be fixed at its source;
+`suppressHydrationWarning` is not an acceptable escape hatch.
 
 ## References
 

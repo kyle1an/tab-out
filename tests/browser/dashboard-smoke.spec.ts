@@ -2,6 +2,111 @@ import assert from 'node:assert/strict'
 import { expect, test } from '@playwright/test'
 import type { CDPSession } from '@playwright/test'
 
+type FilterReloadTrace = {
+  replacedFilterValues: Array<string | null>
+}
+
+declare global {
+  interface Window {
+    __tabOutFilterReloadTrace: FilterReloadTrace
+  }
+}
+
+test('restored filter stays visible and URL-stable through attachment and immediate reload', async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    const trace: FilterReloadTrace = {
+      replacedFilterValues: []
+    }
+    window.__tabOutFilterReloadTrace = trace
+
+    const replaceState = window.history.replaceState.bind(window.history)
+    window.history.replaceState = (data, unused, url) => {
+      replaceState(data, unused, url)
+      trace.replacedFilterValues.push(new URL(window.location.href).searchParams.get('filter'))
+    }
+  })
+  const appModuleGate = Promise.withResolvers<void>()
+  await page.route('**/extension/dist/app.js', async (route) => {
+    await appModuleGate.promise
+    await route.continue()
+  })
+
+  const navigation = page.goto('/tests/fixtures/dashboard-resize.html?filter=Example%20Query')
+  const filterInput = page.locator('[data-tabout="filter-query"] input')
+  let preAttachmentError: unknown
+  try {
+    await expect(filterInput).toHaveValue('Example Query')
+    await expect(filterInput).not.toBeFocused()
+  } catch (error) {
+    preAttachmentError = error
+  } finally {
+    appModuleGate.resolve()
+  }
+  await navigation
+  if (preAttachmentError) throw preAttachmentError
+  await expect.poll(() => page.title()).toBe('Example Query - Tab Out')
+  const firstAttachment = await page.evaluate(() => ({
+    href: window.location.href,
+    trace: window.__tabOutFilterReloadTrace
+  }))
+
+  await page.reload()
+  await expect(filterInput).toHaveValue('Example Query')
+  await expect.poll(() => page.title()).toBe('Example Query - Tab Out')
+  const secondAttachment = await page.evaluate(() => ({
+    href: window.location.href,
+    trace: window.__tabOutFilterReloadTrace
+  }))
+
+  for (const attachment of [firstAttachment, secondAttachment]) {
+    expect(new URL(attachment.href).searchParams.get('filter')).toBe('Example Query')
+    expect(attachment.trace.replacedFilterValues).not.toContain(null)
+  }
+})
+
+test('pre-app clear remains authoritative over a URL filter', async ({ page }) => {
+  const appModuleGate = Promise.withResolvers<void>()
+  await page.route('**/extension/dist/app.js', async (route) => {
+    await appModuleGate.promise
+    await route.continue()
+  })
+
+  const navigation = page.goto(
+    '/tests/fixtures/dashboard-resize.html?focusFilter=1&filter=Example%20Query&marker=kept#results'
+  )
+  const filterInput = page.locator('[data-tabout="filter-query"] input')
+  let preAttachmentError: unknown
+  try {
+    await expect(filterInput).toHaveValue('Example Query')
+    await expect(filterInput).toBeFocused()
+    await filterInput.fill('')
+  } catch (error) {
+    preAttachmentError = error
+  } finally {
+    appModuleGate.resolve()
+  }
+  await navigation
+  if (preAttachmentError) throw preAttachmentError
+
+  await expect(filterInput).toHaveValue('')
+  await expect.poll(() => page.evaluate(() => {
+    const url = new URL(window.location.href)
+    return {
+      filter: url.searchParams.get('filter'),
+      focusFilter: url.searchParams.get('focusFilter'),
+      hash: url.hash,
+      marker: url.searchParams.get('marker')
+    }
+  })).toEqual({
+    filter: null,
+    focusFilter: null,
+    hash: '#results',
+    marker: 'kept'
+  })
+})
+
 test('filter shortcut startup preserves the prerendered input and its focus-visible shadow', async ({
   page
 }) => {

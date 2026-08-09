@@ -5,8 +5,9 @@ const params = new URLSearchParams(window.location.search)
 const input = document.querySelector<HTMLInputElement>(
   '[data-tabout="filter-query"] [data-tabout-part="input"]'
 )
+const shouldFocus = params.get('focusFilter') === '1'
 
-if (params.get('focusFilter') === '1' && input) {
+if ((shouldFocus || params.has('filter')) && input) {
   const recordInput = () => {
     bootWindow.__tabOutFilterFocusBootValue = input.value
   }
@@ -16,5 +17,5 @@ if (params.get('focusFilter') === '1' && input) {
   bootWindow.__tabOutReleaseFilterFocusBoot = () => {
     input.removeEventListener('input', recordInput)
   }
-  input.focus()
+  if (shouldFocus) input.focus()
 }

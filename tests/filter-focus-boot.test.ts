@@ -65,3 +65,27 @@ test('filter bootstrap still focuses and seeds the in-page filter', () => {
   assert.equal(input.value, 'qa env')
   assert.equal(input.focused, true)
 })
+
+test('filter bootstrap seeds a URL query without taking focus', () => {
+  const input = {
+    value: '',
+    focused: false,
+    addEventListener() {},
+    removeEventListener() {},
+    focus() {
+      this.focused = true
+    }
+  }
+
+  vm.runInNewContext(bootSource, {
+    URLSearchParams,
+    window: { location: { search: '?filter=qa+env' } },
+    document: {
+      documentElement: { dataset: {} },
+      querySelector: () => input
+    }
+  })
+
+  assert.equal(input.value, 'qa env')
+  assert.equal(input.focused, false)
+})
