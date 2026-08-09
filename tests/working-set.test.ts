@@ -299,6 +299,27 @@ test('buildWorkingSetSnapshot marks a grouped item loading when any awake duplic
   assert.equal(byUrl.get('https://example.test/suspended')?.loading, false)
 })
 
+test('buildWorkingSetSnapshot clears grouped loading after every awake duplicate completes', () => {
+  const now = Date.UTC(2026, 4, 17, 12)
+  const loadingTabs = [
+    makeTab({ id: 1, url: 'https://example.test/docs', title: 'Example Docs', status: 'complete' }),
+    makeTab({ id: 2, url: 'https://example.test/docs?utm_source=mail', title: 'Example Docs', status: 'loading' })
+  ]
+  let store = emptyWorkingSetActivity()
+  for (const tab of loadingTabs) store = record(store, tab, 'activation', now - 60_000)
+
+  const loading = buildWorkingSetSnapshot({ tabs: loadingTabs, activity: store, now, minItems: 1 })
+  const complete = buildWorkingSetSnapshot({
+    tabs: loadingTabs.map((tab) => ({ ...tab, status: 'complete' })),
+    activity: store,
+    now,
+    minItems: 1
+  })
+
+  assert.equal(loading.items[0]?.loading, true)
+  assert.equal(complete.items[0]?.loading, false)
+})
+
 test('normalizeWorkingSetSnapshot preserves loading state from the background snapshot', () => {
   const item = makeWorkingSetItem(1, { loading: true })
   const snapshot = normalizeWorkingSetSnapshot({

@@ -1,5 +1,5 @@
 import { mergeDashboardRefreshOptions, type DashboardRefreshOptions } from './dashboard-intake.js'
-import { isTabOutPageUrl } from './tab-out-url.js'
+import { isTabOutDashboardUrl } from './tab-out-url.js'
 
 const DASHBOARD_PAGE_REFRESH_DELAY_MS = 250
 
@@ -38,20 +38,24 @@ const DASHBOARD_MATERIAL_TAB_UPDATE_KEYS = [
   'status'
 ] as const satisfies readonly (keyof DashboardTabUpdate)[]
 
-/** Ignore the Dashboard tab's own load lifecycle; it is never a Dashboard Item. */
+/**
+ * Tab Out and native new-tab pages are live Dashboard Items. Keep all of their
+ * material state changes observable so startup and steady-state snapshots can
+ * settle loading, title, and favicon state. A URL change to this Dashboard
+ * document remains passive because that document is replacing itself.
+ */
 export function dashboardTabUpdateRefreshOptions(
   changeInfo: DashboardTabUpdate,
   tab: Pick<chrome.tabs.Tab, 'pendingUrl' | 'url'>,
   runtimeId: string | null | undefined = globalThis.chrome?.runtime?.id
 ): DashboardRefreshOptions | null {
   const targetUrl = changeInfo.url ?? tab.pendingUrl ?? tab.url
-  if (isTabOutPageUrl(targetUrl, runtimeId)) return null
   if (!DASHBOARD_MATERIAL_TAB_UPDATE_KEYS.some((key) => (
     changeInfo[key] !== undefined
   ))) return null
   return {
     animateCards:
-      changeInfo.url !== undefined ||
+      (changeInfo.url !== undefined && !isTabOutDashboardUrl(targetUrl, runtimeId)) ||
       changeInfo.groupId !== undefined ||
       changeInfo.pinned !== undefined ||
       changeInfo.discarded !== undefined
