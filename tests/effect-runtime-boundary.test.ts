@@ -50,40 +50,64 @@ test('production Effects cross the runtime boundary only through the shared app 
 })
 
 test('shared runtimes retain their required service graphs', () => {
-  const requiredServices = new Map<string, readonly string[]>([
-    ['src/extension/app-runtime.ts', [
-      'BrowserTabs.layer(',
-      'ClosedTabRestoreWatchdogs.layer'
-    ]],
-    ['src/extension/background/runtime.ts', [
-      'BrowserTabs.layer(',
-      'Badge.layer(',
-      'NativePlacementBridge.layer(',
-      'RetainedPages.layer(',
-      'RetentionHealth.layer(',
-      'StartupSnapshot.layer(',
-      'TabHistory.layer(',
-      'WorkingSet.layer('
-    ]]
-  ])
+  const appRuntimeSource = readProductionSource(
+    'src/extension/app-runtime.ts'
+  ).replace(/\s+/g, '')
+  assert.ok(appRuntimeSource.includes(
+    'ManagedRuntime.make(Layer.mergeAll(BrowserTabs.layer(),ClosedTabRestoreWatchdogs.layer))'
+  ))
 
-  for (const [relativePath, services] of requiredServices) {
-    const source = readProductionSource(relativePath)
-    for (const service of services) {
-      assert.ok(source.includes(service), `${relativePath} must retain ${service}`)
-    }
+  const workerRuntimePath = 'src/extension/background/runtime.ts'
+  const workerRuntimeSource = readProductionSource(workerRuntimePath).replace(/\s+/g, '')
+  const requiredGraphEdges = [
+    'constretentionHealth=RetentionHealth.layer(',
+    'constretainedPages=RetainedPages.layer(',
+    'constactivityServices=Layer.mergeAll(TabHistory.layer(chromeApi),WorkingSet.layer(chromeApi)).pipe(Layer.provideMerge(workingSetActivityStorage))',
+    'constcoreServices=Layer.mergeAll(BrowserTabs.layer(),Badge.layer(chromeApi),NativePlacementBridge.layer(chromeApi),retainedPages,retentionHealth,activityServices)',
+    'construntimeLayer=StartupSnapshot.layer({alarms:chromeApi.alarms,getDashboardServiceState:captureDashboardServiceStateEffect}).pipe(Layer.provideMerge(coreServices))',
+    'construntime=ManagedRuntime.make(runtimeLayer)'
+  ]
+
+  for (const edge of requiredGraphEdges) {
+    assert.ok(
+      workerRuntimeSource.includes(edge),
+      `${workerRuntimePath} must retain the connected service graph edge ${edge}`
+    )
   }
 })
 
 test('worker listeners enter the shared background runtime', () => {
   const source = readProductionSource('src/extension/background.ts')
+  const listenerRegions = [
+    {
+      name: 'command',
+      start: 'chromeApi.commands.onCommand.addListener',
+      end: 'chromeApi.action.onClicked.addListener'
+    },
+    {
+      name: 'action click',
+      start: 'chromeApi.action.onClicked.addListener',
+      end: 'chromeApi.runtime.onMessage.addListener'
+    },
+    {
+      name: 'runtime message',
+      start: 'chromeApi.runtime.onMessage.addListener',
+      end: '// ─── Initial run'
+    }
+  ]
 
   assert.match(source, /\bcreateBackgroundRuntime\(chromeApi\)/)
-  assert.match(
-    source,
-    /\bbackgroundRuntime\.run(?:Callback|Fork|Promise|Sync)\(/,
-    'background listeners must submit workflows through the shared runtime'
-  )
+  for (const { name, start, end } of listenerRegions) {
+    const startIndex = source.indexOf(start)
+    const endIndex = source.indexOf(end, startIndex + start.length)
+    assert.notEqual(startIndex, -1, `${name} listener must remain present`)
+    assert.notEqual(endIndex, -1, `${name} listener boundary must remain present`)
+    assert.match(
+      source.slice(startIndex, endIndex),
+      /\bbackgroundRuntime\.runPromise\(/,
+      `${name} listener must submit its workflow through the shared runtime`
+    )
+  }
 })
 
 test('adopted Promise adapters enter the shared app runtime', () => {
@@ -119,7 +143,7 @@ test('adopted Promise adapters enter the shared app runtime', () => {
   for (const relativePath of promiseAdapterOwners) {
     assert.match(
       readProductionSource(relativePath),
-      /\bgetAppRuntime\(\)\.run(?:Callback|Promise|Sync)\(/,
+      /\bgetAppRuntime\(\)\.runPromise\(/,
       `${relativePath} must enter the shared app runtime at its Promise boundary`
     )
   }
