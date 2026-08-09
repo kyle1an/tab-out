@@ -77,4 +77,13 @@ test('an open-ghost entry carries its Working Set loading state into history', (
   }
   const entry = historyEntryFromWorkingSetItem(item)
   assert.equal(entry.loading, true)
+
+  const html = renderHistoryPanel([], {}, {
+    defaultLimit: 8,
+    expandedLimit: 16,
+    items: [item]
+  })
+  assert.match(html, /data-working-set-extra="true"/)
+  assert.match(html, /data-tabout-part="loading-indicator"/)
+  assert.match(html, /aria-busy="true"/)
 })

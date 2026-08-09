@@ -26,6 +26,7 @@ import { addSavedPageToStore, emptySavedPagesStore, SAVED_PAGES_STORAGE_KEY } fr
 import { useDashboardViewModels } from '../src/hooks/useDashboardViewModels.js'
 import { retainHistorySearchResultsOnError } from '../src/extension/dashboard-intake.js'
 import { historySearchStatusCopy } from '../src/components/history-search-status-copy.js'
+import { pageChipRenderKey } from '../src/components/PageChipOverflow.js'
 import { normalizeTabHistorySnapshot } from '../src/extension/tab-history.js'
 import { resolveWebsitePathSection } from '../src/extension/website-path-sections.js'
 import { RETAINED_PAGE_LIFETIME_MS, type RetainedPageRecord } from '../src/extension/retained-pages-ledger.js'
@@ -647,6 +648,7 @@ test('computeDomainCardViewModel splits duplicate Tab Out pages by preserved Chr
   assert.deepEqual(chips.map((chip) => !!chip.chromePinned), [true, true, false, false, false])
   assert.deepEqual(chips.map((chip) => !!chip.isGrouped), [true, false, true, true, false])
   assert.deepEqual(chips.map((chip) => chip.pagePinId), [undefined, undefined, undefined, undefined, undefined])
+  assert.equal(new Set(chips.map(pageChipRenderKey)).size, chips.length)
 })
 
 test('computeDomainCardViewModel groups same-title URL variants in one rendered section', () => {

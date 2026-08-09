@@ -39,6 +39,12 @@ function chipMatchesActiveHover(chip: DashboardChipData, state: HoverState): boo
   )
 }
 
+export function pageChipRenderKey(
+  chip: Pick<DashboardChipData, 'rawUrl' | 'renderKey' | 'pagePinId'>
+): string {
+  return chip.renderKey ?? chip.pagePinId ?? `url:${chip.rawUrl}`
+}
+
 export function usePageChipOverflow({
   visibleChips,
   hiddenChips,
@@ -93,7 +99,7 @@ export function usePageChipOverflow({
   const pageChips = (
     <>
       {visibleChips.map((chip) => (
-        <PageChip key={chip.rawUrl} chip={chip} filter={filter} layoutScope={layoutScope} suppressedTitleToneByText={suppressedTitleToneByText} />
+        <PageChip key={pageChipRenderKey(chip)} chip={chip} filter={filter} layoutScope={layoutScope} suppressedTitleToneByText={suppressedTitleToneByText} />
       ))}
       {hiddenCount > 0 && (
         <div
@@ -104,7 +110,7 @@ export function usePageChipOverflow({
           className={cn('page-chips-overflow page-chips-overflow-reveal [&>.chip-slot-row:first-child]:-mt-px', resolveClassName(overflowContainerClassName, expanded), expanded ? 'contents' : 'hidden')}
         >
           {expansionPhase !== 'collapsed' && hiddenChips.map((chip) => (
-            <PageChip key={chip.rawUrl} chip={chip} filter={filter} layoutScope={layoutScope} suppressedTitleToneByText={suppressedTitleToneByText} />
+            <PageChip key={pageChipRenderKey(chip)} chip={chip} filter={filter} layoutScope={layoutScope} suppressedTitleToneByText={suppressedTitleToneByText} />
           ))}
         </div>
       )}
