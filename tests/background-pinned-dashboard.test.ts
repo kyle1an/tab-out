@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { setImmediate } from 'node:timers/promises'
 import FakeTimers from '@sinonjs/fake-timers'
+import 'fake-indexeddb/auto'
+import { IDBFactory } from 'fake-indexeddb'
 import { STARTUP_SNAPSHOT_DEBOUNCE_MS } from '../src/extension/background/startup-snapshot-service.js'
 import { RETAINED_PAGES_EXPIRY_ALARM } from '../src/extension/background/retained-pages-expiry-alarm.js'
 import { CLOSED_TAB_RESTORE_STATE_MESSAGE } from '../src/extension/closed-tabs.js'
@@ -50,6 +52,14 @@ const backgroundUrl = new URL('../src/extension/background.ts', import.meta.url)
 const extensionUrl = 'chrome-extension://tab-out/index.html'
 let backgroundImportId = 0
 const backgroundClock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
+
+type TestBackgroundRuntime = {
+  readonly dispose: () => Promise<void>
+  runPromise: (...args: any[]) => Promise<unknown>
+}
+
+let activeBackgroundRuntime: TestBackgroundRuntime | undefined
+let activeBackgroundTasks = new Set<Promise<unknown>>()
 
 type BackgroundMockCalls = {
   alarmsClear: string[]
@@ -111,8 +121,53 @@ type BackgroundRuntimeMessageMock = {
   }
 }
 
-test.after(() => backgroundClock.uninstall())
-test.beforeEach(() => backgroundClock.reset())
+async function disposeBackgroundRuntime(): Promise<void> {
+  const runtime = activeBackgroundRuntime
+  activeBackgroundRuntime = undefined
+  if (runtime === undefined) return
+  await flushBackgroundWork()
+  while (activeBackgroundTasks.size > 0) {
+    await Promise.allSettled(activeBackgroundTasks)
+  }
+  try {
+    await runtime.dispose()
+  } catch (error) {
+    assert.ok(
+      error instanceof Error && error.message === 'All fibers interrupted without error',
+      `unexpected background runtime disposal failure: ${String(error)}`
+    )
+  }
+  await flushBackgroundWork()
+  activeBackgroundTasks = new Set()
+}
+
+function trackBackgroundRuntime(runtime: TestBackgroundRuntime): TestBackgroundRuntime {
+  const runPromise = runtime.runPromise.bind(runtime)
+  runtime.runPromise = (...args) => {
+    const task = runPromise(...args)
+    activeBackgroundTasks.add(task)
+    void task.then(
+      () => activeBackgroundTasks.delete(task),
+      () => {
+        activeBackgroundTasks.delete(task)
+      }
+    )
+    return task
+  }
+  return runtime
+}
+
+test.after(async () => {
+  await disposeBackgroundRuntime()
+  backgroundClock.uninstall()
+})
+test.afterEach(async () => {
+  await disposeBackgroundRuntime()
+})
+test.beforeEach(async () => {
+  backgroundClock.reset()
+  globalThis.indexedDB = new IDBFactory()
+})
 
 function valueAt<T>(values: readonly T[], index: number): T {
   const value = values[index]
@@ -712,7 +767,7 @@ function buildWorkingSetFromServiceState(response: CapturedDashboardServiceState
 }
 
 async function flushBackgroundWork() {
-  for (let pass = 0; pass < 6; pass += 1) await setImmediate()
+  for (let pass = 0; pass < 20; pass += 1) await setImmediate()
 }
 
 async function waitForBackgroundState(
@@ -728,9 +783,15 @@ async function waitForBackgroundState(
 }
 
 async function loadBackground(initialTabs: any[], options: any = {}) {
+  await disposeBackgroundRuntime()
   const mock = createChromeMock(initialTabs, options)
   ;(globalThis as any).chrome = mock.chrome
-  await import(`${backgroundUrl.href}?test=${backgroundImportId++}`)
+  const background = await import(
+    `${backgroundUrl.href}?test=${backgroundImportId++}`
+  )
+  activeBackgroundRuntime = trackBackgroundRuntime(
+    background.backgroundRuntime as unknown as TestBackgroundRuntime
+  )
   if (!options.deferInitialOpenSurfaceReconciliation) {
     await backgroundClock.tickAsync(0)
   }
@@ -2134,8 +2195,15 @@ test('first installation seeds current surfaces before the deferred worker-resum
     ).status === 'valid' &&
     parseOpenSurfaceInventoryValue(
       mock.storageValues.local[OPEN_SURFACE_DURABLE_STORAGE_KEY]
-    ).status === 'valid'
-  ), 'first-install inventory reconciliation')
+    ).status === 'valid' &&
+    parseDashboardStartupSeedBoundary(
+      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+    ) !== null &&
+    parseDashboardStartupSeedBoundary(
+      mock.storageValues.local[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+    ) !== null
+  ), 'first-install reconciliation and startup seed')
+  await flushBackgroundWork()
 
   assert.equal(mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY], undefined)
   const session = parseOpenSurfaceInventoryValue(
@@ -2198,8 +2266,15 @@ test('extension update owns initial reconciliation and preserves surviving live 
     mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY] !== undefined &&
     parseOpenSurfaceInventoryValue(
       mock.storageValues.session[OPEN_SURFACE_SESSION_STORAGE_KEY]
-    ).status === 'valid'
-  ), 'extension-update inventory reconciliation')
+    ).status === 'valid' &&
+    parseDashboardStartupSeedBoundary(
+      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+    ) !== null &&
+    parseDashboardStartupSeedBoundary(
+      mock.storageValues.local[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+    ) !== null
+  ), 'extension-update reconciliation and startup seed')
+  await flushBackgroundWork()
 
   const ledger = await parseStoredRetainedPageLedger(
     mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY]

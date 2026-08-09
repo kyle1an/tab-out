@@ -34,6 +34,11 @@ export interface InstalledExtension {
   readonly serviceWorker: Worker
 }
 
+export interface LaunchedInstalledExtension
+  extends InstalledExtension, AsyncDisposable {
+  readonly dispose: () => Promise<void>
+}
+
 const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url))
 const builtExtensionDirectory = join(repositoryRoot, 'extension')
 
@@ -125,65 +130,89 @@ type InstalledExtensionWorkerFixtures = {
   installedExtension: InstalledExtension
 }
 
-export const test = base.extend<object, InstalledExtensionWorkerFixtures>({
-  installedExtension: [async ({}, use) => {
-    await using temporaryDirectory = await mkdtempDisposable(
-      join(tmpdir(), 'tab-out-extension-smoke-')
-    )
-    const artifactDirectory = join(temporaryDirectory.path, 'extension')
-    const profileDirectory = join(temporaryDirectory.path, 'profile')
-    await cp(builtExtensionDirectory, artifactDirectory, {
+export async function launchInstalledExtensionFromArtifact(
+  sourceDirectory: string
+): Promise<LaunchedInstalledExtension> {
+  const temporaryDirectory = await mkdtempDisposable(
+    join(tmpdir(), 'tab-out-extension-smoke-')
+  )
+  const artifactDirectory = join(temporaryDirectory.path, 'extension')
+  const profileDirectory = join(temporaryDirectory.path, 'profile')
+  const errors = new RuntimeErrorCollector()
+  let context: BrowserContext | undefined
+  let disposed = false
+
+  try {
+    await cp(sourceDirectory, artifactDirectory, {
       errorOnExist: true,
       force: false,
       recursive: true
     })
     await mkdir(profileDirectory)
     const markerMatches = await findInstrumentationMarker(artifactDirectory)
-    const errors = new RuntimeErrorCollector()
-    let context: BrowserContext | undefined
+    context = await chromium.launchPersistentContext(profileDirectory, {
+      args: [
+        `--disable-extensions-except=${artifactDirectory}`,
+        `--load-extension=${artifactDirectory}`
+      ],
+      channel: 'chromium',
+      headless: true
+    })
+    errors.attach(context)
 
-    try {
-      context = await chromium.launchPersistentContext(profileDirectory, {
-        args: [
-          `--disable-extensions-except=${artifactDirectory}`,
-          `--load-extension=${artifactDirectory}`
-        ],
-        channel: 'chromium',
-        headless: true
+    const serviceWorker = context.serviceWorkers().find(isTabOutServiceWorker)
+      ?? await context.waitForEvent('serviceworker', {
+        predicate: isTabOutServiceWorker,
+        timeout: 15_000
       })
-      errors.attach(context)
+    const extensionId = new URL(serviceWorker.url()).hostname
+    const dispose = async (): Promise<void> => {
+      if (disposed) return
+      disposed = true
+      try {
+        await context?.close()
+      } catch {
+        // Preserve the benchmark or test result while removing its profile.
+      }
+      await temporaryDirectory.remove()
 
-      const serviceWorker = context.serviceWorkers().find(isTabOutServiceWorker)
-        ?? await context.waitForEvent('serviceworker', {
-          predicate: isTabOutServiceWorker,
-          timeout: 15_000
-        })
-      const extensionId = new URL(serviceWorker.url()).hostname
-
-      await use({
-        artifactDirectory,
-        context,
-        extensionId,
-        markerMatches,
-        runtimeErrors: () => errors.snapshot(),
-        serviceWorker
-      })
-    } finally {
-      if (context !== undefined) {
-        try {
-          await context.close()
-        } catch {
-          // Preserve the test result; the disposable directory still removes the profile.
-        }
+      const observedErrors = errors.snapshot()
+      if (observedErrors.length > 0) {
+        throw new Error(
+          `Installed extension emitted runtime errors:\n${JSON.stringify(observedErrors, null, 2)}`
+        )
       }
     }
 
-    const observedErrors = errors.snapshot()
-    if (observedErrors.length > 0) {
-      throw new Error(
-        `Installed extension emitted runtime errors:\n${JSON.stringify(observedErrors, null, 2)}`
-      )
+    return {
+      artifactDirectory,
+      context,
+      extensionId,
+      markerMatches,
+      runtimeErrors: () => errors.snapshot(),
+      serviceWorker,
+      dispose,
+      [Symbol.asyncDispose]: dispose
     }
+  } catch (error) {
+    if (context !== undefined) {
+      try {
+        await context.close()
+      } catch {
+        // Preserve the launch failure while removing its temporary files.
+      }
+    }
+    await temporaryDirectory.remove()
+    throw error
+  }
+}
+
+export const test = base.extend<object, InstalledExtensionWorkerFixtures>({
+  installedExtension: [async ({}, use) => {
+    await using installedExtension = await launchInstalledExtensionFromArtifact(
+      builtExtensionDirectory
+    )
+    await use(installedExtension)
   }, { scope: 'worker', timeout: 45_000 }]
 })
 
