@@ -4,18 +4,174 @@ set -euo pipefail
 
 script_directory=${0:A:h}
 repository_root=${script_directory:h:h}
-temporary_config=$(mktemp -d)
-trap 'rm -rf "$temporary_config"' EXIT
+integration_install="$repository_root/scripts/install-macos-integration"
+integration_uninstall="$repository_root/scripts/uninstall-macos-integration"
+spoon_install="$script_directory/install"
+spoon_uninstall="$script_directory/uninstall"
+temporary_root=$(mktemp -d)
+trap 'rm -rf "$temporary_root"' EXIT
 
-TAB_OUT_HAMMERSPOON_CONFIG_DIR="$temporary_config" "$script_directory/install" >/dev/null
+expect_help() {
+  local command=$1
+  local expected_usage=$2
+  local output
+
+  output=$("$command" --help)
+  [[ ${output%%$'\n'*} == "$expected_usage" ]]
+}
+
+expect_usage_error() {
+  local expected_usage=$1
+  shift
+  local exit_status
+  local output
+
+  set +e
+  output=$("$@" 2>&1)
+  exit_status=$?
+  set -e
+
+  [[ $exit_status -eq 64 ]]
+  [[ ${output%%$'\n'*} == "$expected_usage" ]]
+}
+
+expect_refusal() {
+  local expected_message=$1
+  shift
+  local exit_status
+  local output
+
+  set +e
+  output=$("$@" 2>&1)
+  exit_status=$?
+  set -e
+
+  [[ $exit_status -eq 1 ]]
+  [[ $output == *"$expected_message"* ]]
+}
+
+integration_install_usage="Usage: scripts/install-macos-integration <32-character-extension-id> [hammerspoon-config-directory]"
+integration_uninstall_usage="Usage: scripts/uninstall-macos-integration [hammerspoon-config-directory]"
+spoon_install_usage="Usage: scripts/hammerspoon/install [hammerspoon-config-directory]"
+spoon_uninstall_usage="Usage: scripts/hammerspoon/uninstall [hammerspoon-config-directory]"
+
+expect_help "$integration_install" "$integration_install_usage"
+expect_help "$integration_uninstall" "$integration_uninstall_usage"
+expect_help "$spoon_install" "$spoon_install_usage"
+expect_help "$spoon_uninstall" "$spoon_uninstall_usage"
+
+expect_usage_error "$integration_install_usage" "$integration_install"
+expect_usage_error "$integration_install_usage" "$integration_install" invalid-extension-id
+expect_usage_error "$integration_install_usage" \
+  "$integration_install" aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa first second
+expect_usage_error "$integration_uninstall_usage" "$integration_uninstall" first second
+expect_usage_error "$spoon_install_usage" "$spoon_install" first second
+expect_usage_error "$spoon_uninstall_usage" "$spoon_uninstall" first second
+
+temporary_home="$temporary_root/home"
+fallback_config="$temporary_root/fallback-config"
+integration_config="$temporary_root/integration-config"
+mkdir -p "$temporary_home" "$fallback_config" "$integration_config"
+
+fixture_checkout="$temporary_root/fixture-checkout"
+fixture_install="$fixture_checkout/scripts/install-macos-integration"
+fixture_uninstall="$fixture_checkout/scripts/uninstall-macos-integration"
+fake_child="$fixture_checkout/fake-child"
+command_log="$temporary_root/commands.log"
+mkdir -p "$fixture_checkout/scripts/hammerspoon" "$fixture_checkout/scripts/native-host"
+cp "$integration_install" "$fixture_install"
+cp "$integration_uninstall" "$fixture_uninstall"
+
+{
+  printf '%s\n' '#!/bin/zsh'
+  printf '%s\n' 'set -euo pipefail'
+  printf '%s\n' 'printf "%s" "${0:h:t}/${0:t}" >> "$TAB_OUT_TEST_COMMAND_LOG"'
+  printf '%s\n' 'for argument in "$@"; do'
+  printf '%s\n' '  printf "\\t%s" "$argument" >> "$TAB_OUT_TEST_COMMAND_LOG"'
+  printf '%s\n' 'done'
+  printf '%s\n' 'printf "\\n" >> "$TAB_OUT_TEST_COMMAND_LOG"'
+} > "$fake_child"
+chmod 755 "$fixture_install" "$fixture_uninstall" "$fake_child"
+
+for child in hammerspoon/build hammerspoon/install hammerspoon/uninstall \
+  native-host/install native-host/uninstall
+do
+  ln -s "../../fake-child" "$fixture_checkout/scripts/$child"
+done
+
+extension_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+: > "$command_log"
+HOME="$temporary_home" \
+  TAB_OUT_HAMMERSPOON_CONFIG_DIR="$fallback_config" \
+  TAB_OUT_TEST_COMMAND_LOG="$command_log" \
+  "$fixture_install" "$extension_id" "$integration_config" >/dev/null
+
+expected_commands=$'hammerspoon/build\nhammerspoon/install\t'"$integration_config"$'\nnative-host/install\t'"$extension_id"
+[[ $(<"$command_log") == "$expected_commands" ]]
+
+: > "$command_log"
+HOME="$temporary_home" \
+  TAB_OUT_HAMMERSPOON_CONFIG_DIR="$fallback_config" \
+  TAB_OUT_TEST_COMMAND_LOG="$command_log" \
+  "$fixture_install" "$extension_id" >/dev/null
+
+expected_commands=$'hammerspoon/build\nhammerspoon/install\t'"$fallback_config"$'\nnative-host/install\t'"$extension_id"
+[[ $(<"$command_log") == "$expected_commands" ]]
+
+: > "$command_log"
+HOME="$temporary_home" \
+  TAB_OUT_HAMMERSPOON_CONFIG_DIR="$fallback_config" \
+  TAB_OUT_TEST_COMMAND_LOG="$command_log" \
+  "$fixture_uninstall" "$integration_config" >/dev/null
+
+expected_commands=$'hammerspoon/uninstall\t'"$integration_config"$'\nnative-host/uninstall'
+[[ $(<"$command_log") == "$expected_commands" ]]
+
+: > "$command_log"
+(
+  unset TAB_OUT_HAMMERSPOON_CONFIG_DIR
+  HOME="$temporary_home" \
+    TAB_OUT_TEST_COMMAND_LOG="$command_log" \
+    "$fixture_uninstall" >/dev/null
+)
+
+expected_commands=$'hammerspoon/uninstall\t'"$temporary_home/.hammerspoon"$'\nnative-host/uninstall'
+[[ $(<"$command_log") == "$expected_commands" ]]
+
+temporary_config="$temporary_root/config"
+mkdir -p "$temporary_config"
+
+TAB_OUT_HAMMERSPOON_CONFIG_DIR="$temporary_config" "$spoon_install" >/dev/null
 
 destination="$temporary_config/Spoons/TabOut.spoon"
 expected_source="$repository_root/integrations/hammerspoon/TabOut.spoon"
 [[ -L $destination ]]
 [[ $(readlink "$destination") == "$expected_source" ]]
 
-TAB_OUT_HAMMERSPOON_CONFIG_DIR="$temporary_config" "$script_directory/install" >/dev/null
-TAB_OUT_HAMMERSPOON_CONFIG_DIR="$temporary_config" "$script_directory/uninstall" >/dev/null
+TAB_OUT_HAMMERSPOON_CONFIG_DIR="$temporary_config" "$spoon_install" >/dev/null
+TAB_OUT_HAMMERSPOON_CONFIG_DIR="$temporary_config" "$spoon_uninstall" >/dev/null
 [[ ! -e $destination && ! -L $destination ]]
+
+source_alias="$temporary_root/source-alias"
+ln -s "$expected_source" "$source_alias"
+ln -s "../../source-alias" "$destination"
+[[ ${destination:A} == ${expected_source:A} ]]
+
+already_installed_output=$("$spoon_install" "$temporary_config")
+[[ $already_installed_output == *"Tab Out Spoon is already installed"* ]]
+"$spoon_uninstall" "$temporary_config" >/dev/null
+[[ ! -e $destination && ! -L $destination ]]
+
+foreign_spoon="$temporary_root/Foreign.spoon"
+mkdir -p "$foreign_spoon"
+ln -s "$foreign_spoon" "$destination"
+
+expect_refusal "Refusing to replace an existing TabOut.spoon link" \
+  "$spoon_install" "$temporary_config"
+[[ -L $destination && ${destination:A} == ${foreign_spoon:A} ]]
+
+expect_refusal "Refusing to remove a TabOut.spoon not owned by this checkout" \
+  "$spoon_uninstall" "$temporary_config"
+[[ -L $destination && ${destination:A} == ${foreign_spoon:A} ]]
 
 printf '%s\n' "Hammerspoon Spoon install regression: ok"

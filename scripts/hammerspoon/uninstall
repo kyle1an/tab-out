@@ -2,10 +2,26 @@
 
 set -euo pipefail
 
+usage() {
+  printf '%s\n' "Usage: scripts/hammerspoon/uninstall [hammerspoon-config-directory]"
+  printf '%s\n' \
+    "Defaults to TAB_OUT_HAMMERSPOON_CONFIG_DIR or ~/.hammerspoon."
+}
+
+if (( $# > 1 )); then
+  usage >&2
+  exit 64
+fi
+
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  usage
+  exit 0
+fi
+
 script_directory=${0:A:h}
 repository_root=${script_directory:h:h}
 source_spoon="$repository_root/integrations/hammerspoon/TabOut.spoon"
-config_directory=${TAB_OUT_HAMMERSPOON_CONFIG_DIR:-"$HOME/.hammerspoon"}
+config_directory=${1:-${TAB_OUT_HAMMERSPOON_CONFIG_DIR:-"$HOME/.hammerspoon"}}
 destination="$config_directory/Spoons/TabOut.spoon"
 
 if [[ ! -e $destination && ! -L $destination ]]; then
@@ -13,7 +29,7 @@ if [[ ! -e $destination && ! -L $destination ]]; then
   exit 0
 fi
 
-if [[ ! -L $destination || $(readlink "$destination") != "$source_spoon" ]]; then
+if [[ ! -L $destination || ${destination:A} != ${source_spoon:A} ]]; then
   printf '%s\n' "Refusing to remove a TabOut.spoon not owned by this checkout: $destination" >&2
   exit 1
 fi

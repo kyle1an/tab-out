@@ -2,7 +2,24 @@
 
 set -euo pipefail
 
-script_directory=${0:A:h}
+usage() {
+  printf '%s\n' "Usage: scripts/uninstall-macos-integration [hammerspoon-config-directory]"
+  printf '%s\n' \
+    "The config directory defaults to TAB_OUT_HAMMERSPOON_CONFIG_DIR or ~/.hammerspoon."
+}
 
-"$script_directory/hammerspoon/uninstall"
+if (( $# > 1 )); then
+  usage >&2
+  exit 64
+fi
+
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+script_directory=${0:A:h}
+config_directory=${1:-${TAB_OUT_HAMMERSPOON_CONFIG_DIR:-"$HOME/.hammerspoon"}}
+
+"$script_directory/hammerspoon/uninstall" "$config_directory"
 "$script_directory/native-host/uninstall"

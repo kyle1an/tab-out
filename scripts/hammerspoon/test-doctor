@@ -2,11 +2,78 @@
 
 set -euo pipefail
 
+if [[ ${TAB_OUT_DOCTOR_TEST_FIXTURE:-} == "1" && ${0:t} == "uname" ]]; then
+  printf '%s\n' "Darwin"
+  exit 0
+fi
+
+if [[ ${TAB_OUT_DOCTOR_TEST_FIXTURE:-} == "1" && ${0:t} == "xcrun" ]]; then
+  if [[ $# -eq 2 && $1 == "--find" && ($2 == "clang" || $2 == "swiftc") ]]; then
+    printf '/fixture/toolchain/%s\n' "$2"
+    exit 0
+  fi
+
+  printf '%s\n' "unexpected fixture xcrun invocation" >&2
+  exit 1
+fi
+
+if [[ ${TAB_OUT_DOCTOR_TEST_FIXTURE:-} == "1" && ${0:t} == "git" ]]; then
+  exit 1
+fi
+
+if [[ ${TAB_OUT_DOCTOR_TEST_FIXTURE:-} == "1" && ${0:t} == "hs" ]]; then
+  if [[ $# -ne 2 || $1 != "-c" ]]; then
+    printf '%s\n' "unexpected fixture hs invocation" >&2
+    exit 64
+  fi
+
+  lua_expression=$2
+  scenario=${TAB_OUT_DOCTOR_TEST_HS_SCENARIO:-ready}
+
+  if [[ $lua_expression == 'return "ready"' ]]; then
+    if [[ $scenario == "ipc-error" ]]; then
+      printf '%s\n' "fixture IPC unavailable" "ignored follow-up detail" >&2
+      exit 1
+    fi
+
+    printf '%s\n' "ready"
+    exit 0
+  fi
+
+  if [[ $lua_expression == 'if type(hs.screenRecordingState) ~= "function" then return "unsupported" end; return hs.screenRecordingState() and "ready" or "unavailable"' ]]; then
+    printf '%s\n' "${TAB_OUT_DOCTOR_TEST_SCREEN_RECORDING:-ready}"
+    exit 0
+  fi
+
+  if [[ $scenario == "evaluator-error" ]]; then
+    printf '%s\n' "fixture status evaluation exploded" "ignored follow-up detail" >&2
+    exit 65
+  fi
+
+  if [[ $scenario == "missing-runtime" ]]; then
+    printf '%s\n' "missing:Spoon start, Accessibility permission, private exact-window focus, Native Placement Bridge host installation, configured-profile metadata, configured-profile extension discovery"
+  else
+    printf '%s\n' "ready"
+  fi
+  exit 0
+fi
+
+if [[ ${TAB_OUT_DOCTOR_TEST_FIXTURE:-} == "1" && ${0:t} == "status" ]]; then
+  printf '%s\n' "Native host version: fixture"
+  exit 0
+fi
+
 script_directory=${0:A:h}
 repository_root=${script_directory:h:h}
 doctor="$repository_root/scripts/doctor-macos-integration"
 temporary_root=$(mktemp -d)
 trap 'rm -rf "$temporary_root"' EXIT
+
+readiness_test="$script_directory/test-doctor-readiness.lua"
+escaped_readiness_test=${readiness_test//\\/\\\\}
+escaped_readiness_test=${escaped_readiness_test//\"/\\\"}
+readiness_test_output=$(hs -c "return dofile(\"$escaped_readiness_test\")")
+[[ $readiness_test_output == "doctor readiness policy regression: ok" ]]
 
 help_output=$("$doctor" --help)
 [[ ${help_output%%$'\n'*} == "Usage: scripts/doctor-macos-integration [hammerspoon-config-directory]" ]]
@@ -49,5 +116,146 @@ set -e
 
 [[ $environment_status -eq 1 ]]
 [[ $environment_output == *"Hammerspoon config directory: $resolved_temporary_config"* ]]
+
+fixture_checkout="$temporary_root/fixture-checkout"
+fixture_home="$temporary_root/fixture-home"
+fixture_config="$temporary_root/fixture-config"
+fixture_bin="$temporary_root/fixture-bin"
+fixture_application_root="$temporary_root/fixture-applications"
+fixture_doctor="$fixture_checkout/scripts/doctor-macos-integration"
+fixture_spoon_source="$fixture_checkout/integrations/hammerspoon/TabOut.spoon"
+fixture_spoon_destination="$fixture_config/Spoons/TabOut.spoon"
+fixture_test_script=${0:A}
+
+mkdir -p \
+  "$fixture_checkout/scripts/hammerspoon" \
+  "$fixture_checkout/scripts/native-host" \
+  "$fixture_spoon_source/native" \
+  "$fixture_home" \
+  "$fixture_config/Spoons" \
+  "$fixture_bin" \
+  "$fixture_application_root/Hammerspoon.app" \
+  "$fixture_application_root/Google Chrome.app"
+cp "$doctor" "$fixture_doctor"
+cp \
+  "$repository_root/scripts/hammerspoon/doctor-readiness.lua" \
+  "$fixture_checkout/scripts/hammerspoon/doctor-readiness.lua"
+cp \
+  "$repository_root/integrations/hammerspoon/TabOut.spoon/native/tab_out_private_focus.m" \
+  "$fixture_spoon_source/native/tab_out_private_focus.m"
+cp "$repository_root/integrations/hammerspoon/TabOut.spoon/init.lua" "$fixture_config/init.lua"
+chmod +x "$fixture_doctor"
+ln -s /usr/bin/true "$fixture_checkout/scripts/install-macos-integration"
+ln -s "$fixture_test_script" "$fixture_checkout/scripts/native-host/status"
+ln -s "$fixture_test_script" "$fixture_bin/hs"
+ln -s "$fixture_test_script" "$fixture_bin/git"
+ln -s "$fixture_test_script" "$fixture_bin/uname"
+ln -s "$fixture_test_script" "$fixture_bin/xcrun"
+ln -s "$fixture_config" "$fixture_home/.hammerspoon"
+ln -s "$fixture_spoon_source" "$fixture_spoon_destination"
+
+set +e
+ready_output=$(
+  HOME="$fixture_home" \
+    PATH="$fixture_bin:$PATH" \
+    TAB_OUT_DOCTOR_TEST_FIXTURE=1 \
+    TAB_OUT_DOCTOR_TEST_APPLICATION_ROOT="$fixture_application_root" \
+    "$fixture_doctor" "$fixture_config" 2>&1
+)
+ready_status=$?
+set -e
+
+[[ $ready_status -eq 0 ]]
+[[ $ready_output == *"PASS    Native Placement Bridge status round trip is ready"* ]]
+[[ $ready_output == *"INFO    Native host version: fixture"* ]]
+[[ $ready_output == *"PASS    Hammerspoon IPC is available"* ]]
+[[ $ready_output == *"PASS    Loaded Hammerspoon and Tab Out runtime checks are ready"* ]]
+[[ $ready_output == *"RESULT  Automated setup checks passed with 0 warning(s)"* ]]
+
+set +e
+screen_recording_output=$(
+  HOME="$fixture_home" \
+    PATH="$fixture_bin:$PATH" \
+    TAB_OUT_DOCTOR_TEST_FIXTURE=1 \
+    TAB_OUT_DOCTOR_TEST_APPLICATION_ROOT="$fixture_application_root" \
+    TAB_OUT_DOCTOR_TEST_SCREEN_RECORDING=unavailable \
+    "$fixture_doctor" "$fixture_config" 2>&1
+)
+screen_recording_status=$?
+set -e
+
+[[ $screen_recording_status -eq 0 ]]
+[[ $screen_recording_output == *"WARN    Screen Recording permission is unavailable; transition shielding will be skipped"* ]]
+[[ $screen_recording_output == *"RESULT  Automated setup checks passed with 1 warning(s)"* ]]
+
+set +e
+runtime_error_output=$(
+  HOME="$fixture_home" \
+    PATH="$fixture_bin:$PATH" \
+    TAB_OUT_DOCTOR_TEST_FIXTURE=1 \
+    TAB_OUT_DOCTOR_TEST_APPLICATION_ROOT="$fixture_application_root" \
+    TAB_OUT_DOCTOR_TEST_HS_SCENARIO=evaluator-error \
+    "$fixture_doctor" "$fixture_config" 2>&1
+)
+runtime_error_status=$?
+set -e
+
+[[ $runtime_error_status -eq 1 ]]
+[[ $runtime_error_output == *"PASS    Hammerspoon IPC is available"* ]]
+[[ $runtime_error_output == *"FAIL    Hammerspoon Tab Out status evaluation failed: fixture status evaluation exploded"* ]]
+[[ $runtime_error_output != *"ignored follow-up detail"* ]]
+[[ $runtime_error_output != *"ACTION  Hammerspoon IPC is unavailable"* ]]
+
+set +e
+ipc_error_output=$(
+  HOME="$fixture_home" \
+    PATH="$fixture_bin:$PATH" \
+    TAB_OUT_DOCTOR_TEST_FIXTURE=1 \
+    TAB_OUT_DOCTOR_TEST_APPLICATION_ROOT="$fixture_application_root" \
+    TAB_OUT_DOCTOR_TEST_HS_SCENARIO=ipc-error \
+    "$fixture_doctor" "$fixture_config" 2>&1
+)
+ipc_error_status=$?
+set -e
+
+[[ $ipc_error_status -eq 1 ]]
+[[ $ipc_error_output == *"ACTION  Hammerspoon IPC is unavailable; open Hammerspoon and reload its configuration: fixture IPC unavailable"* ]]
+[[ $ipc_error_output != *"ignored follow-up detail"* ]]
+[[ $ipc_error_output != *"Hammerspoon Tab Out status evaluation failed"* ]]
+
+set +e
+missing_runtime_output=$(
+  HOME="$fixture_home" \
+    PATH="$fixture_bin:$PATH" \
+    TAB_OUT_DOCTOR_TEST_FIXTURE=1 \
+    TAB_OUT_DOCTOR_TEST_APPLICATION_ROOT="$fixture_application_root" \
+    TAB_OUT_DOCTOR_TEST_HS_SCENARIO=missing-runtime \
+    "$fixture_doctor" "$fixture_config" 2>&1
+)
+missing_runtime_status=$?
+set -e
+
+[[ $missing_runtime_status -eq 1 ]]
+[[ $missing_runtime_output == *"ACTION  Hammerspoon runtime is not ready: Spoon start, Accessibility permission, private exact-window focus, Native Placement Bridge host installation, configured-profile metadata, configured-profile extension discovery"* ]]
+[[ $missing_runtime_output != *"nativeBridgeReady"* ]]
+
+wrong_spoon_source="$temporary_root/wrong-spoon/TabOut.spoon"
+mkdir -p "$wrong_spoon_source"
+rm "$fixture_spoon_destination"
+ln -s "$wrong_spoon_source" "$fixture_spoon_destination"
+
+set +e
+wrong_spoon_output=$(
+  HOME="$fixture_home" \
+    PATH="$fixture_bin:$PATH" \
+    TAB_OUT_DOCTOR_TEST_FIXTURE=1 \
+    TAB_OUT_DOCTOR_TEST_APPLICATION_ROOT="$fixture_application_root" \
+    "$fixture_doctor" "$fixture_config" 2>&1
+)
+wrong_spoon_status=$?
+set -e
+
+[[ $wrong_spoon_status -eq 1 ]]
+[[ $wrong_spoon_output == *"FAIL    Installed Tab Out Spoon resolves to ${wrong_spoon_source:A}; expected ${fixture_spoon_source:A}"* ]]
 
 printf '%s\n' "macOS integration doctor regression: ok"

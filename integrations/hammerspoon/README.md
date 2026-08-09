@@ -139,8 +139,9 @@ directory also keeps installation correct when it is not the default path:
 
 ```zsh
 EXTENSION_ID=<32-character-extension-id>
-TAB_OUT_HAMMERSPOON_CONFIG_DIR="$HAMMERSPOON_CONFIG_DIRECTORY" \
-  "$TAB_OUT_CHECKOUT/scripts/install-macos-integration" "$EXTENSION_ID"
+"$TAB_OUT_CHECKOUT/scripts/install-macos-integration" \
+  "$EXTENSION_ID" \
+  "$HAMMERSPOON_CONFIG_DIRECTORY"
 ```
 
 The installer builds the private helper, links the checkout-owned
@@ -152,18 +153,6 @@ After it succeeds:
 
 1. Reload Tab Out in `chrome://extensions` so its service worker reconnects.
 2. Open Hammerspoon, or reload it from its menu if it was already running.
-
-For a manual installation, use the same lower-level owned commands:
-
-```zsh
-(
-  cd "$TAB_OUT_CHECKOUT"
-  pnpm hammerspoon:build
-  TAB_OUT_HAMMERSPOON_CONFIG_DIR="$HAMMERSPOON_CONFIG_DIRECTORY" \
-    scripts/hammerspoon/install
-  scripts/native-host/install "$EXTENSION_ID"
-)
-```
 
 ### 6. Complete macOS permissions
 
@@ -182,9 +171,9 @@ requests it, then reload Tab Out once more.
 
 ### 7. Exercise the live acceptance matrix
 
-The Native Placement Bridge reports ready only after a routed request. With the
-user observing every display, exercise both Command-Shift-K and
-Command-Shift-Space over create and reuse routes:
+The diagnostic can verify Native Placement Bridge connectivity without routing
+a window, but it does not replace live acceptance. With the user observing every
+display, exercise both configured shortcuts over create and reuse routes:
 
 - a target display with no Chrome window, which requires direct creation;
 - a target display with an existing configured-profile Chrome window, which
@@ -205,10 +194,12 @@ changes to Private Exact-Window Activation.
 ```
 
 It verifies product source and build prerequisites, the active Hammerspoon
-configuration, the checkout-owned Spoon link, native host, and the loaded
-Spoon's public readiness interface. It does not inspect a particular local
-settings filename. Missing Screen Recording produces a warning rather than a
-setup action because only transition shielding depends on it.
+configuration, the checkout-owned Spoon link, native host, the loaded Spoon's
+public readiness interface, and an active versioned Native Placement Bridge
+status round trip. It does not create or focus a window, require a prior routed
+request, or inspect a particular local settings filename. Missing Screen
+Recording produces a warning rather than a setup action because only transition
+shielding depends on it.
 
 For lower-level inspection:
 
@@ -217,52 +208,27 @@ hs -c 'return hs.inspect(spoon.TabOut.status())'
 "$TAB_OUT_CHECKOUT/scripts/native-host/status"
 ```
 
-## Runtime contract
+In the Spoon output, `nativeBridgeReady` records whether its most recent bridge
+round trip succeeded. The product doctor performs a fresh status round trip for
+current connectivity instead of requiring that historical field.
 
-The Spoon captures one target display and active Space for each invocation. It
-reuses only a verified window from the configured profile on that destination,
-or sends the destination kind and full display bounds through the Native
-Placement Bridge for inactive creation. Tab Out creates the new Chrome window
-with `focused: false` and its final target-display bounds in the same call.
-Existing unverified or other-profile Chrome windows do not block that fallback
-and are never focused by it.
-An unfocused window can be verified without bringing Chrome forward: the
-profile-scoped extension reports its normal window IDs, and the Spoon correlates
-them to a unique native window using Chrome AppleScript and Accessibility data.
-If the correlation is unavailable or ambiguous, the existing safe creation
-fallback remains in effect.
+## Runtime behavior
 
-If Chrome is stopped, the Spoon starts the configured profile in the background
-without a startup window, waits for the Native Placement Bridge to connect, and
-then performs the same directly placed creation. On a fullscreen Space, it
-reuses a verified Chrome window in place; otherwise it switches to an available
-regular Desktop on that display before creating the destination.
+Each configured shortcut targets the active Space on the display under the
+pointer. The Spoon reuses only a verified window from the selected Chrome
+profile; otherwise the Native Placement Bridge creates the destination directly
+without activating Chrome on another display. A route that needs an unavailable
+identity, Accessibility, bridge, or Private Exact-Window Activation capability
+Safe Aborts instead of using an unsafe focus or activation fallback. Screen
+Recording adds transition shielding but is not required for routing.
 
-When Screen Recording permission is available, the Spoon snapshots only the
-target display into a non-focusable transition shield before creation. It
-validates the new native window ID, privately focuses that exact window,
-focuses the destination control, and then removes the shield so Chrome's first
-exposed frame is already frontmost. A missing permission skips only the shield.
-
-Creation and activation have no fallback to application activation,
-`window:focus()`, a synthetic click, or remote z-order restoration. If the
-target identity, Accessibility capability, native bridge, or private helper is
-unavailable, the shortcut Safe Aborts before mutation.
-
-When closing a bridge-created window would otherwise promote another Chrome
-window, the Spoon handles the red close button, Command-Shift-W, and a
-single-tab Command-W before Chrome. It first restores the eligible non-Chrome
-window that was focused when the shortcut ran, then closes the created window.
-The prior window may be on the target display or another display; on the target
-display it must still be directly beneath the created window. Command-W remains
-Chrome-owned when multiple tabs are present. Unhandled close paths receive
-best-effort final focus repair but may still show a transient Chrome frame.
-
-The private helper uses undocumented WindowServer calls. It resolves the
-required private symbols and connection at runtime and Safe Aborts when those
-capabilities are unavailable; it is not restricted to an exact macOS build.
-After a macOS update, exercise both create and reuse routes with both shortcuts
-against the live Remote Display Preservation oracle.
+The canonical behavior is in the root
+[Runtime and Interaction Contracts](../../CONTEXT.md#runtime-and-interaction-contracts).
+The placement seam and repository ownership are recorded in
+[ADR 0008](../../docs/adr/0008-use-native-messaging-for-macos-window-placement.md)
+and
+[ADR 0009](../../docs/adr/0009-co-locate-the-macos-integration.md); subsequent
+macOS-placement decisions remain under [`docs/adr/`](../../docs/adr/).
 
 ## Source layout
 
@@ -297,8 +263,8 @@ Chrome windows. They do not replace the live acceptance matrix.
 ## Uninstall
 
 ```zsh
-TAB_OUT_HAMMERSPOON_CONFIG_DIR="$HAMMERSPOON_CONFIG_DIRECTORY" \
-  "$TAB_OUT_CHECKOUT/scripts/uninstall-macos-integration"
+"$TAB_OUT_CHECKOUT/scripts/uninstall-macos-integration" \
+  "$HAMMERSPOON_CONFIG_DIRECTORY"
 ```
 
 The Spoon is a link to this checkout, and the uninstall scripts remove only

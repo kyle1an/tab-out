@@ -25,6 +25,7 @@ if [[ -z $config_directory ]]; then
   config_directory="$HOME/.hammerspoon"
 fi
 config_directory=${config_directory:A}
+application_root=${TAB_OUT_DOCTOR_TEST_APPLICATION_ROOT:-/Applications}
 
 typeset -i failures=0
 typeset -i actions=0
@@ -51,6 +52,19 @@ fail() {
 action() {
   printf '%-7s %s\n' "ACTION" "$1"
   (( actions += 1 ))
+}
+
+summarize_command_output() {
+  local output=$1
+  local first_line=${output%%$'\n'*}
+
+  first_line=${first_line//$'\r'/}
+  first_line=${first_line//$'\t'/ }
+  if (( ${#first_line} > 240 )); then
+    first_line="${first_line[1,237]}..."
+  fi
+
+  REPLY=${first_line:-"no diagnostic output"}
 }
 
 repo_summary() {
@@ -123,12 +137,12 @@ else
   fail "Tab Out private helper source is missing: $private_helper"
 fi
 
-check_directory /Applications/Hammerspoon.app \
-  "Hammerspoon is installed in /Applications" \
-  "Install Hammerspoon in /Applications"
-check_directory "/Applications/Google Chrome.app" \
-  "Google Chrome is installed in /Applications" \
-  "Install Google Chrome in /Applications"
+check_directory "$application_root/Hammerspoon.app" \
+  "Hammerspoon is installed in $application_root" \
+  "Install Hammerspoon in $application_root"
+check_directory "$application_root/Google Chrome.app" \
+  "Google Chrome is installed in $application_root" \
+  "Install Google Chrome in $application_root"
 
 for compiler in clang swiftc; do
   if command -v xcrun >/dev/null 2>&1 && xcrun --find "$compiler" >/dev/null 2>&1; then
@@ -181,7 +195,8 @@ fi
 native_status_command="$tab_out_checkout/scripts/native-host/status"
 if [[ -x $native_status_command ]]; then
   if native_status_output=$("$native_status_command" 2>&1); then
-    pass "${native_status_output%%$'\n'*}"
+    pass "Native Placement Bridge status round trip is ready"
+    info "${native_status_output%%$'\n'*}"
   else
     action "Native host is not ready: ${native_status_output%%$'\n'*}"
   fi
@@ -189,27 +204,50 @@ else
   fail "Tab Out native-host status command is missing or not executable"
 fi
 
-if command -v hs >/dev/null 2>&1; then
-  if runtime_output=$(hs -c 'local tabOut = spoon and spoon.TabOut; if not tabOut or type(tabOut.status) ~= "function" then return "missing:Tab Out Spoon" end; local status = tabOut.status(); local checks = { { "Spoon start", status.started }, { "Accessibility permission", hs.accessibilityState(false) }, { "private exact-window focus", status.privateFocusReady }, { "Native Placement Bridge", status.nativeBridgeReady }, { "configured-profile metadata", status.profileMetadataReady }, { "configured-profile extension discovery", status.extensionReady } }; local missing = {}; for _, check in ipairs(checks) do if not check[2] then table.insert(missing, check[1]) end end; return #missing == 0 and "ready" or "missing:" .. table.concat(missing, ", ")' 2>/dev/null); then
-    if [[ $runtime_output == "ready" ]]; then
-      pass "Loaded Hammerspoon and Tab Out runtime checks are ready"
-    elif [[ $runtime_output == missing:* ]]; then
-      action "Hammerspoon runtime is not ready: ${runtime_output#missing:}"
-    else
-      action "Hammerspoon returned an unrecognized Tab Out status"
-    fi
+readiness_policy="$tab_out_checkout/scripts/hammerspoon/doctor-readiness.lua"
+escaped_readiness_policy=${readiness_policy//\\/\\\\}
+escaped_readiness_policy=${escaped_readiness_policy//\"/\\\"}
 
-    if screen_recording_output=$(hs -c 'if type(hs.screenRecordingState) ~= "function" then return "unsupported" end; return hs.screenRecordingState() and "ready" or "unavailable"' 2>/dev/null); then
-      if [[ $screen_recording_output == "ready" ]]; then
-        pass "Screen Recording permission enables transition shielding"
-      elif [[ $screen_recording_output == "unavailable" ]]; then
-        warn "Screen Recording permission is unavailable; transition shielding will be skipped"
+if command -v hs >/dev/null 2>&1; then
+  if ipc_output=$(hs -c 'return "ready"' 2>&1); then
+    if [[ $ipc_output == "ready" ]]; then
+      pass "Hammerspoon IPC is available"
+
+      if runtime_output=$(hs -c "local readiness = dofile(\"$escaped_readiness_policy\"); return readiness.evaluate(spoon and spoon.TabOut)" 2>&1); then
+        if [[ $runtime_output == "ready" ]]; then
+          pass "Loaded Hammerspoon and Tab Out runtime checks are ready"
+        elif [[ $runtime_output == missing:* ]]; then
+          action "Hammerspoon runtime is not ready: ${runtime_output#missing:}"
+        elif [[ $runtime_output == invalid:* ]]; then
+          fail "Hammerspoon returned an invalid Tab Out status: ${runtime_output#invalid:}"
+        else
+          summarize_command_output "$runtime_output"
+          fail "Hammerspoon returned an unrecognized Tab Out status: $REPLY"
+        fi
       else
-        info "Screen Recording permission state is unavailable from this Hammerspoon version"
+        summarize_command_output "$runtime_output"
+        fail "Hammerspoon Tab Out status evaluation failed: $REPLY"
       fi
+
+      if screen_recording_output=$(hs -c 'if type(hs.screenRecordingState) ~= "function" then return "unsupported" end; return hs.screenRecordingState() and "ready" or "unavailable"' 2>&1); then
+        if [[ $screen_recording_output == "ready" ]]; then
+          pass "Screen Recording permission enables transition shielding"
+        elif [[ $screen_recording_output == "unavailable" ]]; then
+          warn "Screen Recording permission is unavailable; transition shielding will be skipped"
+        else
+          info "Screen Recording permission state is unavailable from this Hammerspoon version"
+        fi
+      else
+        summarize_command_output "$screen_recording_output"
+        warn "Screen Recording permission state could not be evaluated: $REPLY"
+      fi
+    else
+      summarize_command_output "$ipc_output"
+      fail "Hammerspoon IPC returned an unrecognized probe response: $REPLY"
     fi
   else
-    action "Hammerspoon IPC is unavailable; open Hammerspoon and reload its configuration"
+    summarize_command_output "$ipc_output"
+    action "Hammerspoon IPC is unavailable; open Hammerspoon and reload its configuration: $REPLY"
   fi
 else
   action "The hs command is unavailable; open Hammerspoon after activating its configuration"

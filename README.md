@@ -83,6 +83,9 @@ host:
 scripts/install-macos-integration <extension-id>
 ```
 
+When the selected Hammerspoon configuration is not `~/.hammerspoon`, pass its
+directory as the installer's optional second argument.
+
 Configure `spoon.TabOut:start(config)` through your Hammerspoon configuration;
 the companion `hammerspoon-config` repository keeps its profile and keybindings
 in ignored `tab-out.local.lua`. Then reload Tab Out from `chrome://extensions`
@@ -96,7 +99,7 @@ the whole macOS integration with:
 ```bash
 scripts/doctor-macos-integration ~/.hammerspoon
 scripts/native-host/status
-scripts/uninstall-macos-integration
+scripts/uninstall-macos-integration ~/.hammerspoon
 ```
 
 Chrome starts the host only while the extension is connected. Installation
