@@ -7,8 +7,7 @@ import type {
 } from '../../../src/extension/types'
 import type {
   WorkingSetStorageBenchmarkBackend,
-  WorkingSetStorageBenchmarkOwnedStorage,
-  WorkingSetStorageBenchmarkReadDiagnostics
+  WorkingSetStorageBenchmarkOwnedStorage
 } from '../working-set-storage-benchmark-protocol.js'
 
 export const DISPOSABLE_BENCHMARK_PREFIX =
@@ -73,14 +72,6 @@ export interface MutationDiagnostics {
   readonly reset: () => void
 }
 
-export interface ReadDiagnosticsRecorder {
-  readonly record: (
-    diagnostics: WorkingSetStorageBenchmarkReadDiagnostics
-  ) => void
-  readonly last: () => WorkingSetStorageBenchmarkReadDiagnostics | null
-  readonly reset: () => void
-}
-
 export function makeMutationDiagnostics(): MutationDiagnostics {
   let logicalValues: readonly unknown[] = []
   let logicalBytes: number | undefined
@@ -111,20 +102,6 @@ export function makeMutationDiagnostics(): MutationDiagnostics {
       logicalBytes = undefined
       physicalWrites = []
       writes = 0
-    }
-  }
-}
-
-export function makeReadDiagnostics(): ReadDiagnosticsRecorder {
-  let diagnostics: WorkingSetStorageBenchmarkReadDiagnostics | null = null
-
-  return {
-    record(nextDiagnostics) {
-      diagnostics = { ...nextDiagnostics }
-    },
-    last: () => diagnostics === null ? null : { ...diagnostics },
-    reset() {
-      diagnostics = null
     }
   }
 }

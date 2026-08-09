@@ -53,7 +53,6 @@ export type WorkingSetStorageBenchmarkEvent =
 const benchmarkOperationSchema = Schema.Literals([
   'seed-profile',
   'replace',
-  'wake-only',
   'storage-read',
   'service-read',
   'domain-mutation',
@@ -80,11 +79,6 @@ const replaceMessageSchema = Schema.Struct({
   type: Schema.Literals([WORKING_SET_STORAGE_BENCHMARK_MESSAGE]),
   operation: Schema.Literals(['replace']),
   activity: workingSetActivityStoreMessageSchema
-})
-
-const wakeOnlyMessageSchema = Schema.Struct({
-  type: Schema.Literals([WORKING_SET_STORAGE_BENCHMARK_MESSAGE]),
-  operation: Schema.Literals(['wake-only'])
 })
 
 const storageReadMessageSchema = Schema.Struct({
@@ -154,7 +148,6 @@ const diagnosticsMessageSchema = Schema.Struct({
 export const workingSetStorageBenchmarkMessageSchema = Schema.Union([
   seedProfileMessageSchema,
   replaceMessageSchema,
-  wakeOnlyMessageSchema,
   storageReadMessageSchema,
   serviceReadMessageSchema,
   domainMutationMessageSchema,
@@ -181,35 +174,12 @@ export type WorkingSetStorageBenchmarkOwnedStorage =
       readonly objectStores: readonly string[]
     }
 
-export const workingSetStorageBenchmarkReadDiagnosticsSchema = Schema.Struct({
-  backendReadTotalMs: nonNegativeFiniteSchema,
-  openDatabaseMs: nonNegativeFiniteSchema,
-  expiryScanMs: nonNegativeFiniteSchema,
-  expiryDeleteMs: nonNegativeFiniteSchema,
-  retainedFetchMs: nonNegativeFiniteSchema,
-  decodeMaterializeMs: nonNegativeFiniteSchema,
-  fetchedRows: nonNegativeIntSchema,
-  validRows: nonNegativeIntSchema,
-  invalidRows: nonNegativeIntSchema,
-  fetchedEvents: nonNegativeIntSchema,
-  validEvents: nonNegativeIntSchema,
-  invalidEvents: nonNegativeIntSchema
-})
-
-export type WorkingSetStorageBenchmarkReadDiagnostics =
-  typeof workingSetStorageBenchmarkReadDiagnosticsSchema.Type
-
 export interface WorkingSetStorageBenchmarkBackend {
   readonly variant: string
   readonly ownedStorage: WorkingSetStorageBenchmarkOwnedStorage
   readonly lastMutationLogicalBytes: () => number
   readonly lastMutationPhysicalWrites: () => readonly string[]
   readonly writeInvocationCount: () => number
-  readonly lastReadDiagnostics?: () =>
-    WorkingSetStorageBenchmarkReadDiagnostics | null
-  readonly readInvocationCount?: () => number
-  readonly lastReadStartedAtEpochMs?: () => number | null
-  readonly lastReadFinishedAtEpochMs?: () => number | null
   readonly failNextMutation: () => void
   readonly corrupt: (
     kind: WorkingSetStorageBenchmarkCorruption,
@@ -238,18 +208,7 @@ export const workingSetStorageBenchmarkDiagnosticsSchema = Schema.Struct({
   ]),
   lastMutationLogicalBytes: nonNegativeFiniteSchema,
   lastMutationPhysicalWrites: Schema.Array(Schema.String),
-  writeInvocationCount: nonNegativeIntSchema,
-  readInvocationCount: nonNegativeIntSchema,
-  lastReadStartedAtEpochMs: Schema.NullOr(nonNegativeFiniteSchema),
-  lastReadFinishedAtEpochMs: Schema.NullOr(nonNegativeFiniteSchema),
-  workerStartedAtEpochMs: nonNegativeFiniteSchema,
-  activeTabUrlChangeCount: nonNegativeIntSchema,
-  tabActivatedCount: nonNegativeIntSchema,
-  windowFocusChangedCount: nonNegativeIntSchema,
-  tabReplacedCount: nonNegativeIntSchema,
-  lastReadDiagnostics: Schema.NullOr(
-    workingSetStorageBenchmarkReadDiagnosticsSchema
-  )
+  writeInvocationCount: nonNegativeIntSchema
 })
 
 export type WorkingSetStorageBenchmarkDiagnostics =

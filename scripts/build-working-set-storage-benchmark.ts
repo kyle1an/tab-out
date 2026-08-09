@@ -33,7 +33,6 @@ import {
   workingSetBenchmarkSelectorModulePath,
   WORKING_SET_BENCHMARK_BACKEND_ENV,
   WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV,
-  WORKING_SET_BENCHMARK_INSTRUMENTATION_ENV,
   WORKING_SET_BENCHMARK_NONCE_ENV,
   WORKING_SET_BENCHMARK_ROOT_MARKER,
   WORKING_SET_BENCHMARK_TEMP_PREFIX,
@@ -116,11 +115,6 @@ export interface WorkingSetBenchmarkBuildResult extends AsyncDisposable {
   readonly sidecar: WorkingSetBenchmarkBuildSidecar
   readonly sidecarPath: string
   readonly dispose: () => Promise<void>
-}
-
-export interface WorkingSetBenchmarkBuildOptions {
-  readonly instrumentation?: WorkingSetBenchmarkInstrumentation
-  readonly repositoryRoot?: string
 }
 
 class WorkingSetBenchmarkBuildError extends Schema.TaggedErrorClass<WorkingSetBenchmarkBuildError>()(
@@ -292,7 +286,6 @@ function runExtensionBuild(
         ...process.env,
         [WORKING_SET_BENCHMARK_BACKEND_ENV]: selection.variant,
         [WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV]: selection.extensionDirectory,
-        [WORKING_SET_BENCHMARK_INSTRUMENTATION_ENV]: selection.instrumentation,
         [WORKING_SET_BENCHMARK_NONCE_ENV]: nonce
       },
       stdio: 'inherit'
@@ -342,7 +335,6 @@ async function buildVariant(
   benchmarkRoot: string,
   nonce: string,
   variant: WorkingSetBenchmarkVariant,
-  instrumentation: WorkingSetBenchmarkInstrumentation,
   commonHashes: Pick<
     WorkingSetBenchmarkArtifactHashes,
     'lockfileSha256' | 'workloadFixtureSha256'
@@ -365,7 +357,6 @@ async function buildVariant(
   const selectionEnvironment: NodeJS.ProcessEnv = {
     [WORKING_SET_BENCHMARK_BACKEND_ENV]: variant,
     [WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV]: extensionDirectory,
-    [WORKING_SET_BENCHMARK_INSTRUMENTATION_ENV]: instrumentation,
     [WORKING_SET_BENCHMARK_NONCE_ENV]: nonce
   }
   const selection = resolveWorkingSetBuildSelection(
@@ -431,8 +422,7 @@ async function assertBenchmarkSourcesExist(repositoryRoot: string): Promise<void
 }
 
 async function buildWorkingSetStorageBenchmarkArtifactsUnsafe(
-  repositoryRootInput: string,
-  instrumentation: WorkingSetBenchmarkInstrumentation
+  repositoryRootInput: string
 ): Promise<WorkingSetBenchmarkBuildResult> {
   const repositoryRoot = await realpath(repositoryRootInput)
   const trackedExtensionBefore = await trackedExtensionSha256(repositoryRoot)
@@ -465,7 +455,6 @@ async function buildWorkingSetStorageBenchmarkArtifactsUnsafe(
         benchmarkRoot,
         nonce,
         variant,
-        instrumentation,
         commonHashes
       ))
     }
@@ -480,7 +469,7 @@ async function buildWorkingSetStorageBenchmarkArtifactsUnsafe(
       benchmarkRoot,
       buildNonce: nonce,
       createdAt: new Date().toISOString(),
-      instrumentation,
+      instrumentation: 'none',
       trackedExtension: {
         beforeSha256: trackedExtensionBefore,
         afterSha256: trackedExtensionAfter
@@ -531,20 +520,11 @@ async function buildWorkingSetStorageBenchmarkArtifactsUnsafe(
 }
 
 export function buildWorkingSetStorageBenchmarkArtifacts(
-  input: string | WorkingSetBenchmarkBuildOptions = {}
+  repositoryRoot = fileURLToPath(new URL('../', import.meta.url))
 ): Promise<WorkingSetBenchmarkBuildResult> {
-  const repositoryRoot = typeof input === 'string'
-    ? input
-    : input.repositoryRoot ?? fileURLToPath(new URL('../', import.meta.url))
-  const instrumentation = typeof input === 'string'
-    ? 'none'
-    : input.instrumentation ?? 'none'
   return Effect.runPromise(
     Effect.tryPromise({
-      try: () => buildWorkingSetStorageBenchmarkArtifactsUnsafe(
-        repositoryRoot,
-        instrumentation
-      ),
+      try: () => buildWorkingSetStorageBenchmarkArtifactsUnsafe(repositoryRoot),
       catch: (cause) => benchmarkBuildError(
         'build disposable Working Set storage benchmark artifacts',
         cause

@@ -170,5 +170,8 @@ changing the physical row encoding, database/index layout, wrapper major,
 retention or event caps, minimum Chrome behavior relevant to IndexedDB, or the
 Startup Frame's full Working Set read contract. Re-run it as well if production
 telemetry or real-Chrome QA shows blocked upgrades, expiry tails, or cold reads
-outside the accepted budget. Benchmark candidates and diagnostics remain test
-code and never become a runtime backend selector.
+outside the accepted budget. The canonical four-candidate benchmark and its
+diagnostics remain test code and never become a runtime backend selector. The
+non-selection heap-lifetime and real-tab-scaling explorations were decision-time
+evidence and were retired after the production adapter and release probe fixed
+the continuing verification authority.

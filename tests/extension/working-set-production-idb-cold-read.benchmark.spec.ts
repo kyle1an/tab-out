@@ -882,9 +882,7 @@ test('probes frozen current against the migrated production IDB cold read', asyn
       'This paired production-validation probe cannot select or reject a backend.'
   })
 
-  await using benchmarkBuild = await buildWorkingSetStorageBenchmarkArtifacts({
-    instrumentation: 'none'
-  })
+  await using benchmarkBuild = await buildWorkingSetStorageBenchmarkArtifacts()
   await using productionArtifact = await makeDisposableProductionArtifact()
   const frozenCurrent = currentArtifact(benchmarkBuild.sidecar.variants)
   const cleanupErrors: string[] = []

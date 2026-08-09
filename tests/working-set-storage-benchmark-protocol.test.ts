@@ -2,21 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  parseWorkingSetStorageBenchmarkMessage,
-  parseWorkingSetStorageBenchmarkResponse,
-  WORKING_SET_STORAGE_BENCHMARK_MESSAGE
+  parseWorkingSetStorageBenchmarkResponse
 } from './extension/working-set-storage-benchmark-protocol.js'
 
-test('the benchmark protocol accepts the wake-only no-op command', () => {
-  const message = {
-    type: WORKING_SET_STORAGE_BENCHMARK_MESSAGE,
-    operation: 'wake-only'
-  }
-
-  assert.deepEqual(parseWorkingSetStorageBenchmarkMessage(message), message)
-})
-
-test('the benchmark protocol carries coarse read phases and counters', () => {
+test('the benchmark protocol carries storage-read timing and mutation diagnostics', () => {
   const response = {
     ok: true,
     operation: 'storage-read',
@@ -33,29 +22,7 @@ test('the benchmark protocol carries coarse read phases and counters', () => {
       },
       lastMutationLogicalBytes: 100,
       lastMutationPhysicalWrites: [],
-      writeInvocationCount: 0,
-      readInvocationCount: 1,
-      lastReadStartedAtEpochMs: 1_786_207_443_690,
-      lastReadFinishedAtEpochMs: 1_786_207_443_720,
-      workerStartedAtEpochMs: 1_786_207_443_600,
-      activeTabUrlChangeCount: 0,
-      tabActivatedCount: 0,
-      windowFocusChangedCount: 0,
-      tabReplacedCount: 0,
-      lastReadDiagnostics: {
-        backendReadTotalMs: 12,
-        openDatabaseMs: 2,
-        expiryScanMs: 1,
-        expiryDeleteMs: 0,
-        retainedFetchMs: 3,
-        decodeMaterializeMs: 5,
-        fetchedRows: 4,
-        validRows: 3,
-        invalidRows: 1,
-        fetchedEvents: 8,
-        validEvents: 7,
-        invalidEvents: 1
-      }
+      writeInvocationCount: 0
     }
   }
 
@@ -64,10 +31,7 @@ test('the benchmark protocol carries coarse read phases and counters', () => {
     ...response,
     diagnostics: {
       ...response.diagnostics,
-      lastReadDiagnostics: {
-        ...response.diagnostics.lastReadDiagnostics,
-        invalidRows: -1
-      }
+      lastMutationLogicalBytes: -1
     }
   }), null)
 })

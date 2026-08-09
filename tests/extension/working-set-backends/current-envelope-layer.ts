@@ -21,18 +21,8 @@ import {
   type WorkingSetBenchmarkBackend
 } from './benchmark-backend.js'
 
-const realTabsProofEnabled =
-  typeof __TAB_OUT_WORKING_SET_REAL_TABS_PROOF__ !== 'undefined' &&
-  __TAB_OUT_WORKING_SET_REAL_TABS_PROOF__
 const diagnostics = makeMutationDiagnostics()
 let failNextWrite = false
-let readInvocations = 0
-let lastReadStartedAtEpochMs: number | null = null
-let lastReadFinishedAtEpochMs: number | null = null
-
-function epochNow(): number {
-  return performance.timeOrigin + performance.now()
-}
 
 function fallbackValidActivity() {
   const activity = emptyWorkingSetActivity()
@@ -76,22 +66,6 @@ export function makeWorkingSetActivityStorageLayer(
     WorkingSetActivityStorage,
     Effect.gen(function*() {
       const legacyStorage = yield* WorkingSetActivityStorage
-      const read = realTabsProofEnabled
-        ? Effect.fn('WorkingSetBenchmark.currentEnvelope.read')(
-            function*() {
-              yield* Effect.sync(() => {
-                readInvocations += 1
-                lastReadStartedAtEpochMs = epochNow()
-                lastReadFinishedAtEpochMs = null
-              })
-              return yield* legacyStorage.read().pipe(
-                Effect.ensuring(Effect.sync(() => {
-                  lastReadFinishedAtEpochMs = epochNow()
-                }))
-              )
-            }
-          )
-        : legacyStorage.read
       const write = Effect.fn('WorkingSetBenchmark.currentEnvelope.write')(
         function*(change: WorkingSetActivityWrite) {
           yield* Effect.sync(diagnostics.beginWrite)
@@ -115,7 +89,7 @@ export function makeWorkingSetActivityStorageLayer(
         }
       )
       return WorkingSetActivityStorage.of({
-        read,
+        read: legacyStorage.read,
         write,
         replace: legacyStorage.replace
       })
@@ -132,9 +106,6 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
   lastMutationLogicalBytes: diagnostics.lastMutationLogicalBytes,
   lastMutationPhysicalWrites: diagnostics.lastMutationPhysicalWrites,
   writeInvocationCount: diagnostics.writeInvocationCount,
-  readInvocationCount: () => readInvocations,
-  lastReadStartedAtEpochMs: () => lastReadStartedAtEpochMs,
-  lastReadFinishedAtEpochMs: () => lastReadFinishedAtEpochMs,
   failNextMutation() {
     failNextWrite = true
   },
@@ -174,9 +145,6 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
   },
   async reset(chromeApi): Promise<void> {
     failNextWrite = false
-    readInvocations = 0
-    lastReadStartedAtEpochMs = null
-    lastReadFinishedAtEpochMs = null
     diagnostics.reset()
     const storage = chromeApi.storage?.local
     if (storage !== undefined) {
