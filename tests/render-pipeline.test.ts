@@ -20,6 +20,7 @@ import { filterInputFromSearch, isFilterFocusShortcut, titleForFilterInput, urlF
 import { readFilterFocusPendingInput, releaseFilterFocusBootValue } from '../src/extension/filter-focus-buffer.js'
 import { buildFilterSearchRequest, canDisplayHistorySearchResults, canUseHistorySearchResults, dashboardNeedsFilterSearchRefresh, isHistorySearchRequestSettled } from '../src/extension/filter-search.js'
 import { parseFilterQuery } from '../src/extension/filter-query.js'
+import { buildFilterResultCandidates } from '../src/extension/filter-result-navigation.js'
 import { fetchDashboardData } from '../src/extension/dashboard-data-fetch.js'
 import { buildDashboardDataFromTabs, buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel, dashboardChipOrderKeyForTab, tabMatchesFilter } from '../src/extension/render.js'
 import { addSavedPageToStore, emptySavedPagesStore, SAVED_PAGES_STORAGE_KEY } from '../src/extension/saved-pages.js'
@@ -310,23 +311,52 @@ test('buildDomainGroups collects standalone app tabs into a dedicated apps card'
   assert.equal(firstSection(appsVm).flatVisibleChips.every((chip) => !chip.activeInOtherWindow), true)
 
   const filteredAppsVm = computeDomainCardViewModel(appsGroup, { filter: 'inbox' })
-  assert.equal(filteredAppsVm.isHidden, true)
-
-  const unmatchedAppsVm = computeDomainCardViewModel(appsGroup, { filter: 'inbox', mode: 'unmatched' })
-  assert.equal(unmatchedAppsVm.isHidden, true)
+  assert.equal(filteredAppsVm.isHidden, false)
+  assert.equal(filteredAppsVm.tabCountLabel, '1/2')
+  assert.deepEqual(firstSection(filteredAppsVm).flatVisibleChips.map((chip) => chip.title), ['Inbox'])
 
   const filteredVm = buildDashboardViewModel({
     realTabs: groups.flatMap((group) => group.tabs),
     domainGroups: groups,
     filter: 'inbox'
   })
-  assert.equal(filteredVm.stats.visibleTabs, 0)
-  assert.equal(filteredVm.matchedCards.some(({ group }) => group.domain === '__standalone-apps__'), false)
-  assert.equal(filteredVm.unmatchedCards.some(({ group }) => group.domain === '__standalone-apps__'), false)
+  assert.equal(filteredVm.stats.visibleTabs, 1)
+  assert.equal(filteredVm.stats.totalTabs, 3)
+  assert.equal(filteredVm.stats.visibleWindows, 0)
+  assert.equal(filteredVm.stats.visibleDomains, 1)
+  assert.equal(filteredVm.stats.filteredCloseCount, 0)
+  assert.equal(filteredVm.matchedCards.some(({ group }) => group.domain === '__standalone-apps__'), true)
   assert.deepEqual(filteredVm.filteredCloseUrls, [])
+  assert.deepEqual(filteredVm.filteredCloseTargets, [])
+  assert.deepEqual(
+    buildFilterResultCandidates({ primaryMatches: filteredVm.matchedCards }).map((candidate) => candidate.identity),
+    ['https://mail.google.com/mail/u/0/']
+  )
 })
 
-test('closed standalone-app pages remain filterable while open apps stay outside filter results', () => {
+test('matching Apps render beside normal tabs without entering global filtered close', () => {
+  const groups = buildDomainGroups([
+    makeTab({ id: 1, url: 'https://app.example.test/reference', title: 'Matching App', isApp: true, windowId: 2 }),
+    makeTab({ id: 2, url: 'https://docs.example.test/reference', title: 'Matching Tab', windowId: 1 }),
+    makeTab({ id: 3, url: 'https://other.example.test/', title: 'Other Tab', windowId: 1 })
+  ])
+
+  const vm = buildDashboardViewModel({
+    realTabs: groups.flatMap((group) => group.tabs),
+    domainGroups: groups,
+    filter: 'matching'
+  })
+
+  assert.deepEqual(vm.matchedCards.map(({ group }) => group.domain), ['example.test', '__standalone-apps__'])
+  assert.equal(vm.stats.visibleTabs, 2)
+  assert.equal(vm.stats.filteredCloseCount, 1)
+  assert.deepEqual(vm.filteredCloseTargets, [{
+    tabId: 2,
+    tabUrl: 'https://docs.example.test/reference'
+  }])
+})
+
+test('open and closed standalone-app pages remain filterable', () => {
   const groups = buildDomainGroups([
     makeTab({
       id: 1,
@@ -358,7 +388,12 @@ test('closed standalone-app pages remain filterable while open apps stay outside
   )
 
   const matchingOpen = computeDomainCardViewModel(appsGroup, { filter: 'inbox' })
-  assert.equal(matchingOpen.isHidden, true)
+  assert.equal(matchingOpen.isHidden, false)
+  assert.equal(matchingOpen.tabCountLabel, '1')
+  assert.deepEqual(
+    firstSection(matchingOpen).flatVisibleChips.map((chip) => chip.sourceType),
+    ['tab']
+  )
 })
 
 test('standalone-app cards use ordinary Page Chip overflow presentation', () => {
@@ -1848,7 +1883,7 @@ test('computeDomainCardViewModel carries every env suppression token on folded c
   )
 })
 
-test('buildDashboardViewModel derives matched and unmatched cards in one pass', () => {
+test('buildDashboardViewModel derives only matching cards in one pass', () => {
   const groups = buildDomainGroups([
     makeTab({ url: 'https://alpha.example.com/overview', title: 'Overview' }),
     makeTab({ id: 2, url: 'https://alpha.example.com/beta', title: 'Beta rollout' }),
@@ -1865,8 +1900,8 @@ test('buildDashboardViewModel derives matched and unmatched cards in one pass', 
   assert.equal(vm.stats.totalTabs, 3)
   assert.equal(vm.stats.visibleTabs, 1)
   assert.equal(vm.matchedCards.length, 1)
-  assert.equal(vm.unmatchedCards.length, 2)
-  assert.equal(vm.showOtherTabs, true)
+  assert.equal('unmatchedCards' in vm, false)
+  assert.equal('showOtherTabs' in vm, false)
   assert.deepEqual(vm.filteredCloseUrls, ['https://alpha.example.com/beta'])
   const matchedCard = atOrThrow(vm.matchedCards, 0)
   assert.equal(matchedCard.vm.tabCount, 1)
@@ -1874,10 +1909,6 @@ test('buildDashboardViewModel derives matched and unmatched cards in one pass', 
   assert.equal(matchedCard.vm.tabCountLabel, '1/2')
   assert.equal(matchedCard.vm.tabCountTitle, '1 of 2 open tabs shown while filtering')
 
-  const unmatchedAlphaCard = expectDefined(vm.unmatchedCards.find(({ group }) => group.domain === 'example.com'))
-  assert.equal(unmatchedAlphaCard.vm.tabCount, 1)
-  assert.equal(unmatchedAlphaCard.vm.totalTabCount, 2)
-  assert.equal(unmatchedAlphaCard.vm.tabCountLabel, '1/2')
 })
 
 test('filtered close targets preserve per-tab title scope for same-URL duplicates', () => {
@@ -3093,10 +3124,8 @@ test('combined tab and bookmark search keeps bookmark matches read-only', () => 
 
   assert.deepEqual(tabsVm.filteredCloseUrls, ['https://openai.com/docs'])
   assert.equal(tabsVm.matchedCards.length, 1)
-  assert.equal(tabsVm.unmatchedCards.length, 1)
   assert.deepEqual(bookmarksVm.filteredCloseUrls, [])
   assert.equal(bookmarksVm.matchedCards.length, 1)
-  assert.equal(bookmarksVm.unmatchedCards.length, 1)
   const matchedBookmarkCard = atOrThrow(bookmarksVm.matchedCards, 0)
   assert.equal(matchedBookmarkCard.vm.closableCount, 0)
   assert.equal(matchedBookmarkCard.vm.tabCountTitle, '1 of 1 bookmark shown while filtering')
@@ -3119,7 +3148,6 @@ test('history search matches are not tab-closable dashboard results', () => {
   assert.equal(vm.stats.dedupCount, 0)
   assert.deepEqual(vm.filteredCloseUrls, [])
   assert.equal(vm.matchedCards.length, 1)
-  assert.equal(vm.unmatchedCards.length, 1)
   const matchedCard = atOrThrow(vm.matchedCards, 0)
   assert.equal(matchedCard.vm.closableCount, 0)
   assert.equal(matchedCard.vm.tabCountTitle, '1 of 1 history result shown while filtering')
@@ -3168,17 +3196,6 @@ test('closed saved pages stay searchable without counting as open tabs or close 
   assert.equal(filteredCard.vm.tabCountLabel, '1 closed')
   assert.deepEqual(filtered.filteredCloseUrls, [])
   assert.equal(atOrThrow(firstSection(filteredCard.vm).flatVisibleChips, 0).sourceType, 'saved-page')
-  const unmatchedCard = atOrThrow(filtered.unmatchedCards, 0)
-  assert.deepEqual(
-    firstSection(unmatchedCard.vm).flatVisibleChips.map((chip) => chip.sourceType),
-    ['tab']
-  )
-  assert.equal(
-    filtered.unmatchedCards.flatMap(({ vm }) => sectionsOf(vm))
-      .flatMap((section) => section.flatVisibleChips)
-      .some((chip) => chip.sourceType === 'saved-page' || chip.sourceType === 'retained-page'),
-    false
-  )
 })
 
 test('filtered saved-only cards show the matched closed-page fraction in their badge', () => {

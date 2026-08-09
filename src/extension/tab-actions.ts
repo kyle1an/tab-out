@@ -139,26 +139,20 @@ function runOptionalCallback(
   })
 }
 
-function closedTabsLabel(count: number): string {
-  return `Closed ${count} tab${count !== 1 ? 's' : ''}`
-}
-
-function closedDuplicatesLabel(count: number): string {
-  return `Closed ${count} duplicate${count !== 1 ? 's' : ''}`
-}
+type TabCloseProgressKind = 'tabs' | 'open-tabs' | 'duplicates'
 
 export function tabCloseProgressLabel(
   removedCount: number,
   attemptedCount: number,
-  kind: 'tabs' | 'duplicates' = 'tabs'
+  kind: TabCloseProgressKind = 'tabs'
 ): string {
-  const singular = kind === 'duplicates' ? 'duplicate' : 'tab'
-  const plural = kind
+  const singular = kind === 'duplicates' ? 'duplicate' : kind === 'open-tabs' ? 'open tab' : 'tab'
+  const plural = kind === 'open-tabs' ? 'open tabs' : kind
   if (removedCount === 0) {
     return attemptedCount === 1 ? `Could not close ${singular}` : `Could not close ${attemptedCount} ${plural}`
   }
   if (removedCount < attemptedCount) return `Closed ${removedCount} of ${attemptedCount} ${plural}`
-  return kind === 'duplicates' ? closedDuplicatesLabel(removedCount) : closedTabsLabel(removedCount)
+  return `Closed ${removedCount} ${removedCount === 1 ? singular : plural}`
 }
 
 function showOpenTabsReadError(): void {
@@ -203,7 +197,7 @@ const finishTabCloseAction = Effect.fn('tabActions.finishClose')(function*({
   onAfterClose
 }: {
   closeResult: TabCloseResult
-  kind?: 'tabs' | 'duplicates'
+  kind?: TabCloseProgressKind
   nothingMessage: string
   labelSuffix?: string
   onAfterClose?: (result: TabActionResult) => void | Promise<void>
@@ -242,12 +236,16 @@ const runCloseFilteredTabs = Effect.fn('tabActions.closeFiltered')(function*(
   targets: DashboardTabMutationTarget[]
 ) {
   if (targets.length === 0) {
-    showToast('Nothing to close')
+    showToast('No matching open tabs to close')
     return emptyTabActionResult()
   }
 
   const closeResult = yield* closeTabsByTargetsEffect(targets, { preserveGroups: true })
-  return yield* finishTabCloseAction({ closeResult, nothingMessage: 'Nothing to close' })
+  return yield* finishTabCloseAction({
+    closeResult,
+    kind: 'open-tabs',
+    nothingMessage: 'No matching open tabs to close'
+  })
 })
 
 export function closeFilteredTabs(targets: DashboardTabMutationTarget[]): Promise<TabActionResult> {

@@ -24,10 +24,10 @@ function ownerDocument(grids: Record<string, HTMLElement>): Document {
 
 test('focus recovery does not substitute a same-domain card from another mission grid', () => {
   const removedMatchedCard = card('example.test', false)
-  const unrelatedOtherTabsCard = card('example.test')
+  const unrelatedHistoryCard = card('example.test')
   const document = ownerDocument({
     openTabsMissions: missionGrid([]),
-    openTabsMissionsUnmatched: missionGrid([unrelatedOtherTabsCard])
+    historyMatchesMissions: missionGrid([unrelatedHistoryCard])
   })
 
   assert.equal(resolvePageChipFocusRecoveryCard(

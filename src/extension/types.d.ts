@@ -238,7 +238,6 @@ export interface DashboardSectionVM {
 export interface DashboardCardVM {
   stableId: string
   isHidden: boolean
-  displayMode: 'normal' | 'unmatched'
   filtering: boolean
   tabCount?: number
   totalTabCount?: number
@@ -289,8 +288,6 @@ export interface DashboardViewModel {
   source: DashboardSource
   stats: DashboardStats
   matchedCards: DashboardCardEntry[]
-  unmatchedCards: DashboardCardEntry[]
-  showOtherTabs: boolean
   globalDedupeUrls: string[]
   filteredCloseUrls: string[]
   filteredCloseTargets: DashboardTabMutationTarget[]

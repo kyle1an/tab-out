@@ -8,7 +8,7 @@
    • buildDomainGroups — group tabs into domain cards
    • buildDashboardViewModel — one-pass derivation for header stats,
                                global actions, and prebuilt card VMs
-   • computeDomainCardViewModel — per-card VM, takes { filter, mode }
+   • computeDomainCardViewModel — per-card VM, takes { filter }
                                   and returns match-scoped fields
    ================================================================ */
 
@@ -42,9 +42,8 @@ export { tabMatchesFilter } from './filter-match.js'
  * header stats, global action targets, and prebuilt card VMs in one pass.
  *
  * This keeps the dashboard honest and lighter-weight: the App root, header,
- * and missions grids all consume the same matched / unmatched card VMs
- * instead of each caller re-running computeDomainCardViewModel() over the
- * same groups.
+ * and missions grid all consume the same match-scoped card VMs instead of
+ * each caller re-running computeDomainCardViewModel() over the same groups.
  */
 /**
  * @param {{ realTabs: DashboardTab[], domainGroups?: DomainGroup[], filter?: string, source?: DashboardSource, currentWindowId?: number | null }} opts
@@ -85,7 +84,7 @@ export function buildDashboardViewModel({ realTabs, domainGroups: groups = [], f
   // Active = not parked by a tab-suspender extension. Counted over the same
   // openTabs base as totalTabs so it reads as "loaded out of open".
   const activeTabs = openTabs.filter((t) => !t.suspended).length
-  const visibleTabs = filtering ? openTabs.filter((t) => !t.isApp && tabMatchesCompiledFilter(t, filterQuery)) : openTabs
+  const visibleTabs = filtering ? openTabs.filter((tab) => tabMatchesCompiledFilter(tab, filterQuery)) : openTabs
   // Standalone apps open in dedicated windows; counting them inflates the
   // window stat with windows that hold no regular tabs. Exclude them from
   // both totals so the header reads as "browser windows" only.
@@ -94,7 +93,6 @@ export function buildDashboardViewModel({ realTabs, domainGroups: groups = [], f
   const allowMutations = dashboardSourceAllowsTabActions(source)
 
   const matchedCards: DashboardCardEntry[] = []
-  const unmatchedCards: DashboardCardEntry[] = []
   const globalDedupeUrls: string[] = []
   let dedupCount = 0
   for (const group of groups) {
@@ -110,7 +108,7 @@ export function buildDashboardViewModel({ realTabs, domainGroups: groups = [], f
       ...(pinnedSections === undefined ? {} : { pinnedSections }),
       ...(pinnedPageChips === undefined ? {} : { pinnedPageChips })
     }
-    const matchedVm = computeDomainCardViewModel(group, { ...sharedCardOptions, mode: 'matched' })
+    const matchedVm = computeDomainCardViewModel(group, sharedCardOptions)
     if (!matchedVm.isHidden) {
       matchedCards.push({ group, vm: matchedVm })
       if (allowMutations) {
@@ -118,11 +116,6 @@ export function buildDashboardViewModel({ realTabs, domainGroups: groups = [], f
         if (matchedVm.closableDupeUrls?.length) globalDedupeUrls.push(...matchedVm.closableDupeUrls)
       }
     }
-
-    if (!filtering) continue
-
-    const unmatchedVm = computeDomainCardViewModel(group, { ...sharedCardOptions, mode: 'unmatched' })
-    if (!unmatchedVm.isHidden) unmatchedCards.push({ group, vm: unmatchedVm })
   }
 
   const filteredCloseTabs = allowMutations ? getFilteredCloseableTabsForQuery(realTabs, filterQuery) : []
@@ -147,8 +140,6 @@ export function buildDashboardViewModel({ realTabs, domainGroups: groups = [], f
       filtering
     },
     matchedCards,
-    unmatchedCards,
-    showOtherTabs: unmatchedCards.length > 0,
     globalDedupeUrls,
     filteredCloseUrls,
     filteredCloseTargets

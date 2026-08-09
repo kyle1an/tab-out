@@ -223,7 +223,7 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
       : `Close ${closableSuspendedCount} suspended ungrouped tab${closableSuspendedCount === 1 ? '' : 's'}`
   )
   const sections = vm.sections ?? []
-  const highlightFilter = vm.displayMode !== 'unmatched' ? filter : ''
+  const highlightFilter = filter
   const suppressedTitleParts = vm.suppressedTitleParts ?? []
   const inlineSubdomainKey = vm.singleSubdomainKey && !vm.singleSubdomainIsPort ? vm.singleSubdomainKey : ''
   const retainedPageRemovalTargets = vm.retainedPageRemovalTargets ?? []
@@ -424,7 +424,6 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
           // React state); the indicator bar and its noop/placement variants
           // react to them below.
           "data-[tabout-reorder-target=true]:before:pointer-events-none data-[tabout-reorder-target=true]:before:absolute data-[tabout-reorder-target=true]:before:inset-x-0 data-[tabout-reorder-target=true]:before:z-5 data-[tabout-reorder-target=true]:before:h-0.5 data-[tabout-reorder-target=true]:before:rounded-full data-[tabout-reorder-target=true]:before:content-[''] [&[data-tabout-reorder-target=true]:not([data-tabout-reorder-noop=true])]:before:bg-(--accent-amber) [&[data-tabout-reorder-target=true]:not([data-tabout-reorder-noop=true])]:before:shadow-[0_1px_2px_rgba(10,10,10,0.1)] data-[tabout-reorder-noop=true]:before:bg-[color-mix(in_srgb,var(--accent-amber)_36%,var(--warm-gray))] data-[tabout-reorder-noop=true]:before:shadow-[0_1px_1px_rgba(10,10,10,0.05)] data-[tabout-reorder-placement=before]:before:-top-1.5 data-[tabout-reorder-placement=after]:before:-bottom-1.5",
-          vm.displayMode === 'unmatched' && 'card-unmatched opacity-[0.45] transition-opacity duration-200 ease-[ease] hover:opacity-100 focus-within:opacity-100',
           isAppsCard && 'domain-block-apps',
           group.pinned && 'domain-block-pinned'
         )}

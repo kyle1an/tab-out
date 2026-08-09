@@ -67,6 +67,7 @@ test('HeaderStats renders accessible counts and text-only actions', () => {
   assert.match(html, />2 domains<\/span>/)
   assert.match(html, /data-tabout-part="dedupe-button"/)
   assert.match(html, />Dedupe <span data-tabout-part="dedupe-count">1<\/span>/)
-  assert.match(html, /aria-label="Close 2 filtered tabs">Close 2<\/button>/)
+  assert.match(html, /aria-label="Close 2 matching open tabs"/)
+  assert.match(html, />Close 2 open tabs<\/button>/)
   assert.doesNotMatch(html, /·|<svg/)
 })

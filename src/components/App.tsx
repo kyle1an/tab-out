@@ -50,6 +50,7 @@ type MissionContainerRef = {
 }
 
 const EMPTY_CLOSED_TABS: readonly ClosedTabEntry[] = []
+const FILTER_QUERY_INPUT_SELECTOR = '[data-tabout="filter-query"] [data-tabout-part="input"]'
 
 // Module-stable dispatch: every Dashboard arrival applies through the intake
 // store, and the alias stays non-reactive for hook dependency purposes.
@@ -90,17 +91,13 @@ type DashboardMissionSectionsOptions = {
   historySearchSummary: HistorySearchSummary | null
   isReady: boolean
   matchedCards: DashboardCardEntry[]
-  otherTabsFlush: boolean
   primaryMissionsEmpty: boolean
   primaryMissionsRef: Ref<HTMLDivElement>
   showBookmarkMatches: boolean
   showHistoryMatches: boolean
   showHistoryRange: boolean
-  showOtherTabs: boolean
   showPrimaryEmptyState: boolean
   source: DashboardSource
-  unmatchedCards: DashboardCardEntry[]
-  unmatchedMissionsRef: Ref<HTMLDivElement>
 }
 type DashboardMissionsListProps = {
   filter: string
@@ -152,17 +149,13 @@ function dashboardMissionSections({
   historySearchSummary,
   isReady,
   matchedCards,
-  otherTabsFlush,
   primaryMissionsEmpty,
   primaryMissionsRef,
   showBookmarkMatches,
   showHistoryMatches,
   showHistoryRange,
-  showOtherTabs,
   showPrimaryEmptyState,
-  source,
-  unmatchedCards,
-  unmatchedMissionsRef
+  source
 }: DashboardMissionSectionsOptions): DashboardMissionSection[] {
   if (!isReady) return []
 
@@ -202,19 +195,6 @@ function dashboardMissionSections({
       sectionId: 'bookmarkMatchesSection',
       showEmptyState: false,
       source: 'bookmarks'
-    })
-  }
-
-  if (showOtherTabs) {
-    sections.push({
-      cards: unmatchedCards,
-      gridId: 'openTabsMissionsUnmatched',
-      gridRef: unmatchedMissionsRef,
-      label: 'Other tabs',
-      sectionClassName: cn('missions-other mt-6', otherTabsFlush && 'mt-0'),
-      sectionId: 'openTabsMissionsOther',
-      showEmptyState: false,
-      source
     })
   }
 
@@ -457,7 +437,6 @@ export function App() {
   const primaryMissionsRef = useRef<HTMLDivElement | null>(null)
   const bookmarkMissionsRef = useRef<HTMLDivElement | null>(null)
   const historyMissionsRef = useRef<HTMLDivElement | null>(null)
-  const unmatchedMissionsRef = useRef<HTMLDivElement | null>(null)
   const [dashboardContentVisible, setDashboardContentVisible] = useState(false)
   useEffect(() => {
     const frame = requestAnimationFrame(() => setDashboardContentVisible(true))
@@ -467,14 +446,14 @@ export function App() {
   const visibleDashboard = dynamicContentVisible ? dashboard : null
   const isReady = !!visibleDashboard
   const historyFilterEnabled = isHistoryFilterEnabled(historyRange)
-  const { packMissionsMasonryNow, scheduleMissionsMasonry } = useMissionsMasonry(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, unmatchedMissionsRef, {
+  const { packMissionsMasonryNow, scheduleMissionsMasonry } = useMissionsMasonry(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, {
     onAfterLayout: validatePageChipTextLayoutsAfterMasonry,
     onBeforePack: prepareDomainCardMoveAnimation,
     onAfterPack: animateDomainCardMoves
   })
 
   const currentMissionContainers = useCallback(function currentMissionContainers() {
-    return readMissionContainers(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, unmatchedMissionsRef)
+    return readMissionContainers(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef)
   }, [])
 
   const primeCardMoveAnimation = useCallback(function primeCardMoveAnimation() {
@@ -571,7 +550,7 @@ export function App() {
   useLayoutEffect(() => {
     if (!isReady) return
     clearHoverUrlNow()
-    const containers = readMissionContainers(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, unmatchedMissionsRef)
+    const containers = readMissionContainers(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef)
     const previousRects = layoutMoveRectsRef.current
     layoutMoveRectsRef.current = null
     // Bookmark/history matches hydrate after the local tab filter commits. Keep
@@ -595,12 +574,10 @@ export function App() {
     dashboardVm,
     stats,
     matchedCards,
-    unmatchedCards,
     bookmarkMatchedCards,
     historyMatchedCards,
     historyResultsFilter,
     historySearchSummary,
-    showOtherTabs,
     showBookmarkMatches,
     showHistoryMatches,
     showHistoryRange,
@@ -685,7 +662,24 @@ export function App() {
   }, [])
 
   const onCloseFiltered = useCallback(async function onCloseFiltered() {
-    await closeFilteredTabs(dashboardVm.filteredCloseTargets)
+    const targets = dashboardVm.filteredCloseTargets
+    const activeElement = document.activeElement
+    const closeTrigger = activeElement instanceof HTMLElement &&
+      activeElement.matches('[data-tabout-part="close-filtered-button"]')
+      ? activeElement
+      : null
+    const result = await closeFilteredTabs(targets)
+    if (targets.length > 0 && result.removedCount === targets.length) {
+      const nextActiveElement = document.activeElement
+      const focusCanStillTransfer =
+        !nextActiveElement ||
+        nextActiveElement === document.body ||
+        nextActiveElement === document.documentElement ||
+        nextActiveElement === closeTrigger
+      if (focusCanStillTransfer) {
+        document.querySelector<HTMLInputElement>(FILTER_QUERY_INPUT_SELECTOR)?.focus()
+      }
+    }
   }, [dashboardVm.filteredCloseTargets])
 
   const onDedupAll = useCallback(async function onDedupAll() {
@@ -721,7 +715,6 @@ export function App() {
   const showHistorySection = showHistoryRange || showHistoryMatches
   const bookmarkMatchesFlush = primaryMissionsEmpty && !showHistorySection
   const historyMatchesFlush = primaryMissionsEmpty
-  const otherTabsFlush = primaryMissionsEmpty && !showBookmarkMatches && !showHistorySection
   // react-doctor-disable-next-line react-hooks-js/refs -- the mission grid refs are forwarded to the masonry container elements; they're attached by React, not read for render output.
   const missionSections = useMemo(() => dashboardMissionSections({
     bookmarkMatchedCards,
@@ -735,18 +728,14 @@ export function App() {
     historySearchSummary,
     isReady,
     matchedCards,
-    otherTabsFlush,
     primaryMissionsEmpty,
     primaryMissionsRef,
     showBookmarkMatches,
     showHistoryMatches,
     showHistoryRange,
-    showOtherTabs,
     showPrimaryEmptyState: showSettledEmptyState,
-    source,
-    unmatchedCards,
-    unmatchedMissionsRef
-  }), [bookmarkMatchedCards, bookmarkMatchesFlush, filter, historyMatchedCards, historyMatchesFlush, historyResultsFilter, historySearchSummary, isReady, matchedCards, otherTabsFlush, primaryMissionsEmpty, showBookmarkMatches, showHistoryMatches, showHistoryRange, showOtherTabs, showSettledEmptyState, source, unmatchedCards])
+    source
+  }), [bookmarkMatchedCards, bookmarkMatchesFlush, filter, historyMatchedCards, historyMatchesFlush, historyResultsFilter, historySearchSummary, isReady, matchedCards, primaryMissionsEmpty, showBookmarkMatches, showHistoryMatches, showHistoryRange, showSettledEmptyState, source])
 
   useMissionOrderMemory({
     previousOrderRef,

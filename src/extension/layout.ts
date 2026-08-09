@@ -12,9 +12,9 @@
    chrome-free .mission-card content wrapper. Masonry needs to measure
    both as one unit.
 
-   The primary grid can be followed by filter-only companion grids
-   such as bookmark matches and the secondary "Other tabs" grid. All
-   are packed with the same algorithm; hidden/empty grids are skipped.
+   The primary grid can be followed by filter-only companion grids such as
+   bookmark and history matches. All are packed with the same algorithm;
+   hidden and empty grids are skipped.
 
    Layout state is stored on each block in `dataset.masonryCol`.
    Column count changes (window resize crossing a breakpoint) reset

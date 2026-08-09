@@ -233,12 +233,6 @@ test('card removal targets include only exact retained snapshots in the matched 
   }])
   assert.equal(filtered.retainedPageRemovalLabel, 'Remove from Tabs')
 
-  const unmatched = computeDomainCardViewModel(group, {
-    filter: 'alpha',
-    mode: 'unmatched'
-  })
-  assert.deepEqual(unmatched.retainedPageRemovalTargets, [])
-
   const readOnly = computeDomainCardViewModel(group, { allowMutations: false })
   assert.deepEqual(readOnly.retainedPageRemovalTargets, [])
 })

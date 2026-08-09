@@ -43,7 +43,7 @@ export function HeaderStats({
   const domainsLabel =
     visibleDomains === totalDomains ? `${totalDomains} ${pluralize(totalDomains, 'domain')}` : `${visibleDomains}/${totalDomains} ${pluralize(totalDomains, 'domain')}`
 
-  const closeFilteredTitle = `Close ${filteredCloseCount} filtered tab${filteredCloseCount !== 1 ? 's' : ''}`
+  const closeFilteredTitle = `Close ${filteredCloseCount} matching open tab${filteredCloseCount !== 1 ? 's' : ''}`
 
   return (
     <div data-tabout="header-stats" className="inline-flex min-h-(--header-control-height) min-w-0 items-center gap-2 text-[13px] leading-(--header-control-line-height) font-normal tabular-nums text-muted-foreground">
@@ -92,11 +92,11 @@ export function HeaderStats({
           type="button"
           data-tabout="tab-action"
           data-tabout-part="close-filtered-button"
-          className="action-btn close-tabs inline-flex h-(--header-control-height) box-border cursor-pointer items-center rounded-(--header-control-radius) border border-[rgba(82,82,82,0.3)] bg-[rgba(82,82,82,0.04)] px-3 py-1.25 font-[inherit] [font-size:var(--header-control-font-size)] leading-(--header-control-line-height) font-medium text-(--accent-amber) transition-[color,border-color,background-color] duration-200 [corner-shape:squircle] hover:border-(--accent-amber) hover:bg-[rgba(82,82,82,0.1)]"
+          className="action-btn close-tabs inline-flex h-(--header-control-height) box-border cursor-pointer items-center whitespace-nowrap rounded-(--header-control-radius) border border-[rgba(82,82,82,0.3)] bg-[rgba(82,82,82,0.04)] px-3 py-1.25 font-[inherit] [font-size:var(--header-control-font-size)] leading-(--header-control-line-height) font-medium text-(--accent-amber) transition-[color,border-color,background-color] duration-200 [corner-shape:squircle] hover:border-(--accent-amber) hover:bg-[rgba(82,82,82,0.1)]"
           aria-label={closeFilteredTitle}
           onClick={onCloseFiltered}
         >
-          Close {filteredCloseCount}
+          Close {filteredCloseCount} {pluralize(filteredCloseCount, 'open tab')}
         </button>
       )}
     </div>

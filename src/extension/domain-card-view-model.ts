@@ -19,11 +19,9 @@ import type { PinnedPageChipIndex } from './page-chip-pins.js'
 import type { CompiledFilterQuery } from './filter-query.js'
 import type { DashboardCardVM, DashboardChipData, DashboardChipPriorityMap, DashboardClusterVM, DashboardSectionVM, DashboardSegment, DashboardSource, DashboardTab, DashboardTitleSuppression, DashboardWebsitePathSectionVM, DomainGroup, PathGroupResult, RetainedPageActionTarget, WebsitePathSectionResult } from './types'
 
-type CardMode = 'matched' | 'unmatched'
 type ComputeCardOptions = {
   filter?: string
   filterQuery?: CompiledFilterQuery
-  mode?: CardMode
   source?: DashboardSource
   allowMutations?: boolean
   currentWindowId?: number | null
@@ -604,38 +602,29 @@ function disambiguatingPaths(urls: string[]): string[] {
    to be done imperatively in filter.js — walk each chip's DOM,
    toggle style.display, update each section-count, recompute the
    close-domain / dedup labels from per-card state. The whole thing
-   is now inside this function: pass `{ filter, mode }` and get back
+   is now inside this function: pass `{ filter }` and get back
    a VM whose visibleChips / sections / closableCount already reflect
-   the current filter scope.
+   the current match scope.
 
      • filter — normalized (trim + lowercase) query string ('' means
                 no filter)
-     • mode   — 'matched' (keep tabs that match the filter) or
-                'unmatched' (keep tabs that DON'T match; used for the
-                secondary "Other tabs" grid). Empty filter in
-                'unmatched' yields an all-hidden card — nothing can
-                not-match an empty query.
 
    Returned fields:
      • isHidden     — true when the card has zero chips under the
                       current filter; <Missions> skips it entirely
-     • displayMode  — 'normal' | 'unmatched'; <DomainCard> applies
-                      the card-unmatched class + suppresses bulk-
-                      close buttons when 'unmatched'
      • filtering    — convenience flag; sections/chips use it to
                       bypass the "+N more" overflow split so every
                       matching chip is visible at once
 */
 /**
  * @param {DomainGroup} group
- * @param {{ filter?: string, mode?: 'matched' | 'unmatched', allowMutations?: boolean, currentWindowId?: number | null }} [opts]
+ * @param {{ filter?: string, allowMutations?: boolean, currentWindowId?: number | null }} [opts]
  * @returns {DashboardCardVM}
  */
-export function computeDomainCardViewModel(group: DomainGroup, { filter = '', filterQuery, mode = 'matched', source = 'tabs', allowMutations = true, currentWindowId = null, chipOrder, chipPriority, pinnedSections = EMPTY_PINNED_SECTIONS, pinnedPageChips }: ComputeCardOptions = {}): DashboardCardVM {
+export function computeDomainCardViewModel(group: DomainGroup, { filter = '', filterQuery, source = 'tabs', allowMutations = true, currentWindowId = null, chipOrder, chipPriority, pinnedSections = EMPTY_PINNED_SECTIONS, pinnedPageChips }: ComputeCardOptions = {}): DashboardCardVM {
   const compiledFilter = filterQuery ?? compileFilterQuery(filter)
   const allTabs = group.tabs || []
   const filtering = compiledFilter.active
-  const displayMode = mode === 'unmatched' ? 'unmatched' : 'normal'
   const stableId = domainGroupCardId(group)
   const isAppsGroup = group.domain === '__standalone-apps__'
   const parsedUrlByValue = new Map<string, URL | null>()
@@ -669,34 +658,16 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     })
   }
 
-  // First thing: narrow the tab set to what this grid should show.
-  // Unfiltered matched mode keeps everything; unmatched mode with an
-  // empty filter keeps nothing (secondary grid is hidden upstream in
-  // that case anyway, but bail early so we don't produce a ghost
-  // VM full of chips).
-  const filterCandidates = mode === 'unmatched'
-    ? isAppsGroup
-      ? []
-      : allTabs.filter((tab) => !isClosedSavedDashboardTab(tab))
-    : filtering && isAppsGroup
-      ? allTabs.filter(isClosedSavedDashboardTab)
-      : allTabs
-  const tabs =
-    filtering
-      ? filterCandidates.filter((t) => {
-          const m = tabMatchesCompiledFilter(t, compiledFilter)
-          return mode === 'unmatched' ? !m : m
-        })
-      : mode === 'unmatched'
-        ? []
-        : allTabs
+  const tabs = filtering
+    ? allTabs.filter((tab) => tabMatchesCompiledFilter(tab, compiledFilter))
+    : allTabs
 
   if (tabs.length === 0) {
-    return { stableId, isHidden: true, displayMode, filtering }
+    return { stableId, isHidden: true, filtering }
   }
 
   const retainedPageRemovalTargets: Required<RetainedPageActionTarget>[] =
-    displayMode === 'unmatched' || !allowMutations
+    !allowMutations
       ? []
       : tabs.flatMap((tab) => {
           const retainedPageIdentity = tab.retainedPageIdentity
@@ -1717,13 +1688,12 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     // the compact form. Titles stay RAW (rawTitle) to match history rows.
     const appChips = uniqueTabs.map((tab) => buildChipData(tab, false, '', '', '', { rawTitle: true }))
     const { vis: visibleAppChips, hid: hiddenAppChips } = splitForOverflow(appChips)
-    const vmClosableCount = displayMode === 'unmatched' || !allowMutations ? 0 : closableCount
-    const vmClosableExtras = displayMode === 'unmatched' || !allowMutations ? 0 : closableExtras
-    const vmClosableDupeUrls = displayMode === 'unmatched' || !allowMutations ? [] : closableDupeUrls
+    const vmClosableCount = !allowMutations ? 0 : closableCount
+    const vmClosableExtras = !allowMutations ? 0 : closableExtras
+    const vmClosableDupeUrls = !allowMutations ? [] : closableDupeUrls
     return {
       stableId,
       isHidden: false,
-      displayMode,
       filtering,
       tabCount,
       totalTabCount,
@@ -1745,7 +1715,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
         {
           key: '__apps__',
           sectionCount: tabs.length,
-          sectionClosableUrls: displayMode === 'unmatched' || !allowMutations ? [] : closableTabs.map((tab) => tab.url),
+          sectionClosableUrls: !allowMutations ? [] : closableTabs.map((tab) => tab.url),
           showHeader: false,
           isShared: false,
           isPort: false,
@@ -2168,9 +2138,9 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
 
   // Map each suppressed-title token to the exact open tabs whose title carries it,
   // so the dashboard can offer token-scoped "Close N tabs" and "Suspend N tabs".
-  // Keyed by the normalized suppression key. Left empty for read-only sources and
-  // the unmatched grid, mirroring how every other bulk mutation is suppressed there.
-  const allowTitleSuppressionActions = displayMode !== 'unmatched' && allowMutations
+  // Keyed by the normalized suppression key. Left empty for read-only sources,
+  // mirroring how every other bulk mutation is suppressed there.
+  const allowTitleSuppressionActions = allowMutations
   const suppressionCloseTargetsByText = allowTitleSuppressionActions ? suppressionTargetsByText(closableTabs) : {}
   const suppressionSuspendTargetsByText = allowTitleSuppressionActions ? suppressionTargetsByText(suspendableTabs) : {}
 
@@ -2390,37 +2360,18 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
 
   const displayName = group.label || group.domain.replace(/^www\./, '')
 
-  // In the secondary ("unmatched") grid, every bulk-close action is
-  // suppressed — we don't want to offer a "Close 4 tabs" on a card
-  // rendered as the user's NON-match set, that would close the tabs
-  // they didn't type "github" about. Zero out the closable fields so
-  // the buttons just don't render (components are already conditional
-  // on closableCount > 0 / closableUrls.length > 0).
-  const isUnmatched = displayMode === 'unmatched'
-  const vmClosableCount = isUnmatched || !allowMutations ? 0 : closableCount
-  const vmSuspendableCount = isUnmatched || !allowMutations ? 0 : suspendableCount
-  const vmClosableSuspendedCount = isUnmatched || !allowMutations ? 0 : closableSuspendedCount
-  const vmClosableExtras = isUnmatched || !allowMutations ? 0 : closableExtras
-  const vmClosableDupeUrls = isUnmatched || !allowMutations ? [] : closableDupeUrls
-  const vmSections = isUnmatched
-    ? scopedSectionsData.map((s) => ({
-        ...s,
-        sectionClosableUrls: [],
-        clusters: s.clusters.map((c) => ({ ...c, closableUrls: [] })),
-        websitePathSections: (s.websitePathSections ?? []).map((websitePathSection) => ({
-          ...websitePathSection,
-          sectionClosableUrls: [],
-          clusters: websitePathSection.clusters.map((c) => ({ ...c, closableUrls: [] }))
-        }))
-      }))
-    : scopedSectionsData
+  const vmClosableCount = !allowMutations ? 0 : closableCount
+  const vmSuspendableCount = !allowMutations ? 0 : suspendableCount
+  const vmClosableSuspendedCount = !allowMutations ? 0 : closableSuspendedCount
+  const vmClosableExtras = !allowMutations ? 0 : closableExtras
+  const vmClosableDupeUrls = !allowMutations ? [] : closableDupeUrls
+  const vmSections = scopedSectionsData
 
   const { cardSuppressionToneScope, sections: tonedSections } = allocateCardSuppressionTones(cardSuppressedTitleParts, vmSections)
 
   return {
     stableId,
     isHidden: false,
-    displayMode,
     filtering,
     tabCount,
     totalTabCount,

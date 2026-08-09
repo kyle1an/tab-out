@@ -106,7 +106,7 @@ test('filter tokens matching Object prototype properties remain literal search t
   }
 })
 
-test('one compiled query serves every item, card mode, and filtered-close pass', () => {
+test('one compiled query serves every item, matching card, and filtered-close pass', () => {
   let compileCount = 0
   const compileOnce = (filter: string) => {
     compileCount += 1
@@ -123,17 +123,12 @@ test('one compiled query serves every item, card mode, and filtered-close pass',
   const directMatches = tabs.filter((tab) => tabMatchesCompiledFilter(tab, query))
   const matchedCard = computeDomainCardViewModel(
     { domain: 'example.test', tabs },
-    { filter, filterQuery: query, mode: 'matched' }
-  )
-  const unmatchedCard = computeDomainCardViewModel(
-    { domain: 'example.test', tabs },
-    { filter, filterQuery: query, mode: 'unmatched' }
+    { filter, filterQuery: query }
   )
   const filteredCloseTabs = getFilteredCloseableTabsForQuery(tabs, query)
 
   assert.equal(compileCount, 1)
   assert.equal(directMatches.length, 120)
   assert.equal(matchedCard.tabCount, 120)
-  assert.equal(unmatchedCard.tabCount, 120)
   assert.equal(filteredCloseTabs.length, 120)
 })

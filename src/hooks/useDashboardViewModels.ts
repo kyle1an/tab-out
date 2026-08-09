@@ -160,7 +160,6 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
   )
 
   const matchedCards = dashboardVm.matchedCards
-  const unmatchedCards = dashboardVm.unmatchedCards
   const bookmarkMatchedCards = bookmarkSearchVm?.matchedCards || EMPTY_CARD_ENTRIES
   const historyMatchedCards = historySearch.viewModel?.matchedCards || EMPTY_CARD_ENTRIES
   const showBookmarkMatches = isReady && canUseBookmarkSearchResults(dashboard, filterSearchOptions) && bookmarkMatchedCards.length > 0
@@ -170,12 +169,10 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
     dashboardVm,
     stats: dashboardVm.stats,
     matchedCards,
-    unmatchedCards,
     bookmarkMatchedCards,
     historyMatchedCards,
     historySearchSummary: historySearch.summary,
     historyResultsFilter: historySearch.resultsFilter,
-    showOtherTabs: isReady && dashboardVm.showOtherTabs,
     showBookmarkMatches,
     showHistoryMatches,
     showHistoryRange: isReady && shouldShowHistoryRange(filterSearchOptions),

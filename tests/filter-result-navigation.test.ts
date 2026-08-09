@@ -65,7 +65,6 @@ function cardWithChips(
     vm: {
       stableId: 'domain-example-test',
       isHidden: false,
-      displayMode: 'normal',
       filtering: true,
       sections: [{
         key: '',

@@ -32,7 +32,6 @@ function makeClosableCardVM(overrides: Partial<DashboardCardVM> = {}): Dashboard
   return {
     stableId: 'domain-google-com',
     isHidden: false,
-    displayMode: 'normal',
     filtering: false,
     tabCountLabel: '5',
     closableCount: 5,

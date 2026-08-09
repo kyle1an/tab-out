@@ -418,7 +418,7 @@ test('header stats keep counts and actions compact and accessible', async ({ pag
   await expect(headerStats).not.toContainText('·')
   await expect(headerStats.locator('[data-tabout-part="dedupe-button"]')).toHaveAccessibleName(/Dedupe \d+/)
   const closeButton = headerStats.locator('[data-tabout-part="close-filtered-button"]')
-  await expect(closeButton).toHaveAccessibleName(/Close \d+ filtered tabs/)
+  await expect(closeButton).toHaveAccessibleName(/Close \d+ matching open tabs/)
   await expect(closeButton.locator('svg')).toHaveCount(0)
 
   const geometry = await headerStats.evaluate((element) => {
@@ -480,6 +480,10 @@ test('header stats keep counts and actions compact and accessible', async ({ pag
   expect(geometry.iconGap).toBeCloseTo(4, 1)
   expect(geometry.iconVisible).toBe(true)
   for (const centerDelta of geometry.centers) expect(centerDelta).toBeCloseTo(0, 1)
+
+  await page.setViewportSize({ width: 760, height: 700 })
+  await expect.poll(() => closeButton.evaluate((element) => (element as HTMLElement).innerText)).toMatch(/^Close \d+ open tabs$/)
+  await expect(closeButton).toHaveAccessibleName(/Close \d+ matching open tabs/)
 })
 
 for (const scenario of [
@@ -1293,6 +1297,47 @@ test('loading indicators stay centered inside app favicon outlines', async ({ pa
   }
 })
 
+test('filter results include matching Apps without adding them to global filtered close', async ({ page }) => {
+  const appTitle = 'Inbox (417) - example.user@example.test'
+  await page.goto('/tests/fixtures/dashboard-resize.html?appLoadingFavicon=1')
+
+  const input = page.locator('[data-tabout="filter-query"] input')
+  await input.fill('Inbox (417)')
+
+  const appsCard = page.locator('#openTabsMissions [data-tabout="domain-card"][data-tabout-domain="__standalone-apps__"]')
+  await expect(appsCard).toHaveCount(1)
+  await expect(appsCard.locator('[data-tabout="page-chip"]')).toContainText(appTitle)
+  await expect(appsCard.locator('[data-tabout-part="close-button"]')).toHaveCount(1)
+  await expect(page.locator('[data-tabout-part="tab-count"]')).toContainText(/^1\/\d+ tabs/)
+  await expect(page.locator('[data-tabout-part="window-count-value"]')).toContainText(/^0\/\d+$/)
+  await expect(page.locator('[data-tabout-part="domain-count"]')).toContainText(/^1\/\d+ domains$/)
+  await expect(page.locator('[data-tabout-part="close-filtered-button"]')).toHaveCount(0)
+
+  await input.press('ArrowDown')
+  const selected = page.locator('[data-tabout-filter-result-selected="true"]')
+  await expect(selected).toHaveCount(1)
+  await expect(selected.locator('xpath=ancestor::*[@data-tabout="domain-card"]')).toHaveAttribute('data-tabout-domain', '__standalone-apps__')
+})
+
+test('filter renders only matches and clearing restores the full Tabs source', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  const input = page.locator('[data-tabout="filter-query"] input')
+  const matchedGrid = page.locator('#openTabsMissions')
+  const matchingCard = matchedGrid.locator('[data-tabout-domain="tab-out-smoke-02.com"]')
+  const nonMatchingCard = page.locator('[data-tabout-domain="tab-out-smoke-03.com"]')
+
+  await input.fill('Example 2')
+  await expect(matchingCard).toHaveCount(1)
+  await expect(nonMatchingCard).toHaveCount(0)
+  await expect(page.locator('#openTabsMissionsUnmatched')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Clear filter' }).click()
+  await expect(input).toHaveValue('')
+  await expect(nonMatchingCard).toHaveCount(1)
+})
+
 test('Activation History scrollbar follows filtered row content', async ({ page }) => {
   await page.setViewportSize({ width: 1420, height: 360 })
   await page.goto('/tests/fixtures/dashboard-resize.html')
@@ -1428,7 +1473,7 @@ test('the first keyboard activation opens a card menu', async ({ page }) => {
   await expect(page.locator('[data-slot="menu-content"]:visible')).toHaveCount(1)
 })
 
-test('keyboard focus reveals section actions and lifts unmatched-card dimming', async ({ page }) => {
+test('keyboard focus reveals section actions', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await page.evaluate(async () => {
     await (window as typeof window & {
@@ -1450,18 +1495,6 @@ test('keyboard focus reveals section actions and lifts unmatched-card dimming', 
     await expect.poll(() => control.evaluate((element) => getComputedStyle(element).opacity)).toBe('1')
   }
 
-  const input = page.locator('[data-tabout="filter-query"] input')
-  await input.fill('Example')
-  const unmatchedFocusTarget = page.locator('.card-unmatched [data-tabout="page-chip"][tabindex="0"]').first()
-  await expect(unmatchedFocusTarget).toHaveCount(1)
-  await unmatchedFocusTarget.evaluate((element) => {
-    (element as HTMLElement).focus({ focusVisible: true } as FocusOptions & { focusVisible: boolean })
-  })
-  await expect.poll(() => unmatchedFocusTarget.evaluate((element) => (
-    element.closest('.card-unmatched')
-      ? getComputedStyle(element.closest('.card-unmatched') as HTMLElement).opacity
-      : null
-  ))).toBe('1')
 })
 
 test('meaningful secondary text avoids opacity layering and the dashboard exposes a main landmark', async ({ page }) => {
@@ -1590,8 +1623,6 @@ test('filter keyboard navigation starts in the input and selects the first true 
   })
   expect(selectedPalette.selectedBackground).toBe(selectedPalette.hoverBackground)
   expect(selectedPalette.selectedOutline).toBe(selectedPalette.originalOutline)
-  await expect(page.locator('#openTabsMissionsUnmatched [data-tabout-filter-result-selected="true"]')).toHaveCount(0)
-
   await input.press('ArrowDown')
   await expect(input).toHaveAttribute('aria-activedescendant', secondId ?? '')
 
@@ -2168,13 +2199,17 @@ test('a slow unfiltered startup snapshot still hydrates after the filter changes
       .__tabOutSmokeStartupRefreshStarted === true
   ))
 
-  await page.locator('[data-tabout="filter-query"] input').fill('Example 2')
+  const input = page.locator('[data-tabout="filter-query"] input')
+  await input.fill('Example 2')
 
   const matchedGrid = page.locator('#openTabsMissions')
-  const otherTabsGrid = page.locator('#openTabsMissionsUnmatched')
   await expect(matchedGrid.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-02.com"]')).toHaveCount(1)
   await expect(matchedGrid.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-03.com"]')).toHaveCount(0)
-  await expect(otherTabsGrid.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-03.com"]')).toHaveCount(1)
+  await expect(page.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-03.com"]')).toHaveCount(0)
+  await expect(page.locator('#openTabsMissionsUnmatched')).toHaveCount(0)
+
+  await input.fill('')
+  await expect(matchedGrid.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-03.com"]')).toHaveCount(1)
 })
 
 test('Page Chip restores its title fade after hover expansion closes', async ({ page }) => {
@@ -2207,7 +2242,7 @@ test('filter result cards finish one move while companion results hydrate', asyn
   await page.evaluate(() => {
     return (window as unknown as {
       __tabOutSmokeSetBookmarks: (count: number) => void
-    }).__tabOutSmokeSetBookmarks(12)
+    }).__tabOutSmokeSetBookmarks(24)
   })
 
   await page.evaluate(() => {
@@ -2240,8 +2275,8 @@ test('filter result cards finish one move while companion results hydrate', asyn
     }).__filterMoveProbe = { events: moveEvents, observer }
   })
 
-  await page.locator('[data-tabout="filter-query"] input').fill('Bookmark')
-  await expect(page.locator('#bookmarkMatchesMissions [data-tabout="domain-card"]')).toHaveCount(12)
+  await page.locator('[data-tabout="filter-query"] input').fill('20')
+  await expect(page.locator('#bookmarkMatchesMissions [data-tabout="domain-card"]')).toHaveCount(1)
   await expect.poll(() => page.evaluate(() => {
     const events = (window as unknown as {
       __filterMoveProbe: {
@@ -2723,7 +2758,7 @@ test('history layout collapses while off and restores its prior card width', asy
   ).toBeLessThanOrEqual(1)
 })
 
-test('closing an open search match keeps its retained result ahead of matching History', async ({ page }) => {
+test('global filtered close keeps its retained result ahead of matching History', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
 
@@ -2735,7 +2770,9 @@ test('closing an open search match keeps its retained result ahead of matching H
     }]
   })
 
-  await page.locator('[data-tabout="filter-query"] input').fill('https://tab-out-smoke-02.com/docs/2')
+  const input = page.locator('[data-tabout="filter-query"] input')
+  const query = 'https://tab-out-smoke-02.com/docs/2'
+  await input.fill(query)
   const openCard = page.locator('#openTabsMissions [data-tabout-domain="tab-out-smoke-02.com"]')
   const historyCard = page.locator('#historyMatchesMissions [data-tabout-domain="tab-out-smoke-02.com"]')
   const historyStatus = page.locator('[data-tabout="history-search-status"]')
@@ -2743,17 +2780,46 @@ test('closing an open search match keeps its retained result ahead of matching H
   await expect(historyCard).toHaveCount(0)
   await expect(historyStatus).toContainText('1 shown in Tabs')
 
-  const openChip = openCard.locator('[data-tabout="page-chip"]')
-  await openChip.hover()
-  await openChip.locator('[data-tabout-part="close-button"]').click({ force: true })
+  const closeFiltered = page.getByRole('button', { name: 'Close 1 matching open tab' })
+  await expect(closeFiltered).toContainText('Close 1 open tab')
+  await closeFiltered.focus()
+  await closeFiltered.click()
   await expect(openCard).toHaveCount(1)
   await expect(openCard.locator('.tab-count-badge')).toHaveText('1 closed')
+  const openChip = openCard.locator('[data-tabout="page-chip"]')
   await expect(openChip).toHaveAttribute('data-tabout-retained-page-identity', /\S+/)
   await expect(openChip.locator('[data-tabout-part="close-button"]')).toHaveCount(0)
+  await expect(page.locator('[data-tabout-part="close-filtered-button"]')).toHaveCount(0)
+  await expect(input).toHaveValue(query)
+  await expect(input).toBeFocused()
   await expect(historyCard).toHaveCount(0)
   await expect(historyStatus).toContainText('1 shown in Tabs')
   await expect(historyStatus).toContainText('No returned matches repeated below')
+  await expect(page.getByText('Closed 1 open tab', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Undo' })).toBeVisible()
+})
+
+test('global filtered close does not steal focus moved while closing settles', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  await page.evaluate(() => {
+    const removeTabs = window.chrome.tabs.remove.bind(window.chrome.tabs)
+    window.chrome.tabs.remove = async (tabIds) => {
+      await new Promise((resolve) => setTimeout(resolve, 400))
+      await removeTabs(Array.isArray(tabIds) ? tabIds : [tabIds])
+    }
+  })
+
+  const input = page.locator('[data-tabout="filter-query"] input')
+  await input.fill('https://tab-out-smoke-02.com/docs/2')
+  const closeFiltered = page.getByRole('button', { name: 'Close 1 matching open tab' })
+  const tabsSource = page.getByRole('tab', { name: 'Tabs' })
+
+  await closeFiltered.click()
+  await tabsSource.focus()
+  await expect(closeFiltered).toHaveCount(0)
+  await expect(tabsSource).toBeFocused()
 })
 
 test('a Tab Out filter URL update does not restart the current result-card move', async ({ page }) => {
@@ -2782,7 +2848,7 @@ test('a Tab Out filter URL update does not restart the current result-card move'
   await expect(page.locator('.layout-moving')).toHaveCount(0)
 
   await page.evaluate(() => {
-    const targetDomain = 'tab-out-smoke-19.com'
+    const targetDomain = 'tab-out-smoke-20.com'
     const starts: Array<{ container: string; time: number }> = []
     const originalAdd = DOMTokenList.prototype.add
     DOMTokenList.prototype.add = function (...tokens: string[]) {
@@ -2841,7 +2907,7 @@ test('a Tab Out filter URL update does not restart the current result-card move'
   })
 
   expect(starts, JSON.stringify(starts, null, 2)).toHaveLength(1)
-  expect(starts[0]?.container).toBe('openTabsMissionsUnmatched')
+  expect(starts[0]?.container).toBe('openTabsMissions')
 })
 
 test('Page Chip overflow expansion fades the expander and reveals hidden chips together', async ({ page }) => {

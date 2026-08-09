@@ -3017,7 +3017,6 @@ test('DomainCard renders docs.google.com website path sections through WebsitePa
   const vm: DashboardCardVM = {
     stableId: 'domain-google-com',
     isHidden: false,
-    displayMode: 'normal',
     filtering: false,
     tabCountLabel: '2',
     suppressedTitleParts: [],
@@ -3261,7 +3260,6 @@ test('DomainCard shows common suppressed title text above the chips without a su
   const vm: DashboardCardVM = {
     stableId: 'domain-slack-com',
     isHidden: false,
-    displayMode: 'normal',
     filtering: false,
     tabCountLabel: '2',
     suppressedTitleParts: [{ text: 'Example Workspace', count: 2 }],
@@ -3300,7 +3298,6 @@ test('DomainCard renders the public suffix as less prominent title text', () => 
   const vm: DashboardCardVM = {
     stableId: 'domain-example-co-uk',
     isHidden: false,
-    displayMode: 'normal',
     filtering: false,
     tabCountLabel: '1',
     sections: []
@@ -3328,7 +3325,6 @@ test('DomainCard inlines a single non-port subdomain into the title', () => {
   const vm: DashboardCardVM = {
     stableId: 'domain-example-com',
     isHidden: false,
-    displayMode: 'normal',
     filtering: false,
     tabCountLabel: '1',
     singleSubdomainKey: 'docs',
@@ -3358,7 +3354,6 @@ test('DomainCard keeps a single localhost port in the subdomain pill', () => {
   const vm: DashboardCardVM = {
     stableId: 'domain-localhost',
     isHidden: false,
-    displayMode: 'normal',
     filtering: false,
     tabCountLabel: '1',
     singleSubdomainKey: '3001',
@@ -3382,7 +3377,6 @@ test('DomainCard renders utility cards as explicitly pinnable instead of fixed',
   const vm: DashboardCardVM = {
     stableId: 'domain---tab-out--',
     isHidden: false,
-    displayMode: 'normal',
     filtering: false,
     tabCountLabel: '1',
     sections: []
@@ -3417,7 +3411,6 @@ test('DomainCard renders section-scoped single suppressed title text as neutral'
   const vm: DashboardCardVM = {
     stableId: 'domain-slack-com',
     isHidden: false,
-    displayMode: 'normal',
     filtering: false,
     tabCountLabel: '2',
     suppressedTitleParts: [],
@@ -3470,7 +3463,6 @@ test('DomainCard colors section-scoped single suppressed title text when it span
   const vm: DashboardCardVM = {
     stableId: 'domain-atlassian-net',
     isHidden: false,
-    displayMode: 'normal',
     filtering: false,
     tabCountLabel: '3',
     suppressedTitleParts: [],
@@ -3541,7 +3533,6 @@ test('DomainCard keeps cross-child single suppressed title text neutral when it 
   const vm: DashboardCardVM = {
     stableId: 'domain-example-test',
     isHidden: false,
-    displayMode: 'normal',
     filtering: false,
     tabCountLabel: '4',
     suppressedTitleParts: [{ text: '| Example Retail', count: 4 }],
@@ -3614,7 +3605,6 @@ test('DomainCard renders pathgroup-scoped single suppressed title text as neutra
   const vm: DashboardCardVM = {
     stableId: 'domain-contentful-com',
     isHidden: false,
-    displayMode: 'normal',
     filtering: false,
     tabCountLabel: '2',
     suppressedTitleParts: [],
@@ -3680,7 +3670,6 @@ test('DomainCard renders pathgroup-scoped multiple suppressed titles with local 
   const vm: DashboardCardVM = {
     stableId: 'domain-contentful-com',
     isHidden: false,
-    displayMode: 'normal',
     filtering: false,
     tabCountLabel: '2',
     suppressedTitleParts: [],
@@ -3752,7 +3741,6 @@ test('DomainCard displays suppression tokens in title order while coloring highe
   const vm: DashboardCardVM = {
     stableId: 'domain-contentful-com',
     isHidden: false,
-    displayMode: 'normal',
     filtering: false,
     tabCountLabel: '17',
     suppressedTitleParts: [],
@@ -3831,7 +3819,6 @@ test('DomainCard coordinates child title suppression tones with a colored ancest
   const vm: DashboardCardVM = {
     stableId: 'domain-atlassian-net',
     isHidden: false,
-    displayMode: 'normal',
     filtering: false,
     tabCountLabel: '5',
     suppressedTitleParts: [{ text: '- JIRA', count: 3, spansRenderedChildGroups: true }],
@@ -3912,7 +3899,6 @@ test('DomainCard assigns subtle tones when multiple suppressed title tokens rend
   const vm: DashboardCardVM = {
     stableId: 'domain-slack-com',
     isHidden: false,
-    displayMode: 'normal',
     filtering: false,
     tabCountLabel: '4',
     suppressedTitleParts: [

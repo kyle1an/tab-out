@@ -814,6 +814,11 @@ test('tab close feedback distinguishes total, partial, and complete writes', () 
   assert.equal(tabCloseProgressLabel(1, 2), 'Closed 1 of 2 tabs')
   assert.equal(tabCloseProgressLabel(2, 2), 'Closed 2 tabs')
   assert.equal(tabCloseProgressLabel(1, 2, 'duplicates'), 'Closed 1 of 2 duplicates')
+  assert.equal(tabCloseProgressLabel(0, 1, 'open-tabs'), 'Could not close open tab')
+  assert.equal(tabCloseProgressLabel(0, 2, 'open-tabs'), 'Could not close 2 open tabs')
+  assert.equal(tabCloseProgressLabel(1, 1, 'open-tabs'), 'Closed 1 open tab')
+  assert.equal(tabCloseProgressLabel(1, 2, 'open-tabs'), 'Closed 1 of 2 open tabs')
+  assert.equal(tabCloseProgressLabel(2, 2, 'open-tabs'), 'Closed 2 open tabs')
 })
 
 test('dedupeTabs reports a partial close, keeps Undo, and delegates removal refresh to retention settlement', async () => {
