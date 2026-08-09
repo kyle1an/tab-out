@@ -157,6 +157,11 @@ as `n closed`. A visible retained-only target exposes **Save page** and
 no group-wide, Domain Card, filtered, source-wide, or global retention clearing
 surface.
 
+A later Dashboard ergonomics amendment supersedes that V1 surface limit with
+one Domain Card **Remove from Tabs** action. `CONTEXT.md` owns its current
+visible-target scope and batch transaction contract; exact lifetime guards,
+background ownership, atomic persistence, and no automatic retry remain.
+
 ### Keep `chrome.storage.local` with a compact ledger envelope until measurements require more
 
 Whole-store `chrome.storage.local` is the baseline because it matches existing

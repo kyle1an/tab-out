@@ -1,7 +1,9 @@
 import { isPinnableDomain } from '../extension/domain-pins.js'
 import { splitDomainForDisplay } from '../extension/domains.js'
 import { closeDomainTabs, closeSuspendedDomainTabs, dedupeTabs, suspendDomainTabs } from '../extension/tab-actions'
+import { removeRetainedPageTargets } from '../extension/retained-page-actions.js'
 import { DomainCardProvider } from './DomainCardContext'
+import { captureDomainCardFocusRecovery } from './DomainCardFocusRecovery'
 import { useDashboardActions } from './DashboardInteractionContext'
 import { SubdomainSection } from './SubdomainSection'
 import { CardActionsMenu } from './CardActionsMenu'
@@ -224,8 +226,10 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
   const highlightFilter = vm.displayMode !== 'unmatched' ? filter : ''
   const suppressedTitleParts = vm.suppressedTitleParts ?? []
   const inlineSubdomainKey = vm.singleSubdomainKey && !vm.singleSubdomainIsPort ? vm.singleSubdomainKey : ''
+  const retainedPageRemovalTargets = vm.retainedPageRemovalTargets ?? []
   const showBulkActions = !hideCardClose && closableCount > 0
-  const showCardMenu = canPin || showBulkActions
+  const showRetainedPageRemoval = retainedPageRemovalTargets.length > 0
+  const showCardMenu = canPin || showBulkActions || showRetainedPageRemoval
   // Tone allocation happens in computeDomainCardViewModel's walk; each
   // section/cluster arrives carrying its scope and merged tone map.
   const cardSuppressionToneScope = vm.cardSuppressionToneScope ?? emptyTitleSuppressionToneScope()
@@ -277,6 +281,12 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
         }
       }
     })
+  }
+
+  async function onRemoveRetainedPages() {
+    const startFocusRecovery = captureDomainCardFocusRecovery(blockRef.current)
+    const completedCount = await removeRetainedPageTargets(retainedPageRemovalTargets)
+    if (completedCount > 0) startFocusRecovery?.()
   }
 
   async function onDedup() {
@@ -466,6 +476,8 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
               closeSuspendedLabel={showBulkActions ? closeSuspendedLabel : undefined}
               closeSuspendedEnabled={showBulkActions && closableSuspendedCount > 0}
               onCloseSuspended={showBulkActions ? onCloseSuspendedDomain : undefined}
+              removeFromTabsLabel={showRetainedPageRemoval ? vm.retainedPageRemovalLabel : undefined}
+              onRemoveFromTabs={showRetainedPageRemoval ? onRemoveRetainedPages : undefined}
             />
           )}
         </header>

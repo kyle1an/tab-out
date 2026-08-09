@@ -27,14 +27,15 @@ import {
   createRetainedPageLedgerPruneCache,
   recordRetainedPageClosure,
   recordRetainedPageClosures,
-  removeRetainedPageSnapshot,
+  removeRetainedPageSnapshots,
   RETAINED_PAGE_LIFETIME_MS,
   type RecordRetainedPageClosureOutcome,
   type RecordRetainedPageClosureResult,
-  type RemoveRetainedPageSnapshotResult,
+  type RemoveRetainedPageSnapshotsResult,
   type RetainedPageClosure,
   type RetainedPageLedger,
-  type RetainedPageRecord
+  type RetainedPageRecord,
+  type RetainedPageSnapshotTarget
 } from '../retained-pages-ledger.js'
 import {
   RetainedPageLedgerStorage,
@@ -140,10 +141,9 @@ export class RetainedPages extends Context.Service<RetainedPages, {
       | readonly OpenSurfaceObservation[]
       | PromiseLike<readonly OpenSurfaceObservation[]>
   ) => Effect.Effect<void, RetainedPagesFailure>
-  readonly removeSnapshot: (
-    identityDigest: string,
-    closureToken: string
-  ) => Effect.Effect<RemoveRetainedPageSnapshotResult, RetainedPagesFailure>
+  readonly removeSnapshots: (
+    snapshots: readonly RetainedPageSnapshotTarget[]
+  ) => Effect.Effect<RemoveRetainedPageSnapshotsResult, RetainedPagesFailure>
   readonly reconcileOpenSurfaces: (
     mode: OpenSurfaceReconciliationMode,
     current:
@@ -698,17 +698,15 @@ function makeRetainedPagesLayer(
       ))
     })
 
-    const removeSnapshot = Effect.fn('RetainedPages.removeSnapshot')(function*(
-      identityDigest: string,
-      closureToken: string
+    const removeSnapshots = Effect.fn('RetainedPages.removeSnapshots')(function*(
+      snapshots: readonly RetainedPageSnapshotTarget[]
     ) {
       return yield* mutationSemaphore.withPermit(Effect.gen(function*() {
         const stored = yield* readLedger()
         const pruned = pruneLedger(stored.ledger, options.now())
-        const result = removeRetainedPageSnapshot(
+        const result = removeRetainedPageSnapshots(
           pruned.ledger,
-          identityDigest,
-          closureToken
+          snapshots
         )
         if (stored.malformed || pruned.changed || result.changed) {
           const write = storage.write(result.ledger).pipe(
@@ -717,7 +715,7 @@ function makeRetainedPagesLayer(
               : health.recordRecovery('retained-ledger-reset'))
           )
           if (
-            result.outcome === 'already-absent' &&
+            !result.changed &&
             pruned.changed &&
             !stored.malformed
           ) {
@@ -770,9 +768,9 @@ function makeRetainedPagesLayer(
         .catch(() => false))
       if (!recovered) return { outcome: 'failed' } as const
 
-      return yield* removeSnapshot(identityDigest, closureToken).pipe(
+      return yield* removeSnapshots([{ identityDigest, closureToken }]).pipe(
         Effect.map((result): ActivateRetainedPageSnapshotResult => ({
-          outcome: result.outcome === 'stale'
+          outcome: result.results[0]?.outcome === 'stale'
             ? 'activated-newer-retained'
             : 'activated'
         })),
@@ -952,7 +950,7 @@ function makeRetainedPagesLayer(
       observeOpenSurfaces,
       reconcileOpenSurfaces,
       replaceOpenSurface,
-      removeSnapshot
+      removeSnapshots
     })
   }))
 }

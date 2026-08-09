@@ -79,15 +79,17 @@ test('DomainCard keeps the actions menu in the first header row flow', () => {
   assert.match(triggerClass, /\bjustify-self-end\b/)
 })
 
-test('CardActionsMenu orders pin, suspend, close suspended, then close all', () => {
+test('CardActionsMenu orders pin, suspend, close suspended, retained removal, then close all', () => {
   const source = readFileSync(new URL('../src/components/CardActionsMenu.tsx', import.meta.url), 'utf8')
 
   assert.ok(source.indexOf('data-tabout-part="pin-button"') < source.indexOf('data-tabout-part="suspend-button"'))
   assert.ok(source.indexOf('data-tabout-part="suspend-button"') < source.indexOf('data-tabout-part="close-suspended-button"'))
-  assert.ok(source.indexOf('data-tabout-part="close-suspended-button"') < source.indexOf('data-tabout-part="close-button"'))
+  assert.ok(source.indexOf('data-tabout-part="close-suspended-button"') < source.indexOf('data-tabout-part="remove-from-tabs-button"'))
+  assert.ok(source.indexOf('data-tabout-part="remove-from-tabs-button"') < source.indexOf('data-tabout-part="close-button"'))
   assert.match(source, /pinned \? 'icon-\[lucide--pin-off\]/)
   assert.match(source, /: 'icon-\[lucide--pin\]/)
   assert.match(source, /icon-\[lucide--circle-x\]/)
+  assert.match(source, /icon-\[lucide--list-x\]/)
   assert.match(source, /disabled=\{!closeSuspendedEnabled\}/)
 })
 
@@ -116,6 +118,26 @@ test('DomainCard renders no actions menu when the card is neither mutable nor pi
   )
 
   assert.doesNotMatch(html, /data-tabout-part="card-menu"/)
+})
+
+test('DomainCard gives a retained-only non-pinnable card a batch-removal menu', () => {
+  const group: DomainGroup = { domain: '__private__', tabs: [] }
+  const html = renderToStaticMarkup(
+    React.createElement(DomainCard, {
+      group,
+      vm: makeClosableCardVM({
+        closableCount: 0,
+        retainedPageRemovalTargets: [{
+          retainedPageIdentity: 'identity-example',
+          retainedPageClosureToken: 'lifetime-example'
+        }],
+        retainedPageRemovalLabel: 'Remove from Tabs'
+      })
+    })
+  )
+
+  assert.match(html, /data-tabout-part="card-menu"/)
+  assert.match(html, /aria-label="Actions for __private__"/)
 })
 
 test('DomainCard gives the standalone-apps card a pin-only actions menu', () => {

@@ -11,6 +11,8 @@ interface CardActionsMenuProps {
   closeSuspendedLabel?: string | undefined
   closeSuspendedEnabled?: boolean | undefined
   onCloseSuspended?: (() => void | Promise<void>) | undefined
+  removeFromTabsLabel?: string | undefined
+  onRemoveFromTabs?: (() => void | Promise<void>) | undefined
 }
 
 export function CardActionsMenu({
@@ -23,7 +25,9 @@ export function CardActionsMenu({
   onSuspend,
   closeSuspendedLabel,
   closeSuspendedEnabled = true,
-  onCloseSuspended
+  onCloseSuspended,
+  removeFromTabsLabel,
+  onRemoveFromTabs
 }: CardActionsMenuProps) {
   const pinLabel = pinned ? 'Unpin card' : 'Pin card'
 
@@ -69,6 +73,17 @@ export function CardActionsMenu({
           >
             <span className="icon-[lucide--circle-x] size-3.5" aria-hidden="true" />
             <span className="min-w-0 flex-1">{closeSuspendedLabel}</span>
+          </MenuItem>
+        )}
+        {removeFromTabsLabel && onRemoveFromTabs && (
+          <MenuItem
+            data-tabout-part="remove-from-tabs-button"
+            className="card-actions-remove-from-tabs-item data-highlighted:text-(--status-abandoned)!"
+            label={removeFromTabsLabel}
+            onClick={onRemoveFromTabs}
+          >
+            <span className="icon-[lucide--list-x] size-3.5" aria-hidden="true" />
+            <span className="min-w-0 flex-1">{removeFromTabsLabel}</span>
           </MenuItem>
         )}
         {onClose && (

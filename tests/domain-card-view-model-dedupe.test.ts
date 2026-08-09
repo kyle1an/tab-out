@@ -162,6 +162,113 @@ test('a retained row is one unique closed item without a duplicate count', () =>
   assert.equal(chip.titleVariantChips, undefined)
 })
 
+test('card removal targets include only exact retained snapshots in the matched scope', () => {
+  const group: DomainGroup = {
+    domain: 'example.test',
+    tabs: [
+      makeDashboardTab({
+        id: 1,
+        url: 'https://example.test/live',
+        title: 'Live page'
+      }),
+      makeDashboardTab({
+        id: 2,
+        url: 'https://example.test/grouped',
+        title: 'Grouped live page',
+        groupId: 42
+      }),
+      makeDashboardTab({
+        id: 'saved-page',
+        url: 'https://example.test/saved',
+        title: 'Saved page',
+        sourceType: 'saved-page',
+        saved: true,
+        closedSaved: true,
+        savedPageKey: 'https://example.test/saved'
+      }),
+      makeDashboardTab({
+        id: 'retained-alpha',
+        url: 'https://example.test/alpha',
+        title: 'Shared retained title',
+        sourceType: 'retained-page',
+        closedSaved: true,
+        retainedPageIdentity: 'identity-alpha',
+        retainedPageClosureToken: 'lifetime-alpha'
+      }),
+      makeDashboardTab({
+        id: 'retained-bravo',
+        url: 'https://example.test/bravo',
+        title: 'Shared retained title',
+        sourceType: 'retained-page',
+        closedSaved: true,
+        retainedPageIdentity: 'identity-bravo',
+        retainedPageClosureToken: 'lifetime-bravo'
+      })
+    ]
+  }
+
+  const unfiltered = computeDomainCardViewModel(group)
+  assert.deepEqual(unfiltered.retainedPageRemovalTargets, [
+    {
+      retainedPageIdentity: 'identity-alpha',
+      retainedPageClosureToken: 'lifetime-alpha'
+    },
+    {
+      retainedPageIdentity: 'identity-bravo',
+      retainedPageClosureToken: 'lifetime-bravo'
+    }
+  ])
+  assert.equal(unfiltered.retainedPageRemovalLabel, 'Remove 2 from Tabs')
+  assert.equal(unfiltered.closableCount, 1)
+  const retainedVariantIdentities = collectDashboardChips(unfiltered)
+    .flatMap((chip) => chip.titleVariantChips ?? [chip])
+    .flatMap((chip) => chip.retainedPageIdentity ?? [])
+    .toSorted()
+  assert.deepEqual(retainedVariantIdentities, ['identity-alpha', 'identity-bravo'])
+
+  const filtered = computeDomainCardViewModel(group, { filter: 'alpha' })
+  assert.deepEqual(filtered.retainedPageRemovalTargets, [{
+    retainedPageIdentity: 'identity-alpha',
+    retainedPageClosureToken: 'lifetime-alpha'
+  }])
+  assert.equal(filtered.retainedPageRemovalLabel, 'Remove from Tabs')
+
+  const unmatched = computeDomainCardViewModel(group, {
+    filter: 'alpha',
+    mode: 'unmatched'
+  })
+  assert.deepEqual(unmatched.retainedPageRemovalTargets, [])
+
+  const readOnly = computeDomainCardViewModel(group, { allowMutations: false })
+  assert.deepEqual(readOnly.retainedPageRemovalTargets, [])
+})
+
+test('the Apps card exposes exact retained app snapshots for batch removal', () => {
+  const group: DomainGroup = {
+    domain: '__standalone-apps__',
+    label: 'Apps',
+    tabs: [makeDashboardTab({
+      id: 'retained-app',
+      url: 'https://app.example.test/document',
+      title: 'Retained App Document',
+      sourceType: 'retained-page',
+      closedSaved: true,
+      retainedPageIdentity: 'identity-app',
+      retainedPageClosureToken: 'lifetime-app',
+      isApp: true
+    })]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+
+  assert.deepEqual(vm.retainedPageRemovalTargets, [{
+    retainedPageIdentity: 'identity-app',
+    retainedPageClosureToken: 'lifetime-app'
+  }])
+  assert.equal(vm.retainedPageRemovalLabel, 'Remove from Tabs')
+  assert.equal(vm.closableCount, 0)
+})
+
 test('GitHub repository root slash variants collapse into one closable duplicate', () => {
   const repository = 'https://github.com/example/repo'
   const group: DomainGroup = {

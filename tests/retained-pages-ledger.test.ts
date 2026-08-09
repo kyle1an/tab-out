@@ -8,6 +8,7 @@ import {
   recordRetainedPageClosure,
   recordRetainedPageClosures,
   removeRetainedPageSnapshot,
+  removeRetainedPageSnapshots,
   RETAINED_PAGE_CAPACITY,
   RETAINED_PAGE_LIFETIME_MS,
   type RetainedPageClosure
@@ -425,6 +426,66 @@ test('removal keeps only a replay boundary and a genuinely newer closure can ret
   assert.equal(newer.changed, true)
   assert.equal(newer.ledger.pages['identity-example']?.title, 'Newly closed article')
   assert.deepEqual(newer.ledger.removalBoundaries, {})
+})
+
+test('batch removal applies exact snapshots in order and preserves stale newer lifetimes', () => {
+  const secondClosure: RetainedPageClosure = {
+    ...closure,
+    identityDigest: 'identity-second',
+    canonicalKey: 'https://example.test/second',
+    url: 'https://example.test/second',
+    closureToken: 'lifetime-second'
+  }
+  const newerClosure: RetainedPageClosure = {
+    ...closure,
+    identityDigest: 'identity-newer',
+    canonicalKey: 'https://example.test/newer',
+    url: 'https://example.test/newer',
+    closureToken: 'lifetime-newer'
+  }
+  const inserted = recordRetainedPageClosures(
+    emptyRetainedPageLedger(),
+    [closure, secondClosure, newerClosure]
+  )
+
+  const removed = removeRetainedPageSnapshots(inserted.ledger, [
+    {
+      identityDigest: closure.identityDigest,
+      closureToken: closure.closureToken
+    },
+    {
+      identityDigest: 'identity-absent',
+      closureToken: 'lifetime-absent'
+    },
+    {
+      identityDigest: newerClosure.identityDigest,
+      closureToken: 'lifetime-stale'
+    },
+    {
+      identityDigest: secondClosure.identityDigest,
+      closureToken: secondClosure.closureToken
+    }
+  ])
+
+  assert.equal(removed.changed, true)
+  assert.deepEqual(
+    removed.results.map(({ changed, outcome }) => ({ changed, outcome })),
+    [
+      { changed: true, outcome: 'removed' },
+      { changed: false, outcome: 'already-absent' },
+      { changed: false, outcome: 'stale' },
+      { changed: true, outcome: 'removed' }
+    ]
+  )
+  assert.deepEqual(Object.keys(removed.ledger.pages), ['identity-newer'])
+  assert.equal(
+    removed.ledger.pages['identity-newer']?.closureToken,
+    'lifetime-newer'
+  )
+  assert.deepEqual(
+    Object.keys(removed.ledger.removalBoundaries).toSorted(),
+    ['lifetime-example', 'lifetime-second']
+  )
 })
 
 test('a removed lifetime stays blocked when a known identity reindex changes its digest', () => {

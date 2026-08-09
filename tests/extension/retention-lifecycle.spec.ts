@@ -21,7 +21,7 @@ import {
   RETAINED_PAGES_STORAGE_KEY
 } from '../../src/extension/retained-pages-storage.js'
 import {
-  RETAINED_PAGE_REMOVE_MESSAGE
+  RETAINED_PAGES_REMOVE_MESSAGE
 } from '../../src/extension/runtime-messages.js'
 import {
   expect,
@@ -237,6 +237,63 @@ test('real chrome APIs retain, present, and remove a closed internal page', asyn
   await dashboard.close()
 })
 
+test('a real Domain Card menu removes two retained pages in one batch', async ({
+  installedExtension
+}) => {
+  const firstUrl = 'chrome://settings/privacy'
+  const secondUrl = 'chrome://settings/languages'
+  const firstRetainedPage = await closePageAndWaitForRetention(
+    installedExtension,
+    firstUrl
+  )
+  const secondRetainedPage = await closePageAndWaitForRetention(
+    installedExtension,
+    secondUrl
+  )
+
+  const dashboard = await installedExtension.context.newPage()
+  await dashboard.goto(
+    `chrome-extension://${installedExtension.extensionId}/index.html`,
+    { waitUntil: 'domcontentloaded' }
+  )
+  const firstChip = dashboard.locator(
+    `[data-tabout="page-chip"][data-tabout-retained-page-identity="${firstRetainedPage.identityDigest}"]`
+  )
+  const secondChip = dashboard.locator(
+    `[data-tabout="page-chip"][data-tabout-retained-page-identity="${secondRetainedPage.identityDigest}"]`
+  )
+  await Promise.all([
+    expect(firstChip).toBeVisible(),
+    expect(secondChip).toBeVisible()
+  ])
+  const card = dashboard.locator('[data-tabout="domain-card"]', { has: firstChip })
+  await expect(card).toContainText('2 closed')
+
+  const cardMenu = card.locator('[data-tabout-part="card-menu"]')
+  await cardMenu.focus()
+  await cardMenu.press('Enter')
+  await dashboard.getByRole('menuitem', { name: 'Remove 2 from Tabs' }).press('Enter')
+
+  await Promise.all([
+    expect(dashboard.getByText('Removed 2 from Tabs', { exact: true })).toBeVisible(),
+    expect.poll(() => retainedPageForUrl(
+      installedExtension.serviceWorker,
+      firstUrl
+    )).toBeNull(),
+    expect.poll(() => retainedPageForUrl(
+      installedExtension.serviceWorker,
+      secondUrl
+    )).toBeNull(),
+    expect(firstChip).toHaveCount(0),
+    expect(secondChip).toHaveCount(0)
+  ])
+  await expect(card).toHaveCount(0)
+  await expect(dashboard.getByRole('button', { name: 'Undo' })).toHaveCount(0)
+  await expect(dashboard.locator('[data-tabout="filter-query"] input')).toBeFocused()
+  expect(installedExtension.runtimeErrors()).toEqual([])
+  await dashboard.close()
+})
+
 test('two live dashboards converge after physical retention and exact removal', async ({
   installedExtension
 }) => {
@@ -351,13 +408,15 @@ test('the production earliest-expiry alarm durably prunes a retained page', asyn
   const synchronization = await dashboard.evaluate(async ({ messageType }) => (
     chrome.runtime.sendMessage({
       type: messageType,
-      identityDigest: 'absent-expiry-synchronization',
-      closureToken: 'absent-expiry-synchronization'
+      snapshots: [{
+        identityDigest: 'absent-expiry-synchronization',
+        closureToken: 'absent-expiry-synchronization'
+      }]
     })
   ), {
-    messageType: RETAINED_PAGE_REMOVE_MESSAGE
+    messageType: RETAINED_PAGES_REMOVE_MESSAGE
   })
-  expect(synchronization).toEqual({ ok: true, outcome: 'already-absent' })
+  expect(synchronization).toEqual({ ok: true, outcomes: ['already-absent'] })
 
   await expect.poll(() => installedExtension.serviceWorker.evaluate(async (name) => {
     const alarm = await chrome.alarms.get(name)

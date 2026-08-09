@@ -35,6 +35,12 @@ export interface DashboardTabMutationTarget {
   tabUrl: string
 }
 
+/** A UI target whose optional snapshot fields are validated at the action boundary. */
+export interface RetainedPageActionTarget {
+  retainedPageIdentity?: string
+  retainedPageClosureToken?: string
+}
+
 export interface TabSnapshot {
   url: string
   rawUrl?: string
@@ -246,6 +252,8 @@ export interface DashboardCardVM {
   closableSuspendedCountLabel?: string
   closableDupeUrls?: string[]
   closableExtras?: number
+  retainedPageRemovalTargets?: Required<RetainedPageActionTarget>[]
+  retainedPageRemovalLabel?: string
   singleSubdomainKey?: string
   singleSubdomainIsPort?: boolean
   displayName?: string

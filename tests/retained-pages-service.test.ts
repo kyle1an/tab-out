@@ -6,6 +6,7 @@ import { RetainedPages } from '../src/extension/background/retained-pages-servic
 import {
   emptyRetainedPageLedger,
   recordRetainedPageClosure,
+  recordRetainedPageClosures,
   RETAINED_PAGE_LIFETIME_MS
 } from '../src/extension/retained-pages-ledger.js'
 import {
@@ -205,23 +206,22 @@ test('RetainedPages records capture health only after its one retry is exhausted
   assert.equal(healthClearCount, 1)
 })
 
-test('RetainedPages never automatically retries an explicit removal write', async (t) => {
-  const priorLedger = recordRetainedPageClosure(
-    emptyRetainedPageLedger(),
-    exampleClosure()
-  ).ledger
+test('RetainedPages never retries a rejected batch removal write', async (t) => {
+  const priorLedger = retainedLedgerWithExample()
   const stored: unknown = priorLedger
   let writeCount = 0
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => stored,
     write: async () => {
       writeCount += 1
-      throw new Error('explicit write failure')
+      throw new Error('batch write failure')
     }
   })
 
   await assert.rejects(() => runtime.runPromise(
-    runtime.runSync(RetainedPages).removeSnapshot('identity-example', 'lifetime-example')
+    runtime.runSync(RetainedPages).removeSnapshots([
+      { identityDigest: 'identity-example', closureToken: 'lifetime-example' }
+    ])
   ))
 
   assert.equal(writeCount, 1)
@@ -241,13 +241,51 @@ test('RetainedPages treats expiry-before-removal as success even when physical c
   }, undefined, () => 1_000 + RETAINED_PAGE_LIFETIME_MS)
 
   const result = await runtime.runPromise(
-    runtime.runSync(RetainedPages).removeSnapshot(
-      'identity-example',
-      'lifetime-example'
-    )
+    runtime.runSync(RetainedPages).removeSnapshots([{
+      identityDigest: 'identity-example',
+      closureToken: 'lifetime-example'
+    }])
   )
 
-  assert.equal(result.outcome, 'already-absent')
+  assert.equal(result.results[0]?.outcome, 'already-absent')
+  assert.equal(writeCount, 1)
+  assert.equal(stored, priorLedger)
+})
+
+test('RetainedPages preserves mixed expired and stale outcomes when cleanup is delayed', async (t) => {
+  const newerClosure = {
+    ...exampleClosure(2_000),
+    identityDigest: 'identity-newer',
+    canonicalKey: 'https://example.test/newer',
+    url: 'https://example.test/newer',
+    closureToken: 'lifetime-newer'
+  }
+  const priorLedger = recordRetainedPageClosures(
+    emptyRetainedPageLedger(),
+    [exampleClosure(), newerClosure]
+  ).ledger
+  const stored: unknown = priorLedger
+  let writeCount = 0
+  const runtime = makeRetainedPagesRuntime(t, {
+    read: async () => stored,
+    write: async () => {
+      writeCount += 1
+      throw new Error('cleanup unavailable')
+    }
+  }, undefined, () => 1_000 + RETAINED_PAGE_LIFETIME_MS)
+
+  const result = await runtime.runPromise(
+    runtime.runSync(RetainedPages).removeSnapshots([
+      { identityDigest: 'identity-example', closureToken: 'lifetime-example' },
+      { identityDigest: 'identity-newer', closureToken: 'lifetime-stale' }
+    ])
+  )
+
+  assert.deepEqual(result.results.map(({ outcome }) => outcome), [
+    'already-absent',
+    'stale'
+  ])
+  assert.equal(result.changed, false)
   assert.equal(writeCount, 1)
   assert.equal(stored, priorLedger)
 })

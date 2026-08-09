@@ -3180,6 +3180,27 @@ test('retained Page Chip actions hand focus to next, previous, then Filter Query
   await expect(page.locator('[data-tabout="filter-query"] input')).toBeFocused()
 })
 
+test('retained card removal falls back to Filter Query when a surviving card loses its menu', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?retainedFocus=1&retainedMixedFocus=1')
+  const card = page.locator(
+    '[data-tabout="domain-card"][data-tabout-domain="__hostless-pages__"]'
+  )
+  await expect(card).toContainText('Retained Hostless Page')
+  await expect(card).toContainText('Saved Hostless Page')
+
+  const cardMenu = card.locator('[data-tabout-part="card-menu"]')
+  await cardMenu.focus()
+  await cardMenu.press('Enter')
+  const removeFromTabs = page.getByRole('menuitem', { name: 'Remove from Tabs' })
+  await expect(removeFromTabs).toBeVisible()
+  await removeFromTabs.press('Enter')
+
+  await expect(card).not.toContainText('Retained Hostless Page')
+  await expect(card).toContainText('Saved Hostless Page')
+  await expect(card.locator('[data-tabout-part="card-menu"]')).toHaveCount(0)
+  await expect(page.locator('[data-tabout="filter-query"] input')).toBeFocused()
+})
+
 test('retained focus follows the next chip promoted out of collapsed overflow', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html?retainedFocus=1')
   const card = page.locator(

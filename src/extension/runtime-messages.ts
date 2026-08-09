@@ -1,10 +1,12 @@
 import { Schema } from 'effect'
 
+import { RETAINED_PAGE_CAPACITY } from './retained-pages-ledger.js'
+
 export const CLOSED_TAB_RESTORE_STATE_MESSAGE = 'tab-out:closed-tab-restore-state'
 export const CLOSED_TAB_RETENTION_SETTLE_MESSAGE = 'tab-out:settle-closed-tab-retention'
 export const DASHBOARD_SERVICE_STATE_GET_MESSAGE = 'tab-out:get-dashboard-service-state'
 export const RETAINED_PAGE_ACTIVATE_MESSAGE = 'tab-out:activate-retained-page'
-export const RETAINED_PAGE_REMOVE_MESSAGE = 'tab-out:remove-retained-page'
+export const RETAINED_PAGES_REMOVE_MESSAGE = 'tab-out:remove-retained-pages'
 export const SAVED_PAGE_ACTIVATE_MESSAGE = 'tab-out:activate-saved-page'
 export const TAB_HISTORY_GET_MESSAGE = 'tab-out:get-tab-history'
 export const TAB_HISTORY_SWITCH_MESSAGE = 'tab-out:switch-tab-history'
@@ -33,10 +35,17 @@ const closedTabRetentionSettleMessageSchema = Schema.Struct({
   tabId: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 })
 
-const retainedPageRemoveMessageSchema = Schema.Struct({
-  type: Schema.Literals([RETAINED_PAGE_REMOVE_MESSAGE]),
+const retainedPageSnapshotFields = {
   identityDigest: nonEmptyMessageStringSchema,
   closureToken: nonEmptyMessageStringSchema
+}
+
+const retainedPagesRemoveMessageSchema = Schema.Struct({
+  type: Schema.Literals([RETAINED_PAGES_REMOVE_MESSAGE]),
+  snapshots: Schema.Array(Schema.Struct(retainedPageSnapshotFields)).check(
+    Schema.isMinLength(1),
+    Schema.isMaxLength(RETAINED_PAGE_CAPACITY)
+  )
 })
 
 const savedPageActivateMessageSchema = Schema.Struct({
@@ -57,9 +66,18 @@ const retainedPageActivationResponseSchema = Schema.Struct({
   ])
 })
 
-const retainedPageRemovalResponseSchema = Schema.Struct({
+const retainedPageRemovalOutcomeSchema = Schema.Literals([
+  'removed',
+  'already-absent',
+  'stale'
+])
+
+const retainedPagesRemovalResponseSchema = Schema.Struct({
   ok: Schema.Literals([true]),
-  outcome: Schema.Literals(['removed', 'already-absent', 'stale'])
+  outcomes: Schema.Array(retainedPageRemovalOutcomeSchema).check(
+    Schema.isMinLength(1),
+    Schema.isMaxLength(RETAINED_PAGE_CAPACITY)
+  )
 })
 
 const savedPageActivationResponseSchema = Schema.Struct({
@@ -68,17 +86,17 @@ const savedPageActivationResponseSchema = Schema.Struct({
 })
 
 export type RetainedPageActivateMessage = typeof retainedPageActivateMessageSchema.Type
-export type RetainedPageRemoveMessage = typeof retainedPageRemoveMessageSchema.Type
+export type RetainedPagesRemoveMessage = typeof retainedPagesRemoveMessageSchema.Type
 export type RetainedPageActivationResponse = typeof retainedPageActivationResponseSchema.Type
-export type RetainedPageRemovalResponse = typeof retainedPageRemovalResponseSchema.Type
+export type RetainedPagesRemovalResponse = typeof retainedPagesRemovalResponseSchema.Type
 export type SavedPageActivateMessage = typeof savedPageActivateMessageSchema.Type
 export type SavedPageActivationResponse = typeof savedPageActivationResponseSchema.Type
 
 const isRetainedPageActivateMessage = Schema.is(retainedPageActivateMessageSchema)
 const isClosedTabRetentionSettleMessage = Schema.is(closedTabRetentionSettleMessageSchema)
-const isRetainedPageRemoveMessage = Schema.is(retainedPageRemoveMessageSchema)
+const isRetainedPagesRemoveMessage = Schema.is(retainedPagesRemoveMessageSchema)
 const isRetainedPageActivationResponse = Schema.is(retainedPageActivationResponseSchema)
-const isRetainedPageRemovalResponse = Schema.is(retainedPageRemovalResponseSchema)
+const isRetainedPagesRemovalResponse = Schema.is(retainedPagesRemovalResponseSchema)
 const isSavedPageActivateMessage = Schema.is(savedPageActivateMessageSchema)
 const isSavedPageActivationResponse = Schema.is(savedPageActivationResponseSchema)
 
@@ -92,16 +110,16 @@ export function parseClosedTabRetentionSettleMessage(
   return isClosedTabRetentionSettleMessage(value) ? value : null
 }
 
-export function parseRetainedPageRemoveMessage(value: unknown): RetainedPageRemoveMessage | null {
-  return isRetainedPageRemoveMessage(value) ? value : null
+export function parseRetainedPagesRemoveMessage(value: unknown): RetainedPagesRemoveMessage | null {
+  return isRetainedPagesRemoveMessage(value) ? value : null
 }
 
 export function parseRetainedPageActivationResponse(value: unknown): RetainedPageActivationResponse | null {
   return isRetainedPageActivationResponse(value) ? value : null
 }
 
-export function parseRetainedPageRemovalResponse(value: unknown): RetainedPageRemovalResponse | null {
-  return isRetainedPageRemovalResponse(value) ? value : null
+export function parseRetainedPagesRemovalResponse(value: unknown): RetainedPagesRemovalResponse | null {
+  return isRetainedPagesRemovalResponse(value) ? value : null
 }
 
 export function parseSavedPageActivateMessage(value: unknown): SavedPageActivateMessage | null {

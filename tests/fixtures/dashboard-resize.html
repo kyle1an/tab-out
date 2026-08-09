@@ -31,6 +31,7 @@
       const appLoadingFaviconCase = fixtureParams.has('appLoadingFavicon')
       const unicodeBionicTitleCase = fixtureParams.has('unicodeBionicTitle')
       const retainedFocusCase = fixtureParams.has('retainedFocus')
+      const retainedMixedFocusCase = fixtureParams.has('retainedMixedFocus')
       const largeTabsCount = Math.max(0, Number.parseInt(fixtureParams.get('largeTabs') || '0', 10) || 0)
       const createBulkTab = (index) => {
         const domain = `bulk-tab-${String(index + 1).padStart(4, '0')}.test`
@@ -183,6 +184,23 @@
             encodeURIComponent('scope|atlassian.net|example-team|/jira|') + '|' +
             encodeURIComponent('url:https://example-team.atlassian.net/jira/software/c/projects/OPS2/boards/1226/backlog?assignee=712020%3A838adb9a-07e8-48f3-ac56-0db51007ac44')
         ],
+        ...(retainedMixedFocusCase
+          ? {
+              tabOutSavedPagesV1: {
+                version: 2,
+                pages: {
+                  'about:preferences': {
+                    key: 'about:preferences',
+                    surfaceKind: 'normal-tab',
+                    url: 'about:preferences',
+                    title: 'Saved Hostless Page',
+                    savedAt: Date.now() - 20_000,
+                    updatedAt: Date.now() - 20_000
+                  }
+                }
+              }
+            }
+          : {}),
         ...(staleLegacyStartup
           ? {
               'tab-out:startup-snapshot:v1': {
@@ -667,6 +685,17 @@
               closedAt: Date.now(),
               closureToken: 'retained-focus-only-lifetime'
             },
+            ...(retainedMixedFocusCase
+              ? [{
+                  identityDigest: 'retained-focus-hostless',
+                  surfaceKind: 'normal-tab',
+                  canonicalKey: 'about:config',
+                  url: 'about:config',
+                  title: 'Retained Hostless Page',
+                  closedAt: Date.now() - 5_000,
+                  closureToken: 'retained-focus-hostless-lifetime'
+                }]
+              : []),
             ...Array.from({ length: 7 }, (_, index) => ({
               identityDigest: `retained-focus-overflow-${index + 1}`,
               surfaceKind: 'normal-tab',
@@ -782,25 +811,28 @@
             captureFixtureRetainedPage(closedTab, chromeApi.runtime.id)
             return { ok: true }
           }
-          if (
-            message?.type === 'tab-out:activate-retained-page' ||
-            message?.type === 'tab-out:remove-retained-page'
-          ) {
+          if (message?.type === 'tab-out:remove-retained-pages') {
+            const outcomes = message.snapshots.map((snapshot) => {
+              const retainedPageIndex = retainedPages.findIndex((page) => (
+                page.identityDigest === snapshot.identityDigest &&
+                page.closureToken === snapshot.closureToken
+              ))
+              if (retainedPageIndex < 0) return 'already-absent'
+              retainedPages.splice(retainedPageIndex, 1)
+              return 'removed'
+            })
+            return { ok: true, outcomes }
+          }
+          if (message?.type === 'tab-out:activate-retained-page') {
             const retainedPageIndex = retainedPages.findIndex((page) => (
               page.identityDigest === message.identityDigest &&
               page.closureToken === message.closureToken
             ))
             if (retainedPageIndex < 0) {
-              return {
-                ok: true,
-                outcome: message.type === 'tab-out:activate-retained-page' ? 'stale' : 'already-absent'
-              }
+              return { ok: true, outcome: 'stale' }
             }
             retainedPages.splice(retainedPageIndex, 1)
-            return {
-              ok: true,
-              outcome: message.type === 'tab-out:activate-retained-page' ? 'activated' : 'removed'
-            }
+            return { ok: true, outcome: 'activated' }
           }
           return { ok: false }
         }

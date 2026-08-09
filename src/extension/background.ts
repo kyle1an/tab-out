@@ -43,6 +43,7 @@ import {
   RETAINED_PAGES_EXPIRY_ALARM,
   scheduleRetainedPagesExpiryAlarm
 } from './background/retained-pages-expiry-alarm.js'
+import type { RetainedPageLedger } from './retained-pages-ledger.js'
 import * as TabHistory from './background/tab-history-service.js'
 import * as WorkingSet from './background/working-set-service.js'
 import {
@@ -61,7 +62,7 @@ import {
   parseClosedTabRestoreStateMessage,
   parseClosedTabRetentionSettleMessage,
   parseRetainedPageActivateMessage,
-  parseRetainedPageRemoveMessage,
+  parseRetainedPagesRemoveMessage,
   parseSavedPageActivateMessage,
   parseTabHistorySwitchDirection
 } from './runtime-messages.js'
@@ -86,6 +87,22 @@ function synchronizeRetainedPagesExpiryAlarm(): Effect.Effect<void, never> {
   return retainedPagesService.getLedger().pipe(
     Effect.flatMap((ledger) => scheduleRetainedPagesExpiryAlarm(chromeApi.alarms, ledger)),
     Effect.catchCause(() => Effect.void)
+  )
+}
+
+function withRetainedPagesExpiryAlarm<
+  Success extends { ledger: RetainedPageLedger },
+  Failure,
+  Requirements
+>(
+  effect: Effect.Effect<Success, Failure, Requirements>
+): Effect.Effect<Success, Failure, Requirements> {
+  return effect.pipe(
+    Effect.tap(({ ledger }) => scheduleRetainedPagesExpiryAlarm(
+      chromeApi.alarms,
+      ledger
+    ).pipe(Effect.catchCause(() => Effect.void))),
+    Effect.tapCause(() => synchronizeRetainedPagesExpiryAlarm())
   )
 }
 
@@ -487,17 +504,19 @@ chromeApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true
   }
 
-  const retainedPageRemoval = parseRetainedPageRemoveMessage(message)
-  if (retainedPageRemoval) {
+  const retainedPagesRemoval = parseRetainedPagesRemoveMessage(message)
+  if (retainedPagesRemoval) {
     void backgroundRuntime.runPromise(settleBackgroundEffect(sendEffectResponse(
       afterInitialOpenSurfaceReconciliation(
-        retainedPagesService.removeSnapshot(
-          retainedPageRemoval.identityDigest,
-          retainedPageRemoval.closureToken
-        ).pipe(Effect.ensuring(synchronizeRetainedPagesExpiryAlarm()))
+        withRetainedPagesExpiryAlarm(retainedPagesService.removeSnapshots(
+          retainedPagesRemoval.snapshots
+        ))
       ),
       sendResponse,
-      ({ outcome }) => ({ ok: true, outcome }),
+      ({ results }) => ({
+        ok: true,
+        outcomes: results.map(({ outcome }) => outcome)
+      }),
       () => ({ ok: false })
     )))
     return true

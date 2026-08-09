@@ -17,7 +17,7 @@ import { pathgroupPinId, subdomainPinId, websitePathPinId } from './section-pins
 import { pageChipFoldRepresentativeUrl, pageChipPinId, pageChipPinKeyForFoldUrls, pageChipPinKeyForUrl, pageChipPinScopeId, pinnedPageChipOrder } from './page-chip-pins.js'
 import type { PinnedPageChipIndex } from './page-chip-pins.js'
 import type { CompiledFilterQuery } from './filter-query.js'
-import type { DashboardCardVM, DashboardChipData, DashboardChipPriorityMap, DashboardClusterVM, DashboardSectionVM, DashboardSegment, DashboardSource, DashboardTab, DashboardTitleSuppression, DashboardWebsitePathSectionVM, DomainGroup, PathGroupResult, WebsitePathSectionResult } from './types'
+import type { DashboardCardVM, DashboardChipData, DashboardChipPriorityMap, DashboardClusterVM, DashboardSectionVM, DashboardSegment, DashboardSource, DashboardTab, DashboardTitleSuppression, DashboardWebsitePathSectionVM, DomainGroup, PathGroupResult, RetainedPageActionTarget, WebsitePathSectionResult } from './types'
 
 type CardMode = 'matched' | 'unmatched'
 type ComputeCardOptions = {
@@ -361,6 +361,14 @@ function titleSuppressionTailLabel(part: string): string {
   return part.trim().replace(TITLE_BOUNDARY_SEPARATOR_RE, '').trim()
 }
 
+function retainedPageRemovalLabelForCount(count: number): string {
+  return count === 0
+    ? ''
+    : count === 1
+      ? 'Remove from Tabs'
+      : `Remove ${count} from Tabs`
+}
+
 function insertTitleSuppressionSegmentsBeforeStructuralPlaceholder(
   segments: DashboardSegment[],
   suppressedTitleParts: string[]
@@ -686,6 +694,22 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   if (tabs.length === 0) {
     return { stableId, isHidden: true, displayMode, filtering }
   }
+
+  const retainedPageRemovalTargets: Required<RetainedPageActionTarget>[] =
+    displayMode === 'unmatched' || !allowMutations
+      ? []
+      : tabs.flatMap((tab) => {
+          const retainedPageIdentity = tab.retainedPageIdentity
+          const retainedPageClosureToken = tab.retainedPageClosureToken
+          return tab.sourceType === 'retained-page' &&
+            typeof retainedPageIdentity === 'string' && retainedPageIdentity.length > 0 &&
+            typeof retainedPageClosureToken === 'string' && retainedPageClosureToken.length > 0
+            ? [{ retainedPageIdentity, retainedPageClosureToken }]
+            : []
+        })
+  const retainedPageRemovalLabel = retainedPageRemovalLabelForCount(
+    retainedPageRemovalTargets.length
+  )
 
   const openTabs = tabs.filter((tab) => !isClosedSavedDashboardTab(tab))
   const totalOpenTabs = allTabs.filter((tab) => !isClosedSavedDashboardTab(tab))
@@ -1710,6 +1734,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
         closableCount === tabCount ? `Close all ${closableCount} tab${closableCount !== 1 ? 's' : ''}` : `Close ${closableCount} ungrouped tab${closableCount !== 1 ? 's' : ''}`,
       closableDupeUrls: vmClosableDupeUrls,
       closableExtras: vmClosableExtras,
+      retainedPageRemovalTargets,
+      retainedPageRemovalLabel,
       singleSubdomainKey: '',
       singleSubdomainIsPort: false,
       displayName: group.label || 'Apps',
@@ -2408,6 +2434,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     closableSuspendedCountLabel,
     closableDupeUrls: vmClosableDupeUrls,
     closableExtras: vmClosableExtras,
+    retainedPageRemovalTargets,
+    retainedPageRemovalLabel,
     singleSubdomainKey,
     singleSubdomainIsPort,
     displayName,

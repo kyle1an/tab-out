@@ -14,7 +14,7 @@ import {
 import {
   CLOSED_TAB_RETENTION_SETTLE_MESSAGE,
   RETAINED_PAGE_ACTIVATE_MESSAGE,
-  RETAINED_PAGE_REMOVE_MESSAGE,
+  RETAINED_PAGES_REMOVE_MESSAGE,
   SAVED_PAGE_ACTIVATE_MESSAGE
 } from '../src/extension/runtime-messages.js'
 import { SAVED_PAGES_STORAGE_KEY } from '../src/extension/saved-pages.js'
@@ -719,11 +719,10 @@ function sendRuntimeMessage(
 function sendRuntimeMessage(
   mock: BackgroundRuntimeMessageMock,
   message: {
-    type: typeof RETAINED_PAGE_REMOVE_MESSAGE
-    identityDigest: string
-    closureToken: string
+    type: typeof RETAINED_PAGES_REMOVE_MESSAGE
+    snapshots: Array<{ identityDigest: string; closureToken: string }>
   }
-): Promise<{ ok: boolean; outcome?: string }>
+): Promise<{ ok: boolean; outcomes?: string[] }>
 async function sendRuntimeMessage(
   mock: BackgroundRuntimeMessageMock,
   message: Record<string, unknown>
@@ -1300,7 +1299,9 @@ test('an immediately closed pending navigation retains its newest effective targ
   assert.equal(Object.values(ledger.ledger.pages)[0]?.url, pendingUrl)
 })
 
-test('background removes one exact retained snapshot without a browser action', async () => {
+test('background removes an exact retained batch with one ledger read and write', async () => {
+  const firstUrl = 'https://retained.example.test/first'
+  const secondUrl = 'https://retained.example.test/second'
   const mock = await loadBackground([
     {
       id: 259,
@@ -1313,41 +1314,84 @@ test('background removes one exact retained snapshot without a browser action', 
       index: 0
     },
     {
-      id: 261,
+      id: 264,
       windowId: 1,
-      url: 'https://retained.example.test/remove',
-      title: 'Remove retained',
+      url: firstUrl,
+      title: 'First retained page',
       active: false,
       pinned: false,
       groupId: -1,
       index: 1
+    },
+    {
+      id: 265,
+      windowId: 1,
+      url: secondUrl,
+      title: 'Second retained page',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 2
     }
   ])
 
-  mock.closeTabForWindow(261)
+  mock.closeTabForWindow(264)
+  mock.closeTabForWindow(265)
   await flushBackgroundWork()
   const captured = await sendRuntimeMessage(mock, {
     type: 'tab-out:get-dashboard-service-state'
   })
   assert.equal(captured.ok, true)
-  const retained = captured.retainedPages[0]
-  assert.ok(retained)
+  assert.equal(captured.retainedPages.length, 2)
+  const retainedByUrl = new Map(
+    captured.retainedPages.map((page: RetainedPageRecord) => [page.url, page])
+  )
+  const first = retainedByUrl.get(firstUrl)
+  const second = retainedByUrl.get(secondUrl)
+  assert.ok(first)
+  assert.ok(second)
+
+  let retainedLedgerReads = 0
+  let retainedLedgerWrites = 0
+  const originalLocalGet = mock.chrome.storage.local.get.bind(mock.chrome.storage.local)
+  const originalLocalSet = mock.chrome.storage.local.set.bind(mock.chrome.storage.local)
+  mock.chrome.storage.local.get = async (keys: unknown) => {
+    if (
+      keys === RETAINED_PAGES_STORAGE_KEY ||
+      (Array.isArray(keys) && keys.includes(RETAINED_PAGES_STORAGE_KEY))
+    ) retainedLedgerReads += 1
+    return originalLocalGet(keys)
+  }
+  mock.chrome.storage.local.set = async (items: Record<string, unknown>) => {
+    if (Object.hasOwn(items, RETAINED_PAGES_STORAGE_KEY)) retainedLedgerWrites += 1
+    await originalLocalSet(items)
+  }
   const createCount = mock.calls.create.length
 
   const removed = await sendRuntimeMessage(mock, {
-    type: RETAINED_PAGE_REMOVE_MESSAGE,
-    identityDigest: retained.identityDigest,
-    closureToken: retained.closureToken
+    type: RETAINED_PAGES_REMOVE_MESSAGE,
+    snapshots: [
+      {
+        identityDigest: first.identityDigest,
+        closureToken: first.closureToken
+      },
+      {
+        identityDigest: second.identityDigest,
+        closureToken: second.closureToken
+      }
+    ]
   })
   await flushBackgroundWork()
 
-  assert.deepEqual(removed, { ok: true, outcome: 'removed' })
+  assert.deepEqual(removed, { ok: true, outcomes: ['removed', 'removed'] })
+  assert.equal(retainedLedgerReads, 1)
+  assert.equal(retainedLedgerWrites, 1)
   assert.equal(mock.calls.create.length, createCount)
-  const after = await sendRuntimeMessage(mock, {
-    type: 'tab-out:get-dashboard-service-state'
-  })
-  assert.equal(after.ok, true)
-  assert.deepEqual(after.retainedPages, [])
+  const ledger = await parseStoredRetainedPageLedger(
+    mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY]
+  )
+  assert.equal(ledger.status, 'valid')
+  assert.deepEqual(ledger.ledger.pages, {})
 })
 
 for (const action of ['explicit removal', 'activation consumption'] as const) {
@@ -1413,9 +1457,8 @@ for (const action of ['explicit removal', 'activation consumption'] as const) {
 
     const response = action === 'explicit removal'
       ? await sendRuntimeMessage(mock, {
-          type: RETAINED_PAGE_REMOVE_MESSAGE,
-          identityDigest,
-          closureToken
+          type: RETAINED_PAGES_REMOVE_MESSAGE,
+          snapshots: [{ identityDigest, closureToken }]
         })
       : await sendRuntimeMessage(mock, {
           type: RETAINED_PAGE_ACTIVATE_MESSAGE,

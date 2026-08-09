@@ -54,6 +54,22 @@ export interface RemoveRetainedPageSnapshotResult {
   outcome: 'removed' | 'already-absent' | 'stale'
 }
 
+export interface RetainedPageSnapshotTarget {
+  identityDigest: string
+  closureToken: string
+}
+
+export type RemoveRetainedPageSnapshotOutcome = Omit<
+  RemoveRetainedPageSnapshotResult,
+  'ledger'
+>
+
+export interface RemoveRetainedPageSnapshotsResult {
+  ledger: RetainedPageLedger
+  changed: boolean
+  results: readonly RemoveRetainedPageSnapshotOutcome[]
+}
+
 export interface PruneRetainedPageLedgerResult {
   ledger: RetainedPageLedger
   changed: boolean
@@ -293,6 +309,28 @@ export function removeRetainedPageSnapshot(
     changed: true,
     outcome: 'removed'
   }
+}
+
+export function removeRetainedPageSnapshots(
+  ledger: RetainedPageLedger,
+  snapshots: readonly RetainedPageSnapshotTarget[]
+): RemoveRetainedPageSnapshotsResult {
+  let nextLedger = ledger
+  let changed = false
+  const results: RemoveRetainedPageSnapshotOutcome[] = []
+
+  for (const snapshot of snapshots) {
+    const result = removeRetainedPageSnapshot(
+      nextLedger,
+      snapshot.identityDigest,
+      snapshot.closureToken
+    )
+    nextLedger = result.ledger
+    changed ||= result.changed
+    results.push({ changed: result.changed, outcome: result.outcome })
+  }
+
+  return { ledger: nextLedger, changed, results }
 }
 
 function omitBoundariesForIdentity(

@@ -4,25 +4,22 @@ import { getAppRuntime } from './app-runtime.js'
 import { requestDashboardRefresh } from './dashboard-intake.js'
 import {
   RETAINED_PAGE_ACTIVATE_MESSAGE,
-  RETAINED_PAGE_REMOVE_MESSAGE,
+  RETAINED_PAGES_REMOVE_MESSAGE,
   parseRetainedPageActivationResponse,
-  parseRetainedPageRemovalResponse,
+  parseRetainedPagesRemovalResponse,
   type RetainedPageActivateMessage,
   type RetainedPageActivationDisposition,
-  type RetainedPageRemoveMessage
+  type RetainedPagesRemoveMessage
 } from './runtime-messages.js'
 import type { ChipActivationMode } from './tab-activation.js'
 import { showToast } from './toast.js'
-import type { DashboardChipData } from './types.js'
+import type { RetainedPageActionTarget } from './types.js'
 
-export type RetainedPageActionTarget = Pick<
-  DashboardChipData,
-  'retainedPageIdentity' | 'retainedPageClosureToken'
->
+export type { RetainedPageActionTarget } from './types.js'
 
 type RetainedPageActionMessage =
   | RetainedPageActivateMessage
-  | RetainedPageRemoveMessage
+  | RetainedPagesRemoveMessage
 
 type RetainedPageActionDependencies = {
   sendMessage: (message: RetainedPageActionMessage) => Promise<unknown>
@@ -59,6 +56,22 @@ function exactRetainedPageSnapshot(
     return null
   }
   return { identityDigest, closureToken }
+}
+
+function exactRetainedPageSnapshots(
+  targets: readonly RetainedPageActionTarget[]
+): RetainedPageSnapshot[] | null {
+  const snapshots: RetainedPageSnapshot[] = []
+  const seen = new Set<string>()
+  for (const target of targets) {
+    const snapshot = exactRetainedPageSnapshot(target)
+    if (!snapshot) return null
+    const key = `${snapshot.identityDigest}\u0000${snapshot.closureToken}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    snapshots.push(snapshot)
+  }
+  return snapshots.length > 0 ? snapshots : null
 }
 
 export function retainedPageActivationDisposition(
@@ -151,31 +164,41 @@ export function createRetainedPageActions({
     }
   })
 
-  const runRemoveRetainedPageTarget = Effect.fn(
-    'retainedPageActions.removeRetainedPageTarget'
-  )(function*(target: RetainedPageActionTarget) {
-    const snapshot = exactRetainedPageSnapshot(target)
-    if (!snapshot) {
+  const runRemoveRetainedPageTargets = Effect.fn(
+    'retainedPageActions.removeRetainedPageTargets'
+  )(function*(targets: readonly RetainedPageActionTarget[]) {
+    const snapshots = exactRetainedPageSnapshots(targets)
+    if (!snapshots) {
       yield* refreshDashboard()
       notify('Couldn’t remove from Tabs')
-      return false
+      return 0
     }
 
     const responseResult = yield* Effect.result(send({
-      type: RETAINED_PAGE_REMOVE_MESSAGE,
-      ...snapshot
+      type: RETAINED_PAGES_REMOVE_MESSAGE,
+      snapshots
     }))
     const response = Result.isSuccess(responseResult)
-      ? parseRetainedPageRemovalResponse(responseResult.success)
+      ? parseRetainedPagesRemovalResponse(responseResult.success)
       : null
 
     yield* refreshDashboard()
-    if (response?.outcome === 'removed' || response?.outcome === 'already-absent') {
-      notify('Removed from Tabs')
-      return true
+    if (!response || response.outcomes.length !== snapshots.length) {
+      notify('Couldn’t remove from Tabs')
+      return 0
+    }
+
+    const completedCount = response.outcomes.filter((outcome) => outcome !== 'stale').length
+    if (completedCount === snapshots.length) {
+      notify(completedCount === 1 ? 'Removed from Tabs' : `Removed ${completedCount} from Tabs`)
+      return completedCount
+    }
+    if (completedCount > 0) {
+      notify(`Removed ${completedCount} of ${snapshots.length} from Tabs`)
+      return completedCount
     }
     notify('Couldn’t remove from Tabs')
-    return false
+    return 0
   })
 
   function activateRetainedPageTarget(
@@ -186,10 +209,20 @@ export function createRetainedPageActions({
   }
 
   function removeRetainedPageTarget(target: RetainedPageActionTarget): Promise<boolean> {
-    return getAppRuntime().runPromise(runRemoveRetainedPageTarget(target))
+    return removeRetainedPageTargets([target]).then((completedCount) => completedCount === 1)
   }
 
-  return { activateRetainedPageTarget, removeRetainedPageTarget }
+  function removeRetainedPageTargets(
+    targets: readonly RetainedPageActionTarget[]
+  ): Promise<number> {
+    return getAppRuntime().runPromise(runRemoveRetainedPageTargets(targets))
+  }
+
+  return {
+    activateRetainedPageTarget,
+    removeRetainedPageTarget,
+    removeRetainedPageTargets
+  }
 }
 
 const retainedPageActions = createRetainedPageActions({
@@ -205,5 +238,6 @@ const retainedPageActions = createRetainedPageActions({
 
 export const {
   activateRetainedPageTarget,
-  removeRetainedPageTarget
+  removeRetainedPageTarget,
+  removeRetainedPageTargets
 } = retainedPageActions
