@@ -81,8 +81,9 @@ function M.new(options)
 
     local shield
     local captured, captureError = xpcall(function()
-      local frame = screen and screen:fullFrame() or nil
-      local image = screen and screen:snapshot() or nil
+      local frame = screen and screen:frame() or nil
+      local snapshotFrame = screen and frame and screen:absoluteToLocal(frame) or nil
+      local image = screen and snapshotFrame and screen:snapshot(snapshotFrame) or nil
       if not frame or not image then
         error("the target display snapshot is unavailable")
       end
@@ -708,7 +709,7 @@ end tell
   end
 
   -- Native Placement Bridge windows already contain their destination and are
-  -- created inactive at final target bounds. The target-display snapshot stays
+  -- created inactive at final target bounds. The target-work-area snapshot stays
   -- above the inactive window until private activation and destination focus
   -- complete, so the created window is first exposed in its final frontmost state.
   local function finishExtensionWindowActivation(

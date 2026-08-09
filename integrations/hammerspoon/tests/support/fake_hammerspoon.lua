@@ -65,6 +65,8 @@ local function runShortcut(kind, options)
   local spaceSwitchCount = 0
   local targetActiveSpace = 11
   local shieldUsed = false
+  local shieldFrame
+  local shieldSnapshotRect
   local shieldVisible = false
   local shieldVisibleAtPrivateFocus = false
   local windowCreatedCallback
@@ -120,11 +122,23 @@ local function runShortcut(kind, options)
 
   local function newScreen(uuid, x, canSnapshot)
     local screen = {}
-    function screen:frame() return { h = 900, w = 1440, x = x, y = 0 } end
-    screen.fullFrame = screen.frame
+    function screen:frame() return { h = 870, w = 1380, x = x, y = 30 } end
+    function screen:fullFrame() return { h = 900, w = 1440, x = x, y = 0 } end
+    function screen:absoluteToLocal(frame)
+      local fullFrame = self:fullFrame()
+      return {
+        h = frame.h,
+        w = frame.w,
+        x = frame.x - fullFrame.x,
+        y = frame.y - fullFrame.y,
+      }
+    end
     function screen:getUUID() return uuid end
     if canSnapshot then
-      function screen:snapshot() return { name = uuid .. "-snapshot" } end
+      function screen:snapshot(rect)
+        shieldSnapshotRect = rect
+        return { name = uuid .. "-snapshot" }
+      end
     end
     return screen
   end
@@ -472,8 +486,9 @@ local function runShortcut(kind, options)
     },
     autoLaunch = function() return true end,
     canvas = {
-      new = function()
+      new = function(frame)
         shieldUsed = true
+        shieldFrame = frame
         return { bringToFront = returnSelf, canvasMouseEvents = returnSelf,
           delete = function() shieldVisible = false end,
           show = function(self) shieldVisible = true return self end }
@@ -1161,6 +1176,14 @@ local function runShortcut(kind, options)
     missingOnScreenMetadataAllowed = missingOnScreenMetadataAllowed,
     spaceSwitchCount = spaceSwitchCount,
     shieldUsed = shieldUsed,
+    shieldFrameHeight = shieldFrame and shieldFrame.h or nil,
+    shieldFrameLeft = shieldFrame and shieldFrame.x or nil,
+    shieldFrameTop = shieldFrame and shieldFrame.y or nil,
+    shieldFrameWidth = shieldFrame and shieldFrame.w or nil,
+    shieldSnapshotHeight = shieldSnapshotRect and shieldSnapshotRect.h or nil,
+    shieldSnapshotLeft = shieldSnapshotRect and shieldSnapshotRect.x or nil,
+    shieldSnapshotTop = shieldSnapshotRect and shieldSnapshotRect.y or nil,
+    shieldSnapshotWidth = shieldSnapshotRect and shieldSnapshotRect.w or nil,
     shieldVisibleAtPrivateFocus = shieldVisibleAtPrivateFocus,
     targetFocused = focusedWindow == (createdChromeWindow or targetChromeWindow),
     targetAppActive = frontmostApplication == chromeApplication,

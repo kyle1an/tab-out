@@ -43,10 +43,12 @@ remain unavailable as fixes.
 - The Spoon validates the new window's display, Space, configured profile,
   Chrome PID, and native window ID before invoking Private Exact-Window
   Activation.
-- When Screen Recording permission is available, the Spoon snapshots the target
-  display immediately before requesting creation and presents that image in a
-  non-focusable floating canvas. The canvas covers only the target display and
-  stays above normal windows during the inactive-to-front transition.
+- When Screen Recording permission is available, the Spoon snapshots only the
+  target display's usable work area immediately before requesting creation and
+  presents that image in a non-focusable floating canvas over the same absolute
+  work-area frame. It excludes the Dock and menu bar so captured system UI is
+  not replayed beneath macOS's live system UI; the canvas stays above normal
+  windows during the inactive-to-front transition.
 - The private helper applies the exact WindowServer foreground and key-window
   sequence and raises that same Accessibility window. Existing visible window
   reuse follows the same private activation path.
@@ -61,11 +63,11 @@ remain unavailable as fixes.
 ## Consequences
 
 New bridge windows are born at final target bounds. macOS may still present the
-window in inactive order before exact activation, but the target-display
-snapshot covers that transition. The snapshot is removed only after the Chrome
-window is frontmost, so its first exposed frame has final ordering. The
-non-target displays receive neither the new window nor a canvas and retain their
-window order.
+window in inactive order before exact activation, but the target-work-area
+snapshot covers that normal-window transition while the Dock and menu bar remain
+live and uncovered. The snapshot is removed only after the Chrome window is
+frontmost, so its first exposed frame has final ordering. Non-target displays
+receive neither the new window nor a canvas and retain their window order.
 
 The unpacked extension bundle must be rebuilt, and Chrome must reload the
 extension before the new handoff is active. The five-millisecond poll runs only

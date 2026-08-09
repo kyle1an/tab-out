@@ -34,6 +34,14 @@ local scenarios = {
       shieldVisibleAtPrivateFocus = true, targetBoundsLeft = 1440, targetFocused = true },
   },
   {
+    "shield only the usable target frame during creation", "filter",
+    { targetHasChromeWindow = false },
+    { createdWindow = true, failed = false, shieldFrameHeight = 870,
+      shieldFrameLeft = 1440, shieldFrameTop = 30, shieldFrameWidth = 1380,
+      shieldSnapshotHeight = 870, shieldSnapshotLeft = 0,
+      shieldSnapshotTop = 30, shieldSnapshotWidth = 1380 },
+  },
+  {
     "activate offscreen bridge-created filter window on empty target", "filter",
     { createdWindowOmitsOnScreenMetadata = true, targetHasChromeWindow = false },
     { bridgeUsed = true, createdWindow = true, failed = false, filterInputFocused = true,
