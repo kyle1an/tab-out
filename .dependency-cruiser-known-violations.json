@@ -45,27 +45,6 @@
   },
   {
     "type": "cycle",
-    "from": "src/components/CardActionsMenu.tsx",
-    "to": "src/components/CardActionsMenuLoaded.tsx",
-    "unresolvedTo": "./CardActionsMenuLoaded",
-    "dependencyTypes": ["local", "dynamic-import"],
-    "rule": {
-      "severity": "error",
-      "name": "no-circular"
-    },
-    "cycle": [
-      {
-        "name": "src/components/CardActionsMenuLoaded.tsx",
-        "dependencyTypes": ["local", "dynamic-import"]
-      },
-      {
-        "name": "src/components/CardActionsMenu.tsx",
-        "dependencyTypes": ["local", "import"]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
     "from": "src/components/mountToast.tsx",
     "to": "src/components/toast-runtime.ts",
     "unresolvedTo": "./toast-runtime",
@@ -141,27 +120,6 @@
   },
   {
     "type": "cycle",
-    "from": "src/components/PageChipContextMenu.tsx",
-    "to": "src/components/PageChipContextMenuLoaded.tsx",
-    "unresolvedTo": "./PageChipContextMenuLoaded",
-    "dependencyTypes": ["local", "dynamic-import"],
-    "rule": {
-      "severity": "error",
-      "name": "no-circular"
-    },
-    "cycle": [
-      {
-        "name": "src/components/PageChipContextMenuLoaded.tsx",
-        "dependencyTypes": ["local", "dynamic-import"]
-      },
-      {
-        "name": "src/components/PageChipContextMenu.tsx",
-        "dependencyTypes": ["local", "import"]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
     "from": "src/components/startup-order-debug-heavy.ts",
     "to": "src/components/startup-order-debug.ts",
     "unresolvedTo": "./startup-order-debug",
@@ -178,27 +136,6 @@
       {
         "name": "src/components/startup-order-debug-heavy.ts",
         "dependencyTypes": ["local", "dynamic-import"]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
-    "from": "src/components/TitleSuppressionTokenContextMenu.tsx",
-    "to": "src/components/TitleSuppressionTokenContextMenuLoaded.tsx",
-    "unresolvedTo": "./TitleSuppressionTokenContextMenuLoaded",
-    "dependencyTypes": ["local", "dynamic-import"],
-    "rule": {
-      "severity": "error",
-      "name": "no-circular"
-    },
-    "cycle": [
-      {
-        "name": "src/components/TitleSuppressionTokenContextMenuLoaded.tsx",
-        "dependencyTypes": ["local", "dynamic-import"]
-      },
-      {
-        "name": "src/components/TitleSuppressionTokenContextMenu.tsx",
-        "dependencyTypes": ["local", "import"]
       }
     ]
   }

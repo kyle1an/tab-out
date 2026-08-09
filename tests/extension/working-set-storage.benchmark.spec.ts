@@ -27,6 +27,9 @@ import {
   type InstalledExtension
 } from './installed-extension.js'
 import {
+  terminateServiceWorkerAndProveAbsent as terminateServiceWorkerTargetAndProveAbsent
+} from './service-worker-cdp.js'
+import {
   parseWorkingSetStorageBenchmarkMessage,
   parseWorkingSetStorageBenchmarkResponse,
   WORKING_SET_STORAGE_BENCHMARK_MESSAGE,
@@ -40,9 +43,6 @@ import {
 const BENCHMARK_TIMEOUT_MS = 30 * 60_000
 const ACTIVITY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 const BOOTSTRAP_REPETITIONS = 2_000
-const SERVICE_WORKER_TERMINATION_TIMEOUT_MS = 15_000
-const SERVICE_WORKER_ABSENCE_CONFIRMATIONS = 5
-const SERVICE_WORKER_TARGET_POLL_MS = 25
 const SUPPORTED_PROFILE_NAMES: readonly WorkingSetStorageProfileName[] = [
   'empty',
   '500x20',
@@ -431,60 +431,15 @@ async function countIndexedDbPhysicalRows(
   })
 }
 
-async function terminateServiceWorkerAndProveAbsent(
+function terminateServiceWorkerAndProveAbsent(
   installed: InstalledExtension,
   controller: Page
 ): Promise<void> {
-  const session = await installed.context.newCDPSession(controller)
-  const workerUrl = installed.serviceWorker.url()
-  try {
-    const deadline = performance.now() + SERVICE_WORKER_TERMINATION_TIMEOUT_MS
-    let consecutiveAbsentObservations = 0
-    let closeAttempts = 0
-    let rejectedCloseAttempts = 0
-    let lastCloseError: string | null = null
-    while (performance.now() < deadline) {
-      const observed = await session.send('Target.getTargets')
-      const matchingTargets = observed.targetInfos.filter((candidate) =>
-        candidate.type === 'service_worker' && candidate.url === workerUrl)
-      if (matchingTargets.length === 0) {
-        consecutiveAbsentObservations += 1
-        if (
-          consecutiveAbsentObservations >=
-          SERVICE_WORKER_ABSENCE_CONFIRMATIONS
-        ) return
-      } else {
-        consecutiveAbsentObservations = 0
-        for (const target of matchingTargets) {
-          closeAttempts += 1
-          try {
-            const closed = await session.send('Target.closeTarget', {
-              targetId: target.targetId
-            })
-            if (!closed.success) rejectedCloseAttempts += 1
-          } catch (cause) {
-            // A target can disappear between enumeration and close. Continue
-            // until CDP itself proves a stable absence; a restarted worker gets
-            // its own close attempt on the next observation.
-            lastCloseError = describeError(cause)
-          }
-        }
-      }
-      await new Promise((resolve) => setTimeout(
-        resolve,
-        SERVICE_WORKER_TARGET_POLL_MS
-      ))
-    }
-    throw new Error(
-      'Installed service-worker target never reached stable absence ' +
-      `within ${String(SERVICE_WORKER_TERMINATION_TIMEOUT_MS)}ms ` +
-      `(closeAttempts=${String(closeAttempts)}, ` +
-      `rejectedCloseAttempts=${String(rejectedCloseAttempts)}, ` +
-      `lastCloseError=${lastCloseError ?? 'none'})`
-    )
-  } finally {
-    await session.detach().catch(() => undefined)
-  }
+  return terminateServiceWorkerTargetAndProveAbsent(
+    installed.context,
+    controller,
+    installed.serviceWorker.url()
+  )
 }
 
 const STARTUP_TRACE_KEY = '__tabOutWorkingSetStorageBenchmarkStartupTrace'
