@@ -7,7 +7,7 @@ import {
   readBuildTimeAppStartup,
   resetAppStartupShell,
   subscribeAppStartup,
-  updateAppStartupClosedGhostDismissals
+  updateAppStartupClosedGhostDismissals,
 } from '../src/app-startup.js'
 import { emptyDashboardLocalState } from '../src/extension/dashboard-local-state.js'
 import { appDashboardStore } from '../src/extension/dashboard-intake.js'
@@ -26,9 +26,9 @@ const emptySnapshot: DashboardStartupSnapshot = {
     activeTabId: null,
     activeWindowId: null,
     activeWasInserted: false,
-    entries: []
+    entries: [],
   },
-  workingSet: { defaultLimit: 5, expandedLimit: 12, items: [] }
+  workingSet: { defaultLimit: 5, expandedLimit: 12, items: [] },
 }
 
 test('app startup publishes one ready frame and applies it to Dashboard Intake', () => {
@@ -39,7 +39,7 @@ test('app startup publishes one ready frame and applies it to Dashboard Intake',
     historyRange: 'off',
     localState: emptyDashboardLocalState(true),
     snapshot: emptySnapshot,
-    source: 'tabs' as const
+    source: 'tabs' as const,
   }
 
   applyAppStartup(startup)
@@ -58,7 +58,7 @@ test('post-admission dismissal events update the ready frame without partial sta
     historyRange: 'off',
     localState: emptyDashboardLocalState(true),
     snapshot: emptySnapshot,
-    source: 'tabs' as const
+    source: 'tabs' as const,
   }
   applyAppStartup(startup)
   const dismissals = new Map([['https://example.test/closed', 42]])

@@ -13,11 +13,11 @@ declare global {
 }
 
 test('restored filter stays visible and URL-stable through attachment and immediate reload', async ({
-  page
+  page,
 }) => {
   await page.addInitScript(() => {
     const trace: FilterReloadTrace = {
-      replacedFilterValues: []
+      replacedFilterValues: [],
     }
     window.__tabOutFilterReloadTrace = trace
 
@@ -49,7 +49,7 @@ test('restored filter stays visible and URL-stable through attachment and immedi
   await expect.poll(() => page.title()).toBe('Example Query - Tab Out')
   const firstAttachment = await page.evaluate(() => ({
     href: window.location.href,
-    trace: window.__tabOutFilterReloadTrace
+    trace: window.__tabOutFilterReloadTrace,
   }))
 
   await page.reload()
@@ -57,7 +57,7 @@ test('restored filter stays visible and URL-stable through attachment and immedi
   await expect.poll(() => page.title()).toBe('Example Query - Tab Out')
   const secondAttachment = await page.evaluate(() => ({
     href: window.location.href,
-    trace: window.__tabOutFilterReloadTrace
+    trace: window.__tabOutFilterReloadTrace,
   }))
 
   for (const attachment of [firstAttachment, secondAttachment]) {
@@ -74,7 +74,7 @@ test('pre-app clear remains authoritative over a URL filter', async ({ page }) =
   })
 
   const navigation = page.goto(
-    '/tests/fixtures/dashboard-resize.html?focusFilter=1&filter=Example%20Query&marker=kept#results'
+    '/tests/fixtures/dashboard-resize.html?focusFilter=1&filter=Example%20Query&marker=kept#results',
   )
   const filterInput = page.locator('[data-tabout="filter-query"] input')
   let preAttachmentError: unknown
@@ -97,18 +97,18 @@ test('pre-app clear remains authoritative over a URL filter', async ({ page }) =
       filter: url.searchParams.get('filter'),
       focusFilter: url.searchParams.get('focusFilter'),
       hash: url.hash,
-      marker: url.searchParams.get('marker')
+      marker: url.searchParams.get('marker'),
     }
   })).toEqual({
     filter: null,
     focusFilter: null,
     hash: '#results',
-    marker: 'kept'
+    marker: 'kept',
   })
 })
 
 test('filter shortcut startup preserves the prerendered input and its focus-visible shadow', async ({
-  page
+  page,
 }) => {
   const hydrationErrors: string[] = []
   page.on('console', (message) => {
@@ -121,16 +121,16 @@ test('filter shortcut startup preserves the prerendered input and its focus-visi
       owner: 'none',
       presentations: 0,
       visible: false,
-      blur: 0
+      blur: 0,
     }
     const startupInput = {
       element: null as HTMLInputElement | null,
-      seeded: false
+      seeded: false,
     }
 
     function sampleFocusShadow() {
       const inputs = document.querySelectorAll<HTMLInputElement>(
-        '[data-tabout="filter-query"] input'
+        '[data-tabout="filter-query"] input',
       )
       let owner = 'none'
       let blur = 0
@@ -151,7 +151,7 @@ test('filter shortcut startup preserves the prerendered input and its focus-visi
           ?.map((length) => Number.parseFloat(length)) ?? []
         const inputBlur = Math.max(
           0,
-          ...shadowLengths.filter((_, index) => index % 3 === 2)
+          ...shadowLengths.filter((_, index) => index % 3 === 2),
         ) * Number.parseFloat(focusLayer.opacity)
         if (inputBlur > blur) {
           owner = 'app'
@@ -193,17 +193,17 @@ test('filter shortcut startup preserves the prerendered input and its focus-visi
     return {
       sameElement: startupInput.element === filterInputElement,
       selectionEnd: filterInputElement.selectionEnd,
-      selectionStart: filterInputElement.selectionStart
+      selectionStart: filterInputElement.selectionStart,
     }
   })).toEqual({
     sameElement: true,
     selectionEnd: 2,
-    selectionStart: 2
+    selectionStart: 2,
   })
   expect(hydrationErrors).toEqual([])
   await expect.poll(() => page.evaluate(() =>
     (window as typeof window & { __tabOutFocusShadowPaint: { blur: number } })
-      .__tabOutFocusShadowPaint.blur
+      .__tabOutFocusShadowPaint.blur,
   )).toBeGreaterThan(2.8)
 
   const focusStyle = await filterInput.evaluate((input) => ({
@@ -213,7 +213,7 @@ test('filter shortcut startup preserves the prerendered input and its focus-visi
     focusBorderColor: getComputedStyle(input.parentElement!, '::after').borderColor,
     focusOpacity: getComputedStyle(input.parentElement!, '::after').opacity,
     caretColor: getComputedStyle(input).caretColor,
-    inputFilter: getComputedStyle(input).filter
+    inputFilter: getComputedStyle(input).filter,
   }))
   expect(focusStyle.inputFilter).toBe('none')
   expect(focusStyle.restingFilter).toContain('drop-shadow')
@@ -236,7 +236,7 @@ test('filter shortcut startup preserves the prerendered input and its focus-visi
   await expect(filterInput).toHaveValue('')
   await expect(filterInput).toBeFocused()
   expect(await page.evaluate(() =>
-    (window as typeof window & { __tabOutFilterBlurCount?: number }).__tabOutFilterBlurCount
+    (window as typeof window & { __tabOutFilterBlurCount?: number }).__tabOutFilterBlurCount,
   )).toBe(0)
 
   const focusShadowPaint = await page.evaluate(() =>
@@ -247,12 +247,12 @@ test('filter shortcut startup preserves the prerendered input and its focus-visi
         visible: boolean
         blur: number
       }
-    }).__tabOutFocusShadowPaint
+    }).__tabOutFocusShadowPaint,
   )
   expect(focusShadowPaint).toMatchObject({
     owner: 'app',
     presentations: 1,
-    visible: true
+    visible: true,
   })
 
   const refocusPaint = await filterInput.evaluate(async (input) => {
@@ -260,7 +260,7 @@ test('filter shortcut startup preserves the prerendered input and its focus-visi
     input.blur()
     await new Promise((resolve) => setTimeout(resolve, 200))
     input.focus()
-    const samples: Array<{ borderColor: string; filter: string; opacity: number }> = []
+    const samples: Array<{ borderColor: string, filter: string, opacity: number }> = []
     const start = performance.now()
     do {
       await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))
@@ -268,7 +268,7 @@ test('filter shortcut startup preserves the prerendered input and its focus-visi
       samples.push({
         borderColor: focusLayer.borderColor,
         filter: focusLayer.filter,
-        opacity: Number.parseFloat(focusLayer.opacity)
+        opacity: Number.parseFloat(focusLayer.opacity),
       })
     } while (performance.now() - start < 200)
     return samples
@@ -292,7 +292,7 @@ test('dashboard attaches before storage resolves and fills startup surfaces atom
         headerStats: string
         historyEntries: number
         historyOrder: string[]
-      }
+      },
     }
     ;(window as typeof window & { __tabOutStartupCommit: typeof startupCommit })
       .__tabOutStartupCommit = startupCommit
@@ -309,7 +309,7 @@ test('dashboard attaches before storage resolves and fills startup surfaces atom
         domainCards,
         headerStats,
         historyEntries: historyRows.length,
-        historyOrder: historyRows.map((row) => row.dataset.taboutLayoutKey ?? '')
+        historyOrder: historyRows.map((row) => row.dataset.taboutLayoutKey ?? ''),
       }
     }).observe(document, { childList: true, subtree: true })
   })
@@ -330,13 +330,13 @@ test('dashboard attaches before storage resolves and fills startup surfaces atom
         height: bounds.height,
         width: bounds.width,
         x: bounds.x,
-        y: bounds.y
+        y: bounds.y,
       }
     }
     return {
       filter: rect('[data-tabout="filter-query"]'),
       header: rect('.pinned-top'),
-      sourceSwitch: rect('[data-tabout="source-switch"]')
+      sourceSwitch: rect('[data-tabout="source-switch"]'),
     }
   })
 
@@ -345,13 +345,13 @@ test('dashboard attaches before storage resolves and fills startup surfaces atom
     clearVisible: getComputedStyle(document.querySelector<HTMLElement>('[data-tabout-part="clear-button"]')!).display !== 'none',
     headerShadowOpacity: Number(getComputedStyle(document.querySelector<HTMLElement>('.pinned-top')!, '::after').opacity),
     storagePending: (window as typeof window & { __tabOutInitialStoragePending?: boolean })
-      .__tabOutInitialStoragePending === true
+      .__tabOutInitialStoragePending === true,
   }))
   expect(pendingState).toMatchObject({
     cards: 0,
     clearVisible: true,
     headerShadowOpacity: 0,
-    storagePending: true
+    storagePending: true,
   })
   await expect(page.locator('[data-tabout="dashboard-startup-status"]')).toHaveCount(0)
   await page.getByRole('button', { name: 'Clear filter' }).click()
@@ -360,27 +360,27 @@ test('dashboard attaches before storage resolves and fills startup surfaces atom
   await expect.poll(() => page.evaluate(() =>
     (window as typeof window & {
       __tabOutStartupCommit: { firstContent: unknown }
-    }).__tabOutStartupCommit.firstContent
+    }).__tabOutStartupCommit.firstContent,
   )).not.toBeNull()
   const firstContent = await page.evaluate(() =>
     (window as typeof window & {
       __tabOutStartupCommit: {
-          firstContent: {
-            dedupeText: string
-            domainCards: number
-            headerStats: string
-            historyEntries: number
-            historyOrder: string[]
+        firstContent: {
+          dedupeText: string
+          domainCards: number
+          headerStats: string
+          historyEntries: number
+          historyOrder: string[]
         }
       }
-    }).__tabOutStartupCommit.firstContent
+    }).__tabOutStartupCommit.firstContent,
   )
   expect(firstContent.domainCards).toBeGreaterThan(0)
   expect(firstContent.dedupeText).toBe('')
   expect(firstContent.headerStats).toMatch(/\d+(?:\/\d+)? tabs/)
   expect(firstContent.historyEntries).toBeGreaterThan(0)
   expect(await page.locator('[data-tabout="activation-history-entry"]').evaluateAll((rows) =>
-    rows.map((row) => (row as HTMLElement).dataset.taboutLayoutKey ?? '')
+    rows.map((row) => (row as HTMLElement).dataset.taboutLayoutKey ?? ''),
   )).toEqual(firstContent.historyOrder)
   expect(await page.evaluate(() => {
     function rect(selector: string) {
@@ -390,13 +390,13 @@ test('dashboard attaches before storage resolves and fills startup surfaces atom
         height: bounds.height,
         width: bounds.width,
         x: bounds.x,
-        y: bounds.y
+        y: bounds.y,
       }
     }
     return {
       filter: rect('[data-tabout="filter-query"]'),
       header: rect('.pinned-top'),
-      sourceSwitch: rect('[data-tabout="source-switch"]')
+      sourceSwitch: rect('[data-tabout="source-switch"]'),
     }
   })).toEqual(shellGeometry)
 })
@@ -410,7 +410,7 @@ test('a pre-app filter admits its companion results in the first dynamic frame',
       if (observed.firstFrameHasBookmark !== null) return
       if (document.querySelectorAll('[data-tabout="domain-card"]').length === 0) return
       observed.firstFrameHasBookmark = document.querySelector(
-        '[data-tabout="domain-card"][data-tabout-domain="bookmark-smoke-0001.test"]'
+        '[data-tabout="domain-card"][data-tabout-domain="bookmark-smoke-0001.test"]',
       ) !== null
     }).observe(document, { childList: true, subtree: true })
   })
@@ -419,7 +419,7 @@ test('a pre-app filter admits its companion results in the first dynamic frame',
   await expect.poll(() => page.evaluate(() =>
     (window as typeof window & {
       __tabOutFilteredStartup: { firstFrameHasBookmark: boolean | null }
-    }).__tabOutFilteredStartup.firstFrameHasBookmark
+    }).__tabOutFilteredStartup.firstFrameHasBookmark,
   )).toBe(true)
 })
 
@@ -427,7 +427,7 @@ test('startup coalesces rapid filter input before its browser History read', asy
   await page.goto('/tests/fixtures/dashboard-resize.html?slowInitialStorage=1')
   await expect.poll(() => page.evaluate(() =>
     (window as typeof window & { __tabOutInitialStoragePending?: boolean })
-      .__tabOutInitialStoragePending === true
+      .__tabOutInitialStoragePending === true,
   )).toBe(true)
 
   const filterInput = page.locator('[data-tabout="filter-query"] input')
@@ -439,7 +439,7 @@ test('startup coalesces rapid filter input before its browser History read', asy
   await expect(page.locator('[data-tabout="domain-card"]').first()).toBeVisible()
   expect(await page.evaluate(() =>
     (window as typeof window & { __tabOutSmokeHistorySearchQueries: string[] })
-      .__tabOutSmokeHistorySearchQueries
+      .__tabOutSmokeHistorySearchQueries,
   )).toEqual(['alpha'])
 })
 
@@ -447,11 +447,11 @@ test('filter recovery from startup failure stays coalesced before History reads'
   await page.goto('/tests/fixtures/dashboard-resize.html?failFirstStartupStorage=1')
   await expect.poll(() => page.evaluate(() =>
     (window as typeof window & { __tabOutInitialStoragePending?: boolean })
-      .__tabOutInitialStoragePending === true
+      .__tabOutInitialStoragePending === true,
   )).toBe(true)
   await expect.poll(() => page.evaluate(() =>
     (window as typeof window & { __tabOutInitialStoragePending?: boolean })
-      .__tabOutInitialStoragePending === false
+      .__tabOutInitialStoragePending === false,
   )).toBe(true)
   await expect(page.locator('[data-tabout="dashboard-startup-status"]')).toHaveCount(0)
 
@@ -464,7 +464,7 @@ test('filter recovery from startup failure stays coalesced before History reads'
   await expect(page.locator('[data-tabout="domain-card"]').first()).toBeVisible()
   expect(await page.evaluate(() =>
     (window as typeof window & { __tabOutSmokeHistorySearchQueries: string[] })
-      .__tabOutSmokeHistorySearchQueries
+      .__tabOutSmokeHistorySearchQueries,
   )).toEqual(['alpha'])
 })
 
@@ -482,11 +482,11 @@ test('startup failure keeps the shell truthful and visually quiet', async ({ pag
 
   await expect.poll(() => page.evaluate(() =>
     (window as typeof window & { __tabOutInitialStoragePending?: boolean })
-      .__tabOutInitialStoragePending === true
+      .__tabOutInitialStoragePending === true,
   )).toBe(true)
   await expect.poll(() => page.evaluate(() =>
     (window as typeof window & { __tabOutInitialStoragePending?: boolean })
-      .__tabOutInitialStoragePending === false
+      .__tabOutInitialStoragePending === false,
   )).toBe(true)
   await page.evaluate(async () => {
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
@@ -498,7 +498,7 @@ test('startup failure keeps the shell truthful and visually quiet', async ({ pag
   await expect(page.locator('[data-tabout="header-stats"] button')).toHaveCount(0)
   expect(await page.evaluate(() =>
     (window as typeof window & { __tabOutStartupPresentation: { failureCopySeen: boolean, retryButtonSeen: boolean } })
-      .__tabOutStartupPresentation
+      .__tabOutStartupPresentation,
   )).toEqual({ failureCopySeen: false, retryButtonSeen: false })
 })
 
@@ -506,7 +506,7 @@ test('a source choice made in the shell selects the admitted startup frame', asy
   await page.goto('/tests/fixtures/dashboard-resize.html?slowInitialStorage=1')
   await expect.poll(() => page.evaluate(() =>
     (window as typeof window & { __tabOutInitialStoragePending?: boolean })
-      .__tabOutInitialStoragePending === true
+      .__tabOutInitialStoragePending === true,
   )).toBe(true)
   await page.evaluate(() => {
     ;(window as typeof window & { __tabOutSmokeSetBookmarks?: (count: number) => void })
@@ -525,19 +525,19 @@ test('a source choice made in the shell selects the admitted startup frame', asy
   await bookmarksSource.click()
   await expect(bookmarksSource).toHaveAttribute('data-active', '')
   const bookmarkCard = page.locator(
-    '[data-tabout="domain-card"][data-tabout-domain="bookmark-smoke-0001.test"]'
+    '[data-tabout="domain-card"][data-tabout-domain="bookmark-smoke-0001.test"]',
   )
   await expect(bookmarkCard).toHaveCount(0)
 
   await expect.poll(() => page.evaluate(() =>
     (window as typeof window & { __tabOutInitialStoragePending?: boolean })
-      .__tabOutInitialStoragePending === false
+      .__tabOutInitialStoragePending === false,
   )).toBe(true)
   await expect(bookmarkCard).toHaveCount(1)
   expect(await page.evaluate(() =>
     (window as typeof window & {
       __tabOutStartupSourceFrames: { contentSources: string[] }
-    }).__tabOutStartupSourceFrames.contentSources
+    }).__tabOutStartupSourceFrames.contentSources,
   )).toEqual(['bookmarks'])
 })
 
@@ -556,7 +556,7 @@ function cdpSessionAdapter(session: CDPSession): CdpSession {
   return {
     send(method, params = {}) {
       return session.send(method as Parameters<CDPSession['send']>[0], params as never)
-    }
+    },
   }
 }
 
@@ -587,7 +587,7 @@ async function waitForBrowserCondition<Args extends readonly unknown[] = []>(
   session: CdpSession,
   condition: (...args: Args) => boolean,
   description: string,
-  options: BrowserConditionOptions<Args> = {}
+  options: BrowserConditionOptions<Args> = {},
 ) {
   const args = options.args ?? ([] as unknown as Args)
   const timeoutMs = options.timeoutMs ?? 2000
@@ -613,7 +613,7 @@ async function waitForBrowserCondition<Args extends readonly unknown[] = []>(
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.equal(matched, true, description)
@@ -643,7 +643,7 @@ async function waitForDashboardSettled(session: CdpSession) {
       return layoutsMatch
     },
     'dashboard masonry should settle at the requested viewport',
-    { timeoutMs: 5000 }
+    { timeoutMs: 5000 },
   )
 }
 
@@ -655,7 +655,7 @@ async function waitForScrollTop(session: CdpSession, selector: string, expected 
       return !!scroller && Math.abs(scroller.scrollTop - targetScrollTop) <= 1
     },
     `${selector} should reach scrollTop ${expected}`,
-    { args: [selector, expected] }
+    { args: [selector, expected] },
   )
 }
 
@@ -663,7 +663,7 @@ async function waitForNoPageChipExpansion(session: CdpSession) {
   await waitForBrowserCondition(
     session,
     () => !document.querySelector('.page-chip-expanded'),
-    'page chip expansion should close'
+    'page chip expansion should close',
   )
 }
 
@@ -671,7 +671,7 @@ async function waitForNoHistoryEntryExpansion(session: CdpSession) {
   await waitForBrowserCondition(
     session,
     () => !document.querySelector('.history-entry-expanded'),
-    'history entry expansion should close'
+    'history entry expansion should close',
   )
 }
 
@@ -682,7 +682,7 @@ async function waitForNoVisibleTooltip(session: CdpSession) {
       const rect = tooltip.getBoundingClientRect()
       return rect.width > 0 && rect.height > 0 && !tooltip.hasAttribute('data-ending-style')
     }),
-    'visible tooltip should close'
+    'visible tooltip should close',
   )
 }
 
@@ -690,7 +690,7 @@ async function waitForNoTitleExpansion(session: CdpSession) {
   await Promise.all([
     waitForNoPageChipExpansion(session),
     waitForNoHistoryEntryExpansion(session),
-    waitForNoVisibleTooltip(session)
+    waitForNoVisibleTooltip(session),
   ])
 }
 
@@ -704,7 +704,7 @@ async function waitForContextMenuState(session: CdpSession, open: boolean) {
         : !menu || menu.getClientRects().length === 0
     },
     `context menu should ${open ? 'open' : 'close'}`,
-    { args: [open] }
+    { args: [open] },
   )
 }
 
@@ -746,7 +746,7 @@ async function startClassRetentionProbe(session: CdpSession, target: ClassRetent
       })
       window.__tabOutSmokeClassRetentionProbe = probe
       return true
-    })()`
+    })()`,
   })
   return result.result.value
 }
@@ -765,7 +765,7 @@ async function finishClassRetentionProbe(session: CdpSession) {
       const classWasRemoved = probe.classWasRemoved
       delete window.__tabOutSmokeClassRetentionProbe
       return classWasRemoved
-    })()`
+    })()`,
   })
   return result.result.value
 }
@@ -781,7 +781,7 @@ async function waitForFocusUpdates(session: CdpSession) {
       return updates.some((update) => update.kind === 'tab') &&
         updates.some((update) => update.kind === 'window')
     },
-    'tab and window focus updates should complete'
+    'tab and window focus updates should complete',
   )
 }
 
@@ -790,7 +790,7 @@ async function measureDashboard(session: CdpSession, width: number) {
     width,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   return evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -826,21 +826,21 @@ async function measureDashboard(session: CdpSession, width: number) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 }
 
 async function measureInitialTooltipMeasureNodes(session: CdpSession) {
   return evaluateWithNavigationRetry(session, {
     returnByValue: true,
-      expression: `(() => ({
+    expression: `(() => ({
       pageChipMeasureNodes: document.querySelectorAll('.page-chip-tooltip-measure').length,
       historyExpansionMeasureNodes: document.querySelectorAll('.history-entry-title-expansion-measure').length,
       visibleTooltipNodes: Array.from(document.querySelectorAll('[data-slot="tooltip-content"]')).filter((tooltip) => {
         const rect = tooltip.getBoundingClientRect()
         return rect.width > 0 && rect.height > 0 && !tooltip.hasAttribute('data-ending-style')
       }).length
-    }))()`
+    }))()`,
   }).then((result: any) => result.result.value)
 }
 
@@ -876,7 +876,7 @@ async function measureTruncatedTitleTailFill(session: CdpSession) {
         clampedPillsKeepGlyph: clampedPills.every((pill) => !!pill.querySelector('svg.chip-title-suppression-glyph')),
         untruncatedWithClamp: document.querySelectorAll('.history-entry-title:not(.history-entry-title-truncated) .clamped-title-line').length
       }
-    })()), 120))))`
+    })()), 120))))`,
   }).then((result: any) => result.result.value)
 }
 
@@ -955,7 +955,7 @@ async function measureLargeBookmarkProgressiveRender(session: CdpSession) {
         setTimeout(wait, 16)
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 }
 
@@ -964,7 +964,7 @@ async function measureHorizontalScrollLock(session: CdpSession) {
     width: 760,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
 
   const target = await evaluateWithNavigationRetry(session, {
@@ -1000,7 +1000,7 @@ async function measureHorizontalScrollLock(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected a scroll region for horizontal scroll lock smoke test')
@@ -1010,7 +1010,7 @@ async function measureHorizontalScrollLock(session: CdpSession) {
     x: target.x,
     y: target.y,
     deltaX: 220,
-    deltaY: 0
+    deltaY: 0,
   })
   await wait(160)
 
@@ -1026,7 +1026,7 @@ async function measureHorizontalScrollLock(session: CdpSession) {
       }
       probe?.remove()
       return result
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   return { ...target, afterScrollLeft: after.scrollLeft, afterScrollWidth: after.scrollWidth, afterClientWidth: after.clientWidth }
@@ -1087,7 +1087,7 @@ async function waitForTooltipRect(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 }
 
@@ -1101,19 +1101,19 @@ const MARKER_WRAP_REFLOW_SMOKE_LABEL = 'Content: All content overview'
  * allowance instead of the resting width, so a pill starts a continuation
  * line only when the previous line has no room for it.
  */
-async function measureMarkerWrapExpansionReflow(session: CdpSession, options: { forcedTextWidth?: number; viewportWidth?: number } = {}) {
+async function measureMarkerWrapExpansionReflow(session: CdpSession, options: { forcedTextWidth?: number, viewportWidth?: number } = {}) {
   await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
-    expression: `window.__tabOutSmokeAddMarkerWrapPathGroupTabs?.()`
+    expression: `window.__tabOutSmokeAddMarkerWrapPathGroupTabs?.()`,
   })
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: options.viewportWidth || 1000,
     height: 900,
     deviceScaleFactor: 2,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -1182,7 +1182,7 @@ async function measureMarkerWrapExpansionReflow(session: CdpSession, options: { 
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   if (!target) return { target, expansion: null }
@@ -1190,7 +1190,7 @@ async function measureMarkerWrapExpansionReflow(session: CdpSession, options: { 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   await waitForPageChipExpansionRect(session, MARKER_WRAP_REFLOW_SMOKE_LABEL)
 
@@ -1259,7 +1259,7 @@ async function measureMarkerWrapExpansionReflow(session: CdpSession, options: { 
         pills,
         strandedPills
       }
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 2, y: 2 })
@@ -1280,16 +1280,16 @@ const MARKER_ONLY_LINE_SMOKE_LABEL = 'Platform Ops Dev 2026'
 async function measureMarkerOnlyLineExpansion(session: CdpSession) {
   await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
-    expression: `window.__tabOutSmokeAddMarkerWrapPathGroupTabs?.()`
+    expression: `window.__tabOutSmokeAddMarkerWrapPathGroupTabs?.()`,
   })
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1000,
     height: 900,
     deviceScaleFactor: 2,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -1352,7 +1352,7 @@ async function measureMarkerOnlyLineExpansion(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   if (!target) return { target, expansion: null }
@@ -1360,7 +1360,7 @@ async function measureMarkerOnlyLineExpansion(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   await waitForPageChipExpansionRect(session, MARKER_ONLY_LINE_SMOKE_LABEL)
 
@@ -1381,7 +1381,7 @@ async function measureMarkerOnlyLineExpansion(session: CdpSession) {
         visualLineCount: Math.max(1, Math.round(textRect.height / lineHeight)),
         text: (textEl.textContent || '').slice(0, 160)
       }
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 2, y: 2 })
@@ -1401,7 +1401,7 @@ const VARIANT_TITLE_ROW_SMOKE_LABEL = 'Skills for Real Engineers'
 async function measureVariantTitleRowStability(session: CdpSession) {
   await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
-    expression: `window.__tabOutSmokeAddMarkerWrapPathGroupTabs?.()`
+    expression: `window.__tabOutSmokeAddMarkerWrapPathGroupTabs?.()`,
   })
   // Wide viewport: the hydrated indicator label needs rightward room on its
   // frozen first line wherever the masonry parks this card; the scenario
@@ -1410,10 +1410,10 @@ async function measureVariantTitleRowStability(session: CdpSession) {
     width: 1600,
     height: 900,
     deviceScaleFactor: 2,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -1487,7 +1487,7 @@ async function measureVariantTitleRowStability(session: CdpSession) {
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
     returnByValue: true,
-    expression: probeExpression('rest')
+    expression: probeExpression('rest'),
   }).then((result: any) => result.result.value)
 
   if (!target) return { target, expansion: null }
@@ -1495,14 +1495,14 @@ async function measureVariantTitleRowStability(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   await waitForPageChipExpansionRect(session, VARIANT_TITLE_ROW_SMOKE_LABEL)
 
   const expansion = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
     returnByValue: true,
-    expression: probeExpression('expanded')
+    expression: probeExpression('expanded'),
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 2, y: 2 })
@@ -1553,7 +1553,7 @@ async function waitForPageChipExpansionRect(session: CdpSession, text: string, t
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 }
 
@@ -1607,7 +1607,7 @@ async function waitForHistoryEntryExpansionRect(session: CdpSession, text: strin
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 }
 
@@ -1628,7 +1628,7 @@ async function waitForHistoryScrollbarThumbOpacity(session: CdpSession, opacity:
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 }
 
@@ -1640,7 +1640,7 @@ async function getVisibleTooltipTexts(session: CdpSession) {
         const rect = tooltip.getBoundingClientRect()
         return rect.width > 0 && rect.height > 0 && !tooltip.hasAttribute('data-ending-style')
       })
-      .map((tooltip) => tooltip.textContent || '')`
+      .map((tooltip) => tooltip.textContent || '')`,
   }).then((result: any) => result.result.value)
 }
 
@@ -1649,7 +1649,7 @@ async function measureTooltipFreeze(session: CdpSession) {
     width: 1000,
     height: 900,
     deviceScaleFactor: 2,
-    mobile: false
+    mobile: false,
   })
 
   const target = await evaluateWithNavigationRetry(session, {
@@ -1683,7 +1683,7 @@ async function measureTooltipFreeze(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected a page chip to hover for tooltip smoke test')
@@ -1691,25 +1691,25 @@ async function measureTooltipFreeze(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.startX,
-    y: target.y
+    y: target.y,
   })
   const first = await waitForPageChipExpansionRect(session, PAGE_CHIP_EXPANSION_SMOKE_LABEL)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.moveX,
-    y: target.y
+    y: target.y,
   })
   await wait(150)
   const second = await waitForPageChipExpansionRect(session, PAGE_CHIP_EXPANSION_SMOKE_LABEL)
 
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollBy(0, 160)`
+    expression: `document.querySelector('.scroll-region')?.scrollBy(0, 160)`,
   })
   await waitForNoPageChipExpansion(session)
   const afterScrollExpandedCount = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
-    expression: `document.querySelectorAll('.page-chip-expanded').length`
+    expression: `document.querySelectorAll('.page-chip-expanded').length`,
   }).then((result: any) => result.result.value)
 
   return { target, first, second, afterScrollExpandedCount, closing: null }
@@ -1720,10 +1720,10 @@ async function measureTooltipTextPaddingHitArea(session: CdpSession) {
     width: 1000,
     height: 900,
     deviceScaleFactor: 2,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -1778,7 +1778,7 @@ async function measureTooltipTextPaddingHitArea(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected a page chip expansion hit area for padding hover smoke test')
@@ -1786,42 +1786,42 @@ async function measureTooltipTextPaddingHitArea(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.aboveY
+    y: target.aboveY,
   })
   const above = await waitForPageChipExpansionRect(session, 'enough tooltip text')
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await waitForNoPageChipExpansion(session)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.belowY
+    y: target.belowY,
   })
   const below = await waitForPageChipExpansionRect(session, 'enough tooltip text')
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await waitForNoPageChipExpansion(session)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.chipSurfaceX,
-    y: target.chipSurfaceY
+    y: target.chipSurfaceY,
   })
   const chipSurface = await waitForPageChipExpansionRect(session, 'enough tooltip text')
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await waitForNoPageChipExpansion(session)
 
@@ -1833,10 +1833,10 @@ async function measurePageChipInternalPointerMoveExpansion(session: CdpSession) 
     width: 1000,
     height: 900,
     deviceScaleFactor: 2,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -1874,14 +1874,14 @@ async function measurePageChipInternalPointerMoveExpansion(session: CdpSession) 
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected a page chip with left-side internal hover surface')
 
   const before = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
-    expression: `document.querySelectorAll('.page-chip-expanded').length`
+    expression: `document.querySelectorAll('.page-chip-expanded').length`,
   }).then((result: any) => result.result.value)
 
   await evaluateWithNavigationRetry(session, {
@@ -1895,14 +1895,14 @@ async function measurePageChipInternalPointerMoveExpansion(session: CdpSession) 
         pointerId: 1,
         pointerType: 'mouse'
       }))
-    })()`
+    })()`,
   })
   const expansion = await waitForPageChipExpansionRect(session, 'enough tooltip text')
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await waitForNoPageChipExpansion(session)
 
@@ -1914,16 +1914,16 @@ async function measureTooltipAfterActiveStateChanges(session: CdpSession) {
     width: 1000,
     height: 900,
     deviceScaleFactor: 2,
-    mobile: false
+    mobile: false,
   })
 
   async function setActiveTab(tabId: number, windowId = 1) {
     await evaluateWithNavigationRetry(session, {
       awaitPromise: true,
-      expression: `window.__tabOutSmokeSetActiveTab?.(${tabId}, ${windowId})`
+      expression: `window.__tabOutSmokeSetActiveTab?.(${tabId}, ${windowId})`,
     })
     await evaluateWithNavigationRetry(session, {
-      expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+      expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
     })
     await waitForDashboardSettled(session)
   }
@@ -1957,21 +1957,21 @@ async function measureTooltipAfterActiveStateChanges(session: CdpSession) {
           }
         }
         wait()
-      })`
+      })`,
     }).then((result: any) => result.result.value)
   }
 
-  async function hoverTarget(target: { x: number; y: number }) {
+  async function hoverTarget(target: { x: number, y: number }) {
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
       x: target.x,
-      y: target.y
+      y: target.y,
     })
     const tooltip = await waitForPageChipExpansionRect(session, 'Example 2 with enough tooltip text')
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
       x: 8,
-      y: 8
+      y: 8,
     })
     await waitForNoPageChipExpansion(session)
     return tooltip
@@ -1995,10 +1995,10 @@ async function measureSuppressionMarkerTooltipLine(session: CdpSession, label: s
     width: 1000,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -2026,7 +2026,7 @@ async function measureSuppressionMarkerTooltipLine(session: CdpSession, label: s
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, `expected a title-suppression page chip for ${label}`)
@@ -2034,7 +2034,7 @@ async function measureSuppressionMarkerTooltipLine(session: CdpSession, label: s
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   await waitForPageChipExpansionRect(session, label)
 
@@ -2073,13 +2073,13 @@ async function measureSuppressionMarkerTooltipLine(session: CdpSession, label: s
         textTop: Math.round(textRect.top),
         markerTop: Math.round(markerRect.top)
       }
-    })()`
+    })()`,
   }).then((measurement: any) => measurement.result.value)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await waitForNoPageChipExpansion(session)
 
@@ -2091,10 +2091,10 @@ async function measureSuppressionMarkerChipLine(session: CdpSession, label: stri
     width: 1000,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -2144,7 +2144,7 @@ async function measureSuppressionMarkerChipLine(session: CdpSession, label: stri
         }
       }
       wait()
-    })`
+    })`,
   }).then((measurement: any) => measurement.result.value)
 
   return { result }
@@ -2155,10 +2155,10 @@ async function measureSuppressionTokenCloseHighlight(session: CdpSession) {
     width: 1420,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -2182,14 +2182,14 @@ async function measureSuppressionTokenCloseHighlight(session: CdpSession) {
         else setTimeout(wait, 50)
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected a "— Shared Workspace" title-suppression token for the close-highlight smoke test')
 
   const readHighlightedChips = () => evaluateWithNavigationRetry(session, {
     returnByValue: true,
-    expression: `document.querySelectorAll('.page-chip-suppression-highlighted').length`
+    expression: `document.querySelectorAll('.page-chip-suppression-highlighted').length`,
   }).then((result: any) => result.result.value)
 
   const baseline = await readHighlightedChips()
@@ -2211,7 +2211,7 @@ async function measureSuppressionTokenCloseHighlight(session: CdpSession) {
         menuOpen: !!menu && menu.getClientRects().length > 0,
         itemTexts: Array.from(document.querySelectorAll('[data-slot="context-menu-item"]')).map((item) => (item.textContent || '').trim())
       }
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   // Close the menu by clicking elsewhere with the mouse (away from the menu). Base UI
@@ -2228,7 +2228,7 @@ async function measureSuppressionTokenCloseHighlight(session: CdpSession) {
       menuOpen: !!document.querySelector('[data-slot="context-menu-content"]'),
       highlightedChips: document.querySelectorAll('.page-chip-suppression-highlighted').length,
       activeIsToken: !!(document.activeElement && document.activeElement.classList.contains('title-suppression-token'))
-    }))()`
+    }))()`,
   }).then((result: any) => result.result.value)
 
   // Park the pointer away so later smoke measurements start clean.
@@ -2241,16 +2241,16 @@ async function measureSuppressionTokenCloseHighlight(session: CdpSession) {
 async function measurePageChipTooltipLineCount(
   session: CdpSession,
   label: string,
-  options: { forcedTextWidth?: number; forcedMaxLines?: number; hoverWaitMs?: number; viewportWidth?: number } = {}
+  options: { forcedTextWidth?: number, forcedMaxLines?: number, hoverWaitMs?: number, viewportWidth?: number } = {},
 ) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: options.viewportWidth || 1000,
     height: 900,
     deviceScaleFactor: 2,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -2343,7 +2343,7 @@ async function measurePageChipTooltipLineCount(
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, `expected a page chip for tooltip line-count check: ${label}`)
@@ -2351,7 +2351,7 @@ async function measurePageChipTooltipLineCount(
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   if (options.hoverWaitMs === undefined) {
     await waitForPageChipExpansionRect(session, label)
@@ -2417,13 +2417,13 @@ async function measurePageChipTooltipLineCount(
         tooltipLineCount: Math.max(1, Math.round(textRect.height / lineHeight)),
         viewportRight: window.innerWidth
       }
-    })()`
+    })()`,
   }).then((measurement: any) => measurement.result.value)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await waitForNoPageChipExpansion(session)
 
@@ -2433,16 +2433,16 @@ async function measurePageChipTooltipLineCount(
 async function measureFoldedPageChipTooltipTitleLineCount(
   session: CdpSession,
   label: string,
-  options: { forcedTextWidth?: number } = {}
+  options: { forcedTextWidth?: number } = {},
 ) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1600,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -2483,7 +2483,7 @@ async function measureFoldedPageChipTooltipTitleLineCount(
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, `expected a folded page chip for tooltip check: ${label}`)
@@ -2491,7 +2491,7 @@ async function measureFoldedPageChipTooltipTitleLineCount(
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   await waitForPageChipExpansionRect(session, label)
 
@@ -2522,13 +2522,13 @@ async function measureFoldedPageChipTooltipTitleLineCount(
         right: Math.round(tooltipRect.right),
         viewportRight: window.innerWidth
       }
-    })()`
+    })()`,
   }).then((measurement: any) => measurement.result.value)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await waitForNoPageChipExpansion(session)
 
@@ -2537,25 +2537,25 @@ async function measureFoldedPageChipTooltipTitleLineCount(
 
 async function measureFoldedEnvHoverTooltips(
   session: CdpSession,
-  label: string
+  label: string,
 ) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1600,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await Promise.all([
     waitForDashboardSettled(session),
-    waitForNoTitleExpansion(session)
+    waitForNoTitleExpansion(session),
   ])
 
   const target = await evaluateWithNavigationRetry(session, {
@@ -2581,7 +2581,7 @@ async function measureFoldedEnvHoverTooltips(
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, `expected a folded env button for tooltip check: ${label}`)
@@ -2589,7 +2589,7 @@ async function measureFoldedEnvHoverTooltips(
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   await waitForTooltipRect(session)
 
@@ -2598,7 +2598,7 @@ async function measureFoldedEnvHoverTooltips(
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await waitForNoTitleExpansion(session)
 
@@ -2610,16 +2610,16 @@ async function measureInteractiveTooltipClickReturnFocus(
   selector: string,
   marker: string,
   targetLabel: string,
-  requiredDescendantSelector: string
+  requiredDescendantSelector: string,
 ) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1000,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -2651,7 +2651,7 @@ async function measureInteractiveTooltipClickReturnFocus(
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, `expected a ${targetLabel} tooltip trigger for click-return smoke test`)
@@ -2659,7 +2659,7 @@ async function measureInteractiveTooltipClickReturnFocus(
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   const expansion = await waitForPageChipExpansionRect(session, marker)
   const first = { found: !!expansion, expansion }
@@ -2670,7 +2670,7 @@ async function measureInteractiveTooltipClickReturnFocus(
     buttons: 1,
     clickCount: 1,
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseReleased',
@@ -2678,14 +2678,14 @@ async function measureInteractiveTooltipClickReturnFocus(
     buttons: 0,
     clickCount: 1,
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   await wait(120)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await waitForNoPageChipExpansion(session)
 
@@ -2702,7 +2702,7 @@ async function measureInteractiveTooltipClickReturnFocus(
         active: document.activeElement === trigger,
         focusVisible: trigger.matches(':focus-visible')
       }
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
   await wait(240)
 
@@ -2710,7 +2710,7 @@ async function measureInteractiveTooltipClickReturnFocus(
     target,
     first,
     afterReturnFocus,
-    afterReturnTooltips: await getVisibleTooltipTexts(session)
+    afterReturnTooltips: await getVisibleTooltipTexts(session),
   }
 }
 
@@ -2720,10 +2720,10 @@ async function measurePageChipOriginalSlotLeave(session: CdpSession) {
     width: 1600,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -2777,7 +2777,7 @@ async function measurePageChipOriginalSlotLeave(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected a page chip to hover for original-slot leave smoke test')
@@ -2785,33 +2785,33 @@ async function measurePageChipOriginalSlotLeave(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.startX,
-    y: target.y
+    y: target.y,
   })
   const first = await waitForPageChipExpansionRect(session, label)
 
   assert.ok(first, `page chip should expand before original-slot leave check: ${JSON.stringify({ target, first })}`)
   assert.ok(
     first.right > target.slotRight + 8,
-    `original-slot leave smoke needs an expanded-only horizontal area: ${JSON.stringify({ target, first })}`
+    `original-slot leave smoke needs an expanded-only horizontal area: ${JSON.stringify({ target, first })}`,
   )
 
   const expandedOnlyPoint = {
     x: Math.round(Math.min(first.right - 4, target.slotRight + 16)),
-    y: Math.round((Math.max(first.top, target.slotTop) + Math.min(first.bottom, target.slotBottom)) / 2)
+    y: Math.round((Math.max(first.top, target.slotTop) + Math.min(first.bottom, target.slotBottom)) / 2),
   }
   assert.ok(
     expandedOnlyPoint.x > target.slotRight + 1 && expandedOnlyPoint.x < first.right,
-    `original-slot leave point should be outside the original slot and inside the expanded chip: ${JSON.stringify({ target, first, expandedOnlyPoint })}`
+    `original-slot leave point should be outside the original slot and inside the expanded chip: ${JSON.stringify({ target, first, expandedOnlyPoint })}`,
   )
   assert.ok(
     expandedOnlyPoint.y >= first.top && expandedOnlyPoint.y <= first.bottom,
-    `original-slot leave point should stay vertically inside the expanded chip: ${JSON.stringify({ target, first, expandedOnlyPoint })}`
+    `original-slot leave point should stay vertically inside the expanded chip: ${JSON.stringify({ target, first, expandedOnlyPoint })}`,
   )
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: expandedOnlyPoint.x,
-    y: expandedOnlyPoint.y
+    y: expandedOnlyPoint.y,
   })
   await wait(220)
   const afterOriginalSlotLeave = await waitForPageChipExpansionRect(session, label, 250)
@@ -2820,14 +2820,14 @@ async function measurePageChipOriginalSlotLeave(session: CdpSession) {
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
       x: 8 + index * 16,
-      y: 8 + index * 5
+      y: 8 + index * 5,
     })
     await wait(80)
   }
   const afterLeaveTooltips = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
     expression: `Array.from(document.querySelectorAll('.page-chip-expanded'))
-      .map((chip) => chip.textContent || '')`
+      .map((chip) => chip.textContent || '')`,
   }).then((result: any) => result.result.value)
 
   return { target, first, expandedOnlyPoint, afterOriginalSlotLeave, afterLeaveTooltips }
@@ -2838,7 +2838,7 @@ async function measureTooltipPopupClickFocus(session: CdpSession) {
     width: 1000,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
     expression: `(() => {
@@ -2854,7 +2854,7 @@ async function measureTooltipPopupClickFocus(session: CdpSession) {
         window.__tabOutSmokeFocusUpdates.push({ kind: 'window', args })
         return window.__tabOutSmokeOriginalWindowsUpdate(...args)
       }
-    })()`
+    })()`,
   })
   await waitForDashboardSettled(session)
 
@@ -2881,7 +2881,7 @@ async function measureTooltipPopupClickFocus(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected a page chip to hover for popup click smoke test')
@@ -2889,14 +2889,14 @@ async function measureTooltipPopupClickFocus(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   const first = await waitForPageChipExpansionRect(session, PAGE_CHIP_EXPANSION_SMOKE_LABEL)
   assert.ok(first, `page chip should expand before in-place click check: ${JSON.stringify({ target, first })}`)
 
   const popupPoint = {
     x: Math.round(first.left + first.width / 2),
-    y: Math.round(first.top + first.height / 2)
+    y: Math.round(first.top + first.height / 2),
   }
   const popupStyle = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -2909,13 +2909,13 @@ async function measureTooltipPopupClickFocus(session: CdpSession) {
         cursor: styles.cursor,
         userSelect: styles.userSelect
       }
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: popupPoint.x,
-    y: popupPoint.y
+    y: popupPoint.y,
   })
   await wait(80)
   await session.send('Input.dispatchMouseEvent', {
@@ -2924,7 +2924,7 @@ async function measureTooltipPopupClickFocus(session: CdpSession) {
     buttons: 1,
     clickCount: 1,
     x: popupPoint.x,
-    y: popupPoint.y
+    y: popupPoint.y,
   })
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseReleased',
@@ -2932,7 +2932,7 @@ async function measureTooltipPopupClickFocus(session: CdpSession) {
     buttons: 0,
     clickCount: 1,
     x: popupPoint.x,
-    y: popupPoint.y
+    y: popupPoint.y,
   })
   await waitForFocusUpdates(session)
 
@@ -2943,7 +2943,7 @@ async function measureTooltipPopupClickFocus(session: CdpSession) {
       chrome.tabs.update = window.__tabOutSmokeOriginalTabsUpdate
       chrome.windows.update = window.__tabOutSmokeOriginalWindowsUpdate
       return focusUpdates
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   return { target, first, popupPoint, popupStyle, updates }
@@ -2954,7 +2954,7 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
     width: 1400,
     height: 260,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
     expression: `(() => {
@@ -2970,11 +2970,11 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
         window.__tabOutSmokeFocusUpdates.push({ kind: 'window', args })
         return window.__tabOutSmokeOriginalWindowsUpdate(...args)
       }
-    })()`
+    })()`,
   })
   await Promise.all([
     waitForDashboardSettled(session),
-    waitForScrollTop(session, '.history-entry-list')
+    waitForScrollTop(session, '.history-entry-list'),
   ])
 
   const target = await evaluateWithNavigationRetry(session, {
@@ -3005,7 +3005,7 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected a history-panel entry to hover for expansion click smoke test')
@@ -3014,14 +3014,14 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   const first = await waitForHistoryEntryExpansionRect(session, 'Low score history item with enough tooltip text')
   assert.ok(first, `history entry should expand before click check: ${JSON.stringify({ target, first })}`)
 
   const expandedPoint = {
     x: Math.round(first.left + first.width / 2),
-    y: Math.round(first.top + first.height / 2)
+    y: Math.round(first.top + first.height / 2),
   }
   const expandedStyle = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -3034,7 +3034,7 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
 	        pointerEvents: styles.pointerEvents,
 	        userSelect: styles.userSelect
 	      }
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', {
@@ -3043,7 +3043,7 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
     buttons: 2,
     clickCount: 1,
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseReleased',
@@ -3051,19 +3051,19 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
     buttons: 0,
     clickCount: 1,
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   await waitForContextMenuState(session, true)
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.dismissX,
-    y: target.y
+    y: target.y,
   })
   await wait(80)
   const expansionCollapseProbeStarted = await startClassRetentionProbe(session, {
     selector: '[data-tabout="activation-history-entry"]',
     label: 'Low score history item with enough tooltip text',
-    className: 'history-entry-row-expanded-open'
+    className: 'history-entry-row-expanded-open',
   })
   assert.equal(expansionCollapseProbeStarted, true, `expected to observe history-entry expansion during backdrop dismissal: ${JSON.stringify({ target, first })}`)
   await session.send('Input.dispatchMouseEvent', {
@@ -3072,7 +3072,7 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
     buttons: 1,
     clickCount: 1,
     x: target.dismissX,
-    y: target.y
+    y: target.y,
   })
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseReleased',
@@ -3080,7 +3080,7 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
     buttons: 0,
     clickCount: 1,
     x: target.dismissX,
-    y: target.y
+    y: target.y,
   })
   await waitForContextMenuState(session, false)
   const expansionCollapsedDuringBackdropDismissal = await finishClassRetentionProbe(session)
@@ -3089,7 +3089,7 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   await wait(80)
   await session.send('Input.dispatchMouseEvent', {
@@ -3098,7 +3098,7 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
     buttons: 1,
     clickCount: 1,
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseReleased',
@@ -3106,7 +3106,7 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
     buttons: 0,
     clickCount: 1,
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   await waitForFocusUpdates(session)
 
@@ -3117,13 +3117,13 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
       chrome.tabs.update = window.__tabOutSmokeOriginalTabsUpdate
       chrome.windows.update = window.__tabOutSmokeOriginalWindowsUpdate
       return focusUpdates
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await waitForNoHistoryEntryExpansion(session)
 
@@ -3135,7 +3135,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     width: 1000,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
     expression: `(() => {
@@ -3167,7 +3167,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
           }
         }
       })
-    })()`
+    })()`,
   })
   await waitForDashboardSettled(session)
 
@@ -3194,7 +3194,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
           }
         }
         wait()
-      })`
+      })`,
     }).then((result: any) => result.result.value)
   }
 
@@ -3222,7 +3222,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
           }
         }
         wait()
-      })`
+      })`,
     }).then((result: any) => result.result.value)
   }
 
@@ -3236,11 +3236,11 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
   assert.ok(replacementTarget, 'expected a second live page chip for context menu replacement smoke test')
   assert.ok(historyMatchTarget, 'expected a live page chip with a matching history entry for context menu hover smoke test')
 
-  async function openContextMenuAt(menuTarget: { x: number; y: number }) {
+  async function openContextMenuAt(menuTarget: { x: number, y: number }) {
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
       x: menuTarget.x,
-      y: menuTarget.y
+      y: menuTarget.y,
     })
     await wait(80)
     await session.send('Input.dispatchMouseEvent', {
@@ -3249,7 +3249,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
       buttons: 2,
       clickCount: 1,
       x: menuTarget.x,
-      y: menuTarget.y
+      y: menuTarget.y,
     })
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseReleased',
@@ -3257,7 +3257,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
       buttons: 0,
       clickCount: 1,
       x: menuTarget.x,
-      y: menuTarget.y
+      y: menuTarget.y,
     })
     await waitForContextMenuState(session, true)
   }
@@ -3276,7 +3276,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
           ),
           backdropCount: document.querySelectorAll('[data-slot="context-menu-backdrop"]:not([hidden])').length
         }
-      })()`
+      })()`,
     }).then((result: any) => result.result.value)
   }
 
@@ -3320,7 +3320,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
           hover: chip.matches(':hover'),
           urlPreview: document.querySelector('.url-preview span')?.textContent || ''
         }
-      })()`
+      })()`,
     }).then((result: any) => result.result.value)
   }
 
@@ -3328,7 +3328,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
       x: 8,
-      y: 8
+      y: 8,
     })
     await session.send('Input.dispatchMouseEvent', {
       type: 'mousePressed',
@@ -3336,7 +3336,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
       buttons: 1,
       clickCount: 1,
       x: 8,
-      y: 8
+      y: 8,
     })
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseReleased',
@@ -3344,7 +3344,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
       buttons: 0,
       clickCount: 1,
       x: 8,
-      y: 8
+      y: 8,
     })
     await waitForContextMenuState(session, false)
   }
@@ -3364,7 +3364,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
           x: Math.round(rect.left + rect.width / 2),
           y: Math.round(rect.top + rect.height / 2)
         }
-      })()`
+      })()`,
     }).then((result: any) => result.result.value)
 
     assert.ok(item, `expected ${label} context menu item after right-click: ${JSON.stringify({ target })}`)
@@ -3372,7 +3372,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
       x: item.x,
-      y: item.y
+      y: item.y,
     })
     await wait(80)
     await session.send('Input.dispatchMouseEvent', {
@@ -3381,7 +3381,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
       buttons: 1,
       clickCount: 1,
       x: item.x,
-      y: item.y
+      y: item.y,
     })
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseReleased',
@@ -3389,7 +3389,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
       buttons: 0,
       clickCount: 1,
       x: item.x,
-      y: item.y
+      y: item.y,
     })
     await waitForBrowserCondition(
       session,
@@ -3409,7 +3409,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
         return menuClosed
       },
       `${label} context-menu action should complete`,
-      { args: [label] }
+      { args: [label] },
     )
 
     return item
@@ -3418,21 +3418,21 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await wait(180)
   const restingChipState = await readPageChipVisualState(target)
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   await wait(180)
   const hoverChipState = await readPageChipVisualState(target)
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: targetFavicon.x,
-    y: targetFavicon.y
+    y: targetFavicon.y,
   })
   await wait(180)
   const hoverFaviconState = await readPageChipVisualState(target)
@@ -3467,7 +3467,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: freshHistoryMatchTarget.x,
-    y: freshHistoryMatchTarget.y
+    y: freshHistoryMatchTarget.y,
   })
   await wait(180)
   const hoveredHistoryChipState = await readPageChipVisualState(freshHistoryMatchTarget)
@@ -3481,7 +3481,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: replacementTarget.x,
-    y: replacementTarget.y
+    y: replacementTarget.y,
   })
   await waitForPageChipExpansionRect(session, 'Example 2 with enough tooltip text')
   const expandedHoverChipState = await readPageChipVisualState(replacementTarget)
@@ -3490,7 +3490,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     expression: `Array.from(document.querySelectorAll('[data-slot="tooltip-content"]')).filter((tooltip) => {
       const rect = tooltip.getBoundingClientRect()
       return rect.width > 0 && rect.height > 0 && !tooltip.hasAttribute('data-ending-style')
-    }).length`
+    }).length`,
   }).then((result: any) => result.result.value)
   assert.equal(expandedHoverChipState?.expanded, true, `page chip should expand in place before context-menu shield check: ${JSON.stringify({ replacementTarget, expandedHoverChipState })}`)
   assert.equal(expandedHoverChipState?.hover, true, `expanded page chip should still be under the pointer before context-menu shield check: ${JSON.stringify({ expandedHoverChipState })}`)
@@ -3511,13 +3511,13 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: backdropDismissPoint.x,
-    y: backdropDismissPoint.y
+    y: backdropDismissPoint.y,
   })
   await wait(80)
   const expansionCollapseProbeStarted = await startClassRetentionProbe(session, {
     selector: '[data-tabout="page-chip"]',
     label: replacementTarget.label,
-    className: 'page-chip-expanded'
+    className: 'page-chip-expanded',
   })
   assert.equal(expansionCollapseProbeStarted, true, `expected to observe page-chip expansion during backdrop dismissal: ${JSON.stringify({ replacementTarget })}`)
   await session.send('Input.dispatchMouseEvent', {
@@ -3526,7 +3526,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     buttons: 1,
     clickCount: 1,
     x: backdropDismissPoint.x,
-    y: backdropDismissPoint.y
+    y: backdropDismissPoint.y,
   })
   await wait(30)
   const backdropDismissPressedState = await readPageChipVisualState(replacementTarget)
@@ -3536,7 +3536,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     buttons: 0,
     clickCount: 1,
     x: backdropDismissPoint.x,
-    y: backdropDismissPoint.y
+    y: backdropDismissPoint.y,
   })
   await wait(20)
   const backdropDismissReleasedState = await readPageChipVisualState(replacementTarget)
@@ -3545,13 +3545,13 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await waitForNoPageChipExpansion(session)
   await waitForBrowserCondition(
     session,
     () => !document.querySelector('.page-chip-context-menu-open'),
-    'page chip context-menu visual state should clear after backdrop dismissal'
+    'page chip context-menu visual state should clear after backdrop dismissal',
   )
   const backdropDismissAfterState = await readPageChipVisualState(replacementTarget)
   const backdropDismissMenuState = await readContextMenuState()
@@ -3592,7 +3592,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
         x: Math.round(rect.left + rect.width / 2),
         y: Math.round(rect.top + rect.height / 2)
       }
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
   const shieldBeforeClick = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -3607,13 +3607,13 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
         menuOpen: !!document.querySelector('[data-slot="context-menu-content"]:not([hidden])'),
         tooltipOpen: !!document.querySelector('[data-slot="tooltip-content"]:not([hidden])')
       }
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: tooltipShieldPoint.x,
-    y: tooltipShieldPoint.y
+    y: tooltipShieldPoint.y,
   })
   await wait(80)
   await session.send('Input.dispatchMouseEvent', {
@@ -3622,7 +3622,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     buttons: 1,
     clickCount: 1,
     x: tooltipShieldPoint.x,
-    y: tooltipShieldPoint.y
+    y: tooltipShieldPoint.y,
   })
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseReleased',
@@ -3630,7 +3630,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     buttons: 0,
     clickCount: 1,
     x: tooltipShieldPoint.x,
-    y: tooltipShieldPoint.y
+    y: tooltipShieldPoint.y,
   })
   await waitForContextMenuState(session, false)
   const shieldAfterClick = await evaluateWithNavigationRetry(session, {
@@ -3644,7 +3644,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
         focusUpdateCount: focusUpdates.length,
         menuOpen: !!document.querySelector('[data-slot="context-menu-content"]:not([hidden])')
       }
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
   assert.notEqual(shieldBeforeClick.topSlot, 'tooltip-content', `context menu backdrop should cover visible tooltips: ${JSON.stringify({ shieldBeforeClick, shieldAfterClick })}`)
   assert.equal(shieldAfterClick.focusUpdateCount, 0, `clicking where a tooltip is visible while context menu is open should not focus/open the page: ${JSON.stringify({ shieldBeforeClick, shieldAfterClick })}`)
@@ -3656,7 +3656,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     expression: `({
       copiedText: window.__tabOutSmokeCopiedText,
       menuOpen: !!document.querySelector('[data-slot="context-menu-content"]')
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   const saveItem = await clickMenuItem('Save page')
@@ -3672,7 +3672,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
         pageKeys,
         setCount: window.__tabOutSmokeSavedSets?.length || 0
       }
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   await openContextMenuAt(target)
@@ -3689,7 +3689,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
         x: Math.round(rect.left + rect.width / 2),
         y: Math.round(rect.top + rect.height / 2)
       }
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   assert.ok(sourceButtonTarget, 'expected the Bookmarks source switch button for context menu outside-click smoke test')
@@ -3697,7 +3697,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: sourceButtonTarget.x,
-    y: sourceButtonTarget.y
+    y: sourceButtonTarget.y,
   })
   await wait(80)
   await session.send('Input.dispatchMouseEvent', {
@@ -3706,7 +3706,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     buttons: 1,
     clickCount: 1,
     x: sourceButtonTarget.x,
-    y: sourceButtonTarget.y
+    y: sourceButtonTarget.y,
   })
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseReleased',
@@ -3714,7 +3714,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     buttons: 0,
     clickCount: 1,
     x: sourceButtonTarget.x,
-    y: sourceButtonTarget.y
+    y: sourceButtonTarget.y,
   })
   await waitForBrowserCondition(
     session,
@@ -3723,7 +3723,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
       const menu = document.querySelector('[data-slot="context-menu-content"]')
       return active === 'Tabs' && (!menu || menu.getClientRects().length === 0)
     },
-    'outside click should close the context menu without activating Bookmarks'
+    'outside click should close the context menu without activating Bookmarks',
   )
 
   const outsideClickResult = await evaluateWithNavigationRetry(session, {
@@ -3732,7 +3732,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
       activeBefore: ${JSON.stringify(sourceButtonTarget.activeBefore)},
       activeAfter: document.querySelector('.source-switch-option[data-active]')?.textContent?.trim() || '',
       menuOpen: !!document.querySelector('[data-slot="context-menu-content"]:not([hidden])')
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   return { target, firstOpenState, replacementState, shieldBeforeClick, shieldAfterClick, copyItem, copyResult, saveItem, saveResult, outsideClickResult }
@@ -3743,10 +3743,10 @@ async function measureTooltipPopupWheelScroll(session: CdpSession) {
     width: 1000,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -3773,7 +3773,7 @@ async function measureTooltipPopupWheelScroll(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected a page chip to hover for popup wheel smoke test')
@@ -3781,7 +3781,7 @@ async function measureTooltipPopupWheelScroll(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   const first = await waitForPageChipExpansionRect(session, PAGE_CHIP_EXPANSION_SMOKE_LABEL)
 
@@ -3789,19 +3789,19 @@ async function measureTooltipPopupWheelScroll(session: CdpSession) {
 
   const popupPoint = {
     x: Math.round(first.left + first.width / 2),
-    y: Math.round(first.top + first.height / 2)
+    y: Math.round(first.top + first.height / 2),
   }
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: popupPoint.x,
-    y: popupPoint.y
+    y: popupPoint.y,
   })
   await wait(80)
 
   const beforeScrollTop = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
-    expression: `document.querySelector('.scroll-region')?.scrollTop ?? 0`
+    expression: `document.querySelector('.scroll-region')?.scrollTop ?? 0`,
   }).then((result: any) => result.result.value)
 
   const wheelSteps = []
@@ -3811,7 +3811,7 @@ async function measureTooltipPopupWheelScroll(session: CdpSession) {
       deltaX: 0,
       deltaY: 36,
       x: popupPoint.x,
-      y: popupPoint.y
+      y: popupPoint.y,
     })
     await wait(60)
     wheelSteps.push(await evaluateWithNavigationRetry(session, {
@@ -3823,7 +3823,7 @@ async function measureTooltipPopupWheelScroll(session: CdpSession) {
           expandedCount: document.querySelectorAll('.page-chip-expanded').length,
           tooltipCount: document.querySelectorAll('[data-slot="tooltip-content"]').length
         }
-      })()`
+      })()`,
     }).then((result: any) => result.result.value))
   }
   await waitForNoPageChipExpansion(session)
@@ -3837,19 +3837,19 @@ async function measureTooltipPopupWheelScroll(session: CdpSession) {
         expandedCount: document.querySelectorAll('.page-chip-expanded').length,
         tooltipCount: document.querySelectorAll('[data-slot="tooltip-content"]').length
       }
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await waitForNoTitleExpansion(session)
 
   const afterLeaveExpandedCount = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
-    expression: `document.querySelectorAll('.page-chip-expanded').length`
+    expression: `document.querySelectorAll('.page-chip-expanded').length`,
   }).then((result: any) => result.result.value)
 
   return { target, first, popupPoint, beforeScrollTop, wheelSteps, after, afterLeaveExpandedCount }
@@ -3860,20 +3860,20 @@ async function measureHistoryEntryExpansionSurfaceHitArea(session: CdpSession) {
     width: 1400,
     height: 260,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.history-entry-list')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.history-entry-list')?.scrollTo(0, 0)`,
   })
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await Promise.all([
     waitForDashboardSettled(session),
     waitForScrollTop(session, '.history-entry-list'),
-    waitForNoTitleExpansion(session)
+    waitForNoTitleExpansion(session),
   ])
 
   const target = await evaluateWithNavigationRetry(session, {
@@ -3914,7 +3914,7 @@ async function measureHistoryEntryExpansionSurfaceHitArea(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected a history entry favicon frame with vertical padding for expansion hit-area smoke test')
@@ -3925,14 +3925,14 @@ async function measureHistoryEntryExpansionSurfaceHitArea(session: CdpSession) {
       returnByValue: true,
       expression: `Array.from(document.querySelectorAll('[data-slot="tooltip-content"]'))
         .filter((tooltip) => !tooltip.hidden && tooltip.getClientRects().length > 0 && window.getComputedStyle(tooltip).visibility !== 'hidden')
-        .map((tooltip) => tooltip.textContent || '')`
+        .map((tooltip) => tooltip.textContent || '')`,
     }).then((result: any) => result.result.value)
   }
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.aboveY
+    y: target.aboveY,
   })
   const above = await waitForHistoryEntryExpansionRect(session, 'Low score history item with enough tooltip text')
   const aboveTooltipTexts = await visibleTooltipTexts()
@@ -3940,14 +3940,14 @@ async function measureHistoryEntryExpansionSurfaceHitArea(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await waitForNoHistoryEntryExpansion(session)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.belowY
+    y: target.belowY,
   })
   const below = await waitForHistoryEntryExpansionRect(session, 'Low score history item with enough tooltip text')
   const belowTooltipTexts = await visibleTooltipTexts()
@@ -3955,7 +3955,7 @@ async function measureHistoryEntryExpansionSurfaceHitArea(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await waitForNoHistoryEntryExpansion(session)
 
@@ -3967,14 +3967,14 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
     width: 1400,
     height: 260,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.history-entry-list')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.history-entry-list')?.scrollTo(0, 0)`,
   })
   await Promise.all([
     waitForDashboardSettled(session),
-    waitForScrollTop(session, '.history-entry-list')
+    waitForScrollTop(session, '.history-entry-list'),
   ])
 
   const target = await evaluateWithNavigationRetry(session, {
@@ -4058,7 +4058,7 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected a history-panel entry to hover for expansion wheel smoke test')
@@ -4092,19 +4092,19 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
         thumbHeight: Math.round(thumbRect.height * 100) / 100,
         viewportWidth: window.innerWidth
       }
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: scrollbarGeometry.revealPoint.x,
-    y: scrollbarGeometry.revealPoint.y
+    y: scrollbarGeometry.revealPoint.y,
   })
   await wait(60)
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   const first = await waitForHistoryEntryExpansionRect(session, 'Low score history item with enough tooltip text')
   await waitForHistoryScrollbarThumbOpacity(session, '1')
@@ -4136,7 +4136,7 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
         rowExpandedOpen: row?.classList.contains('history-entry-row-expanded-open') || false,
         expandedOpen: entry?.classList.contains('history-entry-expanded-open') || false
       }
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   const scrollbarOverlapState = await evaluateWithNavigationRetry(session, {
@@ -4219,28 +4219,28 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
         shiftedHitInputShield: !!(shiftedNode instanceof Element && shiftedNode.closest('.history-entry-scrollbar-input-shield')),
         shiftedHitInsideHistoryList: !!(shiftedNode instanceof Element && shiftedNode.closest('.history-entry-list'))
       }
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   const expandedPoint = {
     x: Math.round(first.left + first.width / 2),
-    y: Math.round(first.top + first.height / 2)
+    y: Math.round(first.top + first.height / 2),
   }
   assert.ok(
     first.right > target.slotRight + 8,
-    `history original-slot leave smoke needs an expanded-only horizontal area: ${JSON.stringify({ target, first })}`
+    `history original-slot leave smoke needs an expanded-only horizontal area: ${JSON.stringify({ target, first })}`,
   )
   const expandedOnlyPoint = {
     x: Math.round(Math.min(first.right - 4, target.slotRight + 16)),
-    y: Math.round((Math.max(first.top, target.slotTop) + Math.min(first.bottom, target.slotBottom)) / 2)
+    y: Math.round((Math.max(first.top, target.slotTop) + Math.min(first.bottom, target.slotBottom)) / 2),
   }
   assert.ok(
     expandedOnlyPoint.x > target.slotRight + 1 && expandedOnlyPoint.x < first.right,
-    `history original-slot leave point should be outside the original slot and inside the expanded entry: ${JSON.stringify({ target, first, expandedOnlyPoint })}`
+    `history original-slot leave point should be outside the original slot and inside the expanded entry: ${JSON.stringify({ target, first, expandedOnlyPoint })}`,
   )
-	  const expandedOnlyHitTarget = await evaluateWithNavigationRetry(session, {
-	    returnByValue: true,
-	    expression: `(() => {
+  const expandedOnlyHitTarget = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
 	      const expandedEntry = Array.from(document.querySelectorAll('.history-entry-expanded'))
 	        .find((candidate) => candidate.textContent?.includes('Low score history item with enough tooltip text'))
 	      const node = document.elementFromPoint(${JSON.stringify(expandedOnlyPoint.x)}, ${JSON.stringify(expandedOnlyPoint.y)})
@@ -4251,7 +4251,7 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
 	        text: entry?.textContent || '',
 	        visualText: expandedEntry?.textContent || ''
 	      }
-	    })()`
+	    })()`,
   }).then((result: any) => result.result.value)
 
   const expandedOnlyClipCheck = await evaluateWithNavigationRetry(session, {
@@ -4270,13 +4270,13 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
         hitInsideExpanded: !!entry,
         text: entry?.textContent || ''
       }
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: expandedOnlyPoint.x,
-    y: expandedOnlyPoint.y
+    y: expandedOnlyPoint.y,
   })
   await waitForNoHistoryEntryExpansion(session)
   const afterOriginalSlotLeave = null
@@ -4284,7 +4284,7 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   const reopened = await waitForHistoryEntryExpansionRect(session, 'Low score history item with enough tooltip text')
   assert.ok(reopened, `history entry should reopen before wheel check: ${JSON.stringify({ target, first, afterOriginalSlotLeave })}`)
@@ -4296,7 +4296,7 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
         dashboardScrollTop: document.querySelector('.scroll-region')?.scrollTop ?? 0,
         historyScrollTop: document.querySelector('.history-entry-list')?.scrollTop ?? 0
       }
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   const wheelDeltaY = beforeScrollTop.historyScrollTop >= target.listMaxScrollTop - 1 ? -18 : 18
@@ -4306,7 +4306,7 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
       deltaX: 0,
       deltaY: wheelDeltaY,
       x: target.x,
-      y: target.y
+      y: target.y,
     })
     await wait(60)
   }
@@ -4323,13 +4323,13 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
         expansionCount: document.querySelectorAll('.history-entry-expanded').length,
         tooltipCount: document.querySelectorAll('[data-slot="tooltip-content"]').length
       }
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await waitForNoTitleExpansion(session)
 
@@ -4338,7 +4338,7 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
     expression: `(() => ({
       expansionCount: document.querySelectorAll('.history-entry-expanded').length,
       tooltipCount: document.querySelectorAll('[data-slot="tooltip-content"]').length
-    }))()`
+    }))()`,
   }).then((result: any) => result.result.value)
 
   return { target, first, scrollbarGeometry, scrollbarOverlapState, expandedPoint, expandedOnlyPoint, expandedOnlyClipCheck, expandedOnlyHitTarget, afterOriginalSlotLeave, tooltipOpenEntryState, beforeScrollTop, wheelDeltaY, after, afterLeaveExpansionState }
@@ -4347,70 +4347,70 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
 function assertHistoryScrollbarLayering(result: Awaited<ReturnType<typeof measureHistoryEntryExpansionWheelScroll>>) {
   assert.ok(
     result.scrollbarOverlapState?.overlapPoint,
-    `history scrollbar overlap smoke needs the visible thumb and expanded entry to intersect: ${JSON.stringify(result.scrollbarOverlapState)}`
+    `history scrollbar overlap smoke needs the visible thumb and expanded entry to intersect: ${JSON.stringify(result.scrollbarOverlapState)}`,
   )
   assert.equal(
     result.scrollbarOverlapState?.clipPath,
     'none',
-    `history scrollbar should not rely on a fixed geometry cutout: ${JSON.stringify(result.scrollbarOverlapState)}`
+    `history scrollbar should not rely on a fixed geometry cutout: ${JSON.stringify(result.scrollbarOverlapState)}`,
   )
   assert.equal(
     result.scrollbarOverlapState?.thumbOpacity,
     '1',
-    `history scrollbar should remain visible while the expanded entry covers only their overlap: ${JSON.stringify(result.scrollbarOverlapState)}`
+    `history scrollbar should remain visible while the expanded entry covers only their overlap: ${JSON.stringify(result.scrollbarOverlapState)}`,
   )
   assert.ok(
     result.scrollbarOverlapState?.visibleThumbLength > 1,
-    `history scrollbar should retain a visible thumb segment outside the expanded entry: ${JSON.stringify(result.scrollbarOverlapState)}`
+    `history scrollbar should retain a visible thumb segment outside the expanded entry: ${JSON.stringify(result.scrollbarOverlapState)}`,
   )
   assert.equal(
     result.scrollbarOverlapState?.visibleThumbHitScrollbar,
     true,
-    `the uncovered thumb segment should remain pointer-interactive: ${JSON.stringify(result.scrollbarOverlapState)}`
+    `the uncovered thumb segment should remain pointer-interactive: ${JSON.stringify(result.scrollbarOverlapState)}`,
   )
   assert.equal(
     result.scrollbarOverlapState?.hitScrollbar,
     false,
-    `expanded history entry should keep the covered scrollbar band from receiving input: ${JSON.stringify(result.scrollbarOverlapState)}`
+    `expanded history entry should keep the covered scrollbar band from receiving input: ${JSON.stringify(result.scrollbarOverlapState)}`,
   )
   assert.equal(
     result.scrollbarOverlapState?.hitExpanded,
     true,
-    `expanded history entry should own its scrollbar overlap under production pointer events: ${JSON.stringify(result.scrollbarOverlapState)}`
+    `expanded history entry should own its scrollbar overlap under production pointer events: ${JSON.stringify(result.scrollbarOverlapState)}`,
   )
   assert.equal(
     result.scrollbarOverlapState?.hitInputShield,
     true,
-    `expanded history entry should expose its narrow scrollbar input shield at the overlap: ${JSON.stringify(result.scrollbarOverlapState)}`
+    `expanded history entry should expose its narrow scrollbar input shield at the overlap: ${JSON.stringify(result.scrollbarOverlapState)}`,
   )
   assert.equal(
     result.scrollbarOverlapState?.hitInsideHistoryList,
     true,
-    `wheel input over the covered scrollbar band should stay in the history scroller event path: ${JSON.stringify(result.scrollbarOverlapState)}`
+    `wheel input over the covered scrollbar band should stay in the history scroller event path: ${JSON.stringify(result.scrollbarOverlapState)}`,
   )
   assert.ok(
     result.scrollbarOverlapState?.shiftedEntryTop > result.scrollbarOverlapState.entryRect.top + 20,
-    `history stacking probe should move the expanded entry away from its initial scrollbar overlap: ${JSON.stringify(result.scrollbarOverlapState)}`
+    `history stacking probe should move the expanded entry away from its initial scrollbar overlap: ${JSON.stringify(result.scrollbarOverlapState)}`,
   )
   assert.equal(
     result.scrollbarOverlapState?.shiftedHitScrollbar,
     false,
-    `the shifted expanded entry should continue painting above the scrollbar: ${JSON.stringify(result.scrollbarOverlapState)}`
+    `the shifted expanded entry should continue painting above the scrollbar: ${JSON.stringify(result.scrollbarOverlapState)}`,
   )
   assert.equal(
     result.scrollbarOverlapState?.shiftedHitExpanded,
     true,
-    `the moving expanded entry should carry the scrollbar redaction with it: ${JSON.stringify(result.scrollbarOverlapState)}`
+    `the moving expanded entry should carry the scrollbar redaction with it: ${JSON.stringify(result.scrollbarOverlapState)}`,
   )
   assert.equal(
     result.scrollbarOverlapState?.shiftedHitInputShield,
     true,
-    `the moving expanded entry should carry its scrollbar input shield with it: ${JSON.stringify(result.scrollbarOverlapState)}`
+    `the moving expanded entry should carry its scrollbar input shield with it: ${JSON.stringify(result.scrollbarOverlapState)}`,
   )
   assert.equal(
     result.scrollbarOverlapState?.shiftedHitInsideHistoryList,
     true,
-    `the shifted scrollbar input shield should remain in the history scroller event path: ${JSON.stringify(result.scrollbarOverlapState)}`
+    `the shifted scrollbar input shield should remain in the history scroller event path: ${JSON.stringify(result.scrollbarOverlapState)}`,
   )
 }
 
@@ -4419,17 +4419,17 @@ async function measureHistoryLeftGutterWheelScroll(session: CdpSession) {
     width: 1800,
     height: 260,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
     expression: `(() => {
       document.querySelector('.history-entry-list')?.scrollTo(0, 0)
       document.querySelector('.scroll-region')?.scrollTo(0, 0)
-    })()`
+    })()`,
   })
   await Promise.all([
     waitForDashboardSettled(session),
-    waitForScrollTop(session, '.history-entry-list')
+    waitForScrollTop(session, '.history-entry-list'),
   ])
 
   const target = await evaluateWithNavigationRetry(session, {
@@ -4465,7 +4465,7 @@ async function measureHistoryLeftGutterWheelScroll(session: CdpSession) {
         hitAreaWidth: Math.round(hitAreaRect.width * 100) / 100,
         viewportWidth: window.innerWidth
       }
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected history left gutter target to be measurable')
@@ -4475,13 +4475,13 @@ async function measureHistoryLeftGutterWheelScroll(session: CdpSession) {
     expression: `(() => ({
       dashboardScrollTop: document.querySelector('.scroll-region')?.scrollTop ?? 0,
       historyScrollTop: document.querySelector('.history-entry-list')?.scrollTop ?? 0
-    }))()`
+    }))()`,
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   await wait(80)
 
@@ -4491,7 +4491,7 @@ async function measureHistoryLeftGutterWheelScroll(session: CdpSession) {
       deltaX: 0,
       deltaY: 36,
       x: target.x,
-      y: target.y
+      y: target.y,
     })
     await wait(60)
   }
@@ -4502,7 +4502,7 @@ async function measureHistoryLeftGutterWheelScroll(session: CdpSession) {
     expression: `(() => ({
       dashboardScrollTop: document.querySelector('.scroll-region')?.scrollTop ?? 0,
       historyScrollTop: document.querySelector('.history-entry-list')?.scrollTop ?? 0
-    }))()`
+    }))()`,
   }).then((result: any) => result.result.value)
 
   return { target, beforeScrollTop, after }
@@ -4513,18 +4513,18 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
     width: 760,
     height: 620,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
     expression: `(() => {
       document.querySelector('.history-entry-list')?.scrollTo(0, 0)
       document.querySelector('.scroll-region')?.scrollTo(0, 0)
       document.scrollingElement?.scrollTo(0, 0)
-    })()`
+    })()`,
   })
   await Promise.all([
     waitForDashboardSettled(session),
-    waitForScrollTop(session, '.history-entry-list')
+    waitForScrollTop(session, '.history-entry-list'),
   ])
 
   async function readSnapshot() {
@@ -4657,7 +4657,7 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
           windowScrollX: window.scrollX,
           documentScrollLeft: document.scrollingElement?.scrollLeft || 0
         }
-      })()`
+      })()`,
     }).then((result: any) => result.result.value)
   }
 
@@ -4667,7 +4667,7 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: initial.historyRailTargetX,
-    y: initial.historyRailTargetY
+    y: initial.historyRailTargetY,
   })
   await wait(360)
   const afterHistoryRailHover = await readSnapshot()
@@ -4678,7 +4678,7 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: initial.historyThumbCenterX,
-    y: initial.historyThumbCenterY
+    y: initial.historyThumbCenterY,
   })
   await wait(360)
   const afterHistoryThumbHover = await readSnapshot()
@@ -4689,7 +4689,7 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
   const dragOffRailX = Math.max(20, initial.historyThumbCenterX - 220)
   const dragOffRailY = initial.historyThumbCenterY + 40
   await session.send('Input.dispatchMouseEvent', {
-    type: 'mousePressed', x: initial.historyThumbCenterX, y: initial.historyThumbCenterY, button: 'left', buttons: 1, clickCount: 1
+    type: 'mousePressed', x: initial.historyThumbCenterX, y: initial.historyThumbCenterY, button: 'left', buttons: 1, clickCount: 1,
   })
   await wait(60)
   await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: dragOffRailX, y: dragOffRailY, button: 'left', buttons: 1 })
@@ -4704,7 +4704,7 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: initial.historyTargetX,
-    y: initial.historyTargetY
+    y: initial.historyTargetY,
   })
   await wait(80)
   for (let index = 0; index < 5; index += 1) {
@@ -4713,7 +4713,7 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
       deltaX: 0,
       deltaY: 48,
       x: initial.historyTargetX,
-      y: initial.historyTargetY
+      y: initial.historyTargetY,
     })
     await wait(50)
   }
@@ -4723,7 +4723,7 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: initial.dashboardTargetX,
-    y: initial.dashboardTargetY
+    y: initial.dashboardTargetY,
   })
   await wait(80)
   for (let index = 0; index < 5; index += 1) {
@@ -4732,7 +4732,7 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
       deltaX: 0,
       deltaY: 48,
       x: initial.dashboardTargetX,
-      y: initial.dashboardTargetY
+      y: initial.dashboardTargetY,
     })
     await wait(50)
   }
@@ -4747,10 +4747,10 @@ async function measureTooltipWindowBlurClose(session: CdpSession) {
     width: 1000,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -4777,7 +4777,7 @@ async function measureTooltipWindowBlurClose(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected a page chip for expansion window-blur smoke test')
@@ -4785,19 +4785,19 @@ async function measureTooltipWindowBlurClose(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   const first = await waitForPageChipExpansionRect(session, PAGE_CHIP_EXPANSION_SMOKE_LABEL)
 
   await evaluateWithNavigationRetry(session, {
-    expression: `window.dispatchEvent(new Event('blur'))`
+    expression: `window.dispatchEvent(new Event('blur'))`,
   })
   await waitForNoTitleExpansion(session)
 
   const afterBlurTooltips = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
     expression: `Array.from(document.querySelectorAll('.page-chip-expanded'))
-      .map((chip) => chip.textContent || '')`
+      .map((chip) => chip.textContent || '')`,
   }).then((result: any) => result.result.value)
 
   return { target, first, afterBlurTooltips }
@@ -4808,10 +4808,10 @@ async function measureTooltipVisibilityChangeClose(session: CdpSession) {
     width: 1000,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -4838,7 +4838,7 @@ async function measureTooltipVisibilityChangeClose(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected a page chip for expansion visibility-change smoke test')
@@ -4846,13 +4846,13 @@ async function measureTooltipVisibilityChangeClose(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await wait(180)
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   const first = await waitForPageChipExpansionRect(session, PAGE_CHIP_EXPANSION_SMOKE_LABEL)
 
@@ -4878,14 +4878,14 @@ async function measureTooltipVisibilityChangeClose(session: CdpSession) {
           Object.defineProperty(Document.prototype, 'hidden', hiddenDescriptor)
         }
       }
-    })()`
+    })()`,
   })
   await waitForNoTitleExpansion(session)
 
   const afterVisibilityChangeTooltips = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
     expression: `Array.from(document.querySelectorAll('.page-chip-expanded'))
-      .map((chip) => chip.textContent || '')`
+      .map((chip) => chip.textContent || '')`,
   }).then((result: any) => result.result.value)
 
   return { target, first, afterVisibilityChangeTooltips }
@@ -4896,10 +4896,10 @@ async function measureActionTooltipClickClose(session: CdpSession) {
     width: 1000,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -4924,7 +4924,7 @@ async function measureActionTooltipClickClose(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected a pin button for tooltip click-close smoke test')
@@ -4932,7 +4932,7 @@ async function measureActionTooltipClickClose(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   const first = await waitForTooltipRect(session)
 
@@ -4942,7 +4942,7 @@ async function measureActionTooltipClickClose(session: CdpSession) {
     buttons: 1,
     clickCount: 1,
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseReleased',
@@ -4950,14 +4950,14 @@ async function measureActionTooltipClickClose(session: CdpSession) {
     buttons: 0,
     clickCount: 1,
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   await wait(120)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await waitForNoVisibleTooltip(session)
 
@@ -4965,7 +4965,7 @@ async function measureActionTooltipClickClose(session: CdpSession) {
 
   const focusedAfterLeave = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
-    expression: `document.activeElement?.matches('[data-tabout-part="section-pin-button"]') || false`
+    expression: `document.activeElement?.matches('[data-tabout-part="section-pin-button"]') || false`,
   }).then((result: any) => result.result.value)
 
   return { target, first, afterLeaveTooltips, focusedAfterLeave }
@@ -4976,10 +4976,10 @@ async function measureMarkerToChipTooltipHandoff(session: CdpSession) {
     width: 1000,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -5013,7 +5013,7 @@ async function measureMarkerToChipTooltipHandoff(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected a chip with a strip indicator for expansion handoff smoke test')
@@ -5021,25 +5021,25 @@ async function measureMarkerToChipTooltipHandoff(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.markerX,
-    y: target.y
+    y: target.y,
   })
   const markerTooltipExpansion = await waitForPageChipExpansionRect(session, 'Hover Handoff Title')
   const markerTooltip = {
     found: !!markerTooltipExpansion,
     expansion: markerTooltipExpansion,
-    tooltips: await getVisibleTooltipTexts(session)
+    tooltips: await getVisibleTooltipTexts(session),
   }
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.textX,
-    y: target.y
+    y: target.y,
   })
   const chipTooltipExpansion = await waitForPageChipExpansionRect(session, 'Hover Handoff Title')
   const chipTooltip = {
     found: !!chipTooltipExpansion,
     expansion: chipTooltipExpansion,
-    tooltips: await getVisibleTooltipTexts(session)
+    tooltips: await getVisibleTooltipTexts(session),
   }
 
   return { target, markerTooltip, chipTooltip }
@@ -5050,7 +5050,7 @@ async function measureShortChipTooltipAbsence(session: CdpSession) {
     width: 1000,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
 
   const target = await evaluateWithNavigationRetry(session, {
@@ -5076,7 +5076,7 @@ async function measureShortChipTooltipAbsence(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected a short page chip to hover for tooltip absence smoke test')
@@ -5084,13 +5084,13 @@ async function measureShortChipTooltipAbsence(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.startX,
-    y: target.y
+    y: target.y,
   })
   await wait(650)
 
   const tooltipCount = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
-    expression: `document.querySelectorAll('[data-slot="tooltip-content"]').length`
+    expression: `document.querySelectorAll('[data-slot="tooltip-content"]').length`,
   }).then((result: any) => result.result.value)
 
   return { target, tooltipCount }
@@ -5101,10 +5101,10 @@ async function measureTooltipEdgeFlip(session: CdpSession) {
     width: 1000,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -5140,7 +5140,7 @@ async function measureTooltipEdgeFlip(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected a right-edge page chip to hover for expansion smoke test')
@@ -5149,7 +5149,7 @@ async function measureTooltipEdgeFlip(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.startX,
-    y: target.y
+    y: target.y,
   })
   const first = await waitForPageChipExpansionRect(session, 'viewport-edge')
 
@@ -5161,14 +5161,14 @@ async function measureCompactTitleVariantExpansion(session: CdpSession) {
     width: 1000,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
-    expression: `window.__tabOutSmokeAddCompactTitleVariantTabs?.()`
+    expression: `window.__tabOutSmokeAddCompactTitleVariantTabs?.()`,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -5222,7 +5222,7 @@ async function measureCompactTitleVariantExpansion(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected compact same-title URL variant chip for expansion width smoke')
@@ -5230,7 +5230,7 @@ async function measureCompactTitleVariantExpansion(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   const expansion = await waitForPageChipExpansionRect(session, 'Order Page')
   const expandedVariantLabels = await evaluateWithNavigationRetry(session, {
@@ -5247,13 +5247,13 @@ async function measureCompactTitleVariantExpansion(session: CdpSession) {
           width: Math.round(rect.width * 100) / 100
         }
       })
-    })()`
+    })()`,
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await waitForNoPageChipExpansion(session)
 
@@ -5265,14 +5265,14 @@ async function measurePlainTitleVariantEdgeExpansion(session: CdpSession) {
     width: 1000,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
-    expression: `window.__tabOutSmokeAddPlainTitleVariantTabs?.()`
+    expression: `window.__tabOutSmokeAddPlainTitleVariantTabs?.()`,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -5377,7 +5377,7 @@ async function measurePlainTitleVariantEdgeExpansion(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target?.surfaces, `expected plain same-title URL variant chip for edge expansion smoke: ${JSON.stringify(target)}`)
@@ -5400,13 +5400,13 @@ async function measurePlainTitleVariantEdgeExpansion(session: CdpSession) {
           chipHovered: !!(chip instanceof HTMLElement && chip.matches(':hover')),
           slotHovered: !!(slot instanceof HTMLElement && slot.matches(':hover'))
         }
-      })()`
+      })()`,
     }).then((result: any) => result.result.value)
 
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
-      x: (point as { x: number; y: number }).x,
-      y: (point as { x: number; y: number }).y
+      x: (point as { x: number, y: number }).x,
+      y: (point as { x: number, y: number }).y,
     })
     const expansion = await waitForPageChipExpansionRect(session, 'Plain Title Variant')
     const expandedVariantLabels = await evaluateWithNavigationRetry(session, {
@@ -5419,7 +5419,7 @@ async function measurePlainTitleVariantEdgeExpansion(session: CdpSession) {
           scrollWidth: Math.round((label.scrollWidth || 0) * 100) / 100,
           text: label.textContent || ''
         }))
-      })()`
+      })()`,
     }).then((result: any) => result.result.value)
     const hoverState = await evaluateWithNavigationRetry(session, {
       returnByValue: true,
@@ -5443,7 +5443,7 @@ async function measurePlainTitleVariantEdgeExpansion(session: CdpSession) {
           chipHovered: !!(chip instanceof HTMLElement && chip.matches(':hover')),
           slotHovered: !!(slot instanceof HTMLElement && slot.matches(':hover'))
         }
-      })()`
+      })()`,
     }).then((result: any) => result.result.value)
 
     surfaceResults.push({ expandedVariantLabels, expansion, hoverState, point, preHoverState, surface })
@@ -5451,7 +5451,7 @@ async function measurePlainTitleVariantEdgeExpansion(session: CdpSession) {
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
       x: 8,
-      y: 8
+      y: 8,
     })
     await waitForNoPageChipExpansion(session)
   }
@@ -5464,14 +5464,14 @@ async function measureWrappedTitleVariantExpansion(session: CdpSession) {
     width: 1000,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
-    expression: `window.__tabOutSmokeAddWrappedTitleVariantTabs?.()`
+    expression: `window.__tabOutSmokeAddWrappedTitleVariantTabs?.()`,
   })
   await evaluateWithNavigationRetry(session, {
-    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`,
   })
   await waitForDashboardSettled(session)
 
@@ -5524,7 +5524,7 @@ async function measureWrappedTitleVariantExpansion(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   assert.ok(target, 'expected wrapped same-title URL variant chip for expansion width smoke')
@@ -5532,7 +5532,7 @@ async function measureWrappedTitleVariantExpansion(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
-    y: target.y
+    y: target.y,
   })
   const expansion = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -5567,13 +5567,13 @@ async function measureWrappedTitleVariantExpansion(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: 8,
-    y: 8
+    y: 8,
   })
   await waitForNoPageChipExpansion(session)
 
@@ -5585,11 +5585,11 @@ async function measureDuplicateStackGeometry(session: CdpSession) {
     width: 1000,
     height: 900,
     deviceScaleFactor: 1,
-    mobile: false
+    mobile: false,
   })
   await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
-    expression: `window.__tabOutSmokeAddDuplicateStackTabs?.()`
+    expression: `window.__tabOutSmokeAddDuplicateStackTabs?.()`,
   })
 
   return evaluateWithNavigationRetry(session, {
@@ -5625,7 +5625,7 @@ async function measureDuplicateStackGeometry(session: CdpSession) {
         }
       }
       wait()
-    })`
+    })`,
   }).then((result: any) => result.result.value)
 }
 
@@ -5679,18 +5679,18 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.equal(historyLeftGutterScroll.target.listLeft, 0, `history scrollbox should bleed to the viewport edge on wide screens: ${JSON.stringify(historyLeftGutterScroll)}`)
   assert.ok(
     historyLeftGutterScroll.target.x >= historyLeftGutterScroll.target.hitAreaLeft &&
-      historyLeftGutterScroll.target.x <= historyLeftGutterScroll.target.hitAreaRight,
-    `history left gutter wheel target should land inside the scroll hit area: ${JSON.stringify(historyLeftGutterScroll)}`
+    historyLeftGutterScroll.target.x <= historyLeftGutterScroll.target.hitAreaRight,
+    `history left gutter wheel target should land inside the scroll hit area: ${JSON.stringify(historyLeftGutterScroll)}`,
   )
   assert.equal(historyLeftGutterScroll.target.hitPart, 'history-scroll-hit-area', `left gutter should hit the history scroll target: ${JSON.stringify(historyLeftGutterScroll)}`)
   assert.ok(
     historyLeftGutterScroll.after.historyScrollTop - historyLeftGutterScroll.beforeScrollTop.historyScrollTop > 72,
-    `wheel input in the left gutter should scroll activation history: ${JSON.stringify(historyLeftGutterScroll)}`
+    `wheel input in the left gutter should scroll activation history: ${JSON.stringify(historyLeftGutterScroll)}`,
   )
   assert.equal(
     historyLeftGutterScroll.after.dashboardScrollTop,
     historyLeftGutterScroll.beforeScrollTop.dashboardScrollTop,
-    `left gutter history scroll should not scroll the domain cards pane: ${JSON.stringify(historyLeftGutterScroll)}`
+    `left gutter history scroll should not scroll the domain cards pane: ${JSON.stringify(historyLeftGutterScroll)}`,
   )
 
   const narrowScrollbarEdges = await measureNarrowViewportScrollbarEdges(session)
@@ -5699,117 +5699,117 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.ok(narrowScrollbarEdges.afterDashboardWheel, `expected narrow dashboard wheel geometry: ${JSON.stringify(narrowScrollbarEdges)}`)
   assert.ok(
     Math.abs(narrowScrollbarEdges.initial.historyScrollbarRight - narrowScrollbarEdges.initial.viewportWidth) <= 1,
-    `narrow activation history scrollbar rail should reach the viewport right edge: ${JSON.stringify(narrowScrollbarEdges)}`
+    `narrow activation history scrollbar rail should reach the viewport right edge: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     Math.abs(narrowScrollbarEdges.initial.scrollRegionRight - narrowScrollbarEdges.initial.viewportWidth) <= 1,
-    `narrow dashboard scroll region should place the native rail at the viewport right edge: ${JSON.stringify(narrowScrollbarEdges)}`
+    `narrow dashboard scroll region should place the native rail at the viewport right edge: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     Math.abs(narrowScrollbarEdges.initial.historyTrackRight - narrowScrollbarEdges.initial.viewportWidth) <= 1,
-    `narrow activation history hover track should reach the viewport edge: ${JSON.stringify(narrowScrollbarEdges)}`
+    `narrow activation history hover track should reach the viewport edge: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     Math.abs(narrowScrollbarEdges.initial.historyScrollbarWidth - narrowScrollbarEdges.initial.scrollbarSize) <= 1,
-    `narrow activation history rail should use the shared scrollbar width: ${JSON.stringify(narrowScrollbarEdges)}`
+    `narrow activation history rail should use the shared scrollbar width: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     Math.abs(narrowScrollbarEdges.initial.historyTrackWidth - narrowScrollbarEdges.initial.scrollbarSize) <= 1,
-    `narrow activation history hover track should match the native rail width: ${JSON.stringify(narrowScrollbarEdges)}`
+    `narrow activation history hover track should match the native rail width: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     Math.abs(narrowScrollbarEdges.initial.historyThumbRight - narrowScrollbarEdges.initial.viewportWidth) <= 1,
-    `narrow activation history thumb box should reach the viewport edge like the native rail: ${JSON.stringify(narrowScrollbarEdges)}`
+    `narrow activation history thumb box should reach the viewport edge like the native rail: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     Math.abs(narrowScrollbarEdges.initial.historyThumbVisibleRight - (narrowScrollbarEdges.initial.viewportWidth - narrowScrollbarEdges.initial.scrollbarPadding)) <= 1,
-    `narrow activation history visible thumb should keep the shared scrollbar padding at the viewport edge: ${JSON.stringify(narrowScrollbarEdges)}`
+    `narrow activation history visible thumb should keep the shared scrollbar padding at the viewport edge: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     Math.abs(narrowScrollbarEdges.initial.historyThumbWidth - narrowScrollbarEdges.initial.scrollbarSize) <= 1,
-    `narrow activation history thumb box should match the native rail width: ${JSON.stringify(narrowScrollbarEdges)}`
+    `narrow activation history thumb box should match the native rail width: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     Math.abs(narrowScrollbarEdges.initial.historyThumbVisibleWidth - narrowScrollbarEdges.initial.scrollbarThumbSize) <= 1,
-    `narrow activation history visible thumb should use the shared visible thumb width: ${JSON.stringify(narrowScrollbarEdges)}`
+    `narrow activation history visible thumb should use the shared visible thumb width: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     Math.abs(narrowScrollbarEdges.afterHistoryRailHover.historyTrackWidth - narrowScrollbarEdges.initial.historyTrackWidth) <= 1,
-    `hovering activation history should not change the interactive track width: ${JSON.stringify(narrowScrollbarEdges)}`
+    `hovering activation history should not change the interactive track width: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     Math.abs(narrowScrollbarEdges.afterHistoryThumbHover.historyThumbVisibleWidth - narrowScrollbarEdges.initial.scrollbarThumbSizeHover) <= 1,
-    `hovering the activation history thumb should widen it to the shared hover thumb size: ${JSON.stringify(narrowScrollbarEdges)}`
+    `hovering the activation history thumb should widen it to the shared hover thumb size: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     narrowScrollbarEdges.afterHistoryThumbHover.historyThumbVisibleWidth > narrowScrollbarEdges.initial.historyThumbVisibleWidth + 1,
-    `hovering the activation history thumb should make it visibly wider than at rest: ${JSON.stringify(narrowScrollbarEdges)}`
+    `hovering the activation history thumb should make it visibly wider than at rest: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     Math.abs(narrowScrollbarEdges.afterHistoryThumbHover.historyThumbVisibleRight - (narrowScrollbarEdges.initial.viewportWidth - narrowScrollbarEdges.initial.scrollbarPaddingHover)) <= 1,
-    `the widened activation history thumb should stay inset by the hover padding, not flush to the edge: ${JSON.stringify(narrowScrollbarEdges)}`
+    `the widened activation history thumb should stay inset by the hover padding, not flush to the edge: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     Math.abs(narrowScrollbarEdges.afterHistoryThumbHover.historyTrackWidth - narrowScrollbarEdges.initial.scrollbarSize) <= 1,
-    `widening the thumb on hover should not change the reserved gutter width: ${JSON.stringify(narrowScrollbarEdges)}`
+    `widening the thumb on hover should not change the reserved gutter width: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     Math.abs(narrowScrollbarEdges.duringHistoryThumbDrag.historyThumbVisibleWidth - narrowScrollbarEdges.initial.scrollbarThumbSizeHover) <= 1,
-    `dragging the thumb with the pointer off the rail should keep it at hover width, not snap back: ${JSON.stringify(narrowScrollbarEdges)}`
+    `dragging the thumb with the pointer off the rail should keep it at hover width, not snap back: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.notEqual(narrowScrollbarEdges.initial.historyTrackCursor, 'grab', `activation history track should not use a grab cursor: ${JSON.stringify(narrowScrollbarEdges)}`)
   assert.notEqual(narrowScrollbarEdges.initial.historyThumbCursor, 'grab', `activation history thumb should not use a grab cursor: ${JSON.stringify(narrowScrollbarEdges)}`)
   assert.notEqual(narrowScrollbarEdges.afterHistoryRailHover.historyThumbCursor, 'grabbing', `activation history hover should not use a grabbing cursor: ${JSON.stringify(narrowScrollbarEdges)}`)
   assert.ok(
     Math.abs(narrowScrollbarEdges.initial.cardLeft - narrowScrollbarEdges.initial.pageGutter) <= 1,
-    `moving the native rail outward should keep dashboard card content at the page gutter: ${JSON.stringify(narrowScrollbarEdges)}`
+    `moving the native rail outward should keep dashboard card content at the page gutter: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     Math.abs(narrowScrollbarEdges.initial.filterLeft - narrowScrollbarEdges.initial.pageGutter) <= 1,
-    `moving the native rail outward should keep header/filter content at the page gutter: ${JSON.stringify(narrowScrollbarEdges)}`
+    `moving the native rail outward should keep header/filter content at the page gutter: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     narrowScrollbarEdges.initial.cardRight <= narrowScrollbarEdges.initial.viewportWidth - narrowScrollbarEdges.initial.pageGutter + 1,
-    `dashboard card content should stay inside the existing right content gutter: ${JSON.stringify(narrowScrollbarEdges)}`
+    `dashboard card content should stay inside the existing right content gutter: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     Math.abs(narrowScrollbarEdges.initial.headerControlsRight - narrowScrollbarEdges.initial.missionsRight) <= 1,
-    `narrow header controls should align to the scrollable missions grid, not the native scrollbar gutter: ${JSON.stringify(narrowScrollbarEdges)}`
+    `narrow header controls should align to the scrollable missions grid, not the native scrollbar gutter: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     Math.abs(narrowScrollbarEdges.initial.sourceSwitchRight - narrowScrollbarEdges.initial.missionsRight) <= 1,
-    `narrow source switch should align to the scrollable missions grid, not the native scrollbar gutter: ${JSON.stringify(narrowScrollbarEdges)}`
+    `narrow source switch should align to the scrollable missions grid, not the native scrollbar gutter: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     narrowScrollbarEdges.initial.documentScrollWidth <= narrowScrollbarEdges.initial.documentClientWidth + 1,
-    `narrow scrollbar rail should not introduce horizontal page overflow: ${JSON.stringify(narrowScrollbarEdges)}`
+    `narrow scrollbar rail should not introduce horizontal page overflow: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.equal(narrowScrollbarEdges.initial.windowScrollX, 0, `narrow viewport should not scroll the page horizontally: ${JSON.stringify(narrowScrollbarEdges)}`)
   assert.equal(narrowScrollbarEdges.initial.documentScrollLeft, 0, `narrow viewport should not move the document scroller horizontally: ${JSON.stringify(narrowScrollbarEdges)}`)
   assert.ok(
     narrowScrollbarEdges.initial.historyListScrollHeight > narrowScrollbarEdges.initial.historyListClientHeight + 8,
-    `narrow activation history smoke needs an independently scrollable history list: ${JSON.stringify(narrowScrollbarEdges)}`
+    `narrow activation history smoke needs an independently scrollable history list: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     narrowScrollbarEdges.initial.scrollRegionScrollHeight > narrowScrollbarEdges.initial.scrollRegionClientHeight + 8,
-    `narrow dashboard smoke needs an independently scrollable card list: ${JSON.stringify(narrowScrollbarEdges)}`
+    `narrow dashboard smoke needs an independently scrollable card list: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     narrowScrollbarEdges.afterHistoryWheel.historyListScrollTop - narrowScrollbarEdges.initial.historyListScrollTop > 96,
-    `wheel input over activation history should scroll history independently: ${JSON.stringify(narrowScrollbarEdges)}`
+    `wheel input over activation history should scroll history independently: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.equal(
     narrowScrollbarEdges.afterHistoryWheel.scrollRegionScrollTop,
     narrowScrollbarEdges.initial.scrollRegionScrollTop,
-    `wheel input over activation history should not scroll the dashboard cards: ${JSON.stringify(narrowScrollbarEdges)}`
+    `wheel input over activation history should not scroll the dashboard cards: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     narrowScrollbarEdges.afterDashboardWheel.scrollRegionScrollTop - narrowScrollbarEdges.afterHistoryWheel.scrollRegionScrollTop > 96,
-    `wheel input over dashboard cards should scroll the dashboard independently: ${JSON.stringify(narrowScrollbarEdges)}`
+    `wheel input over dashboard cards should scroll the dashboard independently: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     Math.abs(narrowScrollbarEdges.afterDashboardWheel.historyListScrollTop - narrowScrollbarEdges.afterHistoryWheel.historyListScrollTop) <= 1,
-    `wheel input over dashboard cards should not scroll activation history: ${JSON.stringify(narrowScrollbarEdges)}`
+    `wheel input over dashboard cards should not scroll activation history: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   // The native .scroll-region rail must actually render the custom
   // ::-webkit-scrollbar at the shared width. getBoundingClientRect cannot see a
@@ -5820,11 +5820,11 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   // reference bar that the browser never paints.
   assert.ok(
     Math.abs(narrowScrollbarEdges.initial.scrollRegionNativeTrackWidth - narrowScrollbarEdges.initial.scrollbarSize) <= 1,
-    `narrow dashboard scroll region must render the custom ::-webkit-scrollbar at the shared width, not a standard/overlay bar: ${JSON.stringify(narrowScrollbarEdges)}`
+    `narrow dashboard scroll region must render the custom ::-webkit-scrollbar at the shared width, not a standard/overlay bar: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
   assert.ok(
     Math.abs(narrowScrollbarEdges.initial.scrollRegionNativeTrackWidth - narrowScrollbarEdges.initial.historyScrollbarWidth) <= 1,
-    `narrow dashboard native rail and activation history rail must occupy the same width: ${JSON.stringify(narrowScrollbarEdges)}`
+    `narrow dashboard native rail and activation history rail must occupy the same width: ${JSON.stringify(narrowScrollbarEdges)}`,
   )
 
   const shortTooltip = await measureShortChipTooltipAbsence(session)
@@ -5872,12 +5872,12 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.equal(internalPointerMoveExpansion.before, 0, `internal pointer-move smoke should start without an expanded chip: ${JSON.stringify(internalPointerMoveExpansion)}`)
   assert.ok(
     internalPointerMoveExpansion.expansion?.text.includes('enough tooltip text'),
-    `page chip should expand when pointer movement starts inside the chip surface: ${JSON.stringify(internalPointerMoveExpansion)}`
+    `page chip should expand when pointer movement starts inside the chip surface: ${JSON.stringify(internalPointerMoveExpansion)}`,
   )
   assert.equal(
     internalPointerMoveExpansion.expansion?.visibleTooltipCount,
     0,
-    `internal pointer-move expansion should not create a tooltip popup: ${JSON.stringify(internalPointerMoveExpansion)}`
+    `internal pointer-move expansion should not create a tooltip popup: ${JSON.stringify(internalPointerMoveExpansion)}`,
   )
 
   const activeStateTooltip = await measureTooltipAfterActiveStateChanges(session)
@@ -5887,19 +5887,19 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.ok(activeStateTooltip.inactiveTooltip, `page chip should expand after the chip stops being active: ${JSON.stringify(activeStateTooltip)}`)
   assert.ok(
     Math.abs((activeStateTooltip.activeTooltip.textLeft || 0) - activeStateTooltip.activeTarget.textLeftExact) <= 0.1,
-    `expanded chip x-origin should stay precise after active state is applied: ${JSON.stringify(activeStateTooltip)}`
+    `expanded chip x-origin should stay precise after active state is applied: ${JSON.stringify(activeStateTooltip)}`,
   )
   assert.ok(
     Math.abs((activeStateTooltip.activeTooltip.textTop || 0) - activeStateTooltip.activeTarget.textTopExact) <= 0.1,
-    `expanded chip y-origin should stay precise after active state is applied: ${JSON.stringify(activeStateTooltip)}`
+    `expanded chip y-origin should stay precise after active state is applied: ${JSON.stringify(activeStateTooltip)}`,
   )
   assert.ok(
     Math.abs((activeStateTooltip.inactiveTooltip.textLeft || 0) - activeStateTooltip.inactiveTarget.textLeftExact) <= 0.1,
-    `expanded chip x-origin should stay precise after active state is removed: ${JSON.stringify(activeStateTooltip)}`
+    `expanded chip x-origin should stay precise after active state is removed: ${JSON.stringify(activeStateTooltip)}`,
   )
   assert.ok(
     Math.abs((activeStateTooltip.inactiveTooltip.textTop || 0) - activeStateTooltip.inactiveTarget.textTopExact) <= 0.1,
-    `expanded chip y-origin should stay precise after active state is removed: ${JSON.stringify(activeStateTooltip)}`
+    `expanded chip y-origin should stay precise after active state is removed: ${JSON.stringify(activeStateTooltip)}`,
   )
 
   const suppressionMarkerLines = []
@@ -5910,7 +5910,7 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.deepEqual(
     suppressionMarkerLineNumbers,
     [1, 2, 3],
-    `suppression marker expansion should keep marker labels on the same visible chip lines: ${JSON.stringify(suppressionMarkerLines)}`
+    `suppression marker expansion should keep marker labels on the same visible chip lines: ${JSON.stringify(suppressionMarkerLines)}`,
   )
   for (const line of suppressionMarkerLines) {
     assert.ok(line.result, `suppression marker expansion should expose marker geometry: ${JSON.stringify(line)}`)
@@ -5935,320 +5935,320 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
     await measurePageChipTooltipLineCount(session, 'Marker line two'),
     await measurePageChipTooltipLineCount(session, 'Marker line three', {
       forcedTextWidth: 168,
-      forcedMaxLines: 3
-    })
+      forcedMaxLines: 3,
+    }),
   ]
   assert.deepEqual(
     tooltipLineCounts.map(({ target }) => target.chipLineCount),
     [1, 2, 3],
-    `line-count smoke should cover one-, two-, and three-line chips: ${JSON.stringify(tooltipLineCounts)}`
+    `line-count smoke should cover one-, two-, and three-line chips: ${JSON.stringify(tooltipLineCounts)}`,
   )
   for (const lineCount of tooltipLineCounts) {
     assert.ok(lineCount.tooltip, `page chip should expand for line-count check: ${JSON.stringify(lineCount)}`)
     assert.equal(
       lineCount.tooltip.visibleTooltipCount,
       0,
-      `page chip line-count expansion should not create a tooltip popup: ${JSON.stringify(lineCount)}`
+      `page chip line-count expansion should not create a tooltip popup: ${JSON.stringify(lineCount)}`,
     )
     const isViewportConstrained = lineCount.tooltip.right >= lineCount.tooltip.viewportRight - 12
     if (isViewportConstrained) {
       assert.ok(
         lineCount.tooltip.tooltipLineCount >= lineCount.target.chipLineCount,
-        `regular page chip expansion may add rows only when constrained by the browser viewport edge: ${JSON.stringify(lineCount)}`
+        `regular page chip expansion may add rows only when constrained by the browser viewport edge: ${JSON.stringify(lineCount)}`,
       )
     } else {
       assert.equal(
         lineCount.tooltip.tooltipLineCount,
         lineCount.target.chipLineCount,
-        `regular page chip expansion should match the visible chip line count when viewport width allows it: ${JSON.stringify(lineCount)}`
+        `regular page chip expansion should match the visible chip line count when viewport width allows it: ${JSON.stringify(lineCount)}`,
       )
     }
     assert.ok(
       lineCount.tooltip.right <= lineCount.tooltip.viewportRight + 1,
-      `regular page chip expansion should stay within the browser viewport: ${JSON.stringify(lineCount)}`
+      `regular page chip expansion should stay within the browser viewport: ${JSON.stringify(lineCount)}`,
     )
     assert.ok(
       Math.abs(lineCount.tooltip.textLeft - lineCount.target.chipLeftExact) <= 0.1,
-      `regular page chip expansion text should keep the visible chip x-origin: ${JSON.stringify(lineCount)}`
+      `regular page chip expansion text should keep the visible chip x-origin: ${JSON.stringify(lineCount)}`,
     )
     assert.ok(
       Math.abs(lineCount.tooltip.textTop - lineCount.target.chipTopExact) <= 0.1,
-      `regular page chip expansion text should keep the visible chip y-origin: ${JSON.stringify(lineCount)}`
+      `regular page chip expansion text should keep the visible chip y-origin: ${JSON.stringify(lineCount)}`,
     )
     const normalizeLineText = (value: string) => value.replace(/\s+/g, ' ').trim()
     const chipLines = lineCount.target.chipLineTexts.map(normalizeLineText).filter(Boolean)
     const tooltipLines = lineCount.tooltip.tooltipLineTexts.map(normalizeLineText).filter(Boolean)
     assert.ok(
       tooltipLines.length >= chipLines.length,
-      `regular page chip expansion should keep at least the visible chip line rows: ${JSON.stringify(lineCount)}`
+      `regular page chip expansion should keep at least the visible chip line rows: ${JSON.stringify(lineCount)}`,
     )
     for (let index = 0; index < chipLines.length - 1; index += 1) {
       assert.equal(
         tooltipLines[index],
         chipLines[index],
-        `regular page chip expansion should preserve visible line breaks before the tail row: ${JSON.stringify(lineCount)}`
+        `regular page chip expansion should preserve visible line breaks before the tail row: ${JSON.stringify(lineCount)}`,
       )
     }
     const lastChipLine = chipLines.at(-1)
     const lastTooltipLine = tooltipLines[chipLines.length - 1]
     assert.ok(
       lastTooltipLine?.startsWith(lastChipLine),
-      `regular page chip expansion tail row should start with the same visible text before revealing more: ${JSON.stringify(lineCount)}`
+      `regular page chip expansion tail row should start with the same visible text before revealing more: ${JSON.stringify(lineCount)}`,
     )
   }
   const structuralTailTooltip = await measurePageChipTooltipLineCount(session, 'Tooltip Boundary Alpha', {
     forcedTextWidth: 170,
-    forcedMaxLines: 2
+    forcedMaxLines: 2,
   })
   assert.ok(structuralTailTooltip.tooltip, `structural-tail tooltip should open: ${JSON.stringify(structuralTailTooltip)}`)
   assert.equal(
     structuralTailTooltip.tooltip.tooltipLineCount,
     structuralTailTooltip.target.chipLineCount,
-    `structural-tail tooltip should keep the visible chip line count: ${JSON.stringify(structuralTailTooltip)}`
+    `structural-tail tooltip should keep the visible chip line count: ${JSON.stringify(structuralTailTooltip)}`,
   )
   assert.ok(
     structuralTailTooltip.tooltip.text.includes('Example Website') && structuralTailTooltip.tooltip.text.includes('Contentful'),
-    `structural-tail tooltip should expand compact suppression markers into text: ${JSON.stringify(structuralTailTooltip)}`
+    `structural-tail tooltip should expand compact suppression markers into text: ${JSON.stringify(structuralTailTooltip)}`,
   )
   assert.ok(
     structuralTailTooltip.tooltip.tooltipLineTexts[0]?.includes('Example Website'),
-    `structural-tail tooltip should widen enough for expanded non-tail suppression text instead of clipping it: ${JSON.stringify(structuralTailTooltip)}`
+    `structural-tail tooltip should widen enough for expanded non-tail suppression text instead of clipping it: ${JSON.stringify(structuralTailTooltip)}`,
   )
   assert.ok(
     !structuralTailTooltip.tooltip.tooltipLineTexts[0]?.includes('env-alpha') &&
-      structuralTailTooltip.tooltip.tooltipLineTexts[1]?.includes('env-alpha') &&
-      structuralTailTooltip.tooltip.tooltipLineTexts[1]?.includes('Contentful'),
-    `structural-tail tooltip should split before the structural marker without duplicating it: ${JSON.stringify(structuralTailTooltip)}`
+    structuralTailTooltip.tooltip.tooltipLineTexts[1]?.includes('env-alpha') &&
+    structuralTailTooltip.tooltip.tooltipLineTexts[1]?.includes('Contentful'),
+    `structural-tail tooltip should split before the structural marker without duplicating it: ${JSON.stringify(structuralTailTooltip)}`,
   )
   assert.ok(
     structuralTailTooltip.tooltip.width > structuralTailTooltip.target.chipWidth + 20,
-    `structural-tail tooltip should grow wider than the compact chip when non-tail markers expand: ${JSON.stringify(structuralTailTooltip)}`
+    `structural-tail tooltip should grow wider than the compact chip when non-tail markers expand: ${JSON.stringify(structuralTailTooltip)}`,
   )
   const oneLineStructuralTailTooltip = await measurePageChipTooltipLineCount(session, 'Tooltip Boundary Alpha', {
     forcedTextWidth: 130,
     forcedMaxLines: 1,
-    viewportWidth: 1600
+    viewportWidth: 1600,
   })
   assert.ok(oneLineStructuralTailTooltip.tooltip, `one-line structural-tail tooltip should open: ${JSON.stringify(oneLineStructuralTailTooltip)}`)
   assert.equal(
     oneLineStructuralTailTooltip.target.chipLineCount,
     1,
-    `one-line structural-tail smoke target should render as one visible chip line: ${JSON.stringify(oneLineStructuralTailTooltip)}`
+    `one-line structural-tail smoke target should render as one visible chip line: ${JSON.stringify(oneLineStructuralTailTooltip)}`,
   )
   assert.equal(
     oneLineStructuralTailTooltip.tooltip.tooltipLineCount,
     1,
-    `one-line structural-tail tooltip should widen enough to stay on one line: ${JSON.stringify(oneLineStructuralTailTooltip)}`
+    `one-line structural-tail tooltip should widen enough to stay on one line: ${JSON.stringify(oneLineStructuralTailTooltip)}`,
   )
   const wrappedContentfulScreenshotTooltip = await measurePageChipTooltipLineCount(session, 'Tooltip Screenshot Alpha', {
     forcedTextWidth: 280,
     forcedMaxLines: 2,
-    viewportWidth: 1600
+    viewportWidth: 1600,
   })
   assert.ok(wrappedContentfulScreenshotTooltip.tooltip, `wrapped Contentful tooltip should open: ${JSON.stringify(wrappedContentfulScreenshotTooltip)}`)
   assert.equal(
     wrappedContentfulScreenshotTooltip.target.chipLineCount,
     2,
-    `wrapped Contentful smoke target should render as two visible chip lines so line 2 carries only the trailing marker: ${JSON.stringify(wrappedContentfulScreenshotTooltip)}`
+    `wrapped Contentful smoke target should render as two visible chip lines so line 2 carries only the trailing marker: ${JSON.stringify(wrappedContentfulScreenshotTooltip)}`,
   )
   assert.equal(
     wrappedContentfulScreenshotTooltip.tooltip.tooltipLineCount,
     2,
-    `wrapped Contentful tooltip should split the expanded title into two rows even when chip line 2 has no text node: ${JSON.stringify(wrappedContentfulScreenshotTooltip)}`
+    `wrapped Contentful tooltip should split the expanded title into two rows even when chip line 2 has no text node: ${JSON.stringify(wrappedContentfulScreenshotTooltip)}`,
   )
   assert.ok(
     wrappedContentfulScreenshotTooltip.tooltip.tooltipLineTexts[0]?.includes('dev2') &&
-      !wrappedContentfulScreenshotTooltip.tooltip.tooltipLineTexts[1]?.includes('dev2') &&
-      wrappedContentfulScreenshotTooltip.tooltip.tooltipLineTexts[1]?.includes('Contentful'),
-    `wrapped Contentful tooltip should keep dev2 on row 1 and Contentful on row 2: ${JSON.stringify(wrappedContentfulScreenshotTooltip)}`
+    !wrappedContentfulScreenshotTooltip.tooltip.tooltipLineTexts[1]?.includes('dev2') &&
+    wrappedContentfulScreenshotTooltip.tooltip.tooltipLineTexts[1]?.includes('Contentful'),
+    `wrapped Contentful tooltip should keep dev2 on row 1 and Contentful on row 2: ${JSON.stringify(wrappedContentfulScreenshotTooltip)}`,
   )
   const wrappedTrailingMarkerTooltip = await measurePageChipTooltipLineCount(session, 'Wrap Trailing Marker Alpha', {
     forcedTextWidth: 230,
     forcedMaxLines: 2,
-    viewportWidth: 1600
+    viewportWidth: 1600,
   })
   assert.ok(wrappedTrailingMarkerTooltip.tooltip, `wrapped trailing-marker tooltip should open: ${JSON.stringify(wrappedTrailingMarkerTooltip)}`)
   assert.equal(
     wrappedTrailingMarkerTooltip.target.chipLineCount,
     2,
-    `wrapped trailing-marker chip should render as two visible lines so line 2 carries only the trailing suppression marker: ${JSON.stringify(wrappedTrailingMarkerTooltip)}`
+    `wrapped trailing-marker chip should render as two visible lines so line 2 carries only the trailing suppression marker: ${JSON.stringify(wrappedTrailingMarkerTooltip)}`,
   )
   assert.equal(
     wrappedTrailingMarkerTooltip.tooltip.tooltipLineCount,
     2,
-    `wrapped trailing-marker tooltip should split when the chip wraps with only a trailing suppression marker on line 2: ${JSON.stringify(wrappedTrailingMarkerTooltip)}`
+    `wrapped trailing-marker tooltip should split when the chip wraps with only a trailing suppression marker on line 2: ${JSON.stringify(wrappedTrailingMarkerTooltip)}`,
   )
   assert.ok(
     wrappedTrailingMarkerTooltip.tooltip.tooltipLineTexts[0]?.includes('Wrap Trailing Marker Alpha') &&
-      !wrappedTrailingMarkerTooltip.tooltip.tooltipLineTexts[0]?.includes('JIRA') &&
-      wrappedTrailingMarkerTooltip.tooltip.tooltipLineTexts[1]?.includes('JIRA'),
-    `wrapped trailing-marker tooltip should keep the title on row 1 and drop the JIRA marker onto row 2: ${JSON.stringify(wrappedTrailingMarkerTooltip)}`
+    !wrappedTrailingMarkerTooltip.tooltip.tooltipLineTexts[0]?.includes('JIRA') &&
+    wrappedTrailingMarkerTooltip.tooltip.tooltipLineTexts[1]?.includes('JIRA'),
+    `wrapped trailing-marker tooltip should keep the title on row 1 and drop the JIRA marker onto row 2: ${JSON.stringify(wrappedTrailingMarkerTooltip)}`,
   )
   assert.ok(
     wrappedTrailingMarkerTooltip.tooltip.tooltipLineOverflows.every((overflows: boolean) => !overflows),
-    `wrapped trailing-marker tooltip lines should not visually overflow: ${JSON.stringify(wrappedTrailingMarkerTooltip)}`
+    `wrapped trailing-marker tooltip lines should not visually overflow: ${JSON.stringify(wrappedTrailingMarkerTooltip)}`,
   )
   const splitStructuralTailTooltip = await measurePageChipTooltipLineCount(session, 'Tooltip Line Alpha', {
     forcedTextWidth: 310,
-    forcedMaxLines: 2
+    forcedMaxLines: 2,
   })
   assert.ok(splitStructuralTailTooltip.tooltip, `split structural-tail tooltip should open: ${JSON.stringify(splitStructuralTailTooltip)}`)
   assert.equal(
     splitStructuralTailTooltip.tooltip.tooltipLineCount,
     splitStructuralTailTooltip.target.chipLineCount,
-    `split structural-tail tooltip should keep the visible chip line count: ${JSON.stringify(splitStructuralTailTooltip)}`
+    `split structural-tail tooltip should keep the visible chip line count: ${JSON.stringify(splitStructuralTailTooltip)}`,
   )
   assert.ok(
     splitStructuralTailTooltip.tooltip.text.includes('Shared Website') && splitStructuralTailTooltip.tooltip.text.includes('Contentful'),
-    `split structural-tail tooltip should expand hidden website and source markers: ${JSON.stringify(splitStructuralTailTooltip)}`
+    `split structural-tail tooltip should expand hidden website and source markers: ${JSON.stringify(splitStructuralTailTooltip)}`,
   )
   assert.ok(
     !splitStructuralTailTooltip.tooltip.tooltipLineTexts[0]?.includes('Shared Website') &&
-      splitStructuralTailTooltip.tooltip.tooltipLineTexts[1]?.includes('Shared Website'),
-    `split structural-tail tooltip should keep the expanded website marker on the wrapped marker line: ${JSON.stringify(splitStructuralTailTooltip)}`
+    splitStructuralTailTooltip.tooltip.tooltipLineTexts[1]?.includes('Shared Website'),
+    `split structural-tail tooltip should keep the expanded website marker on the wrapped marker line: ${JSON.stringify(splitStructuralTailTooltip)}`,
   )
   assert.ok(
     !splitStructuralTailTooltip.tooltip.tooltipLineTexts[0]?.includes('env-beta'),
-    `split structural-tail tooltip should not duplicate the structural marker into the first row: ${JSON.stringify(splitStructuralTailTooltip)}`
+    `split structural-tail tooltip should not duplicate the structural marker into the first row: ${JSON.stringify(splitStructuralTailTooltip)}`,
   )
   assert.ok(
     splitStructuralTailTooltip.tooltip.tooltipLineTexts[1]?.includes('env-beta') && splitStructuralTailTooltip.tooltip.tooltipLineTexts[1]?.includes('Contentful'),
-    `split structural-tail tooltip should keep the structural label and trailing marker on the second visible line: ${JSON.stringify(splitStructuralTailTooltip)}`
+    `split structural-tail tooltip should keep the structural label and trailing marker on the second visible line: ${JSON.stringify(splitStructuralTailTooltip)}`,
   )
   assert.ok(
     splitStructuralTailTooltip.tooltip.tooltipLineOverflows.every((overflows: boolean) => !overflows),
-    `split structural-tail tooltip lines should not visually overflow: ${JSON.stringify(splitStructuralTailTooltip)}`
+    `split structural-tail tooltip lines should not visually overflow: ${JSON.stringify(splitStructuralTailTooltip)}`,
   )
   const edgeConstrainedTooltip = await measurePageChipTooltipLineCount(session, 'Tooltip Edge Alpha', {
     forcedTextWidth: 310,
-    forcedMaxLines: 2
+    forcedMaxLines: 2,
   })
   assert.ok(edgeConstrainedTooltip.tooltip, `edge-constrained tooltip should open: ${JSON.stringify(edgeConstrainedTooltip)}`)
   assert.ok(
     edgeConstrainedTooltip.tooltip.right <= edgeConstrainedTooltip.tooltip.viewportRight - 12,
-    `wrapped marker expansion should not grow to the browser viewport edge when the marker label fits on its wrapped line: ${JSON.stringify(edgeConstrainedTooltip)}`
+    `wrapped marker expansion should not grow to the browser viewport edge when the marker label fits on its wrapped line: ${JSON.stringify(edgeConstrainedTooltip)}`,
   )
   assert.ok(
     edgeConstrainedTooltip.tooltip.tooltipLineCount >= edgeConstrainedTooltip.target.chipLineCount,
-    `edge-constrained tooltip may add rows after it reaches the browser viewport edge: ${JSON.stringify(edgeConstrainedTooltip)}`
+    `edge-constrained tooltip may add rows after it reaches the browser viewport edge: ${JSON.stringify(edgeConstrainedTooltip)}`,
   )
   assert.ok(
     edgeConstrainedTooltip.tooltip.text.includes('Shared Website With Long Workspace Label For Tooltip Boundary') && edgeConstrainedTooltip.tooltip.text.includes('Contentful'),
-    `edge-constrained tooltip should still expose the expanded hidden markers: ${JSON.stringify(edgeConstrainedTooltip)}`
+    `edge-constrained tooltip should still expose the expanded hidden markers: ${JSON.stringify(edgeConstrainedTooltip)}`,
   )
   assert.ok(
     edgeConstrainedTooltip.tooltip.tooltipLineOverflows.every((overflows: boolean) => !overflows),
-    `edge-constrained tooltip lines should wrap instead of overflowing: ${JSON.stringify(edgeConstrainedTooltip)}`
+    `edge-constrained tooltip lines should wrap instead of overflowing: ${JSON.stringify(edgeConstrainedTooltip)}`,
   )
   const foldedTooltip = await measureFoldedPageChipTooltipTitleLineCount(session, 'Folded Tooltip Lenses', {
-    forcedTextWidth: 270
+    forcedTextWidth: 270,
   })
   assert.ok(foldedTooltip.tooltip, `folded chip should expand in place: ${JSON.stringify(foldedTooltip)}`)
   assert.equal(
     foldedTooltip.tooltip.visibleTooltipCount,
     0,
-    `folded chip expansion should not create a tooltip popup: ${JSON.stringify(foldedTooltip)}`
+    `folded chip expansion should not create a tooltip popup: ${JSON.stringify(foldedTooltip)}`,
   )
   assert.equal(
     foldedTooltip.target.titleLineCount,
     1,
-    `folded chip visible title row should fit on one line for this smoke: ${JSON.stringify(foldedTooltip)}`
+    `folded chip visible title row should fit on one line for this smoke: ${JSON.stringify(foldedTooltip)}`,
   )
   assert.equal(
     foldedTooltip.tooltip.titleLineCount,
     foldedTooltip.target.titleLineCount,
-    `folded chip expansion title row should match the visible title row line count: ${JSON.stringify(foldedTooltip)}`
+    `folded chip expansion title row should match the visible title row line count: ${JSON.stringify(foldedTooltip)}`,
   )
   assert.ok(
     foldedTooltip.tooltip.titleText.includes('Example Optical'),
-    `folded chip expansion should expand the hidden title marker inline: ${JSON.stringify(foldedTooltip)}`
+    `folded chip expansion should expand the hidden title marker inline: ${JSON.stringify(foldedTooltip)}`,
   )
   assert.ok(
     foldedTooltip.tooltip.envCount > 0,
-    `folded chip expansion should keep the existing env buttons in the chip: ${JSON.stringify(foldedTooltip)}`
+    `folded chip expansion should keep the existing env buttons in the chip: ${JSON.stringify(foldedTooltip)}`,
   )
   assert.ok(
     foldedTooltip.tooltip.textWidth > foldedTooltip.target.chipTextWidth,
-    `folded chip expansion should grow wider than the compact folded chip when hidden title text expands: ${JSON.stringify(foldedTooltip)}`
+    `folded chip expansion should grow wider than the compact folded chip when hidden title text expands: ${JSON.stringify(foldedTooltip)}`,
   )
   const foldedWrappedTooltip = await measureFoldedPageChipTooltipTitleLineCount(session, 'Folded Tooltip Lenses', {
-    forcedTextWidth: 160
+    forcedTextWidth: 160,
   })
   assert.ok(foldedWrappedTooltip.tooltip, `wrapped folded chip should expand in place: ${JSON.stringify(foldedWrappedTooltip)}`)
   assert.equal(
     foldedWrappedTooltip.tooltip.visibleTooltipCount,
     0,
-    `wrapped folded chip expansion should not create a tooltip popup: ${JSON.stringify(foldedWrappedTooltip)}`
+    `wrapped folded chip expansion should not create a tooltip popup: ${JSON.stringify(foldedWrappedTooltip)}`,
   )
   assert.ok(
     foldedWrappedTooltip.target.titleLineCount > 1,
-    `wrapped folded chip visible title row should span multiple lines for this smoke: ${JSON.stringify(foldedWrappedTooltip)}`
+    `wrapped folded chip visible title row should span multiple lines for this smoke: ${JSON.stringify(foldedWrappedTooltip)}`,
   )
   assert.equal(
     foldedWrappedTooltip.tooltip.titleLineCount,
     foldedWrappedTooltip.target.titleLineCount,
-    `wrapped folded chip expansion title row should keep the visible title line breaks: ${JSON.stringify(foldedWrappedTooltip)}`
+    `wrapped folded chip expansion title row should keep the visible title line breaks: ${JSON.stringify(foldedWrappedTooltip)}`,
   )
   assert.ok(
     foldedWrappedTooltip.tooltip.titleText.includes('Example Optical'),
-    `wrapped folded chip expansion should still expand the hidden title marker: ${JSON.stringify(foldedWrappedTooltip)}`
+    `wrapped folded chip expansion should still expand the hidden title marker: ${JSON.stringify(foldedWrappedTooltip)}`,
   )
   assert.ok(
     foldedWrappedTooltip.tooltip.envCount > 0,
-    `wrapped folded chip expansion should keep the existing env buttons in the chip: ${JSON.stringify(foldedWrappedTooltip)}`
+    `wrapped folded chip expansion should keep the existing env buttons in the chip: ${JSON.stringify(foldedWrappedTooltip)}`,
   )
   const foldedEnvHover = await measureFoldedEnvHoverTooltips(session, 'Folded Tooltip Lenses')
   assert.deepEqual(
     foldedEnvHover.tooltipTexts,
     [],
-    `hovering a folded env button should not open a tooltip: ${JSON.stringify(foldedEnvHover)}`
+    `hovering a folded env button should not open a tooltip: ${JSON.stringify(foldedEnvHover)}`,
   )
 
   const originalSlotLeave = await measurePageChipOriginalSlotLeave(session)
   assert.equal(
     originalSlotLeave.first.visibleTooltipCount,
     0,
-    `page chip expansion should not create a tooltip popup: ${JSON.stringify(originalSlotLeave)}`
+    `page chip expansion should not create a tooltip popup: ${JSON.stringify(originalSlotLeave)}`,
   )
   assert.ok(
     originalSlotLeave.afterOriginalSlotLeave,
-    `page chip should STAY expanded while the pointer is inside the grown bounds past the original slot, so the cursor can travel onto the revealed content instead of blinking shut at the seam: ${JSON.stringify(originalSlotLeave)}`
+    `page chip should STAY expanded while the pointer is inside the grown bounds past the original slot, so the cursor can travel onto the revealed content instead of blinking shut at the seam: ${JSON.stringify(originalSlotLeave)}`,
   )
   assert.ok(
     !originalSlotLeave.afterLeaveTooltips.some((text: string) => text === originalSlotLeave.first.text),
-    `page chip expansion should collapse once the pointer leaves the expanded chip entirely: ${JSON.stringify(originalSlotLeave)}`
+    `page chip expansion should collapse once the pointer leaves the expanded chip entirely: ${JSON.stringify(originalSlotLeave)}`,
   )
 
   const popupClickFocus = await measureTooltipPopupClickFocus(session)
   assert.equal(popupClickFocus.popupStyle?.cursor, 'default', `expanded page chip should keep the default cursor: ${JSON.stringify(popupClickFocus)}`)
   assert.equal(popupClickFocus.first.visibleTooltipCount, 0, `clickable expanded page chip should not create a tooltip popup: ${JSON.stringify(popupClickFocus)}`)
   assert.ok(
-    popupClickFocus.updates.some((update: { kind: string; args: [number, { active?: boolean }] }) => (
+    popupClickFocus.updates.some((update: { kind: string, args: [number, { active?: boolean }] }) => (
       update.kind === 'tab' && update.args[1]?.active === true
     )),
-    `clicking the expanded page chip should focus the matching tab: ${JSON.stringify(popupClickFocus)}`
+    `clicking the expanded page chip should focus the matching tab: ${JSON.stringify(popupClickFocus)}`,
   )
   assert.ok(
-    popupClickFocus.updates.some((update: { kind: string; args: [number, { focused?: boolean }] }) => (
+    popupClickFocus.updates.some((update: { kind: string, args: [number, { focused?: boolean }] }) => (
       update.kind === 'window' && update.args[1]?.focused === true
     )),
-    `clicking the expanded page chip should focus the matching window: ${JSON.stringify(popupClickFocus)}`
+    `clicking the expanded page chip should focus the matching window: ${JSON.stringify(popupClickFocus)}`,
   )
   const historyPopupClickFocus = await measureHistoryEntryExpansionClickFocus(session)
-	  assert.equal(historyPopupClickFocus.expandedStyle?.cursor, 'default', `expanded history entry should keep the default cursor: ${JSON.stringify(historyPopupClickFocus)}`)
-	  assert.equal(historyPopupClickFocus.expandedStyle?.pointerEvents, 'none', `expanded history entry should let native pointer and wheel input reach the original row underneath: ${JSON.stringify(historyPopupClickFocus)}`)
+  assert.equal(historyPopupClickFocus.expandedStyle?.cursor, 'default', `expanded history entry should keep the default cursor: ${JSON.stringify(historyPopupClickFocus)}`)
+  assert.equal(historyPopupClickFocus.expandedStyle?.pointerEvents, 'none', `expanded history entry should let native pointer and wheel input reach the original row underneath: ${JSON.stringify(historyPopupClickFocus)}`)
   assert.equal(historyPopupClickFocus.first.visibleTooltipCount, 0, `expanded history entry should not create a tooltip popup: ${JSON.stringify(historyPopupClickFocus)}`)
   assert.ok(
-    historyPopupClickFocus.updates.some((update: { kind: string; args: [number, { active?: boolean }] }) => (
+    historyPopupClickFocus.updates.some((update: { kind: string, args: [number, { active?: boolean }] }) => (
       update.kind === 'tab' && update.args[1]?.active === true
     )),
-    `clicking the expanded history entry should focus the matching tab: ${JSON.stringify(historyPopupClickFocus)}`
+    `clicking the expanded history entry should focus the matching tab: ${JSON.stringify(historyPopupClickFocus)}`,
   )
   assert.ok(
-    historyPopupClickFocus.updates.some((update: { kind: string; args: [number, { focused?: boolean }] }) => (
+    historyPopupClickFocus.updates.some((update: { kind: string, args: [number, { focused?: boolean }] }) => (
       update.kind === 'window' && update.args[1]?.focused === true
     )),
-    `clicking the expanded history entry should focus the matching window: ${JSON.stringify(historyPopupClickFocus)}`
+    `clicking the expanded history entry should focus the matching window: ${JSON.stringify(historyPopupClickFocus)}`,
   )
 
   const popupWheelScroll = await measureTooltipPopupWheelScroll(session)
@@ -6256,7 +6256,7 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.equal(popupWheelScroll.first.visibleTooltipCount, 0, `expanded page chip wheel target should not create a tooltip popup: ${JSON.stringify(popupWheelScroll)}`)
   assert.ok(
     popupWheelScroll.after.scrollTop - popupWheelScroll.beforeScrollTop > 72,
-    `repeated wheel input over an expanded page chip should keep scrolling the dashboard: ${JSON.stringify(popupWheelScroll)}`
+    `repeated wheel input over an expanded page chip should keep scrolling the dashboard: ${JSON.stringify(popupWheelScroll)}`,
   )
   // Scroll no longer dismisses the expansion on its own; this wheel input scrolls
   // far enough (144px) that the ~43px chip slot moves out from under the resting
@@ -6264,102 +6264,102 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.equal(
     popupWheelScroll.after.expandedCount,
     0,
-    `page chip expansion should close once the chip slot scrolls out from under the pointer: ${JSON.stringify(popupWheelScroll)}`
+    `page chip expansion should close once the chip slot scrolls out from under the pointer: ${JSON.stringify(popupWheelScroll)}`,
   )
   assert.equal(
     popupWheelScroll.afterLeaveExpandedCount,
     0,
-    `page chip expansion should stay closed after the pointer leaves the chip's slot area: ${JSON.stringify(popupWheelScroll)}`
+    `page chip expansion should stay closed after the pointer leaves the chip's slot area: ${JSON.stringify(popupWheelScroll)}`,
   )
 
   const historyPopupWheelScroll = await measureHistoryEntryExpansionWheelScroll(session)
   assertHistoryScrollbarLayering(historyPopupWheelScroll)
   assert.ok(
     Math.abs(historyPopupWheelScroll.first.titleLeft - historyPopupWheelScroll.target.titleLeftExact) <= 0.1,
-    `expanded history entry should keep the title text x-origin: ${JSON.stringify(historyPopupWheelScroll)}`
+    `expanded history entry should keep the title text x-origin: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.ok(
     Math.abs(historyPopupWheelScroll.first.titleTop - historyPopupWheelScroll.target.titleTopExact) <= 0.1,
-    `expanded history entry should keep the title text y-origin: ${JSON.stringify(historyPopupWheelScroll)}`
+    `expanded history entry should keep the title text y-origin: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.ok(
     historyPopupWheelScroll.scrollbarGeometry,
-    `history panel should render a local scrollbar mirror: ${JSON.stringify(historyPopupWheelScroll)}`
+    `history panel should render a local scrollbar mirror: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.ok(
     Math.abs(historyPopupWheelScroll.scrollbarGeometry.scrollbarRight - historyPopupWheelScroll.scrollbarGeometry.panelRight) <= 1,
-    `history scrollbar mirror should sit on the history panel edge: ${JSON.stringify(historyPopupWheelScroll)}`
+    `history scrollbar mirror should sit on the history panel edge: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.ok(
     historyPopupWheelScroll.scrollbarGeometry.listRight - historyPopupWheelScroll.scrollbarGeometry.scrollbarRight > 400,
-    `history scrollbox should stay wide for expansion while the visible scrollbar stays local: ${JSON.stringify(historyPopupWheelScroll)}`
+    `history scrollbox should stay wide for expansion while the visible scrollbar stays local: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.equal(
     historyPopupWheelScroll.scrollbarGeometry.nativeScrollbarWidth,
     'none',
-    `native history scrollbar should be hidden behind the local mirror: ${JSON.stringify(historyPopupWheelScroll)}`
+    `native history scrollbar should be hidden behind the local mirror: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.equal(historyPopupWheelScroll.first.visibleTooltipCount, 0, `history expansion should not create a tooltip popup: ${JSON.stringify(historyPopupWheelScroll)}`)
   assert.equal(
     historyPopupWheelScroll.tooltipOpenEntryState.expandedOpen,
     true,
-    `history entry should keep an explicit expanded-open class while expanded: ${JSON.stringify(historyPopupWheelScroll)}`
+    `history entry should keep an explicit expanded-open class while expanded: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.equal(
     historyPopupWheelScroll.tooltipOpenEntryState.rowExpandedOpen,
     true,
-    `dimmed history row should carry expanded-open state on the opacity owner while expanded: ${JSON.stringify(historyPopupWheelScroll)}`
+    `dimmed history row should carry expanded-open state on the opacity owner while expanded: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.ok(
     Number(historyPopupWheelScroll.tooltipOpenEntryState.expandedZIndex) > Number(historyPopupWheelScroll.tooltipOpenEntryState.scrollbarZIndex),
-    `expanded history entry should paint above the local scrollbar mirror: ${JSON.stringify(historyPopupWheelScroll)}`
+    `expanded history entry should paint above the local scrollbar mirror: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.equal(
     historyPopupWheelScroll.tooltipOpenEntryState.rowOpacity,
     '1',
-    `dimmed history row should use full opacity while hovered and expanded: ${JSON.stringify(historyPopupWheelScroll)}`
+    `dimmed history row should use full opacity while hovered and expanded: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.match(
     historyPopupWheelScroll.tooltipOpenEntryState.backgroundColor,
     /^(rgb|color)\(/,
-    `expanded history entry should use an opaque background: ${JSON.stringify(historyPopupWheelScroll)}`
+    `expanded history entry should use an opaque background: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.doesNotMatch(
     historyPopupWheelScroll.tooltipOpenEntryState.backgroundColor,
     /rgba\([^)]*, 0\.\d+\)/,
-    `expanded history entry background should not let content underneath show through: ${JSON.stringify(historyPopupWheelScroll)}`
+    `expanded history entry background should not let content underneath show through: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
-	  assert.ok(
-	    historyPopupWheelScroll.expandedOnlyHitTarget.visualText.includes('Low score history item'),
-	    `expanded history entry should remain visually rendered outside the original history pane: ${JSON.stringify(historyPopupWheelScroll)}`
-	  )
-	  assert.equal(
-	    historyPopupWheelScroll.expandedOnlyHitTarget.hitInsideExpanded,
-	    false,
-	    `expanded history entry should stay pointer-transparent so wheel input reaches the scroll list: ${JSON.stringify(historyPopupWheelScroll)}`
-	  )
+  assert.ok(
+    historyPopupWheelScroll.expandedOnlyHitTarget.visualText.includes('Low score history item'),
+    `expanded history entry should remain visually rendered outside the original history pane: ${JSON.stringify(historyPopupWheelScroll)}`,
+  )
+  assert.equal(
+    historyPopupWheelScroll.expandedOnlyHitTarget.hitInsideExpanded,
+    false,
+    `expanded history entry should stay pointer-transparent so wheel input reaches the scroll list: ${JSON.stringify(historyPopupWheelScroll)}`,
+  )
   assert.equal(
     historyPopupWheelScroll.expandedOnlyClipCheck.hitInsideExpanded,
     true,
-    `expanded history entry should remain visibly hit-testable outside the clipped history list when pointer events are enabled for measurement: ${JSON.stringify(historyPopupWheelScroll)}`
+    `expanded history entry should remain visibly hit-testable outside the clipped history list when pointer events are enabled for measurement: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.equal(
     historyPopupWheelScroll.afterOriginalSlotLeave,
     null,
-    `history entry should collapse when the pointer leaves the original entry slot, even inside the grown bounds: ${JSON.stringify(historyPopupWheelScroll)}`
+    `history entry should collapse when the pointer leaves the original entry slot, even inside the grown bounds: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.notEqual(
     historyPopupWheelScroll.target.titleWebkitLineClamp,
     '2',
-    `history entry title should use the PageChip fade mask instead of CSS line-clamp ellipsis: ${JSON.stringify(historyPopupWheelScroll)}`
+    `history entry title should use the PageChip fade mask instead of CSS line-clamp ellipsis: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.ok(
     historyPopupWheelScroll.target.titleMaskImage && historyPopupWheelScroll.target.titleMaskImage !== 'none',
-    `truncated history entry title should use a fade mask: ${JSON.stringify(historyPopupWheelScroll)}`
+    `truncated history entry title should use a fade mask: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.ok(
     historyPopupWheelScroll.target.titleHeight > historyPopupWheelScroll.target.titleLineHeight * 1.5,
-    `long history entry title should render as two visible lines: ${JSON.stringify(historyPopupWheelScroll)}`
+    `long history entry title should render as two visible lines: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   const historyFaviconHitArea = await measureHistoryEntryExpansionSurfaceHitArea(session)
   assert.ok(historyFaviconHitArea.above?.text.includes('Low score history item'), `hovering the vertical space above the history favicon should expand the entry: ${JSON.stringify(historyFaviconHitArea)}`)
@@ -6369,19 +6369,19 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.notEqual(
     historyPopupWheelScroll.first.webkitLineClamp,
     '2',
-    `expanded history entry should not reuse the clipped row's CSS line clamp: ${JSON.stringify(historyPopupWheelScroll)}`
+    `expanded history entry should not reuse the clipped row's CSS line clamp: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   const historyExpansionViewportConstrained = historyPopupWheelScroll.first.right >= historyPopupWheelScroll.first.viewportRight - 12
   if (historyExpansionViewportConstrained) {
     assert.ok(
       historyPopupWheelScroll.first.expandedLineCount >= historyPopupWheelScroll.target.titleLineCount,
-      `history expansion may add rows only when constrained by the browser viewport edge: ${JSON.stringify(historyPopupWheelScroll)}`
+      `history expansion may add rows only when constrained by the browser viewport edge: ${JSON.stringify(historyPopupWheelScroll)}`,
     )
   } else {
     assert.equal(
       historyPopupWheelScroll.first.expandedLineCount,
       historyPopupWheelScroll.target.titleLineCount,
-      `history expansion should match the visible history title line count when viewport width allows it: ${JSON.stringify(historyPopupWheelScroll)}`
+      `history expansion should match the visible history title line count when viewport width allows it: ${JSON.stringify(historyPopupWheelScroll)}`,
     )
   }
   const normalizeHistoryLineText = (value: string) => value.replace(/\s+/g, ' ').trim()
@@ -6389,63 +6389,63 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   const historyTooltipLines = historyPopupWheelScroll.first.expandedLineTexts.map(normalizeHistoryLineText).filter(Boolean)
   assert.ok(
     historyTooltipLines.length >= historyTitleLines.length,
-    `history expansion should keep at least the visible title line rows: ${JSON.stringify(historyPopupWheelScroll)}`
+    `history expansion should keep at least the visible title line rows: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   for (let index = 0; index < historyTitleLines.length - 1; index += 1) {
     assert.equal(
       historyTooltipLines[index],
       historyTitleLines[index],
-      `history expansion should preserve visible line breaks before the tail row: ${JSON.stringify(historyPopupWheelScroll)}`
+      `history expansion should preserve visible line breaks before the tail row: ${JSON.stringify(historyPopupWheelScroll)}`,
     )
   }
   assert.ok(
     historyTooltipLines[historyTitleLines.length - 1]?.startsWith(historyTitleLines[historyTitleLines.length - 1]),
-    `history expansion tail row should start with the same visible text before revealing more: ${JSON.stringify(historyPopupWheelScroll)}`
+    `history expansion tail row should start with the same visible text before revealing more: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.ok(
     (historyPopupWheelScroll.first.titleWidth || 0) > historyPopupWheelScroll.target.titleWidthExact + 8,
-    `history expansion title should expand beyond the clipped visible title width: ${JSON.stringify(historyPopupWheelScroll)}`
+    `history expansion title should expand beyond the clipped visible title width: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   if (!historyExpansionViewportConstrained) {
     assert.ok(
       Math.abs((historyPopupWheelScroll.first.titleHeight || 0) - historyPopupWheelScroll.target.titleHeight) <= 1,
-      `history expansion should keep the same two-line flow as the visible title when it can expand: ${JSON.stringify(historyPopupWheelScroll)}`
+      `history expansion should keep the same two-line flow as the visible title when it can expand: ${JSON.stringify(historyPopupWheelScroll)}`,
     )
   }
-	  assert.ok(
-	    historyPopupWheelScroll.target.listScrollHeight > historyPopupWheelScroll.target.listClientHeight,
-	    `history panel should be scrollable for popup-wheel check: ${JSON.stringify(historyPopupWheelScroll)}`
-	  )
-	  assert.equal(
-	    historyPopupWheelScroll.tooltipOpenEntryState.expandedInsideHistoryList,
-	    true,
-	    `expanded history entry should stay in the native scroll-list ancestry: ${JSON.stringify(historyPopupWheelScroll)}`
-	  )
-	  assert.equal(
-	    historyPopupWheelScroll.tooltipOpenEntryState.expandedInsidePanel,
-	    true,
-	    `expanded history entry should remain parented to the history panel instead of a portal layer: ${JSON.stringify(historyPopupWheelScroll)}`
-	  )
-	  assert.equal(
-	    historyPopupWheelScroll.tooltipOpenEntryState.expandedInsideDashboardShell,
-	    true,
-	    `expanded history entry should still stay within the dashboard shell: ${JSON.stringify(historyPopupWheelScroll)}`
-	  )
-	  assert.equal(
-	    historyPopupWheelScroll.tooltipOpenEntryState.expandedInsideOverlay,
-	    false,
-	    `expanded history entry should not rely on a sibling overlay for wheel scrolling: ${JSON.stringify(historyPopupWheelScroll)}`
-	  )
-	  assert.ok(
-	    historyPopupWheelScroll.wheelDeltaY > 0
-	      ? historyPopupWheelScroll.after.historyScrollTop > historyPopupWheelScroll.beforeScrollTop.historyScrollTop
+  assert.ok(
+    historyPopupWheelScroll.target.listScrollHeight > historyPopupWheelScroll.target.listClientHeight,
+    `history panel should be scrollable for popup-wheel check: ${JSON.stringify(historyPopupWheelScroll)}`,
+  )
+  assert.equal(
+    historyPopupWheelScroll.tooltipOpenEntryState.expandedInsideHistoryList,
+    true,
+    `expanded history entry should stay in the native scroll-list ancestry: ${JSON.stringify(historyPopupWheelScroll)}`,
+  )
+  assert.equal(
+    historyPopupWheelScroll.tooltipOpenEntryState.expandedInsidePanel,
+    true,
+    `expanded history entry should remain parented to the history panel instead of a portal layer: ${JSON.stringify(historyPopupWheelScroll)}`,
+  )
+  assert.equal(
+    historyPopupWheelScroll.tooltipOpenEntryState.expandedInsideDashboardShell,
+    true,
+    `expanded history entry should still stay within the dashboard shell: ${JSON.stringify(historyPopupWheelScroll)}`,
+  )
+  assert.equal(
+    historyPopupWheelScroll.tooltipOpenEntryState.expandedInsideOverlay,
+    false,
+    `expanded history entry should not rely on a sibling overlay for wheel scrolling: ${JSON.stringify(historyPopupWheelScroll)}`,
+  )
+  assert.ok(
+    historyPopupWheelScroll.wheelDeltaY > 0
+      ? historyPopupWheelScroll.after.historyScrollTop > historyPopupWheelScroll.beforeScrollTop.historyScrollTop
       : historyPopupWheelScroll.after.historyScrollTop < historyPopupWheelScroll.beforeScrollTop.historyScrollTop,
-    `repeated wheel input over an expanded history entry should keep scrolling the history panel: ${JSON.stringify(historyPopupWheelScroll)}`
+    `repeated wheel input over an expanded history entry should keep scrolling the history panel: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.equal(
     historyPopupWheelScroll.after.dashboardScrollTop,
     historyPopupWheelScroll.beforeScrollTop.dashboardScrollTop,
-    `wheel input over an expanded history entry should not scroll the dashboard pane first: ${JSON.stringify(historyPopupWheelScroll)}`
+    `wheel input over an expanded history entry should not scroll the dashboard pane first: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   // Scroll no longer dismisses the expansion on its own; this wheel input scrolls
   // the list ~72px, more than the ~43px entry slot, so the entry moves out from
@@ -6453,22 +6453,22 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.equal(
     historyPopupWheelScroll.after.expansionCount,
     0,
-    `history expansion should close once the entry slot scrolls out from under the pointer: ${JSON.stringify(historyPopupWheelScroll)}`
+    `history expansion should close once the entry slot scrolls out from under the pointer: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.equal(
     historyPopupWheelScroll.after.tooltipCount,
     0,
-    `history expansion should not leave a tooltip popup after wheel input: ${JSON.stringify(historyPopupWheelScroll)}`
+    `history expansion should not leave a tooltip popup after wheel input: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.equal(
     historyPopupWheelScroll.afterLeaveExpansionState.expansionCount,
     0,
-    `history expansion should stay closed after the pointer leaves the wheel-scrolled entry: ${JSON.stringify(historyPopupWheelScroll)}`
+    `history expansion should stay closed after the pointer leaves the wheel-scrolled entry: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
   assert.equal(
     historyPopupWheelScroll.afterLeaveExpansionState.tooltipCount,
     0,
-    `history expansion should not leave a tooltip popup after pointer leave: ${JSON.stringify(historyPopupWheelScroll)}`
+    `history expansion should not leave a tooltip popup after pointer leave: ${JSON.stringify(historyPopupWheelScroll)}`,
   )
 
   const windowBlurTooltip = await measureTooltipWindowBlurClose(session)
@@ -6480,7 +6480,7 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.deepEqual(
     visibilityTooltip.afterVisibilityChangeTooltips,
     [],
-    `page chip expansion should close synchronously when the page becomes hidden: ${JSON.stringify(visibilityTooltip)}`
+    `page chip expansion should close synchronously when the page becomes hidden: ${JSON.stringify(visibilityTooltip)}`,
   )
 
   const actionTooltip = await measureActionTooltipClickClose(session)
@@ -6493,7 +6493,7 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
     '.page-chip .chip-text',
     PAGE_CHIP_EXPANSION_SMOKE_LABEL,
     'page-chip',
-    '.chip-text'
+    '.chip-text',
   )
   assert.ok(pageChipReturnTooltip.first.found, `page chip should expand before click-return check: ${JSON.stringify(pageChipReturnTooltip)}`)
   assert.equal(pageChipReturnTooltip.afterReturnFocus?.active, true, `page chip should be refocused during click-return smoke test: ${JSON.stringify(pageChipReturnTooltip)}`)
@@ -6505,8 +6505,8 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.ok(markerHandoff.markerTooltip.found, `strip indicator hover should expand the page chip first: ${JSON.stringify(markerHandoff)}`)
   assert.ok(
     markerHandoff.markerTooltip.expansion?.text.includes('dev2') &&
-      markerHandoff.markerTooltip.expansion?.text.includes('Hover Handoff Title'),
-    `strip indicator should use chip-level in-place expansion instead of a marker-only tooltip: ${JSON.stringify(markerHandoff)}`
+    markerHandoff.markerTooltip.expansion?.text.includes('Hover Handoff Title'),
+    `strip indicator should use chip-level in-place expansion instead of a marker-only tooltip: ${JSON.stringify(markerHandoff)}`,
   )
   assert.deepEqual(markerHandoff.markerTooltip.tooltips, [], `strip indicator hover should not create a tooltip popup: ${JSON.stringify(markerHandoff)}`)
   assert.ok(markerHandoff.chipTooltip.found, `page chip should remain expanded after moving from the strip indicator to chip text: ${JSON.stringify(markerHandoff)}`)
@@ -6522,101 +6522,101 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.ok(
     compactTitleVariantExpansion.expansion.width <= Math.max(
       compactTitleVariantExpansion.target.chipWidth,
-      compactTitleVariantExpansion.target.contentWidth + 72
+      compactTitleVariantExpansion.target.contentWidth + 72,
     ) + 1,
-    `compact same-title variant chip should not grow beyond its resting width/content budget when the content is short: ${JSON.stringify(compactTitleVariantExpansion)}`
+    `compact same-title variant chip should not grow beyond its resting width/content budget when the content is short: ${JSON.stringify(compactTitleVariantExpansion)}`,
   )
   assert.ok(
     compactTitleVariantExpansion.expansion.width >= compactTitleVariantExpansion.target.chipWidth - 1,
-    `compact same-title variant chip expansion should not shrink below its resting chip width: ${JSON.stringify(compactTitleVariantExpansion)}`
+    `compact same-title variant chip expansion should not shrink below its resting chip width: ${JSON.stringify(compactTitleVariantExpansion)}`,
   )
   assert.ok(
-    compactTitleVariantExpansion.expandedVariantLabels.every((label: { clientWidth: number; scrollWidth: number }) => label.scrollWidth - label.clientWidth <= 1),
-    `compact same-title variant chip expansion should keep its URL variant labels untruncated when viewport room allows: ${JSON.stringify(compactTitleVariantExpansion)}`
+    compactTitleVariantExpansion.expandedVariantLabels.every((label: { clientWidth: number, scrollWidth: number }) => label.scrollWidth - label.clientWidth <= 1),
+    `compact same-title variant chip expansion should keep its URL variant labels untruncated when viewport room allows: ${JSON.stringify(compactTitleVariantExpansion)}`,
   )
   const plainTitleVariantEdgeExpansion = await measurePlainTitleVariantEdgeExpansion(session)
   assert.ok(
     plainTitleVariantEdgeExpansion.target.surfaces.slotOnlyDefaultSurface,
-    `plain same-title variant smoke should find a slot-only default surface outside the rounded chip: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`
+    `plain same-title variant smoke should find a slot-only default surface outside the rounded chip: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`,
   )
   assert.ok(
     plainTitleVariantEdgeExpansion.target.overflowingLabels > 0,
-    `plain same-title variant smoke should start with a clipped URL distinguisher: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`
+    `plain same-title variant smoke should start with a clipped URL distinguisher: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`,
   )
   const slotOnlyTitleVariantSurface = plainTitleVariantEdgeExpansion.surfaceResults.find((surface: { surface: string }) => surface.surface === 'slotOnlyDefaultSurface')
   assert.ok(
     slotOnlyTitleVariantSurface?.preHoverState?.hitInsideSlot && !slotOnlyTitleVariantSurface?.preHoverState?.hitInsideChip,
-    `plain same-title variant slot-only surface should hover the slot without entering the rounded chip: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`
+    `plain same-title variant slot-only surface should hover the slot without entering the rounded chip: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`,
   )
   assert.ok(
     plainTitleVariantEdgeExpansion.surfaceResults.every((surface: { expansion: unknown }) => surface.expansion),
-    `plain same-title variant chip should expand from every highlighted hover surface: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`
+    `plain same-title variant chip should expand from every highlighted hover surface: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`,
   )
   assert.ok(
-    plainTitleVariantEdgeExpansion.surfaceResults.every((surface: { expansion: { left: number; right: number } | null }) =>
+    plainTitleVariantEdgeExpansion.surfaceResults.every((surface: { expansion: { left: number, right: number } | null }) =>
       surface.expansion &&
-        surface.expansion.left >= plainTitleVariantEdgeExpansion.target.chipLeft - 1 &&
-        surface.expansion.right <= plainTitleVariantEdgeExpansion.target.viewportRight - 12
+      surface.expansion.left >= plainTitleVariantEdgeExpansion.target.chipLeft - 1 &&
+      surface.expansion.right <= plainTitleVariantEdgeExpansion.target.viewportRight - 12,
     ),
-    `plain same-title variant chip should clamp to right-side room instead of growing left: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`
+    `plain same-title variant chip should clamp to right-side room instead of growing left: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`,
   )
   const wrappedTitleVariantExpansion = await measureWrappedTitleVariantExpansion(session)
   assert.equal(
     wrappedTitleVariantExpansion.target.titleLineCount,
     2,
-    `wrapped same-title variant title should start as two visible lines: ${JSON.stringify(wrappedTitleVariantExpansion)}`
+    `wrapped same-title variant title should start as two visible lines: ${JSON.stringify(wrappedTitleVariantExpansion)}`,
   )
   assert.ok(
     wrappedTitleVariantExpansion.target.markerCount > 0,
-    `wrapped same-title variant title should include a compact suppression marker: ${JSON.stringify(wrappedTitleVariantExpansion)}`
+    `wrapped same-title variant title should include a compact suppression marker: ${JSON.stringify(wrappedTitleVariantExpansion)}`,
   )
   assert.ok(wrappedTitleVariantExpansion.expansion, `wrapped same-title variant chip should expand in place: ${JSON.stringify(wrappedTitleVariantExpansion)}`)
   assert.ok(
     Math.abs(wrappedTitleVariantExpansion.expansion.width - wrappedTitleVariantExpansion.target.chipWidth) <= 1,
-    `wrapped same-title variant chip should not grow when expanded title text fits in the resting line count: ${JSON.stringify(wrappedTitleVariantExpansion)}`
+    `wrapped same-title variant chip should not grow when expanded title text fits in the resting line count: ${JSON.stringify(wrappedTitleVariantExpansion)}`,
   )
   assert.equal(
     wrappedTitleVariantExpansion.expansion.titleLineCount,
     wrappedTitleVariantExpansion.target.titleLineCount,
-    `wrapped same-title variant expansion should keep the resting title line count: ${JSON.stringify(wrappedTitleVariantExpansion)}`
+    `wrapped same-title variant expansion should keep the resting title line count: ${JSON.stringify(wrappedTitleVariantExpansion)}`,
   )
   assert.ok(
     wrappedTitleVariantExpansion.expansion.titleText.includes('Example Optical'),
-    `wrapped same-title variant expansion should reveal the suppressed title text: ${JSON.stringify(wrappedTitleVariantExpansion)}`
+    `wrapped same-title variant expansion should reveal the suppressed title text: ${JSON.stringify(wrappedTitleVariantExpansion)}`,
   )
 
   const duplicateStackGeometry = await measureDuplicateStackGeometry(session)
   assert.ok(duplicateStackGeometry, `duplicate page chip stack should render in the browser smoke harness: ${JSON.stringify(duplicateStackGeometry)}`)
   assert.ok(
     duplicateStackGeometry.frame.width <= 18 && duplicateStackGeometry.frame.height <= 18,
-    `duplicate page chip favicon stack frame should stay favicon-sized: ${JSON.stringify(duplicateStackGeometry)}`
+    `duplicate page chip favicon stack frame should stay favicon-sized: ${JSON.stringify(duplicateStackGeometry)}`,
   )
   assert.equal(duplicateStackGeometry.layers.length, 2, `duplicate page chip should render two stack layers for 4 copies: ${JSON.stringify(duplicateStackGeometry)}`)
   assert.ok(
-    duplicateStackGeometry.layers.every((layer: { width: number; height: number }) => layer.width <= 18 && layer.height <= 18),
-    `duplicate page chip stack layers should not stretch into a tall overlay: ${JSON.stringify(duplicateStackGeometry)}`
+    duplicateStackGeometry.layers.every((layer: { width: number, height: number }) => layer.width <= 18 && layer.height <= 18),
+    `duplicate page chip stack layers should not stretch into a tall overlay: ${JSON.stringify(duplicateStackGeometry)}`,
   )
 
   await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
-    expression: `window.__tabOutSmokeAddPathGroupPlaceholderTabs?.()`
+    expression: `window.__tabOutSmokeAddPathGroupPlaceholderTabs?.()`,
   })
   const oneLinePathGroupPlaceholderTooltip = await measurePageChipTooltipLineCount(session, 'at story/ABC-123_2', {
     forcedTextWidth: 130,
     forcedMaxLines: 1,
     hoverWaitMs: 40,
-    viewportWidth: 2200
+    viewportWidth: 2200,
   })
   assert.ok(oneLinePathGroupPlaceholderTooltip.tooltip, `one-line path-group placeholder tooltip should open: ${JSON.stringify(oneLinePathGroupPlaceholderTooltip)}`)
   assert.equal(
     oneLinePathGroupPlaceholderTooltip.target.chipLineCount,
     1,
-    `one-line path-group placeholder smoke target should render as one visible chip line: ${JSON.stringify(oneLinePathGroupPlaceholderTooltip)}`
+    `one-line path-group placeholder smoke target should render as one visible chip line: ${JSON.stringify(oneLinePathGroupPlaceholderTooltip)}`,
   )
   assert.equal(
     oneLinePathGroupPlaceholderTooltip.tooltip.tooltipLineCount,
     1,
-    `one-line path-group placeholder tooltip should widen enough to stay on one line: ${JSON.stringify(oneLinePathGroupPlaceholderTooltip)}`
+    `one-line path-group placeholder tooltip should widen enough to stay on one line: ${JSON.stringify(oneLinePathGroupPlaceholderTooltip)}`,
   )
 
   // Runs near the end (before the bookmark-source switch) so its hover/right-click
@@ -6638,21 +6638,21 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.ok(markerWrapStability.target, `marker-wrap stability smoke should find its path-group chip: ${JSON.stringify(markerWrapStability)}`)
   assert.ok(
     markerWrapStability.target.chipLineCount >= 2,
-    `marker-wrap stability smoke target should rest as a wrapped multi-line title: ${JSON.stringify(markerWrapStability.target)}`
+    `marker-wrap stability smoke target should rest as a wrapped multi-line title: ${JSON.stringify(markerWrapStability.target)}`,
   )
   assert.ok(
     markerWrapStability.target.suppressionPillCount >= 2,
-    `marker-wrap stability smoke target should carry two suppression pills at rest: ${JSON.stringify(markerWrapStability.target)}`
+    `marker-wrap stability smoke target should carry two suppression pills at rest: ${JSON.stringify(markerWrapStability.target)}`,
   )
   assert.ok(markerWrapStability.expansion, `marker-wrap chip should expand in place: ${JSON.stringify(markerWrapStability)}`)
   assert.ok(
     ['Example Website', 'Contentful', 'dev2'].every((part) => markerWrapStability.expansion.text.includes(part)),
-    `marker-wrap expansion should reveal every suppressed/placeholder label: ${JSON.stringify(markerWrapStability.expansion)}`
+    `marker-wrap expansion should reveal every suppressed/placeholder label: ${JSON.stringify(markerWrapStability.expansion)}`,
   )
   assert.deepEqual(
     markerWrapStability.expansion.pills.map((pill: { visualLine: number }) => pill.visualLine),
     markerWrapStability.target.pillLines,
-    `expanded pills must stay on the visible lines they occupied at rest: ${JSON.stringify(markerWrapStability)}`
+    `expanded pills must stay on the visible lines they occupied at rest: ${JSON.stringify(markerWrapStability)}`,
   )
 
   // Single-line-resting variant of the same defect: the compact glyph title
@@ -6666,34 +6666,34 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.equal(
     markerWrapConstrainedReflow.target.chipLineCount,
     1,
-    `constrained marker-wrap smoke target should rest as a single compact line: ${JSON.stringify(markerWrapConstrainedReflow.target)}`
+    `constrained marker-wrap smoke target should rest as a single compact line: ${JSON.stringify(markerWrapConstrainedReflow.target)}`,
   )
   assert.ok(markerWrapConstrainedReflow.expansion, `constrained marker-wrap chip should expand in place: ${JSON.stringify(markerWrapConstrainedReflow)}`)
   assert.ok(
     ['Example Website', 'Contentful', 'dev2'].every((part) => markerWrapConstrainedReflow.expansion.text.includes(part)),
-    `constrained marker-wrap expansion should reveal every suppressed/placeholder label: ${JSON.stringify(markerWrapConstrainedReflow.expansion)}`
+    `constrained marker-wrap expansion should reveal every suppressed/placeholder label: ${JSON.stringify(markerWrapConstrainedReflow.expansion)}`,
   )
   assert.equal(
     markerWrapConstrainedReflow.expansion.strandedPills.length,
     0,
-    `expanded suppression pills must not start a continuation line while the previous line has viewport room for them (resting-width wrap): ${JSON.stringify(markerWrapConstrainedReflow.expansion)}`
+    `expanded suppression pills must not start a continuation line while the previous line has viewport room for them (resting-width wrap): ${JSON.stringify(markerWrapConstrainedReflow.expansion)}`,
   )
 
   const markerOnlyLine = await measureMarkerOnlyLineExpansion(session)
   assert.ok(markerOnlyLine.target, `marker-only-line smoke should find its suffixed chip: ${JSON.stringify(markerOnlyLine)}`)
   assert.ok(
     (markerOnlyLine.target.markerLine ?? 0) >= 1 && (markerOnlyLine.target.markerLeftOffset ?? 99) <= 8,
-    `marker-only-line smoke target should rest with its trailing pill starting a middle line: ${JSON.stringify(markerOnlyLine.target)}`
+    `marker-only-line smoke target should rest with its trailing pill starting a middle line: ${JSON.stringify(markerOnlyLine.target)}`,
   )
   assert.ok(markerOnlyLine.expansion, `marker-only-line chip should expand in place: ${JSON.stringify(markerOnlyLine)}`)
   assert.equal(
     markerOnlyLine.expansion.markerLine,
     markerOnlyLine.target.markerLine,
-    `a pill alone on its resting line must stay on that visible line when it hydrates (reveal in place): ${JSON.stringify(markerOnlyLine)}`
+    `a pill alone on its resting line must stay on that visible line when it hydrates (reveal in place): ${JSON.stringify(markerOnlyLine)}`,
   )
   assert.ok(
     markerOnlyLine.expansion.text.includes('assignee=712020'),
-    `marker-only-line expansion should reveal the full URL suffix: ${JSON.stringify(markerOnlyLine.expansion)}`
+    `marker-only-line expansion should reveal the full URL suffix: ${JSON.stringify(markerOnlyLine.expansion)}`,
   )
 
   const variantTitleRow = await measureVariantTitleRowStability(session)
@@ -6701,26 +6701,26 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.equal(
     variantTitleRow.target.titleRowLines,
     2,
-    `variant title-row smoke target should rest as two title lines: ${JSON.stringify(variantTitleRow.target)}`
+    `variant title-row smoke target should rest as two title lines: ${JSON.stringify(variantTitleRow.target)}`,
   )
   assert.ok(
     variantTitleRow.target.indicatorLine === 0 && variantTitleRow.target.anchorLine === 1,
-    `variant title-row smoke target should rest with the indicator on line 1 and "from my" on line 2: ${JSON.stringify(variantTitleRow.target)}`
+    `variant title-row smoke target should rest with the indicator on line 1 and "from my" on line 2: ${JSON.stringify(variantTitleRow.target)}`,
   )
   assert.ok(variantTitleRow.expansion, `variant title-row chip should expand in place: ${JSON.stringify(variantTitleRow)}`)
   assert.ok(
     variantTitleRow.expansion.indicatorText.includes('example-owner/skills'),
-    `variant title-row expansion should hydrate the structural indicator label: ${JSON.stringify(variantTitleRow.expansion)}`
+    `variant title-row expansion should hydrate the structural indicator label: ${JSON.stringify(variantTitleRow.expansion)}`,
   )
   assert.equal(
     variantTitleRow.expansion.anchorLine,
     variantTitleRow.target.anchorLine,
-    `text after the hydrating indicator must stay on its resting line when the title expands: ${JSON.stringify(variantTitleRow)}`
+    `text after the hydrating indicator must stay on its resting line when the title expands: ${JSON.stringify(variantTitleRow)}`,
   )
   assert.equal(
     variantTitleRow.expansion.indicatorLine,
     0,
-    `the hydrated indicator should stay on the first title line: ${JSON.stringify(variantTitleRow.expansion)}`
+    `the hydrated indicator should stay on the first title line: ${JSON.stringify(variantTitleRow.expansion)}`,
   )
 
   const largeBookmarks = await measureLargeBookmarkProgressiveRender(session)
@@ -6763,7 +6763,7 @@ test('rapid domain pin writes preserve the latest optimistic state', async ({ pa
       active: 0,
       maxActive: 0,
       releaseFirstWrite,
-      writes: [] as string[][]
+      writes: [] as string[][],
     }
     ;(window as typeof window & { __tabOutPinWriteAudit: typeof audit }).__tabOutPinWriteAudit = audit
     storage.set = async (items) => {
@@ -6815,7 +6815,7 @@ test('rapid domain pin writes preserve the latest optimistic state', async ({ pa
   const result = await page.evaluate(async () => {
     const audit = (
       window as typeof window & {
-        __tabOutPinWriteAudit: { active: number; maxActive: number; writes: string[][] }
+        __tabOutPinWriteAudit: { active: number, maxActive: number, writes: string[][] }
       }
     ).__tabOutPinWriteAudit
     const stored = await window.chrome.storage.local.get('tabOutPinnedDomainsV1')
@@ -6823,7 +6823,7 @@ test('rapid domain pin writes preserve the latest optimistic state', async ({ pa
       active: audit.active,
       maxActive: audit.maxActive,
       stored: stored.tabOutPinnedDomainsV1,
-      writes: audit.writes
+      writes: audit.writes,
     }
   })
 
@@ -6833,8 +6833,8 @@ test('rapid domain pin writes preserve the latest optimistic state', async ({ pa
     stored: ['contentful.com', 'suppression-smoke.example'],
     writes: [
       ['contentful.com'],
-      ['contentful.com', 'suppression-smoke.example']
-    ]
+      ['contentful.com', 'suppression-smoke.example'],
+    ],
   })
 })
 
@@ -6858,7 +6858,7 @@ test('history scrollbar cancels a drag on pointer cancellation', async ({ page }
     clientX: start.clientX,
     clientY: start.clientY,
     pointerId: 7,
-    pointerType: 'mouse'
+    pointerType: 'mouse',
   })
   await expect(thumb).toHaveAttribute('data-dragging', 'true')
 
@@ -6866,7 +6866,7 @@ test('history scrollbar cancels a drag on pointer cancellation', async ({ page }
     window.dispatchEvent(new PointerEvent('pointercancel', {
       bubbles: true,
       pointerId: 7,
-      pointerType: 'mouse'
+      pointerType: 'mouse',
     }))
   })
   await expect(thumb).not.toHaveAttribute('data-dragging')
@@ -6879,7 +6879,7 @@ test('history scrollbar cancels a drag on pointer cancellation', async ({ page }
       clientX,
       clientY: clientY + 200,
       pointerId: 7,
-      pointerType: 'mouse'
+      pointerType: 'mouse',
     }))
   }, start)
   const afterMove = await page.locator('.history-entry-list').evaluate((element) => element.scrollTop)

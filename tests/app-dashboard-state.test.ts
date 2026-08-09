@@ -5,7 +5,7 @@ import { setImmediate } from 'node:timers/promises'
 import {
   appDashboardReducer,
   createAppDashboardStore,
-  initialAppDashboardState
+  initialAppDashboardState,
 } from '../src/extension/dashboard-intake.js'
 import type { DashboardRefreshSnapshot, DashboardSnapshotOptions } from '../src/extension/dashboard-intake.js'
 import type { BrowserReadResult } from '../src/extension/browser-tabs-gateway.js'
@@ -32,7 +32,7 @@ function historySnapshot(activeTabId: number): TabHistorySnapshot {
     activeTabId,
     activeWindowId: 1,
     activeWasInserted: false,
-    entries: []
+    entries: [],
   }
 }
 
@@ -41,7 +41,7 @@ function startupSnapshot(tabHistory: TabHistorySnapshot): DashboardStartupSnapsh
     dashboard: { realTabs: [], domainGroups: [] },
     tabHistory,
     workingSet: { defaultLimit: 5, expandedLimit: 12, items: [] },
-    closedTabs: []
+    closedTabs: [],
   }
 }
 
@@ -78,12 +78,12 @@ test('app dashboard store applies arrivals through the reducer and notifies only
 
 test('a source choice made in the shell is admitted with the matching startup frame', () => {
   const store = createAppDashboardStore({
-    fetchDashboardSnapshot: () => assert.fail('source choice must join startup capture')
+    fetchDashboardSnapshot: () => assert.fail('source choice must join startup capture'),
   })
   const snapshot = startupSnapshot(historySnapshot(10))
   snapshot.dashboard = {
     realTabs: [],
-    domainGroups: [{ domain: 'bookmarks.example', tabs: [] }]
+    domainGroups: [{ domain: 'bookmarks.example', tabs: [] }],
   }
 
   store.selectStartupSource('bookmarks')
@@ -93,7 +93,7 @@ test('a source choice made in the shell is admitted with the matching startup fr
   store.applyStartup({
     historyRange: '24h',
     snapshot,
-    source: 'bookmarks'
+    source: 'bookmarks',
   })
 
   assert.equal(store.read().source, 'bookmarks')
@@ -111,12 +111,12 @@ test('a live history update supersedes the deferred startup target before source
   state = appDashboardReducer(state, {
     type: 'sourceRequest',
     requestId: 1,
-    source: 'bookmarks'
+    source: 'bookmarks',
   })
   state = appDashboardReducer(state, {
     type: 'startup',
     historyRange: '24h',
-    snapshot: startupSnapshot(cachedHistory)
+    snapshot: startupSnapshot(cachedHistory),
   })
   state = appDashboardReducer(state, { type: 'tabHistory', tabHistory: liveHistory })
 
@@ -135,7 +135,7 @@ test('a live history update before startup resolution stays hidden during the pe
   state = appDashboardReducer(state, {
     type: 'sourceRequest',
     requestId: 1,
-    source: 'bookmarks'
+    source: 'bookmarks',
   })
   state = appDashboardReducer(state, { type: 'tabHistory', tabHistory: liveHistory })
 
@@ -144,7 +144,7 @@ test('a live history update before startup resolution stays hidden during the pe
   state = appDashboardReducer(state, {
     type: 'startup',
     historyRange: '24h',
-    snapshot: startupSnapshot(cachedHistory)
+    snapshot: startupSnapshot(cachedHistory),
   })
   state = appDashboardReducer(state, { type: 'sourceRequestCancelled' })
 
@@ -164,7 +164,7 @@ test('a live history update without a source request waits for the atomic startu
   state = appDashboardReducer(state, {
     type: 'startup',
     historyRange: '24h',
-    snapshot: cachedSnapshot
+    snapshot: cachedSnapshot,
   })
 
   assert.equal(state.dashboard, cachedSnapshot.dashboard)
@@ -182,7 +182,7 @@ for (const settlement of ['sourceRequestCancelled', 'sourceRequestFailed'] as co
     state = appDashboardReducer(state, {
       type: 'sourceRequest',
       requestId: 1,
-      source: 'bookmarks'
+      source: 'bookmarks',
     })
     state = appDashboardReducer(state, { type: 'tabHistory', tabHistory: liveHistory })
     state = appDashboardReducer(state, settlement === 'sourceRequestFailed'
@@ -196,7 +196,7 @@ for (const settlement of ['sourceRequestCancelled', 'sourceRequestFailed'] as co
     state = appDashboardReducer(state, {
       type: 'startup',
       historyRange: '24h',
-      snapshot: cachedSnapshot
+      snapshot: cachedSnapshot,
     })
 
     assert.equal(state.tabHistory, liveHistory)
@@ -213,19 +213,19 @@ test('a successful non-Tabs source keeps deferred supplemental startup fields', 
   state = appDashboardReducer(state, {
     type: 'sourceRequest',
     requestId: 1,
-    source: 'bookmarks'
+    source: 'bookmarks',
   })
   state = appDashboardReducer(state, {
     type: 'startup',
     historyRange: '24h',
-    snapshot: cachedSnapshot
+    snapshot: cachedSnapshot,
   })
   state = appDashboardReducer(state, { type: 'tabHistory', tabHistory: liveHistory })
   state = appDashboardReducer(state, {
     type: 'sourceSnapshot',
     dashboard: bookmarkDashboard,
     requestId: 1,
-    source: 'bookmarks'
+    source: 'bookmarks',
   })
 
   assert.equal(state.source, 'bookmarks')
@@ -244,18 +244,18 @@ test('late startup supplements an already successful non-Tabs source without rep
   state = appDashboardReducer(state, {
     type: 'sourceRequest',
     requestId: 1,
-    source: 'bookmarks'
+    source: 'bookmarks',
   })
   state = appDashboardReducer(state, {
     type: 'sourceSnapshot',
     dashboard: bookmarkDashboard,
     requestId: 1,
-    source: 'bookmarks'
+    source: 'bookmarks',
   })
   state = appDashboardReducer(state, {
     type: 'startup',
     historyRange: '24h',
-    snapshot: cachedSnapshot
+    snapshot: cachedSnapshot,
   })
 
   assert.equal(state.source, 'bookmarks')
@@ -273,19 +273,19 @@ test('a live supplemental update still wins when startup resolves after source s
   state = appDashboardReducer(state, {
     type: 'sourceRequest',
     requestId: 1,
-    source: 'bookmarks'
+    source: 'bookmarks',
   })
   state = appDashboardReducer(state, {
     type: 'sourceSnapshot',
     dashboard: { realTabs: [], domainGroups: [] },
     requestId: 1,
-    source: 'bookmarks'
+    source: 'bookmarks',
   })
   state = appDashboardReducer(state, { type: 'tabHistory', tabHistory: liveHistory })
   state = appDashboardReducer(state, {
     type: 'startup',
     historyRange: '24h',
-    snapshot: cachedSnapshot
+    snapshot: cachedSnapshot,
   })
 
   assert.equal(state.tabHistory, liveHistory)
@@ -296,13 +296,13 @@ test('startup intake defers its Tabs ordering priority until a pending source sw
   const cachedSnapshot = startupSnapshot(historySnapshot(10))
   const store = createAppDashboardStore({
     fetchDashboardSnapshot: () => sourceFlight.promise,
-    showToast: () => assert.fail('a cancelled source switch must not show a failure toast')
+    showToast: () => assert.fail('a cancelled source switch must not show a failure toast'),
   })
   store.setRefreshInputs({
     filter: '',
     localStateLoaded: true,
     pinnedDomains: [],
-    previousOrder: { tabs: new Map(), bookmarks: new Map(), history: new Map() }
+    previousOrder: { tabs: new Map(), bookmarks: new Map(), history: new Map() },
   })
 
   store.switchSource('bookmarks')
@@ -331,13 +331,13 @@ test('only the latest source switch announces and applies its arriving snapshot'
       flights.push(flight)
       return flight.promise
     },
-    showToast: () => assert.fail('a successful source switch must not show a failure toast')
+    showToast: () => assert.fail('a successful source switch must not show a failure toast'),
   })
   store.setRefreshInputs({
     filter: '',
     localStateLoaded: true,
     pinnedDomains: [],
-    previousOrder: { tabs: new Map(), bookmarks: new Map(), history: new Map() }
+    previousOrder: { tabs: new Map(), bookmarks: new Map(), history: new Map() },
   })
   const beforeApplyEvents: unknown[] = []
   store.subscribeBeforeApply((event) => beforeApplyEvents.push(event))
@@ -375,7 +375,7 @@ test('a source switch retries with the latest intake context before applying', a
       flights.push(flight)
       return flight.promise
     },
-    showToast: () => assert.fail('a retried source switch must not show a failure toast')
+    showToast: () => assert.fail('a retried source switch must not show a failure toast'),
   })
   const previousOrder = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
   store.setRefreshInputs({ filter: 'first', localStateLoaded: true, pinnedDomains: [], previousOrder })
@@ -400,13 +400,13 @@ test('a failed source switch restores the active source and reports the failure'
   const toasts: string[] = []
   const store = createAppDashboardStore({
     fetchDashboardSnapshot: () => Promise.reject(new Error('source unavailable')),
-    showToast: (message) => toasts.push(message)
+    showToast: (message) => toasts.push(message),
   })
   store.setRefreshInputs({
     filter: '',
     localStateLoaded: true,
     pinnedDomains: [],
-    previousOrder: { tabs: new Map(), bookmarks: new Map(), history: new Map() }
+    previousOrder: { tabs: new Map(), bookmarks: new Map(), history: new Map() },
   })
 
   assert.equal(store.switchSource('bookmarks'), 1)
@@ -423,7 +423,7 @@ test('closed-tab intake waits for restore settlement and ignores an overtaken re
   let suppressionRemainingMs = Number.POSITIVE_INFINITY
   let closedTabChangeHandler: ((settleDelayMs: number) => void) | null = null
   let unsubscribed = false
-  const timers: Array<{ callback: () => void; delayMs: number }> = []
+  const timers: Array<{ callback: () => void, delayMs: number }> = []
   const flights: ReturnType<typeof deferred<BrowserReadResult<ClosedTabEntry[]>>>[] = []
   const store = createAppDashboardStore({
     closedTabFetchSuppressionRemainingMs: () => suppressionRemainingMs,
@@ -439,12 +439,12 @@ test('closed-tab intake waits for restore settlement and ignores an overtaken re
     subscribeClosedTabChanges: (handler) => {
       closedTabChangeHandler = handler
       return () => { unsubscribed = true }
-    }
+    },
   })
   store.dispatch({
     type: 'startup',
     historyRange: '24h',
-    snapshot: startupSnapshot(historySnapshot(1))
+    snapshot: startupSnapshot(historySnapshot(1)),
   })
 
   const stopClosedTabUpdates = store.startClosedTabUpdates()
@@ -491,7 +491,7 @@ test('stopping closed-tab intake cancels its pending refresh timer', () => {
     subscribeClosedTabChanges: (handler) => {
       closedTabChangeHandler = handler
       return () => { unsubscribed = true }
-    }
+    },
   })
 
   const stopClosedTabUpdates = store.startClosedTabUpdates()
@@ -511,12 +511,12 @@ test('stopping closed-tab intake prevents an in-flight result from applying', as
     subscribeClosedTabChanges: (handler) => {
       closedTabChangeHandler = handler
       return () => {}
-    }
+    },
   })
   store.dispatch({
     type: 'startup',
     historyRange: '24h',
-    snapshot: startupSnapshot(historySnapshot(1))
+    snapshot: startupSnapshot(historySnapshot(1)),
   })
 
   const stopClosedTabUpdates = store.startClosedTabUpdates()
@@ -541,12 +541,12 @@ test('closed-tab intake recovers after a rejected read', async () => {
     subscribeClosedTabChanges: (handler) => {
       closedTabChangeHandler = handler
       return () => {}
-    }
+    },
   })
   store.dispatch({
     type: 'startup',
     historyRange: '24h',
-    snapshot: startupSnapshot(historySnapshot(1))
+    snapshot: startupSnapshot(historySnapshot(1)),
   })
 
   const stopClosedTabUpdates = store.startClosedTabUpdates()
@@ -572,6 +572,6 @@ function closedTabEntry(id: string): ClosedTabEntry {
     displayUrl: `${id}.example.test`,
     title: id,
     favIconUrl: '',
-    lastClosedAt: 1
+    lastClosedAt: 1,
   }
 }

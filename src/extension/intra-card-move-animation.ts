@@ -28,7 +28,7 @@ type IntraCardLayoutElement = HTMLElement & {
 export type PreparedIntraCardMove = {
   animator: MoveAnimator
   positions: MovePositionMap
-  reducedMotionTarget: { key: string; scope: string } | null
+  reducedMotionTarget: { key: string, scope: string } | null
   root: HTMLElement
 }
 
@@ -94,7 +94,7 @@ function restorePendingPageChipFocus() {
     .values()
     .find((candidate) => candidate.dataset.taboutRemovalKey === pending.focusRemovalKey)
   const replacement = replacementSlot?.querySelector<HTMLElement>(
-    '[data-tabout="page-chip"][tabindex="0"], [data-tabout-default-variant="true"]'
+    '[data-tabout="page-chip"][tabindex="0"], [data-tabout-default-variant="true"]',
   )
   if (!replacement) return
   replacement.focus({ preventScroll: true })
@@ -111,13 +111,13 @@ function beginPageChipFocusHandoff(entry: QueuedPageChipRefreshMoveEntry) {
     focusRemovalKey: entry.focusRemovalKey,
     lastFocusedElement: null,
     observer: null,
-    timeoutId: Number(setTimeout(clearPendingPageChipFocus, PAGE_CHIP_FOCUS_HANDOFF_MS))
+    timeoutId: Number(setTimeout(clearPendingPageChipFocus, PAGE_CHIP_FOCUS_HANDOFF_MS)),
   }
   if (ownerWindow?.MutationObserver && entry.prepared.root.ownerDocument.body) {
     pendingPageChipFocus.observer = new ownerWindow.MutationObserver(restorePendingPageChipFocus)
     pendingPageChipFocus.observer.observe(entry.prepared.root.ownerDocument.body, {
       childList: true,
-      subtree: true
+      subtree: true,
     })
   }
   restorePendingPageChipFocus()
@@ -125,7 +125,7 @@ function beginPageChipFocusHandoff(entry: QueuedPageChipRefreshMoveEntry) {
 
 export function prepareIntraCardMoveAnimation(
   targetValue: unknown,
-  { reducedMotionOpacity = false }: { reducedMotionOpacity?: boolean } = {}
+  { reducedMotionOpacity = false }: { reducedMotionOpacity?: boolean } = {},
 ): PreparedIntraCardMove | null {
   if (!isIntraCardLayoutElement(targetValue)) return null
 
@@ -144,7 +144,7 @@ export function prepareIntraCardMoveAnimation(
     movingClass: 'intra-card-layout-moving',
     activeClass: 'intra-card-layout-moving-active',
     coordinateSpace: 'viewport',
-    moveZIndex: '3'
+    moveZIndex: '3',
   })
   const positions = animator.snapshot([root])
   animator.cancel([root])
@@ -169,7 +169,7 @@ function preparePageChipRefreshMoveAnimation(targetValue: unknown): PreparedIntr
     activeClass: 'intra-card-layout-moving-active',
     coordinateSpace: 'root',
     suppressNestedMoves: true,
-    moveZIndex: '3'
+    moveZIndex: '3',
   })
   const positions = animator.snapshot([root])
   animator.cancel([root])
@@ -187,7 +187,7 @@ function consumeQueuedPageChipRefreshMove(entry: QueuedPageChipRefreshMoveEntry)
 
 export function queuePageChipRefreshMoveAnimation(
   targetValue: unknown,
-  { focusTarget = null }: { focusTarget?: HTMLElement | null } = {}
+  { focusTarget = null }: { focusTarget?: HTMLElement | null } = {},
 ): QueuedPageChipRefreshMove | null {
   const prepared = preparePageChipRefreshMoveAnimation(targetValue)
   if (!prepared || !isIntraCardLayoutElement(targetValue)) return null
@@ -199,11 +199,11 @@ export function queuePageChipRefreshMoveAnimation(
     consumed: false,
     focusRemovalKey,
     prepared,
-    target: targetValue
+    target: targetValue,
   }
   queuedPageChipRefreshMoves.push(entry)
   return {
-    animateNow: () => consumeQueuedPageChipRefreshMove(entry)
+    animateNow: () => consumeQueuedPageChipRefreshMove(entry),
   }
 }
 
@@ -233,7 +233,7 @@ export function animateIntraCardMoves(prepared: PreparedIntraCardMove | null) {
       ))
     target?.animate(
       [{ opacity: 0.9 }, { opacity: 1 }],
-      { duration: REDUCED_INTRA_CARD_OPACITY_MS, easing: 'linear' }
+      { duration: REDUCED_INTRA_CARD_OPACITY_MS, easing: 'linear' },
     )
     return
   }

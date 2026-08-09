@@ -19,7 +19,7 @@ function facts(overrides: Partial<ChipTrimFacts> = {}): ChipTrimFacts {
     iconOnly: false,
     isApp: false,
     expanded: null,
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -153,7 +153,7 @@ test('chip-trim: a kind with no trim at rest gains none at rest in any state', (
     { grewTaller: false, y: 'down' },
     { grewTaller: true, y: 'down' },
     { grewTaller: false, y: 'up' },
-    { grewTaller: true, y: 'up' }
+    { grewTaller: true, y: 'up' },
   ]
   for (const expanded of expansions) {
     const trim = chipTrim(facts({ expanded }))
@@ -212,7 +212,7 @@ test('chip-trim: the fade fill is never the translucent overlay', () => {
     { activeChipFrame: true },
     { activeChipFrame: true, activeInOtherWindow: true },
     { activeChipFrame: true, isCurrentTabOut: true },
-    { iconOnly: true }
+    { iconOnly: true },
   ]
   for (const kind of kinds) {
     assert.notEqual(chipTrim(facts(kind)).styleVars.fadeBg, TRANSLUCENT_CLICKABLE)

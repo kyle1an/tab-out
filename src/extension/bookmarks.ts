@@ -20,7 +20,7 @@ export function flattenBookmarkNodes(nodes: BookmarkTreeNode[]): DashboardTab[] 
         ...(node.id === undefined ? {} : { id: node.id }),
         url: node.url,
         title: node.title || '',
-        sourceType: 'bookmark'
+        sourceType: 'bookmark',
       }))
     }
     if (Array.isArray(node.children)) {

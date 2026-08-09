@@ -3,12 +3,12 @@ import type { Layer } from 'effect'
 import type { ChromeApi } from '../../../src/extension/background/chrome-api.js'
 import {
   emptyWorkingSetActivity,
-  normalizeWorkingSetActivity
+  normalizeWorkingSetActivity,
 } from '../../../src/extension/working-set.js'
 import {
   WorkingSetActivityStorage,
   type WorkingSetActivityStorageBackend,
-  type WorkingSetActivityWrite
+  type WorkingSetActivityWrite,
 } from '../../../src/extension/background/working-set-activity-storage.js'
 import type { WorkingSetActivityStore } from '../../../src/extension/types'
 import {
@@ -18,7 +18,7 @@ import {
   makeMutationDiagnostics,
   makePromiseSerializer,
   type BenchmarkChromeStorageArea,
-  type WorkingSetBenchmarkBackend
+  type WorkingSetBenchmarkBackend,
 } from './benchmark-backend.js'
 
 export const COMPACT_ENVELOPE_STORAGE_KEY =
@@ -28,19 +28,19 @@ const diagnostics = makeMutationDiagnostics()
 let failNextWrite = false
 
 export function makeWorkingSetActivityStorageLayer(
-  chromeApi: ChromeApi
+  chromeApi: ChromeApi,
 ): Layer.Layer<WorkingSetActivityStorage> {
   return makeCompactEnvelopeStorageLayer(chromeApi.storage?.local)
 }
 
 export function makeCompactEnvelopeStorageLayer(
-  storage: BenchmarkChromeStorageArea | undefined
+  storage: BenchmarkChromeStorageArea | undefined,
 ): Layer.Layer<WorkingSetActivityStorage> {
   return WorkingSetActivityStorage.layer(makeCompactEnvelopeBackend(storage))
 }
 
 function makeCompactEnvelopeBackend(
-  storage: BenchmarkChromeStorageArea | undefined
+  storage: BenchmarkChromeStorageArea | undefined,
 ): WorkingSetActivityStorageBackend {
   const serialize = makePromiseSerializer()
   let expirySwept = false
@@ -86,7 +86,7 @@ function makeCompactEnvelopeBackend(
       if (failNextWrite) {
         failNextWrite = false
         return serialize(() => Promise.reject(
-          new Error('Synthetic Working Set benchmark write failure')
+          new Error('Synthetic Working Set benchmark write failure'),
         ))
       }
       return serialize(() => persist(change.activity))
@@ -94,7 +94,7 @@ function makeCompactEnvelopeBackend(
     replace: (activity: WorkingSetActivityStore) => serialize(async () => {
       await persist(activity)
       expirySwept = false
-    })
+    }),
   }
 }
 
@@ -102,7 +102,7 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
   variant: 'compact',
   ownedStorage: {
     kind: 'chrome-storage',
-    keys: [COMPACT_ENVELOPE_STORAGE_KEY]
+    keys: [COMPACT_ENVELOPE_STORAGE_KEY],
   },
   lastMutationLogicalBytes: diagnostics.lastMutationLogicalBytes,
   lastMutationPhysicalWrites: diagnostics.lastMutationPhysicalWrites,
@@ -142,8 +142,8 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
     await storage.set({
       [COMPACT_ENVELOPE_STORAGE_KEY]: [
         encoded[0],
-        [...encoded[1], ['malformed-benchmark-row']]
-      ]
+        [...encoded[1], ['malformed-benchmark-row']],
+      ],
     })
   },
   async reset(chromeApi) {
@@ -151,7 +151,7 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
     failNextWrite = false
     diagnostics.reset()
   },
-  close() {}
+  close() {},
 }
 
 function fallbackActivity(): WorkingSetActivityStore {
@@ -167,8 +167,8 @@ function fallbackActivity(): WorkingSetActivityStore {
         domain: 'example.test',
         lastSeenAt: at,
         lastActivatedAt: at,
-        events: [{ kind: 'activation', at }]
-      }
-    }
+        events: [{ kind: 'activation', at }],
+      },
+    },
   }
 }

@@ -62,7 +62,7 @@ function startupOrderDebugCapture(): StartupOrderDebugCapture | null {
     enabledAt: new Date().toISOString(),
     samples: [],
     shifts: [],
-    timings: []
+    timings: [],
   }
   debugWindow.__tabOutStartupOrderDebug = capture
   void loadStartupOrderDebugDetails().then(({ initializeStartupOrderDebug }) => {
@@ -79,7 +79,7 @@ export function recordStartupTiming(capture: StartupOrderDebugCapture | null, la
   const timing: StartupTiming = {
     kind: 'timing',
     label,
-    t: Math.round(now)
+    t: Math.round(now),
   }
   if (options.startedAt !== undefined) timing.durationMs = Math.max(0, Math.round(now - options.startedAt))
   if (options.detail) timing.detail = options.detail

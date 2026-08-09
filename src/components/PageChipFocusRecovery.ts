@@ -1,7 +1,7 @@
 const PAGE_CHIP_FOCUS_TARGET_SELECTOR = [
   '[data-tabout="page-chip"][tabindex="0"]',
   'button.chip-env',
-  'button.chip-title-variant'
+  'button.chip-title-variant',
 ].join(', ')
 
 const FILTER_QUERY_INPUT_SELECTOR = '[data-tabout="filter-query"] [data-tabout-part="input"]'
@@ -36,7 +36,7 @@ function focusRemovalKey(element: HTMLElement): string | null {
 function describeFocusCandidate(element: HTMLElement): FocusCandidate {
   return {
     element,
-    removalKey: focusRemovalKey(element)
+    removalKey: focusRemovalKey(element),
   }
 }
 
@@ -44,7 +44,7 @@ export function resolvePageChipFocusRecoveryCard(
   ownerDocument: Document,
   capturedCard: HTMLElement,
   missionGridId: string | undefined,
-  domain: string | undefined
+  domain: string | undefined,
 ): HTMLElement | null {
   if (capturedCard.isConnected) return capturedCard
   if (!missionGridId || !domain) return null
@@ -56,7 +56,7 @@ export function resolvePageChipFocusRecoveryCard(
 
 function resolveFocusCandidate(
   candidate: FocusCandidate,
-  card: HTMLElement | null
+  card: HTMLElement | null,
 ): HTMLElement | null {
   if (
     candidate.element.isConnected &&
@@ -73,7 +73,7 @@ function resolveFocusCandidate(
 
 function focusCanStillTransfer(
   ownerDocument: Document,
-  origin: HTMLElement
+  origin: HTMLElement,
 ): 'ready' | 'wait' | 'cancel' {
   const activeElement = ownerDocument.activeElement
   if (
@@ -97,7 +97,7 @@ function focusCanStillTransfer(
 function retainedSnapshotStillRendered(
   origin: HTMLElement,
   identityDigest: string,
-  closureToken: string
+  closureToken: string,
 ): boolean {
   return origin.isConnected &&
     origin.getAttribute(RETAINED_PAGE_IDENTITY_ATTRIBUTE) === identityDigest &&
@@ -110,7 +110,7 @@ function retainedSnapshotStillRendered(
  * DOM, including when foreground activation keeps Tab Out hidden until later.
  */
 export function capturePageChipFocusRecovery(
-  originValue: EventTarget | null | undefined
+  originValue: EventTarget | null | undefined,
 ): PageChipFocusRecovery | null {
   if (!(originValue instanceof HTMLElement)) return null
   const origin = originValue
@@ -180,7 +180,7 @@ export function capturePageChipFocusRecovery(
       ownerDocument,
       capturedDomainCard,
       missionGridId,
-      domain
+      domain,
     )
     const replacement = resolveFocusCandidate(originCandidate, card)
     if (replacement) {
@@ -243,15 +243,15 @@ export function capturePageChipFocusRecovery(
         attributes: true,
         attributeFilter: [
           RETAINED_PAGE_IDENTITY_ATTRIBUTE,
-          RETAINED_PAGE_CLOSURE_TOKEN_ATTRIBUTE
+          RETAINED_PAGE_CLOSURE_TOKEN_ATTRIBUTE,
         ],
         childList: true,
-        subtree: true
+        subtree: true,
       })
       ownerDocument.addEventListener('visibilitychange', schedule)
       ownerDocument.addEventListener('focusin', onFocusIn)
       schedule()
     },
-    cancel: dispose
+    cancel: dispose,
   }
 }

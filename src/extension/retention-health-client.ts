@@ -16,7 +16,7 @@ function episodeKey(episode: RetentionHealthEpisode): string {
     episode.startedAt,
     episode.failureKind,
     episode.operationKind,
-    episode.retryState
+    episode.retryState,
   ].join(':')
 }
 
@@ -28,9 +28,9 @@ export function retentionHealthNotice(episode: RetentionHealthEpisode): string {
 
 export function createRetentionHealthReporter({
   notify,
-  visibility
+  visibility,
 }: RetentionHealthReporterOptions): (
-  episode: RetentionHealthEpisode | null
+  episode: RetentionHealthEpisode | null,
 ) => void {
   const reportedEpisodeKeys = new Set<string>()
   let pending: RetentionHealthEpisode | null = null
@@ -75,10 +75,10 @@ const browserVisibility: RetentionHealthVisibility = {
   subscribe: (listener) => {
     globalThis.document?.addEventListener('visibilitychange', listener)
     return () => globalThis.document?.removeEventListener('visibilitychange', listener)
-  }
+  },
 }
 
 export const reportRetentionHealthEpisode = createRetentionHealthReporter({
   notify: showToast,
-  visibility: browserVisibility
+  visibility: browserVisibility,
 })

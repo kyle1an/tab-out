@@ -26,7 +26,7 @@ test('showToast is a quiet no-op with a partial worker-style document shim', asy
   const errors: unknown[][] = []
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
-    value: {}
+    value: {},
   })
   console.error = (...args: unknown[]) => {
     errors.push(args)
@@ -40,7 +40,7 @@ test('showToast is a quiet no-op with a partial worker-style document shim', asy
     console.error = originalError
     Object.defineProperty(globalThis, 'document', {
       configurable: true,
-      value: originalDocument
+      value: originalDocument,
     })
   }
 })

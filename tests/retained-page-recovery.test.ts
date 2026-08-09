@@ -13,7 +13,7 @@ function page(overrides: Partial<RetainedPageRecord> = {}): RetainedPageRecord {
     title: 'Example article',
     closedAt: 1_000,
     closureToken: 'lifetime-example',
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -24,23 +24,23 @@ function chromeApi(overrides: Record<string, unknown> = {}) {
       move: async (tabId: number, properties: chrome.tabs.MoveProperties) => ({
         id: tabId,
         windowId: properties.windowId ?? 1,
-        url: page().url
+        url: page().url,
       }),
       create: async (properties: chrome.tabs.CreateProperties) => ({
         id: 9,
         windowId: 1,
-        url: properties.url
+        url: properties.url,
       }),
       get: async (tabId: number) => ({
         id: tabId,
         windowId: 1,
-        url: page().url
+        url: page().url,
       }),
       update: async (tabId: number, properties: chrome.tabs.UpdateProperties) => ({
         id: tabId,
         windowId: 1,
-        active: properties.active
-      })
+        active: properties.active,
+      }),
     },
     windows: {
       getAll: async () => [{ id: 1, type: 'normal' }],
@@ -49,8 +49,8 @@ function chromeApi(overrides: Record<string, unknown> = {}) {
       create: async (properties: chrome.windows.CreateData) => ({
         id: 2,
         focused: properties.focused,
-        tabs: [{ id: 10, windowId: 2, url: properties.url }]
-      })
+        tabs: [{ id: 10, windowId: 2, url: properties.url }],
+      }),
     },
   }
   return {
@@ -58,12 +58,12 @@ function chromeApi(overrides: Record<string, unknown> = {}) {
     ...overrides,
     tabs: {
       ...base.tabs,
-      ...((overrides.tabs || {}) as object)
+      ...((overrides.tabs || {}) as object),
     },
     windows: {
       ...base.windows,
-      ...((overrides.windows || {}) as object)
-    }
+      ...((overrides.windows || {}) as object),
+    },
   } as unknown as typeof chrome
 }
 
@@ -76,20 +76,20 @@ test('plain retained recovery opens the exact stored URL in an active normal tab
         creates.push(properties)
         return { id: 9, windowId: 1, url: properties.url }
       },
-      get: async () => ({ id: 9, windowId: 1, url: page().url })
-    }
+      get: async () => ({ id: 9, windowId: 1, url: page().url }),
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(api, page(), 'focus-tab'), true)
   assert.deepEqual(creates, [{
     windowId: 1,
     url: 'https://example.test/article?view=exact#comment',
-    active: true
+    active: true,
   }])
 })
 
 test('plain retained recovery focuses a reappeared exact live target in place', async () => {
-  const updates: Array<{ tabId: number; properties: chrome.tabs.UpdateProperties }> = []
+  const updates: Array<{ tabId: number, properties: chrome.tabs.UpdateProperties }> = []
   const focusedWindows: number[] = []
   let createCount = 0
   const api = chromeApi({
@@ -97,7 +97,7 @@ test('plain retained recovery focuses a reappeared exact live target in place', 
       query: async () => [{
         id: 7,
         windowId: 4,
-        url: 'https://example.test/article?view=exact#comment'
+        url: 'https://example.test/article?view=exact#comment',
       }],
       update: async (tabId: number, properties: chrome.tabs.UpdateProperties) => {
         updates.push({ tabId, properties })
@@ -106,7 +106,7 @@ test('plain retained recovery focuses a reappeared exact live target in place', 
       create: async () => {
         createCount += 1
         return { id: 9, windowId: 1 }
-      }
+      },
     },
     windows: {
       getAll: async () => [{ id: 4, type: 'normal' }],
@@ -114,8 +114,8 @@ test('plain retained recovery focuses a reappeared exact live target in place', 
         focusedWindows.push(windowId)
         return { id: windowId, focused: true }
       },
-      create: async () => ({ id: 2 })
-    }
+      create: async () => ({ id: 2 }),
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(api, page(), 'focus-tab'), true)
@@ -133,7 +133,7 @@ test('app retained recovery reuses an exact normal-tab fallback without changing
       query: async () => [{
         id: 7,
         windowId: 4,
-        url: 'https://example.test/article?view=exact#comment'
+        url: 'https://example.test/article?view=exact#comment',
       }],
       update: async (tabId: number) => {
         updates.push(tabId)
@@ -143,7 +143,7 @@ test('app retained recovery reuses an exact normal-tab fallback without changing
       create: async () => {
         createCount += 1
         return { id: 9, windowId: 1 }
-      }
+      },
     },
     windows: {
       getAll: async () => [{ id: 4, type: 'normal' }],
@@ -152,14 +152,14 @@ test('app retained recovery reuses an exact normal-tab fallback without changing
         return { id: windowId }
       },
       get: async (windowId: number) => ({ id: windowId, type: 'normal' }),
-      create: async () => ({ id: 2 })
-    }
+      create: async () => ({ id: 2 }),
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(
     api,
     page({ surfaceKind: 'app' }),
-    'focus-tab'
+    'focus-tab',
   ), true)
   assert.deepEqual(updates, [7])
   assert.deepEqual(focusedWindows, [4])
@@ -174,7 +174,7 @@ test('app snapshot recovery ignores an exact live app target and creates a norma
       query: async () => [{
         id: 7,
         windowId: 4,
-        url: page().url
+        url: page().url,
       }],
       update: async (tabId: number) => {
         updatedTabIds.push(tabId)
@@ -187,31 +187,31 @@ test('app snapshot recovery ignores an exact live app target and creates a norma
       get: async (tabId: number) => ({
         id: tabId,
         windowId: tabId === 7 ? 4 : 1,
-        url: page().url
-      })
+        url: page().url,
+      }),
     },
     windows: {
       getAll: async () => [
         { id: 1, type: 'normal', focused: true },
-        { id: 4, type: 'app' }
+        { id: 4, type: 'app' },
       ],
       get: async (windowId: number) => ({
         id: windowId,
-        type: windowId === 4 ? 'app' : 'normal'
-      })
-    }
+        type: windowId === 4 ? 'app' : 'normal',
+      }),
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(
     api,
     page({ surfaceKind: 'app' }),
-    'focus-tab'
+    'focus-tab',
   ), true)
   assert.deepEqual(updatedTabIds, [])
   assert.deepEqual(creates, [{
     windowId: 1,
     url: page().url,
-    active: true
+    active: true,
   }])
 })
 
@@ -224,7 +224,7 @@ test('app snapshot recovery ignores a pending app target and creates a normal-ta
         windowId: 4,
         url: 'chrome://newtab/',
         pendingUrl: page().url,
-        status: 'loading'
+        status: 'loading',
       }],
       create: async (properties: chrome.tabs.CreateProperties) => {
         creates.push(properties)
@@ -233,26 +233,26 @@ test('app snapshot recovery ignores a pending app target and creates a normal-ta
       get: async (tabId: number) => ({
         id: tabId,
         windowId: 1,
-        url: page().url
-      })
+        url: page().url,
+      }),
     },
     windows: {
       getAll: async () => [
         { id: 1, type: 'normal', focused: true },
-        { id: 4, type: 'app' }
-      ]
-    }
+        { id: 4, type: 'app' },
+      ],
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(
     api,
     page({ surfaceKind: 'app' }),
-    'foreground-tab'
+    'foreground-tab',
   ), true)
   assert.deepEqual(creates, [{
     windowId: 1,
     url: page().url,
-    active: true
+    active: true,
   }])
 })
 
@@ -284,7 +284,7 @@ test('app snapshot recovery creates a normal fallback when its normal candidate 
       create: async (properties: chrome.tabs.CreateProperties) => {
         creates.push(properties)
         return { id: 9, windowId: 1, url: properties.url }
-      }
+      },
     },
     windows: {
       getAll: async () => {
@@ -292,44 +292,44 @@ test('app snapshot recovery creates a normal fallback when its normal candidate 
         return windowInventoryReadCount === 1
           ? [
               { id: 1, type: 'normal', focused: true },
-              { id: 4, type: 'normal' }
+              { id: 4, type: 'normal' },
             ]
           : [
               { id: 1, type: 'normal', focused: true },
-              { id: 5, type: 'app' }
+              { id: 5, type: 'app' },
             ]
       },
       get: async (windowId: number) => ({
         id: windowId,
-        type: windowId === 5 ? 'app' : 'normal'
-      })
-    }
+        type: windowId === 5 ? 'app' : 'normal',
+      }),
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(
     api,
     page({ surfaceKind: 'app' }),
     'background-tab',
-    { currentWindowId: 1 }
+    { currentWindowId: 1 },
   ), true)
   assert.deepEqual(movedTabIds, [])
   assert.deepEqual(updatedTabIds, [])
   assert.deepEqual(creates, [{
     windowId: 1,
     url: page().url,
-    active: false
+    active: false,
   }])
 })
 
 test('primary-modifier recovery moves an exact live target into the initiating window', async () => {
-  const moves: Array<{ tabId: number; properties: chrome.tabs.MoveProperties }> = []
-  const updates: Array<{ tabId: number; properties: chrome.tabs.UpdateProperties }> = []
+  const moves: Array<{ tabId: number, properties: chrome.tabs.MoveProperties }> = []
+  const updates: Array<{ tabId: number, properties: chrome.tabs.UpdateProperties }> = []
   const api = chromeApi({
     tabs: {
       query: async () => [{
         id: 7,
         windowId: 4,
-        url: page().url
+        url: page().url,
       }],
       move: async (tabId: number, properties: chrome.tabs.MoveProperties) => {
         moves.push({ tabId, properties })
@@ -339,27 +339,27 @@ test('primary-modifier recovery moves an exact live target into the initiating w
         updates.push({ tabId, properties })
         return { id: tabId, windowId: 1, url: page().url }
       },
-      get: async (tabId: number) => ({ id: tabId, windowId: 1, url: page().url })
+      get: async (tabId: number) => ({ id: tabId, windowId: 1, url: page().url }),
     },
     windows: {
       getAll: async () => [
         { id: 1, type: 'normal', focused: true },
-        { id: 4, type: 'normal', focused: false }
+        { id: 4, type: 'normal', focused: false },
       ],
       update: async () => ({ id: 1, focused: true }),
-      create: async () => ({ id: 2 })
-    }
+      create: async () => ({ id: 2 }),
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(
     api,
     page(),
     'background-tab',
-    { currentWindowId: 1 }
+    { currentWindowId: 1 },
   ), true)
   assert.deepEqual(moves, [{
     tabId: 7,
-    properties: { windowId: 1, index: -1 }
+    properties: { windowId: 1, index: -1 },
   }])
   assert.deepEqual(updates, [])
 })
@@ -372,25 +372,25 @@ test('background recovery preserves retention when a same-window live target nav
       get: async () => ({
         id: 7,
         windowId: 1,
-        url: 'https://example.test/a-different-page'
+        url: 'https://example.test/a-different-page',
       }),
       create: async () => {
         createCount += 1
         return { id: 9, windowId: 1, url: page().url }
-      }
+      },
     },
     windows: {
       getAll: async () => [{ id: 1, type: 'normal', focused: true }],
       update: async () => ({ id: 1, focused: true }),
-      create: async () => ({ id: 2 })
-    }
+      create: async () => ({ id: 2 }),
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(
     api,
     page(),
     'background-tab',
-    { currentWindowId: 1 }
+    { currentWindowId: 1 },
   ), false)
   assert.equal(createCount, 0)
 })
@@ -410,26 +410,26 @@ test('primary-modifier plus Shift moves and activates an exact live target here'
         updates.push(properties)
         return { id: 7, windowId: 1, url: page().url }
       },
-      get: async () => ({ id: 7, windowId: 1, url: page().url })
+      get: async () => ({ id: 7, windowId: 1, url: page().url }),
     },
     windows: {
       getAll: async () => [
         { id: 1, type: 'normal', focused: true },
-        { id: 4, type: 'normal' }
+        { id: 4, type: 'normal' },
       ],
       update: async (windowId: number) => {
         focusedWindows.push(windowId)
         return { id: windowId, focused: true }
       },
-      create: async () => ({ id: 2 })
-    }
+      create: async () => ({ id: 2 }),
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(
     api,
     page(),
     'foreground-tab',
-    { currentWindowId: 1 }
+    { currentWindowId: 1 },
   ), true)
   assert.deepEqual(moves, [{ windowId: 1, index: -1 }])
   assert.deepEqual(updates, [{ active: true }])
@@ -446,7 +446,7 @@ test('Shift recovery moves an exact live target to one focused normal window', a
         tabCreateCount += 1
         return { id: 9, windowId: 1 }
       },
-      get: async () => ({ id: 7, windowId: 2, url: page().url })
+      get: async () => ({ id: 7, windowId: 2, url: page().url }),
     },
     windows: {
       getAll: async () => [{ id: 4, type: 'normal', focused: true }],
@@ -456,10 +456,10 @@ test('Shift recovery moves an exact live target to one focused normal window', a
         return {
           id: 2,
           type: 'normal',
-          tabs: [{ id: 7, windowId: 2, url: page().url }]
+          tabs: [{ id: 7, windowId: 2, url: page().url }],
         }
-      }
-    }
+      },
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(api, page(), 'new-window'), true)
@@ -477,21 +477,21 @@ test('retained recovery uses a normal new window for the explicit new-window ges
         windows.push(properties)
         return {
           id: 2,
-          tabs: [{ id: 20, windowId: 2, url: properties.url }]
+          tabs: [{ id: 20, windowId: 2, url: properties.url }],
         }
-      }
-    }
+      },
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(
     api,
     page({ surfaceKind: 'app' }),
-    'new-window'
+    'new-window',
   ), true)
   assert.deepEqual(windows, [{
     url: 'https://example.test/article?view=exact#comment',
     focused: true,
-    type: 'normal'
+    type: 'normal',
   }])
 })
 
@@ -501,8 +501,8 @@ test('retained recovery reports failure when Chrome rejects the target', async (
       query: async () => [],
       create: async () => {
         throw new Error('privileged target rejected')
-      }
-    }
+      },
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(api, page(), 'foreground-tab'), false)
@@ -517,7 +517,7 @@ test('retained recovery waits for Chrome to represent the exact created target',
         id: 9,
         windowId: 1,
         pendingUrl: properties.url,
-        status: 'loading'
+        status: 'loading',
       }),
       get: async () => {
         reads += 1
@@ -526,23 +526,23 @@ test('retained recovery waits for Chrome to represent the exact created target',
               id: 9,
               windowId: 1,
               pendingUrl: page().url,
-              status: 'loading'
+              status: 'loading',
             }
           : {
               id: 9,
               windowId: 1,
               url: page().url,
-              status: 'loading'
+              status: 'loading',
             }
-      }
-    }
+      },
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(
     api,
     page(),
     'foreground-tab',
-    { waitBetweenConfirmationAttempts: async () => {} }
+    { waitBetweenConfirmationAttempts: async () => {} },
   ), true)
   assert.equal(reads, 2)
 })
@@ -556,25 +556,25 @@ test('retained recovery preserves an unconfirmed target instead of consuming it'
         id: 9,
         windowId: 1,
         pendingUrl: page().url,
-        status: 'loading'
+        status: 'loading',
       }),
       get: async () => ({
         id: 9,
         windowId: 1,
         url: 'chrome://newtab/',
-        status: 'complete'
+        status: 'complete',
       }),
       remove: async () => {
         removeCount += 1
-      }
-    }
+      },
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(
     api,
     page(),
     'foreground-tab',
-    { waitBetweenConfirmationAttempts: async () => {} }
+    { waitBetweenConfirmationAttempts: async () => {} },
   ), false)
   assert.equal(removeCount, 0)
 })
@@ -587,22 +587,22 @@ test('retained recovery does not trust an exact URL echoed by tabs.create', asyn
         id: 9,
         windowId: 1,
         url: page().url,
-        status: 'complete'
+        status: 'complete',
       }),
       get: async () => ({
         id: 9,
         windowId: 1,
         url: 'chrome://newtab/',
-        status: 'complete'
-      })
-    }
+        status: 'complete',
+      }),
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(
     api,
     page(),
     'foreground-tab',
-    { confirmationAttempts: 1 }
+    { confirmationAttempts: 1 },
   ), false)
 })
 
@@ -616,23 +616,23 @@ test('retained recovery does not trust an exact URL echoed by windows.create', a
         id: 20,
         windowId: 2,
         url: 'chrome://newtab/',
-        status: 'complete'
-      })
+        status: 'complete',
+      }),
     },
     windows: {
       getAll: async () => [],
       create: async () => ({
         id: 2,
-        tabs: [{ id: 20, windowId: 2, url: page().url, status: 'complete' }]
-      })
-    }
+        tabs: [{ id: 20, windowId: 2, url: page().url, status: 'complete' }],
+      }),
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(
     api,
     page(),
     'new-window',
-    { confirmationAttempts: 1 }
+    { confirmationAttempts: 1 },
   ), false)
 })
 
@@ -652,7 +652,7 @@ test('retained recovery never invokes destructive or categorically blocked privi
       update: async () => {
         browserMutationCount += 1
         return { id: 9, windowId: 1 }
-      }
+      },
     },
     windows: {
       getAll: async () => {
@@ -666,8 +666,8 @@ test('retained recovery never invokes destructive or categorically blocked privi
       update: async () => {
         browserMutationCount += 1
         return { id: 1 }
-      }
-    }
+      },
+    },
   })
 
   for (const url of [
@@ -681,12 +681,12 @@ test('retained recovery never invokes destructive or categorically blocked privi
     'chrome://inducebrowserdcheckforrealz/',
     'chrome://memory-exhaust/',
     'chrome-untrusted://example-surface/content',
-    'devtools://devtools/bundled/inspector.html'
+    'devtools://devtools/bundled/inspector.html',
   ]) {
     assert.equal(
       await recoverRetainedPageSnapshot(api, page({ url }), 'foreground-tab'),
       false,
-      url
+      url,
     )
   }
   assert.equal(browserReadCount, 0)
@@ -702,19 +702,19 @@ test('retained recovery still invokes ordinary Chrome WebUI targets', async () =
         creates.push(properties)
         return { id: 9, windowId: 1, url: properties.url }
       },
-      get: async () => ({ id: 9, windowId: 1, url: 'chrome://settings/privacy' })
-    }
+      get: async () => ({ id: 9, windowId: 1, url: 'chrome://settings/privacy' }),
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(
     api,
     page({ url: 'chrome://settings/privacy' }),
-    'foreground-tab'
+    'foreground-tab',
   ), true)
   assert.deepEqual(creates, [{
     windowId: 1,
     url: 'chrome://settings/privacy',
-    active: true
+    active: true,
   }])
 })
 
@@ -729,7 +729,7 @@ test('retained recovery makes no browser mutation when the live-target read is u
       create: async () => {
         createCount += 1
         return { id: 9, windowId: 1 }
-      }
+      },
     },
     windows: {
       getAll: async () => [{ id: 1, type: 'normal' }],
@@ -737,8 +737,8 @@ test('retained recovery makes no browser mutation when the live-target read is u
       create: async () => {
         windowCreateCount += 1
         return { id: 2 }
-      }
-    }
+      },
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(api, page(), 'foreground-tab'), false)
@@ -754,11 +754,11 @@ test('retained recovery does not duplicate an exact target in an unclassified wi
       create: async () => {
         createCount += 1
         return { id: 9, windowId: 1, url: page().url }
-      }
+      },
     },
     windows: {
-      getAll: async () => [{ id: 1, type: 'normal' }]
-    }
+      getAll: async () => [{ id: 1, type: 'normal' }],
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(api, page(), 'focus-tab'), false)
@@ -774,7 +774,7 @@ test('app fallback creates one normal browser window when no normal window exist
       create: async () => {
         tabCreateCount += 1
         return { id: 9, windowId: 1 }
-      }
+      },
     },
     windows: {
       getAll: async () => [{ id: 4, type: 'app', focused: true }],
@@ -784,21 +784,21 @@ test('app fallback creates one normal browser window when no normal window exist
         return {
           id: 2,
           type: 'normal',
-          tabs: [{ id: 20, windowId: 2, url: properties.url }]
+          tabs: [{ id: 20, windowId: 2, url: properties.url }],
         }
-      }
-    }
+      },
+    },
   })
 
   assert.equal(await recoverRetainedPageSnapshot(
     api,
     page({ surfaceKind: 'app' }),
-    'foreground-tab'
+    'foreground-tab',
   ), true)
   assert.equal(tabCreateCount, 0)
   assert.deepEqual(windows, [{
     url: 'https://example.test/article?view=exact#comment',
     focused: true,
-    type: 'normal'
+    type: 'normal',
   }])
 })

@@ -2,7 +2,7 @@ import {
   existsSync,
   readFileSync,
   realpathSync,
-  writeFileSync
+  writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import {
@@ -12,7 +12,7 @@ import {
   join,
   relative,
   resolve,
-  sep
+  sep,
 } from 'node:path'
 
 import { Schema } from 'effect'
@@ -35,7 +35,7 @@ const workingSetBenchmarkVariantSchema = Schema.Literals([
   'current',
   'compact',
   'shards-32',
-  'idb'
+  'idb',
 ])
 
 export type WorkingSetBenchmarkVariant =
@@ -45,11 +45,11 @@ export const WORKING_SET_BENCHMARK_VARIANTS: readonly WorkingSetBenchmarkVariant
   'current',
   'compact',
   'shards-32',
-  'idb'
+  'idb',
 ]
 
 export const workingSetBenchmarkInstrumentationSchema = Schema.Literals([
-  'none'
+  'none',
 ])
 
 export type WorkingSetBenchmarkInstrumentation =
@@ -61,19 +61,19 @@ const workingSetBenchmarkCandidateFilename: Readonly<
   current: 'current-envelope-layer.ts',
   compact: 'compact-envelope-layer.ts',
   'shards-32': 'chrome-shards-layer.ts',
-  idb: 'indexed-db-layer.ts'
+  idb: 'indexed-db-layer.ts',
 }
 
 const isWorkingSetBenchmarkVariant = Schema.is(
-  workingSetBenchmarkVariantSchema
+  workingSetBenchmarkVariantSchema,
 )
 
 const workingSetBenchmarkRootMarkerSchema = Schema.Struct({
   schemaVersion: Schema.Literals([1]),
-  nonce: Schema.String
+  nonce: Schema.String,
 })
 const isWorkingSetBenchmarkRootMarker = Schema.is(
-  workingSetBenchmarkRootMarkerSchema
+  workingSetBenchmarkRootMarkerSchema,
 )
 
 export type WorkingSetProductionBuildSelection = {
@@ -110,57 +110,57 @@ function pathIsInside(parent: string, candidate: string): boolean {
 }
 
 export function workingSetProductionBackendModulePath(
-  repositoryRoot: string
+  repositoryRoot: string,
 ): string {
   return resolve(
     repositoryRoot,
-    'src/extension/background/working-set-activity-storage-layer.ts'
+    'src/extension/background/working-set-activity-storage-layer.ts',
   )
 }
 
 export function workingSetBenchmarkBackendModulePath(
   repositoryRoot: string,
-  variant: WorkingSetBenchmarkVariant
+  variant: WorkingSetBenchmarkVariant,
 ): string {
   return resolve(
     repositoryRoot,
     'tests/extension/working-set-backends',
-    workingSetBenchmarkCandidateFilename[variant]
+    workingSetBenchmarkCandidateFilename[variant],
   )
 }
 
 export function workingSetOwnedBackendModulePaths(
-  repositoryRoot: string
+  repositoryRoot: string,
 ): readonly string[] {
   return WORKING_SET_BENCHMARK_VARIANTS.map((variant) =>
-    workingSetBenchmarkBackendModulePath(repositoryRoot, variant)
+    workingSetBenchmarkBackendModulePath(repositoryRoot, variant),
   )
 }
 
 export function workingSetBenchmarkSelectorModulePath(
-  repositoryRoot: string
+  repositoryRoot: string,
 ): string {
   return resolve(
     repositoryRoot,
-    'tests/extension/working-set-backends/selected.ts'
+    'tests/extension/working-set-backends/selected.ts',
   )
 }
 
 export function workingSetBackgroundEntryPath(
   repositoryRoot: string,
-  selection: WorkingSetBuildSelection
+  selection: WorkingSetBuildSelection,
 ): string {
   return selection.mode === 'production'
     ? resolve(repositoryRoot, 'src/extension/background.ts')
     : resolve(
         repositoryRoot,
-        'tests/extension/working-set-storage-benchmark-background.ts'
+        'tests/extension/working-set-storage-benchmark-background.ts',
       )
 }
 
 function requiredEnvironmentValue(
   environment: NodeJS.ProcessEnv,
-  name: string
+  name: string,
 ): string | undefined {
   const value = environment[name]
   return typeof value === 'string' && value.length > 0 ? value : undefined
@@ -176,24 +176,24 @@ function readBenchmarkRootMarker(root: string): unknown {
 
 export function resolveWorkingSetBuildSelection(
   repositoryRootInput: string,
-  environment: NodeJS.ProcessEnv = process.env
+  environment: NodeJS.ProcessEnv = process.env,
 ): WorkingSetBuildSelection {
   const repositoryRoot = realpathSync(repositoryRootInput)
   const backend = requiredEnvironmentValue(
     environment,
-    WORKING_SET_BENCHMARK_BACKEND_ENV
+    WORKING_SET_BENCHMARK_BACKEND_ENV,
   )
   const extensionDirectoryInput = requiredEnvironmentValue(
     environment,
-    WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV
+    WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV,
   )
   const nonce = requiredEnvironmentValue(
     environment,
-    WORKING_SET_BENCHMARK_NONCE_ENV
+    WORKING_SET_BENCHMARK_NONCE_ENV,
   )
   const benchmarkEnvironmentValues = [backend, extensionDirectoryInput, nonce]
   const suppliedValues = benchmarkEnvironmentValues.filter(
-    (value) => value !== undefined
+    (value) => value !== undefined,
   ).length
 
   if (suppliedValues === 0) {
@@ -204,12 +204,12 @@ export function resolveWorkingSetBuildSelection(
       distDirectory: resolve(extensionDirectory, 'dist'),
       extensionDirectory,
       instrumentation: 'none',
-      variant: 'current'
+      variant: 'current',
     }
   }
   if (suppliedValues !== benchmarkEnvironmentValues.length) {
     throw new Error(
-      'Working Set benchmark backend, extension directory, and nonce must be supplied together'
+      'Working Set benchmark backend, extension directory, and nonce must be supplied together',
     )
   }
   if (!isWorkingSetBenchmarkVariant(backend)) {
@@ -233,7 +233,7 @@ export function resolveWorkingSetBuildSelection(
     !basename(benchmarkRoot).startsWith(WORKING_SET_BENCHMARK_TEMP_PREFIX)
   ) {
     throw new Error(
-      `Working Set benchmark output is not a validated mkdtemp variant directory: ${extensionDirectory}`
+      `Working Set benchmark output is not a validated mkdtemp variant directory: ${extensionDirectory}`,
     )
   }
   if (pathIsInside(repositoryRoot, extensionDirectory)) {
@@ -247,11 +247,11 @@ export function resolveWorkingSetBuildSelection(
 
   const backendModulePath = workingSetBenchmarkBackendModulePath(
     repositoryRoot,
-    backend
+    backend,
   )
   if (!existsSync(backendModulePath)) {
     throw new Error(
-      `Working Set benchmark backend module does not exist: ${backendModulePath}`
+      `Working Set benchmark backend module does not exist: ${backendModulePath}`,
     )
   }
 
@@ -264,9 +264,9 @@ export function resolveWorkingSetBuildSelection(
     instrumentation: 'none',
     moduleGraphPath: resolve(
       variantDirectory,
-      WORKING_SET_BENCHMARK_MODULE_GRAPH
+      WORKING_SET_BENCHMARK_MODULE_GRAPH,
     ),
-    variant: backend
+    variant: backend,
   }
 }
 
@@ -278,15 +278,15 @@ function normalizedModuleId(moduleId: string): string {
 export function assertWorkingSetBackendModuleGraph(
   selection: WorkingSetBenchmarkBuildSelection,
   repositoryRoot: string,
-  moduleIds: readonly string[]
+  moduleIds: readonly string[],
 ): readonly string[] {
   const ownedModules = new Set(
-    workingSetOwnedBackendModulePaths(repositoryRoot).map(normalizedModuleId)
+    workingSetOwnedBackendModulePaths(repositoryRoot).map(normalizedModuleId),
   )
   const includedBackendModules = [...new Set(
     moduleIds
       .map(normalizedModuleId)
-      .filter((moduleId) => ownedModules.has(moduleId))
+      .filter((moduleId) => ownedModules.has(moduleId)),
   )].sort()
   const selectedBackendModule = normalizedModuleId(selection.backendModulePath)
   const includedModuleIds = new Set(moduleIds.map(normalizedModuleId))
@@ -296,63 +296,63 @@ export function assertWorkingSetBackendModuleGraph(
   ) {
     throw new Error(
       'Working Set benchmark bundle must contain exactly its selected backend ' +
-      `(selected=${selectedBackendModule}, included=${includedBackendModules.join(',')})`
+      `(selected=${selectedBackendModule}, included=${includedBackendModules.join(',')})`,
     )
   }
   const selectorModule = normalizedModuleId(
-    workingSetBenchmarkSelectorModulePath(repositoryRoot)
+    workingSetBenchmarkSelectorModulePath(repositoryRoot),
   )
   if (includedModuleIds.has(selectorModule)) {
     throw new Error(
-      `Working Set benchmark selector shim was not replaced: ${selectorModule}`
+      `Working Set benchmark selector shim was not replaced: ${selectorModule}`,
     )
   }
   const productionBackendModule = normalizedModuleId(
-    workingSetProductionBackendModulePath(repositoryRoot)
+    workingSetProductionBackendModulePath(repositoryRoot),
   )
   const productionBackendIncluded = includedModuleIds.has(
-    productionBackendModule
+    productionBackendModule,
   )
   if (productionBackendIncluded) {
     throw new Error(
       'Working Set benchmark bundle must exclude the production storage layer ' +
-      `(variant=${selection.variant}, module=${productionBackendModule})`
+      `(variant=${selection.variant}, module=${productionBackendModule})`,
     )
   }
   return includedBackendModules
 }
 
 export function workingSetBenchmarkAliases(
-  selection: WorkingSetBuildSelection
-): readonly { readonly find: RegExp; readonly replacement: string }[] {
+  selection: WorkingSetBuildSelection,
+): readonly { readonly find: RegExp, readonly replacement: string }[] {
   if (selection.mode === 'production') return []
   return [
     {
       find: /^\.\/working-set-activity-storage-layer\.js$/,
-      replacement: selection.backendModulePath
+      replacement: selection.backendModulePath,
     },
     {
       find: /^\.\/working-set-backends\/selected\.js$/,
-      replacement: selection.backendModulePath
-    }
+      replacement: selection.backendModulePath,
+    },
   ]
 }
 
 export function workingSetBenchmarkModuleGraphPlugin(
   selection: WorkingSetBuildSelection,
-  repositoryRoot: string
+  repositoryRoot: string,
 ): Plugin | null {
   if (selection.mode === 'production') return null
   return {
     name: 'tab-out-working-set-benchmark-module-graph',
     generateBundle(_outputOptions, bundle) {
       const moduleIds = Object.values(bundle).flatMap((output) =>
-        output.type === 'chunk' ? Object.keys(output.modules) : []
+        output.type === 'chunk' ? Object.keys(output.modules) : [],
       )
       const includedBackendModules = assertWorkingSetBackendModuleGraph(
         selection,
         repositoryRoot,
-        moduleIds
+        moduleIds,
       )
       writeFileSync(
         selection.moduleGraphPath,
@@ -362,10 +362,10 @@ export function workingSetBenchmarkModuleGraphPlugin(
           instrumentation: selection.instrumentation,
           selectedBackendModule: selection.backendModulePath,
           includedBackendModules,
-          moduleIds: [...new Set(moduleIds)].sort()
+          moduleIds: [...new Set(moduleIds)].sort(),
         }, null, 2)}\n`,
-        { encoding: 'utf8', flag: 'wx' }
+        { encoding: 'utf8', flag: 'wx' },
       )
-    }
+    },
   }
 }

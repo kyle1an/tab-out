@@ -5,7 +5,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import {
   CHROME_BUILD_TARGET,
   MINIMUM_CHROME_VERSION,
-  chromeSupportPolicy
+  chromeSupportPolicy,
 } from '../src/extension/chrome-support.js'
 import { createIndexHtml } from '../src/index-html.js'
 import { createExtensionManifest } from '../src/extension/manifest.js'
@@ -23,7 +23,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.deepEqual(
     readdirSync('scripts').filter((file) => file.endsWith('.mjs')),
     [],
-    'maintained Node scripts should use TypeScript'
+    'maintained Node scripts should use TypeScript',
   )
   assert.ok(existsSync('src/app.tsx'), 'src/app.tsx should be the React entry source')
   assert.ok(existsSync('src/extension/background.ts'), 'src/extension/background.ts should be the service worker source')
@@ -35,7 +35,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.ok(existsSync('.dependency-cruiser.cjs'), 'dependency-cruiser should define repository architecture rules')
   assert.ok(
     existsSync('.dependency-cruiser-known-violations.json'),
-    'dependency-cruiser should baseline existing graph debt'
+    'dependency-cruiser should baseline existing graph debt',
   )
   assert.ok(existsSync('chrome-support.json'), 'chrome-support.json should be the tracked browser-support policy')
 
@@ -49,7 +49,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.equal(pkg.scripts?.['setup:hooks'], 'git config core.hooksPath .githooks')
   assert.equal(
     pkg.scripts?.['commit-references:check'],
-    'tsx scripts/check-commit-references.ts'
+    'tsx scripts/check-commit-references.ts',
   )
   assert.equal(pkg.scripts?.dev, 'node scripts/watch-build.ts')
   assert.equal(pkg.scripts?.serve, 'node scripts/serve.ts')
@@ -60,7 +60,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.equal(pkg.scripts?.lint, 'eslint . --max-warnings=0')
   assert.equal(
     pkg.scripts?.['deps:architecture'],
-    'depcruise --config .dependency-cruiser.cjs --ignore-known .dependency-cruiser-known-violations.json src'
+    'depcruise --config .dependency-cruiser.cjs --ignore-known .dependency-cruiser-known-violations.json src',
   )
   assert.equal(pkg.scripts?.['deps:nolyfill'], 'pnpm dlx nolyfill --pm pnpm')
   assert.match(pkg.scripts?.['test:browser'], /playwright test/)
@@ -72,7 +72,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.equal(pkg.scripts?.['lint:tailwind'], 'node scripts/check-tailwind-diagnostics.ts')
   assert.equal(
     pkg.scripts?.['verify:quick'],
-    'pnpm run "/^(typecheck|lint|lint:tailwind|deps:architecture|react-doctor|verify:compiler)$/"'
+    'pnpm run "/^(typecheck|lint|lint:tailwind|deps:architecture|react-doctor|verify:compiler)$/"',
   )
   assert.match(pkg.scripts?.verify, /pnpm lint:tailwind/)
   assert.match(pkg.scripts?.verify, /^pnpm chrome-support:check &&/)
@@ -164,7 +164,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   const buildScript = readFileSync('scripts/build-extension.ts', 'utf8')
   const workingSetBenchmarkBuildConfig = readFileSync(
     'scripts/working-set-benchmark-build-config.ts',
-    'utf8'
+    'utf8',
   )
   const manifestSource = readFileSync('src/extension/manifest.ts', 'utf8')
   const indexHtmlSource = readFileSync('src/index-html.tsx', 'utf8')
@@ -269,7 +269,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.match(appSource, /styles\/app\.css/)
   assert.doesNotMatch(
     [appComponentSource, domainCardSource, pageChipSource, tabHistoryPanelSource].join('\n'),
-    /text-\[11px\]/
+    /text-\[11px\]/,
   )
   assert.match(`${appComponentSource}\n${toastSource}\n${mountToastSource}`, /react-dom\/client/)
   assert.doesNotMatch(appSource, /mountToast/)
@@ -332,7 +332,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.match(tooltipSource, /hoverCloseScheduledRef/)
   assert.match(
     tooltipSource,
-    /onOpenChange\?: \(\(open: boolean\) => void\) \| undefined/
+    /onOpenChange\?: \(\(open: boolean\) => void\) \| undefined/,
   )
   assert.match(tooltipSource, /onOpenChange\?\.\(true\)/)
   assert.match(tooltipSource, /onOpenChange\?\.\(false\)/)
@@ -426,11 +426,11 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.match(pageChipSource, /function getVisibleChipTextLineCount\(textEl: HTMLElement \| null\)/)
   assert.match(
     pageChipSource,
-    /function getExpandedPageChipLineHtml\(\s*textEl: HTMLElement \| null,\s*serializeFragment: ChipLineFragmentSerializer = expandedChipFragmentHtml,\s*geometry\?: ChipTextLineCaptureGeometry/
+    /function getExpandedPageChipLineHtml\(\s*textEl: HTMLElement \| null,\s*serializeFragment: ChipLineFragmentSerializer = expandedChipFragmentHtml,\s*geometry\?: ChipTextLineCaptureGeometry/,
   )
   assert.match(
     pageChipSource,
-    /function getClampedPageChipLineHtml\(\s*textEl: HTMLElement \| null,\s*geometry\?: ChipTextLineCaptureGeometry/
+    /function getClampedPageChipLineHtml\(\s*textEl: HTMLElement \| null,\s*geometry\?: ChipTextLineCaptureGeometry/,
   )
   assert.match(pageChipSource, /function getExpandedPageChipContentWidth\(/)
   assert.match(pageChipSource, /function createExpandedPageChipMeasureElement\(/)
@@ -790,8 +790,8 @@ test('repo hooks verify changes and reject unsafe commit references', () => {
 
 test('commit reference policy records custom-autolink audit status', () => {
   const policy = JSON.parse(
-    readFileSync('.github/commit-reference-policy.json', 'utf8')
-  ) as { customAutolinks: unknown[]; customAutolinksAudited: boolean }
+    readFileSync('.github/commit-reference-policy.json', 'utf8'),
+  ) as { customAutolinks: unknown[], customAutolinksAudited: boolean }
 
   assert.deepEqual(policy.customAutolinks, [])
   assert.equal(policy.customAutolinksAudited, false)

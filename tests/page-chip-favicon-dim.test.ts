@@ -23,7 +23,7 @@ function makeChip(overrides: Partial<DashboardChipData> = {}): DashboardChipData
     groupDotColor: null,
     isApp: false,
     envs: null,
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -52,18 +52,18 @@ test('loading title-variant and folded chips expose one busy semantic group', ()
   const titleVariantChip = {
     titleVariantChips: [
       makeChip({ tabUrl: 'https://site.example/a', rawUrl: 'https://site.example/a', pathSuffix: '/a', loading: true }),
-      makeChip({ tabUrl: 'https://site.example/b', rawUrl: 'https://site.example/b', pathSuffix: '/b' })
-    ]
+      makeChip({ tabUrl: 'https://site.example/b', rawUrl: 'https://site.example/b', pathSuffix: '/b' }),
+    ],
   }
   const foldedChip = {
     envs: [
       { prefix: 'env-alpha', tabUrl: 'https://env-alpha.site.example/page', rawUrl: 'https://env-alpha.site.example/page' },
-      { prefix: 'env-beta', tabUrl: 'https://env-beta.site.example/page', rawUrl: 'https://env-beta.site.example/page' }
-    ]
+      { prefix: 'env-beta', tabUrl: 'https://env-beta.site.example/page', rawUrl: 'https://env-beta.site.example/page' },
+    ],
   }
   const loadingHtml = [
     renderChip({ ...titleVariantChip, loading: true }),
-    renderChip({ ...foldedChip, loading: true })
+    renderChip({ ...foldedChip, loading: true }),
   ]
   const completeHtml = [renderChip(titleVariantChip), renderChip(foldedChip)]
 
@@ -102,7 +102,7 @@ test('a retained page uses the same closed favicon treatment without saved wordi
     sourceType: 'retained-page',
     dupeCount: 4,
     retainedPageIdentity: 'identity-example',
-    retainedPageClosureToken: 'lifetime-example'
+    retainedPageClosureToken: 'lifetime-example',
   })
 
   assert.match(html, /chip-favicon-dimmed/)
@@ -115,7 +115,7 @@ test('a faviconless retained page uses the dimmed closed-page default favicon', 
     sourceType: 'retained-page',
     faviconUrl: '',
     retainedPageIdentity: 'identity-example',
-    retainedPageClosureToken: 'lifetime-example'
+    retainedPageClosureToken: 'lifetime-example',
   })
 
   assert.match(html, /default-favicon-image[^"]*chip-favicon-dimmed|chip-favicon-dimmed[^"]*default-favicon-image/)
@@ -128,7 +128,7 @@ test('folded targets distinguish opening a closed page from focusing a live tab'
         prefix: 'env-alpha',
         tabUrl: 'https://live.site.example/page',
         rawUrl: 'https://live.site.example/page',
-        sourceType: 'tab'
+        sourceType: 'tab',
       },
       {
         prefix: 'env-beta',
@@ -137,9 +137,9 @@ test('folded targets distinguish opening a closed page from focusing a live tab'
         sourceType: 'retained-page',
         closedSaved: true,
         retainedPageIdentity: 'identity-closed',
-        retainedPageClosureToken: 'lifetime-closed'
-      }
-    ]
+        retainedPageClosureToken: 'lifetime-closed',
+      },
+    ],
   })
 
   assert.match(html, /aria-label="Focus env-alpha tab"/)
@@ -161,8 +161,8 @@ test('a suspended current variant keeps a distinct full-opacity label color whil
   const html = renderChip({
     titleVariantChips: [
       makeChip({ tabUrl: 'https://site.example/a', rawUrl: 'https://site.example/a', pathSuffix: '/a', suspended: true, activeChipFrame: true }),
-      makeChip({ tabUrl: 'https://site.example/b', rawUrl: 'https://site.example/b', pathSuffix: '/b' })
-    ]
+      makeChip({ tabUrl: 'https://site.example/b', rawUrl: 'https://site.example/b', pathSuffix: '/b' }),
+    ],
   })
   assert.match(html, /chip-title-variant clickable[^"]*text-neutral-600/)
   assert.equal((html.match(/chip-variant-label-dimmed/g) || []).length, 1)
@@ -174,8 +174,8 @@ test('a closed-saved variant row dims its label', () => {
   const html = renderChip({
     titleVariantChips: [
       makeChip({ tabUrl: 'https://site.example/a', rawUrl: 'https://site.example/a', pathSuffix: '/a', sourceType: 'saved-page', saved: true, closedSaved: true }),
-      makeChip({ tabUrl: 'https://site.example/b', rawUrl: 'https://site.example/b', pathSuffix: '/b' })
-    ]
+      makeChip({ tabUrl: 'https://site.example/b', rawUrl: 'https://site.example/b', pathSuffix: '/b' }),
+    ],
   })
   assert.equal((html.match(/chip-variant-label-dimmed/g) || []).length, 1)
 })
@@ -190,10 +190,10 @@ test('a retained variant row dims its label without a duplicate badge', () => {
         sourceType: 'retained-page',
         dupeCount: 3,
         retainedPageIdentity: 'identity-a',
-        retainedPageClosureToken: 'lifetime-a'
+        retainedPageClosureToken: 'lifetime-a',
       }),
-      makeChip({ tabUrl: 'https://site.example/b', rawUrl: 'https://site.example/b', pathSuffix: '/b' })
-    ]
+      makeChip({ tabUrl: 'https://site.example/b', rawUrl: 'https://site.example/b', pathSuffix: '/b' }),
+    ],
   })
 
   assert.equal((html.match(/chip-variant-label-dimmed/g) || []).length, 1)

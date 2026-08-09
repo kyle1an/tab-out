@@ -10,7 +10,7 @@ function createChromeMock(initialTabs: any[]) {
 
   ;(globalThis as any).chrome = {
     runtime: {
-      id: 'tab-out'
+      id: 'tab-out',
     },
     tabs: {
       async query() {
@@ -25,7 +25,7 @@ function createChromeMock(initialTabs: any[]) {
         const ids = Array.isArray(tabIds) ? tabIds : [tabIds]
         removedIds.push(...ids)
         tabs = tabs.filter((tab) => !ids.includes(tab.id))
-      }
+      },
     },
     windows: {
       async getCurrent() {
@@ -33,8 +33,8 @@ function createChromeMock(initialTabs: any[]) {
       },
       async getAll() {
         return [{ id: 1, type: 'normal' }]
-      }
-    }
+      },
+    },
   }
 
   return { removedIds }
@@ -43,15 +43,15 @@ function createChromeMock(initialTabs: any[]) {
 test('dedupe policy counts only safe close extras for grouped duplicate tabs', () => {
   const sameGroup = [
     { id: 1, url: 'https://example.com/a', windowId: 1, groupId: 7 },
-    { id: 2, url: 'https://example.com/a', windowId: 1, groupId: 7 }
+    { id: 2, url: 'https://example.com/a', windowId: 1, groupId: 7 },
   ]
   const multiGroup = [
     { id: 1, url: 'https://example.com/a', windowId: 1, groupId: 7 },
-    { id: 2, url: 'https://example.com/a', windowId: 1, groupId: 8 }
+    { id: 2, url: 'https://example.com/a', windowId: 1, groupId: 8 },
   ]
   const mixed = [
     { id: 1, url: 'https://example.com/a', windowId: 1, groupId: 7 },
-    { id: 2, url: 'https://example.com/a', windowId: 1, groupId: -1 }
+    { id: 2, url: 'https://example.com/a', windowId: 1, groupId: -1 },
   ]
 
   assert.equal(countClosableDuplicateExtras(sameGroup), 1)
@@ -63,15 +63,15 @@ test('dedupe policy preserves pinned Tab Out copies before score-based selection
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
   const matching = [
     { id: 1, url: tabOutUrl, windowId: 1, index: 0, active: false, pinned: true, groupId: -1 },
-    { id: 2, url: tabOutUrl, windowId: 1, index: 1, active: true, pinned: false, groupId: -1 }
+    { id: 2, url: tabOutUrl, windowId: 1, index: 1, active: true, pinned: false, groupId: -1 },
   ]
 
   assert.deepEqual(
     pickDuplicateTabsToClose(matching, {
       preservePinnedTabOut: true,
-      isTabOutUrl: (url) => url === tabOutUrl
+      isTabOutUrl: (url) => url === tabOutUrl,
     }).map((tab) => tab.id),
-    [2]
+    [2],
   )
 })
 
@@ -84,24 +84,24 @@ test('dedupe policy preserves pinned and grouped Tab Out buckets while closing o
     { id: 4, url: tabOutUrl, windowId: 1, index: 3, active: false, pinned: false, groupId: 7 },
     { id: 5, url: tabOutUrl, windowId: 1, index: 4, active: false, pinned: false, groupId: 8 },
     { id: 6, url: tabOutUrl, windowId: 1, index: 5, active: false, pinned: false, groupId: -1 },
-    { id: 7, url: tabOutUrl, windowId: 1, index: 6, active: false, pinned: false, groupId: -1 }
+    { id: 7, url: tabOutUrl, windowId: 1, index: 6, active: false, pinned: false, groupId: -1 },
   ]
 
   assert.deepEqual(
     pickDuplicateTabsToClose(matching, {
       currentWindowId: 1,
       preservePinnedTabOut: true,
-      isTabOutUrl: (url) => url === tabOutUrl
+      isTabOutUrl: (url) => url === tabOutUrl,
     }).map((tab) => tab.id),
-    [6, 7]
+    [6, 7],
   )
   assert.equal(
     countClosableDuplicateExtras(matching, {
       isTabOutGroup: true,
       currentWindowId: 1,
-      isTabOutUrl: (url) => url === tabOutUrl
+      isTabOutUrl: (url) => url === tabOutUrl,
     }),
-    2
+    2,
   )
 })
 
@@ -110,12 +110,12 @@ test('dedupe keeps the most recently touched copy among ungrouped duplicates', (
   const matching = [
     { id: 1, url, windowId: 1, index: 0, lastAccessed: 100 },
     { id: 2, url, windowId: 1, index: 1, lastAccessed: 300 },
-    { id: 3, url, windowId: 1, index: 2, lastAccessed: 200 }
+    { id: 3, url, windowId: 1, index: 2, lastAccessed: 200 },
   ]
 
   assert.deepEqual(
     pickDuplicateTabsToClose(matching).map((tab) => tab.id),
-    [1, 3]
+    [1, 3],
   )
 })
 
@@ -123,12 +123,12 @@ test('a grouped duplicate is kept over a more recently touched ungrouped one', (
   const url = 'https://example.com/a'
   const matching = [
     { id: 1, url, windowId: 1, index: 0, groupId: 7, lastAccessed: 100 },
-    { id: 2, url, windowId: 1, index: 1, groupId: -1, lastAccessed: 999 }
+    { id: 2, url, windowId: 1, index: 1, groupId: -1, lastAccessed: 999 },
   ]
 
   assert.deepEqual(
     pickDuplicateTabsToClose(matching).map((tab) => tab.id),
-    [2]
+    [2],
   )
 })
 
@@ -136,12 +136,12 @@ test('a pinned duplicate is kept over a more recently touched unpinned one', () 
   const url = 'https://example.com/a'
   const matching = [
     { id: 1, url, windowId: 1, index: 0, pinned: true, lastAccessed: 100 },
-    { id: 2, url, windowId: 1, index: 1, pinned: false, lastAccessed: 999 }
+    { id: 2, url, windowId: 1, index: 1, pinned: false, lastAccessed: 999 },
   ]
 
   assert.deepEqual(
     pickDuplicateTabsToClose(matching).map((tab) => tab.id),
-    [2]
+    [2],
   )
 })
 
@@ -149,12 +149,12 @@ test('a more recently touched background copy is kept over one active in another
   const url = 'https://example.com/a'
   const matching = [
     { id: 1, url, windowId: 2, index: 5, active: true, lastAccessed: 100 },
-    { id: 2, url, windowId: 1, index: 0, active: false, lastAccessed: 999 }
+    { id: 2, url, windowId: 1, index: 0, active: false, lastAccessed: 999 },
   ]
 
   assert.deepEqual(
     pickDuplicateTabsToClose(matching, { currentWindowId: 1 }).map((tab) => tab.id),
-    [1]
+    [1],
   )
 })
 
@@ -162,12 +162,12 @@ test('tab id breaks recency ties so the newer-opened duplicate is kept', () => {
   const url = 'https://example.com/a'
   const matching = [
     { id: 10, url, windowId: 1, index: 0 },
-    { id: 20, url, windowId: 1, index: 1 }
+    { id: 20, url, windowId: 1, index: 1 },
   ]
 
   assert.deepEqual(
     pickDuplicateTabsToClose(matching).map((tab) => tab.id),
-    [10]
+    [10],
   )
 })
 
@@ -175,12 +175,12 @@ test('a duplicate with a recorded lastAccessed is kept over one missing it (e.g.
   const url = 'https://example.com/a'
   const matching = [
     { id: 1, url, windowId: 1, index: 0 },
-    { id: 2, url, windowId: 1, index: 1, lastAccessed: 500 }
+    { id: 2, url, windowId: 1, index: 1, lastAccessed: 500 },
   ]
 
   assert.deepEqual(
     pickDuplicateTabsToClose(matching).map((tab) => tab.id),
-    [1]
+    [1],
   )
 })
 
@@ -188,7 +188,7 @@ test('global dedupe keeps the current Tab Out tab when a pinned duplicate exists
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
   const { removedIds } = createChromeMock([
     { id: 1, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 0, active: false, pinned: true, groupId: -1 },
-    { id: 2, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 1, active: true, pinned: false, groupId: -1 }
+    { id: 2, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 1, active: true, pinned: false, groupId: -1 },
   ])
 
   await closeDuplicateTabsResult([tabOutUrl], true, { preservePinnedTabOut: true })
@@ -200,7 +200,7 @@ test('global dedupe preserves pinned Tab Out tabs while closing non-current unpi
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
   const { removedIds } = createChromeMock([
     { id: 1, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 0, active: false, pinned: true, groupId: -1 },
-    { id: 2, url: tabOutUrl, title: 'Tab Out', windowId: 2, index: 1, active: true, pinned: false, groupId: -1 }
+    { id: 2, url: tabOutUrl, title: 'Tab Out', windowId: 2, index: 1, active: true, pinned: false, groupId: -1 },
   ])
 
   await closeDuplicateTabsResult([tabOutUrl], true, { preservePinnedTabOut: true })
@@ -212,7 +212,7 @@ test('global dedupe keeps the current Tab Out tab when a grouped duplicate exist
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
   const { removedIds } = createChromeMock([
     { id: 1, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 1, active: true, pinned: false, groupId: -1 },
-    { id: 2, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 0, active: false, pinned: false, groupId: 7 }
+    { id: 2, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 0, active: false, pinned: false, groupId: 7 },
   ])
 
   await closeDuplicateTabsResult([tabOutUrl], true, { preservePinnedTabOut: true })
@@ -224,7 +224,7 @@ test('global dedupe aborts for Tab Out pages when current-window identity is una
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
   const { removedIds } = createChromeMock([
     { id: 1, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 0, active: true, pinned: false, groupId: -1 },
-    { id: 2, url: tabOutUrl, title: 'Tab Out', windowId: 2, index: 0, active: false, pinned: false, groupId: -1 }
+    { id: 2, url: tabOutUrl, title: 'Tab Out', windowId: 2, index: 0, active: false, pinned: false, groupId: -1 },
   ])
   ;(globalThis as any).chrome.windows.getCurrent = async () => {
     throw new Error('Current window disappeared')
@@ -240,7 +240,7 @@ test('global dedupe accepts toolbar-provided current-window identity', async () 
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
   const { removedIds } = createChromeMock([
     { id: 1, url: tabOutUrl, title: 'Current Tab Out', windowId: 1, index: 0, active: true, pinned: false, groupId: -1 },
-    { id: 2, url: tabOutUrl, title: 'Other Tab Out', windowId: 2, index: 0, active: true, pinned: false, groupId: -1 }
+    { id: 2, url: tabOutUrl, title: 'Other Tab Out', windowId: 2, index: 0, active: true, pinned: false, groupId: -1 },
   ])
   ;(globalThis as any).chrome.windows.getCurrent = async () => {
     throw new Error('Current window should come from the toolbar click')
@@ -248,7 +248,7 @@ test('global dedupe accepts toolbar-provided current-window identity', async () 
 
   await closeDuplicateTabsResult([tabOutUrl], true, {
     currentWindowId: 1,
-    preservePinnedTabOut: true
+    preservePinnedTabOut: true,
   })
 
   assert.deepEqual(removedIds, [2])
@@ -258,7 +258,7 @@ test('global dedupe returns an undo snapshot for closed Tab Out duplicates', asy
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
   createChromeMock([
     { id: 1, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 0, active: false, pinned: true, groupId: -1 },
-    { id: 2, url: tabOutUrl, title: 'Tab Out', windowId: 2, index: 1, active: true, pinned: false, groupId: -1 }
+    { id: 2, url: tabOutUrl, title: 'Tab Out', windowId: 2, index: 1, active: true, pinned: false, groupId: -1 },
   ])
 
   const { value: snapshot } = await closeDuplicateTabsResult([tabOutUrl], true, { preservePinnedTabOut: true })
@@ -271,8 +271,8 @@ test('global dedupe returns an undo snapshot for closed Tab Out duplicates', asy
       pinned: false,
       groupId: -1,
       windowId: 2,
-      index: 1
-    }
+      index: 1,
+    },
   ])
 })
 
@@ -280,7 +280,7 @@ test('dedupe snapshots a confirmed Tab Out close independently of its preservati
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
   createChromeMock([
     { id: 1, url: tabOutUrl, title: 'Current Tab Out', windowId: 1, index: 0, active: true, pinned: false, groupId: -1 },
-    { id: 2, url: tabOutUrl, title: 'Sibling Tab Out', windowId: 2, index: 0, active: false, pinned: false, groupId: -1 }
+    { id: 2, url: tabOutUrl, title: 'Sibling Tab Out', windowId: 2, index: 0, active: false, pinned: false, groupId: -1 },
   ])
 
   const result = await closeDuplicateTabsResult([tabOutUrl], true, { preservePinnedTabOut: false })
@@ -288,7 +288,7 @@ test('dedupe snapshots a confirmed Tab Out close independently of its preservati
   assert.equal(result.ok, true)
   assert.equal(result.removedCount, 1)
   assert.deepEqual(result.value.map((tab) => ({ url: tab.url, title: tab.title })), [
-    { url: tabOutUrl, title: 'Sibling Tab Out' }
+    { url: tabOutUrl, title: 'Sibling Tab Out' },
   ])
 })
 
@@ -297,7 +297,7 @@ test('closeDuplicateTabsResult reports a partial duplicate close with confirmed 
   createChromeMock([
     { id: 1, url, title: 'Oldest', windowId: 1, index: 0, active: false, pinned: false, groupId: -1, lastAccessed: 100 },
     { id: 2, url, title: 'Middle', windowId: 1, index: 1, active: false, pinned: false, groupId: -1, lastAccessed: 200 },
-    { id: 3, url, title: 'Newest', windowId: 1, index: 2, active: true, pinned: false, groupId: -1, lastAccessed: 300 }
+    { id: 3, url, title: 'Newest', windowId: 1, index: 2, active: true, pinned: false, groupId: -1, lastAccessed: 300 },
   ])
   const removeTab = (globalThis as any).chrome.tabs.remove.bind((globalThis as any).chrome.tabs)
   ;(globalThis as any).chrome.tabs.remove = async (tabIds: number | number[]) => {
@@ -321,7 +321,7 @@ test('global dedupe does not close a tab whose pending navigation left the dupli
   const { removedIds } = createChromeMock([
     { id: 1, url, title: 'Newest', windowId: 1, index: 0, active: true, pinned: false, groupId: -1, lastAccessed: 300 },
     { id: 2, url, pendingUrl: 'https://example.test/other', title: 'Leaving', windowId: 1, index: 1, active: false, pinned: false, groupId: -1, lastAccessed: 100 },
-    { id: 3, url, title: 'Middle', windowId: 1, index: 2, active: false, pinned: false, groupId: -1, lastAccessed: 200 }
+    { id: 3, url, title: 'Middle', windowId: 1, index: 2, active: false, pinned: false, groupId: -1, lastAccessed: 200 },
   ])
 
   const result = await closeDuplicateTabsResult([url])
@@ -335,7 +335,7 @@ test('global dedupe reads tabs after current-window state settles', async () => 
   const pendingUrl = 'https://example.test/other'
   const { removedIds } = createChromeMock([
     { id: 1, url, title: 'Current', windowId: 1, index: 0, active: true, pinned: false, groupId: -1, lastAccessed: 300 },
-    { id: 2, url, title: 'Leaving', windowId: 1, index: 1, active: false, pinned: false, groupId: -1, lastAccessed: 100 }
+    { id: 2, url, title: 'Leaving', windowId: 1, index: 1, active: false, pinned: false, groupId: -1, lastAccessed: 100 },
   ])
   const { promise: currentWindowGate, resolve: releaseCurrentWindow } = Promise.withResolvers<void>()
   let navigationStarted = false
@@ -359,8 +359,8 @@ test('global dedupe reads tabs after current-window state settles', async () => 
         active: false,
         pinned: false,
         groupId: -1,
-        lastAccessed: 100
-      }
+        lastAccessed: 100,
+      },
     ]
   }
 
@@ -389,12 +389,12 @@ test('global dedupe indexes each live tab once when many keys are requested', as
     index,
     active: index === 0,
     pinned: false,
-    groupId: -1
+    groupId: -1,
   }, {
     get(target, property, receiver) {
       if (property === 'url') urlReadCount += 1
       return Reflect.get(target, property, receiver)
-    }
+    },
   }))
   ;(globalThis as any).chrome = {
     runtime: { id: 'tab-out' },
@@ -403,13 +403,13 @@ test('global dedupe indexes each live tab once when many keys are requested', as
         queryCount += 1
         return tabs
       },
-      async remove() {}
+      async remove() {},
     },
     windows: {
       async getCurrent() {
         return { id: 1 }
-      }
-    }
+      },
+    },
   }
 
   const result = await closeDuplicateTabsResult(urls)
@@ -423,7 +423,7 @@ test('global dedupe returns an undo snapshot for closed native new-tab duplicate
   const newTabUrl = 'chrome://newtab/'
   createChromeMock([
     { id: 1, url: newTabUrl, title: 'New Tab', windowId: 1, index: 0, active: false, pinned: true, groupId: -1 },
-    { id: 2, url: newTabUrl, title: 'New Tab', windowId: 2, index: 1, active: true, pinned: false, groupId: -1 }
+    { id: 2, url: newTabUrl, title: 'New Tab', windowId: 2, index: 1, active: true, pinned: false, groupId: -1 },
   ])
 
   const { value: snapshot } = await closeDuplicateTabsResult([newTabUrl], true, { preservePinnedTabOut: true })
@@ -436,8 +436,8 @@ test('global dedupe returns an undo snapshot for closed native new-tab duplicate
       pinned: false,
       groupId: -1,
       windowId: 2,
-      index: 1
-    }
+      index: 1,
+    },
   ])
 })
 
@@ -445,7 +445,7 @@ test('global dedupe does not preserve pinned non-Tab-Out tabs with the Tab Out-o
   const url = 'https://example.com/dashboard'
   const { removedIds } = createChromeMock([
     { id: 1, url, title: 'Example', windowId: 1, index: 0, active: false, pinned: true, groupId: -1 },
-    { id: 2, url, title: 'Example', windowId: 1, index: 1, active: true, pinned: false, groupId: -1 }
+    { id: 2, url, title: 'Example', windowId: 1, index: 1, active: true, pinned: false, groupId: -1 },
   ])
 
   await closeDuplicateTabsResult([url], true, { preservePinnedTabOut: true })
@@ -456,7 +456,7 @@ test('global dedupe does not preserve pinned non-Tab-Out tabs with the Tab Out-o
 test('fetchOpenTabsSnapshot recognizes filter-focus dashboard URLs as Tab Out pages', async () => {
   const tabOutUrl = 'chrome-extension://tab-out/index.html?focusFilter=1'
   createChromeMock([
-    { id: 1, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 0, active: true, pinned: false, groupId: -1 }
+    { id: 1, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 0, active: true, pinned: false, groupId: -1 },
   ])
 
   const tabs = await fetchOpenTabsSnapshot()
@@ -473,7 +473,7 @@ test('global dedupe collapses dashboards with different filter params, keeping t
   const { removedIds } = createChromeMock([
     { id: 1, url: `${base}?filter=github`, title: 'Tab Out', windowId: 1, index: 0, active: true, pinned: false, groupId: -1 },
     { id: 2, url: `${base}?filter=docs`, title: 'Tab Out', windowId: 1, index: 1, active: false, pinned: false, groupId: -1 },
-    { id: 3, url: base, title: 'Tab Out', windowId: 2, index: 0, active: false, pinned: false, groupId: -1 }
+    { id: 3, url: base, title: 'Tab Out', windowId: 2, index: 0, active: false, pinned: false, groupId: -1 },
   ])
 
   await closeDuplicateTabsResult([base], true, { preservePinnedTabOut: true })
@@ -486,7 +486,7 @@ test('global dedupe closes an ordinary native new-tab alias while keeping the cu
   const newTab = 'chrome://newtab/'
   const { removedIds } = createChromeMock([
     { id: 1, url: base, title: 'Tab Out', windowId: 1, index: 0, active: true, pinned: false, groupId: -1 },
-    { id: 2, url: newTab, title: 'New Tab', windowId: 2, index: 0, active: false, pinned: false, groupId: -1 }
+    { id: 2, url: newTab, title: 'New Tab', windowId: 2, index: 0, active: false, pinned: false, groupId: -1 },
   ])
 
   const { value: snapshot } = await closeDuplicateTabsResult([base], true, { preservePinnedTabOut: true })
@@ -499,7 +499,7 @@ test('global dedupe closes an ordinary native new-tab alias while keeping the cu
     pinned: false,
     groupId: -1,
     windowId: 2,
-    index: 0
+    index: 0,
   }])
 })
 
@@ -507,7 +507,7 @@ test('global dedupe uses existing recency ranking instead of preferring one Tab 
   const base = 'chrome-extension://tab-out/index.html'
   const { removedIds } = createChromeMock([
     { id: 1, url: base, title: 'Tab Out', windowId: 2, index: 0, active: false, pinned: false, groupId: -1, lastAccessed: 100 },
-    { id: 2, url: 'chrome://newtab/', title: 'New Tab', windowId: 2, index: 1, active: false, pinned: false, groupId: -1, lastAccessed: 200 }
+    { id: 2, url: 'chrome://newtab/', title: 'New Tab', windowId: 2, index: 1, active: false, pinned: false, groupId: -1, lastAccessed: 200 },
   ])
 
   await closeDuplicateTabsResult([base], true, { preservePinnedTabOut: true })
@@ -519,7 +519,7 @@ test('global dedupe preserves a pinned dashboard even when filters differ', asyn
   const base = 'chrome-extension://tab-out/index.html'
   const { removedIds } = createChromeMock([
     { id: 1, url: `${base}?filter=github`, title: 'Tab Out', windowId: 1, index: 0, active: false, pinned: true, groupId: -1 },
-    { id: 2, url: `${base}?filter=docs`, title: 'Tab Out', windowId: 2, index: 1, active: true, pinned: false, groupId: -1 }
+    { id: 2, url: `${base}?filter=docs`, title: 'Tab Out', windowId: 2, index: 1, active: true, pinned: false, groupId: -1 },
   ])
 
   await closeDuplicateTabsResult([base], true, { preservePinnedTabOut: true })
@@ -533,7 +533,7 @@ test('closeDuplicateTabs accepts a non-canonical requested URL for equivalent Ji
   const shortForm = 'https://example.atlassian.net/browse/ABC-123?focusedCommentId=100&sourceType=mention'
   const { removedIds } = createChromeMock([
     { id: 1, url: longForm, title: 'ABC-123', windowId: 1, index: 0, active: false, pinned: false, groupId: -1, lastAccessed: 100 },
-    { id: 2, url: shortForm, title: 'ABC-123', windowId: 1, index: 1, active: false, pinned: false, groupId: -1, lastAccessed: 200 }
+    { id: 2, url: shortForm, title: 'ABC-123', windowId: 1, index: 1, active: false, pinned: false, groupId: -1, lastAccessed: 200 },
   ])
 
   await closeDuplicateTabsResult([longForm], true)
@@ -545,7 +545,7 @@ test('closeDuplicateTabs treats GitHub repository root slash variants as duplica
   const repository = 'https://github.com/example/repo'
   const { removedIds } = createChromeMock([
     { id: 1, url: repository, title: 'example/repo', windowId: 1, index: 0, active: false, pinned: false, groupId: -1, lastAccessed: 200 },
-    { id: 2, url: `${repository}/`, title: 'example/repo', windowId: 1, index: 1, active: true, pinned: false, groupId: -1, lastAccessed: 100 }
+    { id: 2, url: `${repository}/`, title: 'example/repo', windowId: 1, index: 1, active: true, pinned: false, groupId: -1, lastAccessed: 100 },
   ])
 
   await closeDuplicateTabsResult([`${repository}/`], true)

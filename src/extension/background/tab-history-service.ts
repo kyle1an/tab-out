@@ -5,7 +5,7 @@ import {
   Layer,
   Ref,
   Result,
-  Schema
+  Schema,
 } from 'effect'
 
 import {
@@ -25,7 +25,7 @@ import {
   replaceTabIdInHistory,
   repairHistoryCursorForActiveTab,
   type GlobalTabHistory,
-  type GlobalTabHistoryInput
+  type GlobalTabHistoryInput,
 } from './tab-history-state.js'
 import { normalizeWorkingSetActivity, pageIdentityForWorkingSet } from '../working-set.js'
 import type { ChromeApi } from './chrome-api.js'
@@ -33,7 +33,7 @@ import { readChromeStorageValue, writeChromeStorageValue } from './chrome-storag
 import { WorkingSetActivityStorage } from './working-set-activity-storage.js'
 import {
   focusExistingTabTargetEffect,
-  type ExistingTabFocusResult
+  type ExistingTabFocusResult,
 } from '../tab-focus.js'
 import { BrowserTabs } from '../browser-tabs-service.js'
 import { isSuspended, unwrapSuspenderTitle, unwrapSuspenderUrl } from '../suspension.js'
@@ -53,21 +53,21 @@ type StoredGlobalTabHistoryV2 = GlobalTabHistory & {
 const storedTabHistoryEntrySchema = Schema.Struct({
   windowId: Schema.Int,
   tabId: Schema.Int,
-  url: Schema.String
+  url: Schema.String,
 })
 
 const storedPendingTabHistoryEntrySchema = Schema.Struct({
   windowId: Schema.Int,
   tabId: Schema.Int,
   url: Schema.String,
-  createdAt: Schema.Finite
+  createdAt: Schema.Finite,
 })
 
 const storedGlobalTabHistoryV2Schema = Schema.Struct({
   version: Schema.Literals([TAB_HISTORY_STORAGE_VERSION]),
   stack: Schema.mutable(Schema.Array(storedTabHistoryEntrySchema)),
   index: Schema.Int,
-  pending: Schema.mutable(Schema.Array(storedPendingTabHistoryEntrySchema))
+  pending: Schema.mutable(Schema.Array(storedPendingTabHistoryEntrySchema)),
 }) satisfies Schema.Schema<StoredGlobalTabHistoryV2>
 
 const isStoredGlobalTabHistoryV2 = Schema.is(storedGlobalTabHistoryV2Schema)
@@ -99,7 +99,7 @@ type CapturedTab = Promise<chrome.tabs.Tab | null>
 
 export class TabHistoryTaskError extends Schema.TaggedErrorClass<TabHistoryTaskError>()(
   'TabHistoryTaskError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 /**
@@ -113,40 +113,40 @@ type TabHistorySnapshotCapture = {
 }
 export class TabHistory extends Context.Service<TabHistory, {
   readonly getTabHistorySnapshot: (
-    activity?: WorkingSetActivityStore | null
+    activity?: WorkingSetActivityStore | null,
   ) => Effect.Effect<TabHistorySnapshot, TabHistoryTaskError>
   readonly getTabHistorySnapshotCapture: (
-    activity?: WorkingSetActivityStore | null
+    activity?: WorkingSetActivityStore | null,
   ) => Effect.Effect<TabHistorySnapshotCapture, TabHistoryTaskError>
   readonly recordFocusedWindowActiveTab: (
     windowId: number,
-    capturedActiveTab?: CapturedTab
+    capturedActiveTab?: CapturedTab,
   ) => Effect.Effect<void, TabHistoryTaskError>
   readonly recordTabCreation: (tab: chrome.tabs.Tab) => Effect.Effect<void, TabHistoryTaskError>
   readonly recordTabNavigation: (
     tabId: number,
     changeInfo: { url?: string },
-    tab: chrome.tabs.Tab
+    tab: chrome.tabs.Tab,
   ) => Effect.Effect<void, TabHistoryTaskError>
   readonly recordTabActivation: (
     windowId: number,
     tabId: number,
-    capturedTab?: CapturedTab
+    capturedTab?: CapturedTab,
   ) => Effect.Effect<void, TabHistoryTaskError>
   readonly removeTabFromHistory: (tabId: number) => Effect.Effect<void, TabHistoryTaskError>
   readonly replaceTabId: (
     addedTabId: number,
-    removedTabId: number
+    removedTabId: number,
   ) => Effect.Effect<void, TabHistoryTaskError>
   readonly resetForBrowserStartup: () => Effect.Effect<void, TabHistoryTaskError>
   readonly restorePreviousTabAfterClose: (
     tabId: number,
-    removeInfo: chrome.tabs.OnRemovedInfo
+    removeInfo: chrome.tabs.OnRemovedInfo,
   ) => Effect.Effect<void, TabHistoryTaskError>
   readonly switchTabHistory: (direction: number) => Effect.Effect<void, TabHistoryTaskError>
 }>()('@tab-out/background/TabHistory') {
   static layer(
-    chromeApi: ChromeApi
+    chromeApi: ChromeApi,
   ): Layer.Layer<TabHistory, never, WorkingSetActivityStorage> {
     return makeTabHistoryLayer(chromeApi).pipe(Layer.provide(BrowserTabs.layer()))
   }
@@ -185,37 +185,37 @@ function storedGlobalTabHistory(history: GlobalTabHistoryInput): StoredGlobalTab
   const cleanHistory = canonicalizeGlobalHistory(history).history
   return {
     version: TAB_HISTORY_STORAGE_VERSION,
-    ...cleanHistory
+    ...cleanHistory,
   }
 }
 
-function historyEntryForTab(tab: chrome.tabs.Tab): { windowId: number; tabId: number; url: string } | null {
+function historyEntryForTab(tab: chrome.tabs.Tab): { windowId: number, tabId: number, url: string } | null {
   if (typeof tab.id !== 'number' || typeof tab.windowId !== 'number') return null
   return {
     windowId: tab.windowId,
     tabId: tab.id,
-    url: effectiveUrlForHistoryIdentity(tab)
+    url: effectiveUrlForHistoryIdentity(tab),
   }
 }
 
-function historyEntryMatchesTab(entry: { tabId: number; url: string }, tab: chrome.tabs.Tab | undefined): boolean {
+function historyEntryMatchesTab(entry: { tabId: number, url: string }, tab: chrome.tabs.Tab | undefined): boolean {
   return !!tab && tab.id === entry.tabId && effectiveUrlForHistoryIdentity(tab) === entry.url
 }
 
-const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
-  chromeApi: ChromeApi
+const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function* (
+  chromeApi: ChromeApi,
 ) {
   const workingSetActivityStorage = yield* WorkingSetActivityStorage
   const tabHistoryCache = yield* Ref.make<GlobalTabHistory | null>(null)
   const browserStartupResetPending = yield* Ref.make(false)
   const trustedTabIds = new Set<number>()
 
-  const tryTask = Effect.fn('TabHistory.tryTask')(function*<Value>(
-    run: () => PromiseLike<Value>
+  const tryTask = Effect.fn('TabHistory.tryTask')(function* <Value>(
+    run: () => PromiseLike<Value>,
   ) {
     return yield* Effect.tryPromise({
       try: run,
-      catch: (cause) => TabHistoryTaskError.make({ cause })
+      catch: (cause) => TabHistoryTaskError.make({ cause }),
     })
   })
 
@@ -223,7 +223,7 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
     return chromeApi.storage?.local || chromeApi.storage?.session || null
   }
 
-  const readTabHistory = Effect.fn('TabHistory.read')(function*() {
+  const readTabHistory = Effect.fn('TabHistory.read')(function* () {
     const cached = yield* Ref.get(tabHistoryCache)
     if (cached) return cached
     const storage = tabHistoryStorageArea()
@@ -265,8 +265,8 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
     return canonical.history
   })
 
-  const writeTabHistory = Effect.fn('TabHistory.write')(function*(
-    nextHistory: GlobalTabHistoryInput
+  const writeTabHistory = Effect.fn('TabHistory.write')(function* (
+    nextHistory: GlobalTabHistoryInput,
   ) {
     const cleanHistory = canonicalizeGlobalHistory(nextHistory).history
     const storage = tabHistoryStorageArea()
@@ -276,7 +276,7 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
     yield* Ref.set(tabHistoryCache, cleanHistory)
   })
 
-  const readActivityTimestamps = Effect.fn('TabHistory.readActivityTimestamps')(function*() {
+  const readActivityTimestamps = Effect.fn('TabHistory.readActivityTimestamps')(function* () {
     const stored = yield* Effect.result(workingSetActivityStorage.read())
     if (Result.isFailure(stored)) return new Map()
     const activity = stored.success
@@ -298,16 +298,16 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
     return map
   }
 
-  const applyPendingBrowserStartupReset = Effect.fn('TabHistory.applyStartupReset')(function*() {
+  const applyPendingBrowserStartupReset = Effect.fn('TabHistory.applyStartupReset')(function* () {
     if (!(yield* Ref.get(browserStartupResetPending))) return
     yield* writeTabHistory({ stack: [], index: -1, pending: [] })
     yield* Ref.set(browserStartupResetPending, false)
   })
 
-  const runTabHistoryMutation = Effect.fn('TabHistory.mutate')(function*<T>(
+  const runTabHistoryMutation = Effect.fn('TabHistory.mutate')(function* <T>(
     mutator: (
-      history: GlobalTabHistory
-    ) => Effect.Effect<MutationResult<T> | void, TabHistoryTaskError>
+      history: GlobalTabHistory,
+    ) => Effect.Effect<MutationResult<T> | void, TabHistoryTaskError>,
   ) {
     yield* applyPendingBrowserStartupReset()
     const before = canonicalizeGlobalHistory(yield* readTabHistory()).history
@@ -320,13 +320,13 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
     return {
       history: cleanHistory,
       changed,
-      value: result.value
+      value: result.value,
     }
   })
 
-  const historyAfterTabActivation = Effect.fn('TabHistory.afterActivation')(function*(
+  const historyAfterTabActivation = Effect.fn('TabHistory.afterActivation')(function* (
     history: GlobalTabHistory,
-    tab: chrome.tabs.Tab
+    tab: chrome.tabs.Tab,
   ) {
     const activeEntry = historyEntryForTab(tab)
     if (!activeEntry) return history
@@ -334,14 +334,14 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
     return historyForUserActivation(history, activeEntry).history
   })
 
-  const recordTabActivation = Effect.fn('TabHistory.recordTabActivation')(function*(
+  const recordTabActivation = Effect.fn('TabHistory.recordTabActivation')(function* (
     windowId: number,
     tabId: number,
-    capturedTab?: CapturedTab
+    capturedTab?: CapturedTab,
   ) {
     if (typeof windowId !== 'number' || typeof tabId !== 'number') return
 
-    yield* runTabHistoryMutation((history) => Effect.gen(function*() {
+    yield* runTabHistoryMutation((history) => Effect.gen(function* () {
       const lookup = yield* Effect.result(tryTask(async () => {
         let activatedTab = capturedTab ? await capturedTab : null
         activatedTab ??= await chromeApi.tabs.get(tabId)
@@ -356,13 +356,13 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
         history: yield* historyAfterTabActivation(history, activatedTab),
         commit: Effect.sync(() => {
           trustedTabIds.add(tabId)
-        })
+        }),
       }
     }))
   })
 
-  const recordTabCreation = Effect.fn('TabHistory.recordTabCreation')(function*(
-    tab: chrome.tabs.Tab
+  const recordTabCreation = Effect.fn('TabHistory.recordTabCreation')(function* (
+    tab: chrome.tabs.Tab,
   ) {
     const tabId = tab.id
     const windowId = tab.windowId
@@ -386,18 +386,18 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
         windowId,
         tabId,
         url: effectiveUrlForHistoryIdentity(tab),
-        createdAt: Date.now()
+        createdAt: Date.now(),
       }).history,
       commit: Effect.sync(() => {
         trustedTabIds.add(tabId)
-      })
+      }),
     }))
   })
 
-  const recordTabNavigation = Effect.fn('TabHistory.recordTabNavigation')(function*(
+  const recordTabNavigation = Effect.fn('TabHistory.recordTabNavigation')(function* (
     tabId: number,
     changeInfo: { url?: string },
-    tab: chrome.tabs.Tab
+    tab: chrome.tabs.Tab,
   ) {
     if (
       changeInfo?.url === undefined ||
@@ -417,30 +417,30 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
       // current lifetime before its stored identity can move with navigation.
       history: trustedTabIds.has(tabId)
         ? historyForTabNavigation(history, navigatedEntry).history
-        : history
+        : history,
     }))
   })
 
-  const findFocusedWindowId = Effect.fn('TabHistory.findFocusedWindow')(function*() {
+  const findFocusedWindowId = Effect.fn('TabHistory.findFocusedWindow')(function* () {
     const windows = yield* Effect.result(tryTask(() => chromeApi.windows.getAll()))
     return Result.isFailure(windows)
       ? { id: null, known: false } satisfies FocusedWindowLookup
       : focusedWindowLookupFromWindows(windows.success)
   })
 
-  const findLastFocusedActiveTab = Effect.fn('TabHistory.findLastFocusedActiveTab')(function*() {
+  const findLastFocusedActiveTab = Effect.fn('TabHistory.findLastFocusedActiveTab')(function* () {
     const focusedTabs = yield* Effect.result(
-      tryTask(() => chromeApi.tabs.query({ active: true, lastFocusedWindow: true }))
+      tryTask(() => chromeApi.tabs.query({ active: true, lastFocusedWindow: true })),
     )
     return Result.isFailure(focusedTabs)
       ? { tab: null, known: false } satisfies LastFocusedActiveTabLookup
       : { tab: focusedTabs.success[0] || null, known: true }
   })
 
-  const findActiveTabForHistory = Effect.fn('TabHistory.findActiveTab')(function*(
+  const findActiveTabForHistory = Effect.fn('TabHistory.findActiveTab')(function* (
     tabs: chrome.tabs.Tab[],
     history: GlobalTabHistoryInput,
-    capturedFocusedWindow?: FocusedWindowLookup
+    capturedFocusedWindow?: FocusedWindowLookup,
   ) {
     const focusedWindow = capturedFocusedWindow ?? (yield* findFocusedWindowId())
     if (!focusedWindow.known) {
@@ -474,10 +474,10 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
     return { tab: capturedTab, chromeFocused: false, known: true }
   })
 
-  const findPreviousSurvivingTabInWindow = Effect.fn('TabHistory.findPreviousInWindow')(function*(
+  const findPreviousSurvivingTabInWindow = Effect.fn('TabHistory.findPreviousInWindow')(function* (
     history: GlobalTabHistoryInput,
     windowId: number,
-    tabId: number
+    tabId: number,
   ) {
     const current = normalizeGlobalHistory(history)
     const previousEntries = []
@@ -503,10 +503,10 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
     return null
   })
 
-  const primeNativeCloseTarget = Effect.fn('TabHistory.primeNativeCloseTarget')(function*(
+  const primeNativeCloseTarget = Effect.fn('TabHistory.primeNativeCloseTarget')(function* (
     windowId: number,
     tabId: number,
-    history: GlobalTabHistoryInput
+    history: GlobalTabHistoryInput,
   ) {
     const match = yield* findPreviousSurvivingTabInWindow(history, windowId, tabId)
     if (!match) return
@@ -517,16 +517,16 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
     // Some browser-managed tabs reject opener changes; the onRemoved restore
     // path below remains the fallback.
     yield* Effect.result(
-      tryTask(() => chromeApi.tabs.update(tabId, { openerTabId: targetTab.id }))
+      tryTask(() => chromeApi.tabs.update(tabId, { openerTabId: targetTab.id })),
     )
   })
 
-  const recordFocusedWindowActiveTab = Effect.fn('TabHistory.recordFocusedWindowActiveTab')(function*(
+  const recordFocusedWindowActiveTab = Effect.fn('TabHistory.recordFocusedWindowActiveTab')(function* (
     windowId: number,
-    capturedActiveTab?: CapturedTab
+    capturedActiveTab?: CapturedTab,
   ) {
     if (windowId == null || windowId === chromeApi.windows.WINDOW_ID_NONE) return
-    yield* runTabHistoryMutation((history) => Effect.gen(function*() {
+    yield* runTabHistoryMutation((history) => Effect.gen(function* () {
       const lookup = yield* Effect.result(tryTask(async () => {
         let activeTab = capturedActiveTab ? await capturedActiveTab : null
         activeTab ??= (await chromeApi.tabs.query({ windowId, active: true }))[0] ?? null
@@ -543,29 +543,29 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
         history: yield* historyAfterTabActivation(history, activeTab),
         commit: Effect.sync(() => {
           trustedTabIds.add(activeTabId)
-        })
+        }),
       }
     }))
   })
 
-  const removeTabFromHistory = Effect.fn('TabHistory.removeTab')(function*(tabId: number) {
+  const removeTabFromHistory = Effect.fn('TabHistory.removeTab')(function* (tabId: number) {
     yield* Effect.sync(() => {
       trustedTabIds.delete(tabId)
     })
     yield* runTabHistoryMutation((history) => Effect.succeed({
-      history: removeTabEntriesFromHistory(history, tabId)
+      history: removeTabEntriesFromHistory(history, tabId),
     }))
   })
 
-  const replaceTabId = Effect.fn('TabHistory.replaceTabId')(function*(
+  const replaceTabId = Effect.fn('TabHistory.replaceTabId')(function* (
     addedTabId: number,
-    removedTabId: number
+    removedTabId: number,
   ) {
     yield* Effect.sync(() => {
       trustedTabIds.delete(removedTabId)
       trustedTabIds.delete(addedTabId)
     })
-    yield* runTabHistoryMutation((history) => Effect.gen(function*() {
+    yield* runTabHistoryMutation((history) => Effect.gen(function* () {
       let replacementWindowId: number | undefined
       let replacementUrl: string | undefined
       const lookup = yield* Effect.result(tryTask(() => chromeApi.tabs.get(addedTabId)))
@@ -578,12 +578,12 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
         history: replaceTabIdInHistory(history, addedTabId, removedTabId, replacementWindowId, replacementUrl),
         commit: Effect.sync(() => {
           if (typeof replacementUrl === 'string') trustedTabIds.add(addedTabId)
-        })
+        }),
       }
     }))
   })
 
-  const resetForBrowserStartup = Effect.fn('TabHistory.resetForBrowserStartup')(function*() {
+  const resetForBrowserStartup = Effect.fn('TabHistory.resetForBrowserStartup')(function* () {
     // Browser startup invalidates every stored tab/window id. Clearing does not
     // depend on reading those stale values first, so a transient read failure
     // must not leave them available for Chrome to reuse in the new session.
@@ -594,9 +594,9 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
     yield* applyPendingBrowserStartupReset()
   })
 
-  const preparePreviousTabAfterClose = Effect.fn('TabHistory.preparePreviousAfterClose')(function*(
+  const preparePreviousTabAfterClose = Effect.fn('TabHistory.preparePreviousAfterClose')(function* (
     tabId: number,
-    removeInfo: chrome.tabs.OnRemovedInfo
+    removeInfo: chrome.tabs.OnRemovedInfo,
   ) {
     yield* Effect.sync(() => {
       trustedTabIds.delete(tabId)
@@ -604,7 +604,7 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
     if (!removeInfo) return null
 
     const { value: restoreTarget } = yield* runTabHistoryMutation<chrome.tabs.Tab | null>(
-      (history) => Effect.gen(function*() {
+      (history) => Effect.gen(function* () {
         const nextHistory = removeTabEntriesFromHistory(history, tabId)
         if (removeInfo.isWindowClosing) return { history: nextHistory }
 
@@ -614,7 +614,7 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
         }
 
         const query = yield* Effect.result(
-          tryTask(() => chromeApi.tabs.query({ windowId: removeInfo.windowId }))
+          tryTask(() => chromeApi.tabs.query({ windowId: removeInfo.windowId })),
         )
         if (Result.isFailure(query)) return { history: nextHistory }
         const tabsInWindow = query.success
@@ -652,20 +652,20 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
         const finalHistory = {
           stack: nextHistory.stack,
           index: targetNewIndex,
-          pending: nextHistory.pending
+          pending: nextHistory.pending,
         }
         const activeTab = tabsInWindow.find((tab) => tab.active)
         return {
           history: finalHistory,
-          value: activeTab?.id === targetId ? null : targetTab
+          value: activeTab?.id === targetId ? null : targetTab,
         }
       }))
 
     return restoreTarget ?? null
   })
 
-  const prepareTabHistorySwitch = Effect.fn('TabHistory.prepareSwitch')(function*(
-    direction: number
+  const prepareTabHistorySwitch = Effect.fn('TabHistory.prepareSwitch')(function* (
+    direction: number,
   ) {
     // Keep Chrome activation inside the serialized task. Its onActivated event
     // queues behind this operation, so a confirmed switch commits the cursor
@@ -676,12 +676,12 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
     const tabs = yield* tryTask(() => chromeApi.tabs.query({}))
     const existingTabs = mapTabsById(tabs)
     const history = canonicalizeGlobalHistory(
-      pruneMissingHistoryEntries(storedHistory, existingTabs)
+      pruneMissingHistoryEntries(storedHistory, existingTabs),
     ).history
     const activeTabLookup = yield* findActiveTabForHistory(tabs, history)
     if (!activeTabLookup.known) {
       return yield* Effect.fail(TabHistoryTaskError.make({
-        cause: new Error('Chrome focus state is unavailable')
+        cause: new Error('Chrome focus state is unavailable'),
       }))
     }
     const { tab: activeTab, chromeFocused } = activeTabLookup
@@ -698,13 +698,13 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
           nextHistory = {
             stack: [activeEntry],
             index: 0,
-            pending: history.pending
+            pending: history.pending,
           }
         }
       } else {
         const repaired = repairHistoryCursorForActiveTab(history, activeTab)
         const navigationHistory = canonicalizeGlobalHistory(
-          pruneMissingHistoryEntries(repaired.history, existingTabs)
+          pruneMissingHistoryEntries(repaired.history, existingTabs),
         ).history
         baseHistory = navigationHistory
         nextHistory = navigationHistory
@@ -720,11 +720,11 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
             nextHistory = historyForUserActivation(navigationHistory, {
               windowId: targetTab.windowId,
               tabId: targetTab.id,
-              url: effectiveUrlForHistoryIdentity(targetTab)
+              url: effectiveUrlForHistoryIdentity(targetTab),
             }).history
             focusAction = {
               tab: targetTab,
-              openerTabId: activeTab.id
+              openerTabId: activeTab.id,
             }
           }
         } else if (nextIndex !== -1) {
@@ -737,15 +737,15 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
                 ? {
                     windowId: targetTab.windowId,
                     tabId: targetTabId,
-                    url: effectiveUrlForHistoryIdentity(targetTab)
+                    url: effectiveUrlForHistoryIdentity(targetTab),
                   }
                 : entry)),
               index: nextIndex,
-              pending: navigationHistory.pending
+              pending: navigationHistory.pending,
             }
             focusAction = {
               tab: targetTab,
-              openerTabId: activeTab.id
+              openerTabId: activeTab.id,
             }
           }
         }
@@ -761,16 +761,16 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
     return { storedHistory, baseHistory, nextHistory, focusAction }
   })
 
-  const completeTabHistorySwitch = Effect.fn('TabHistory.completeSwitch')(function*(
+  const completeTabHistorySwitch = Effect.fn('TabHistory.completeSwitch')(function* (
     plan: TabHistorySwitchPlan,
-    focusResult: ExistingTabFocusResult
+    focusResult: ExistingTabFocusResult,
   ) {
     const { storedHistory, baseHistory, nextHistory, focusAction } = plan
     const activationConfirmed = focusResult.status === 'focused' || focusResult.status === 'activated'
     const focusTabId = focusAction.tab.id
     if (activationConfirmed && focusAction.openerTabId && typeof focusTabId === 'number') {
       yield* Effect.result(
-        tryTask(() => chromeApi.tabs.update(focusTabId, { openerTabId: focusAction.openerTabId }))
+        tryTask(() => chromeApi.tabs.update(focusTabId, { openerTabId: focusAction.openerTabId })),
       )
     }
     let committedHistory = activationConfirmed ? nextHistory : baseHistory
@@ -781,33 +781,33 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
     if (historyChanged(storedHistory, cleanHistory)) yield* writeTabHistory(cleanHistory)
     if (!activationConfirmed) {
       return yield* Effect.fail(TabHistoryTaskError.make({
-        cause: new Error('Could not activate tab history target')
+        cause: new Error('Could not activate tab history target'),
       }))
     }
   })
 
-  const getTabHistorySnapshotCapture = Effect.fn('TabHistory.captureSnapshot')(function*(
-    activity?: WorkingSetActivityStore | null
+  const getTabHistorySnapshotCapture = Effect.fn('TabHistory.captureSnapshot')(function* (
+    activity?: WorkingSetActivityStore | null,
   ) {
     const { value: capture } = yield* runTabHistoryMutation<TabHistorySnapshotCapture>(
-      (storedHistory) => Effect.gen(function*() {
+      (storedHistory) => Effect.gen(function* () {
         const [tabs, windows] = yield* Effect.all([
           tryTask(() => chromeApi.tabs.query({})),
-          tryTask(() => chromeApi.windows.getAll())
+          tryTask(() => chromeApi.windows.getAll()),
         ], { concurrency: 'unbounded' })
         const windowTypeById = mapWindowTypesById(windows)
         const existingTabs = mapTabsById(tabs)
         const identityPrunedHistory = canonicalizeGlobalHistory(
-          pruneMissingHistoryEntries(storedHistory, existingTabs)
+          pruneMissingHistoryEntries(storedHistory, existingTabs),
         ).history
         const activeTabLookup = yield* findActiveTabForHistory(
           tabs,
           identityPrunedHistory,
-          focusedWindowLookupFromWindows(windows)
+          focusedWindowLookupFromWindows(windows),
         )
         if (!activeTabLookup.known) {
           return yield* Effect.fail(TabHistoryTaskError.make({
-            cause: new Error('Chrome focus state is unavailable')
+            cause: new Error('Chrome focus state is unavailable'),
           }))
         }
         const { tab: activeTab } = activeTabLookup
@@ -827,14 +827,14 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
             entry,
             index,
             pending: false,
-            createdAt: null
+            createdAt: null,
           })),
           ...cleanHistory.pending.map((entry, pendingIndex) => ({
             entry,
             index: cleanHistory.stack.length + pendingIndex,
             pending: true,
-            createdAt: entry.createdAt
-          }))
+            createdAt: entry.createdAt,
+          })),
         ]
 
         return {
@@ -891,24 +891,24 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
                   rawUrl,
                   displayUrl,
                   favIconUrl: tab?.favIconUrl || '',
-                  lastActivatedAt: activityKey ? activityTimestamps.get(activityKey) ?? null : null
+                  lastActivatedAt: activityKey ? activityTimestamps.get(activityKey) ?? null : null,
                 }
-              })
-            }
-          }
+              }),
+            },
+          },
         }
       }))
 
     if (!capture) {
       return yield* Effect.fail(TabHistoryTaskError.make({
-        cause: new Error('Tab history snapshot capture was not produced')
+        cause: new Error('Tab history snapshot capture was not produced'),
       }))
     }
     return capture
   })
 
-  const getTabHistorySnapshot = Effect.fn('TabHistory.getSnapshot')(function*(
-    activity?: WorkingSetActivityStore | null
+  const getTabHistorySnapshot = Effect.fn('TabHistory.getSnapshot')(function* (
+    activity?: WorkingSetActivityStore | null,
   ) {
     return (yield* getTabHistorySnapshotCapture(activity)).tabHistory
   })
@@ -925,12 +925,12 @@ const makeTabHistoryEffectService = Effect.fn('TabHistory.make')(function*(
     resetForBrowserStartup,
     preparePreviousTabAfterClose,
     prepareTabHistorySwitch,
-    completeTabHistorySwitch
+    completeTabHistorySwitch,
   }
 })
 
 function makeTabHistoryLayer(chromeApi: ChromeApi) {
-  return Layer.effect(TabHistory, Effect.gen(function*() {
+  return Layer.effect(TabHistory, Effect.gen(function* () {
     const browserTabs = yield* BrowserTabs
     let taskTail = Deferred.makeUnsafe<void>()
     Deferred.doneUnsafe(taskTail, Effect.void)
@@ -939,31 +939,31 @@ function makeTabHistoryLayer(chromeApi: ChromeApi) {
     // Runtime fibers may start in a different order, so each task awaits the
     // previous invocation's Deferred before touching browser or storage state.
     function serialize<Value>(
-      task: Effect.Effect<Value, TabHistoryTaskError>
+      task: Effect.Effect<Value, TabHistoryTaskError>,
     ): Effect.Effect<Value, TabHistoryTaskError> {
       const previous = taskTail
       const completion = Deferred.makeUnsafe<void>()
       taskTail = completion
       return Deferred.await(previous).pipe(
         Effect.andThen(task),
-        Effect.ensuring(Deferred.succeed(completion, undefined))
+        Effect.ensuring(Deferred.succeed(completion, undefined)),
       )
     }
 
     const service = yield* makeTabHistoryEffectService(chromeApi)
-    const focusExistingTab = Effect.fn('TabHistory.focusExistingTab')(function*(
-      tab: chrome.tabs.Tab | null
+    const focusExistingTab = Effect.fn('TabHistory.focusExistingTab')(function* (
+      tab: chrome.tabs.Tab | null,
     ) {
       if (typeof tab?.id !== 'number') return { status: 'not-found' } as const
       return yield* focusExistingTabTargetEffect({
         tabId: tab.id,
         windowId: tab.windowId,
         url: unwrapSuspenderUrl(tab.url || ''),
-        rawUrl: tab.url || ''
+        rawUrl: tab.url || '',
       }).pipe(Effect.provideService(BrowserTabs, browserTabs))
     })
     const restorePreviousTabAfterClose = Effect.fn('TabHistory.restorePreviousAfterClose')(
-      function*(tabId: number, removeInfo: chrome.tabs.OnRemovedInfo) {
+      function* (tabId: number, removeInfo: chrome.tabs.OnRemovedInfo) {
         const restoreTarget = yield* service.preparePreviousTabAfterClose(tabId, removeInfo)
         if (!restoreTarget) return
         const focusResult = yield* focusExistingTab(restoreTarget)
@@ -971,9 +971,9 @@ function makeTabHistoryLayer(chromeApi: ChromeApi) {
         if (focusResult.status === 'not-found' && typeof restoreTargetId === 'number') {
           yield* service.removeTabFromHistory(restoreTargetId)
         }
-      }
+      },
     )
-    const switchTabHistory = Effect.fn('TabHistory.switch')(function*(direction: number) {
+    const switchTabHistory = Effect.fn('TabHistory.switch')(function* (direction: number) {
       const plan = yield* service.prepareTabHistorySwitch(direction)
       if (!plan) return
       const focusResult = yield* focusExistingTab(plan.focusAction.tab)
@@ -997,7 +997,7 @@ function makeTabHistoryLayer(chromeApi: ChromeApi) {
       resetForBrowserStartup: () => serialize(service.resetForBrowserStartup()),
       restorePreviousTabAfterClose: (tabId, removeInfo) =>
         serialize(restorePreviousTabAfterClose(tabId, removeInfo)),
-      switchTabHistory: (direction) => serialize(switchTabHistory(direction))
+      switchTabHistory: (direction) => serialize(switchTabHistory(direction)),
     })
   }))
 }

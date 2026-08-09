@@ -12,7 +12,7 @@ export interface InitialOpenSurfaceReconciliationCoordinator {
 /** Keep Promise adaptation behind the lifecycle seam, not in background.ts. */
 export function initialOpenSurfaceReconciliationEffect(
   coordinator: InitialOpenSurfaceReconciliationCoordinator,
-  mode?: OpenSurfaceReconciliationMode
+  mode?: OpenSurfaceReconciliationMode,
 ): Effect.Effect<void> {
   return Effect.promise(() => mode
     ? coordinator.claim(mode)
@@ -46,7 +46,7 @@ export function createInitialOpenSurfaceReconciliationCoordinator(options: {
     'worker-resume': 0,
     'extension-reload': 1,
     'browser-startup': 2,
-    'first-install': 3
+    'first-install': 3,
   }
 
   const startReconciliation = (): void => {
@@ -66,7 +66,7 @@ export function createInitialOpenSurfaceReconciliationCoordinator(options: {
           reconciliationStarted = false
           currentAttempt.reject(reason)
           if (attempt === currentAttempt) attempt = Promise.withResolvers<void>()
-        }
+        },
       )
   }
 
@@ -94,6 +94,6 @@ export function createInitialOpenSurfaceReconciliationCoordinator(options: {
 
   return {
     claim,
-    whenReady: waitForReady
+    whenReady: waitForReady,
   }
 }

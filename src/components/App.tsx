@@ -12,7 +12,7 @@ import {
   animateIntraCardMoves,
   animateQueuedPageChipRefreshMoves,
   prepareIntraCardMoveAnimationByKey,
-  type PreparedIntraCardMove
+  type PreparedIntraCardMove,
 } from '../extension/intra-card-move-animation.js'
 import { closeFilteredTabs, dedupeTabs } from '../extension/tab-actions'
 import { buildFilterResultCandidates, type FilterResultCandidate } from '../extension/filter-result-navigation.js'
@@ -40,7 +40,7 @@ import type {
   DashboardCardEntry,
   DashboardSource,
   DashboardStats,
-  TabHistorySnapshot
+  TabHistorySnapshot,
 } from './types'
 import type { HistorySearchSummary, RetainedPageSurfaceMatch, WorkingSetSnapshot } from '../extension/types'
 import type { CardPositionMap, MissionContainer } from '../extension/card-move-animation'
@@ -109,7 +109,7 @@ function readMissionContainers(...refs: MissionContainerRef[]): MissionContainer
   return refs.map((ref) => ref.current)
 }
 
-function MissionsDivider({ action, label, status }: { action?: ReactNode; label: string; status?: ReactNode }) {
+function MissionsDivider({ action, label, status }: { action?: ReactNode, label: string, status?: ReactNode }) {
   return (
     <div className={cn('missions-divider mb-4 flex items-center gap-3 text-xs font-medium tracking-[0.6px] text-muted-foreground uppercase', (action || status) && 'min-h-(--header-control-height)')}>
       <span className="missions-divider-label pointer-events-none shrink-0 whitespace-nowrap">{label}</span>
@@ -155,7 +155,7 @@ function dashboardMissionSections({
   showHistoryMatches,
   showHistoryRange,
   showPrimaryEmptyState,
-  source
+  source,
 }: DashboardMissionSectionsOptions): DashboardMissionSection[] {
   if (!isReady) return []
 
@@ -166,8 +166,8 @@ function dashboardMissionSections({
       gridId: 'openTabsMissions',
       gridRef: primaryMissionsRef,
       showEmptyState: showPrimaryEmptyState,
-      source
-    }
+      source,
+    },
   ]
 
   if (showHistoryRange || showHistoryMatches) {
@@ -181,7 +181,7 @@ function dashboardMissionSections({
       sectionClassName: cn('missions-other missions-history mt-6', historyMatchesFlush && 'mt-0'),
       sectionId: 'historyMatchesSection',
       showEmptyState: false,
-      source: 'history'
+      source: 'history',
     })
   }
 
@@ -194,7 +194,7 @@ function dashboardMissionSections({
       sectionClassName: cn('missions-other missions-bookmarks mt-6', bookmarkMatchesFlush && 'mt-0'),
       sectionId: 'bookmarkMatchesSection',
       showEmptyState: false,
-      source: 'bookmarks'
+      source: 'bookmarks',
     })
   }
 
@@ -294,7 +294,7 @@ function DashboardShell({
   stats,
   tabHistory,
   urlPreviewStore,
-  workingSet
+  workingSet,
 }: DashboardShellProps) {
   // Reserve the Tabs-source history column during the initial dashboard fetch so
   // the header does not shift when the first snapshot arrives.
@@ -310,7 +310,7 @@ function DashboardShell({
           showTabHistory
             ? 'has-history items-stretch gap-4 grid-cols-[minmax(calc(220px+var(--dashboard-history-edge-gutter)),calc(260px+var(--dashboard-history-edge-gutter)))_minmax(0,1fr)] max-[900px]:[--dashboard-page-gutter:20px] max-[900px]:[--dashboard-history-edge-gutter:12px] max-[900px]:[--dashboard-scrollbar-inset:var(--dashboard-scrollbar-size)] max-[900px]:[&.has-history]:grid-cols-[minmax(0,1fr)] max-[900px]:[&.has-history]:gap-0'
             : 'grid-cols-[minmax(0,1fr)]',
-          source === 'bookmarks' && 'is-bookmarks'
+          source === 'bookmarks' && 'is-bookmarks',
         )}
       >
         {showTabHistory && (
@@ -332,7 +332,7 @@ function DashboardShell({
             'dashboard-main flex min-h-0 min-w-0 flex-col',
             showTabHistory
               ? 'col-2 pr-(--dashboard-page-gutter) pl-0 max-[900px]:[.dashboard-shell.has-history_&]:col-1 max-[900px]:[.dashboard-shell.has-history_&]:px-(--dashboard-page-gutter)'
-              : 'col-1 px-(--dashboard-page-gutter)'
+              : 'col-1 px-(--dashboard-page-gutter)',
           )}
         >
           <div
@@ -341,7 +341,7 @@ function DashboardShell({
               source === 'bookmarks'
                 ? 'ml-[calc(0px-var(--dashboard-edge-bleed))] pl-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))]'
                 : 'ml-[calc(0px-var(--header-shadow-left-reserve))] pl-(--header-shadow-left-reserve)',
-              showTabHistory && '[clip-path:inset(0_0_-16px_calc(0px-var(--header-shadow-left-reserve)))] focus-within:[clip-path:inset(-4px_-4px_-16px_calc(0px-var(--header-shadow-left-reserve)-4px))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-padding-fade:calc(var(--dashboard-edge-bleed)+var(--dashboard-scrollbar-size))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-left-reserve:var(--dashboard-edge-bleed)] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:ml-[calc(0px-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:pl-(--dashboard-edge-bleed) max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scrollbar-size))]'
+              showTabHistory && '[clip-path:inset(0_0_-16px_calc(0px-var(--header-shadow-left-reserve)))] focus-within:[clip-path:inset(-4px_-4px_-16px_calc(0px-var(--header-shadow-left-reserve)-4px))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-padding-fade:calc(var(--dashboard-edge-bleed)+var(--dashboard-scrollbar-size))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-left-reserve:var(--dashboard-edge-bleed)] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:ml-[calc(0px-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:pl-(--dashboard-edge-bleed) max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scrollbar-size))]',
             )}
           >
             <HeaderBar
@@ -369,7 +369,7 @@ function DashboardShell({
               'scroll-region relative z-1 flex-auto min-h-0 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain mr-[calc(0px-var(--dashboard-edge-bleed))] pt-1.5 pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))] pb-12.5 scrollbar-gutter-stable max-[900px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-size)-var(--dashboard-scrollbar-thumb-size)-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-size)+var(--dashboard-scrollbar-thumb-size))]',
               source === 'bookmarks'
                 ? 'ml-[calc(0px-var(--dashboard-edge-bleed)-var(--dashboard-card-shadow-bleed))] pl-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter)+var(--dashboard-card-shadow-bleed))]'
-                : 'ml-[calc(0px-var(--dashboard-card-shadow-bleed))] pl-(--dashboard-card-shadow-bleed)'
+                : 'ml-[calc(0px-var(--dashboard-card-shadow-bleed))] pl-(--dashboard-card-shadow-bleed)',
             )}
           >
             <DashboardMissionsList
@@ -398,7 +398,7 @@ export function App() {
   const startupState = useSyncExternalStore(
     subscribeAppStartup,
     readAppStartup,
-    readBuildTimeAppStartup
+    readBuildTimeAppStartup,
   )
   const startupReady = startupState?.phase === 'ready'
   const appDashboard = useDashboardIntakeSnapshot()
@@ -427,12 +427,12 @@ export function App() {
   const previousOrderRef = useRef<MissionOrderMap>({
     tabs: new Map(),
     bookmarks: new Map(),
-    history: new Map()
+    history: new Map(),
   })
   const chipOrderRef = useRef<DashboardChipOrderMemoryMap>({
     tabs: new Map(),
     bookmarks: new Map(),
-    history: new Map()
+    history: new Map(),
   })
   const primaryMissionsRef = useRef<HTMLDivElement | null>(null)
   const bookmarkMissionsRef = useRef<HTMLDivElement | null>(null)
@@ -449,7 +449,7 @@ export function App() {
   const { packMissionsMasonryNow, scheduleMissionsMasonry } = useMissionsMasonry(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, {
     onAfterLayout: validatePageChipTextLayoutsAfterMasonry,
     onBeforePack: prepareDomainCardMoveAnimation,
-    onAfterPack: animateDomainCardMoves
+    onAfterPack: animateDomainCardMoves,
   })
 
   const currentMissionContainers = useCallback(function currentMissionContainers() {
@@ -470,7 +470,7 @@ export function App() {
     if (nextFilterInput.trim()) void loadHistoryRangeSelect().catch(() => {})
     if (!startupReady && setAppStartupFilterIntent(nextFilterInput)) {
       notifyAppStartupMaterialChange(
-        nextFilterInput.trim() ? FILTER_SEARCH_UPDATE_DELAY_MS : 0
+        nextFilterInput.trim() ? FILTER_SEARCH_UPDATE_DELAY_MS : 0,
       )
     }
     setFilterInput(nextFilterInput)
@@ -491,7 +491,7 @@ export function App() {
     togglePinnedDomain,
     reorderPinnedDomain,
     togglePinnedSection,
-    togglePinnedPageChip
+    togglePinnedPageChip,
   } = useDashboardLocalState({
     waitForInitialState: !startupReady,
     onBeforeApplyPinnedDomains: ({ animate }) => {
@@ -506,7 +506,7 @@ export function App() {
     },
     onDomainPinSaveError: () => showToast('Could not save pinned domain'),
     onSectionPinSaveError: () => showToast('Could not save pinned section'),
-    onPageChipPinSaveError: () => showToast('Could not save pinned page')
+    onPageChipPinSaveError: () => showToast('Could not save pinned page'),
   })
   const appliedStartupStateRef = useRef<AppStartupState | null>(null)
   useLayoutEffect(() => {
@@ -527,7 +527,7 @@ export function App() {
     initialDashboardIncludesPinnedDomains: startupReady,
     // react-doctor-disable-next-line react-hooks-js/refs -- previousOrder is a mutable ordering cache read at refresh time, not render-derived state.
     previousOrder: previousOrderRef.current,
-    onBeforePinnedRefresh: clearHoverUrlNow
+    onBeforePinnedRefresh: clearHoverUrlNow,
   })
   useEffect(() => {
     return appDashboardStore.subscribeBeforeApply((event) => {
@@ -581,7 +581,7 @@ export function App() {
     showBookmarkMatches,
     showHistoryMatches,
     showHistoryRange,
-    showPrimaryEmptyState
+    showPrimaryEmptyState,
   } = useDashboardViewModels({
     dashboard: visibleDashboard,
     source,
@@ -595,14 +595,14 @@ export function App() {
     workingSet: visibleWorkingSet,
     freezeTabsChipOrder: dynamicContentVisible && !!effectiveStartupPriorityWorkingSet,
     pinnedSections,
-    pinnedPageChips
+    pinnedPageChips,
   })
   const filterResultCandidates = useMemo(
     () => filter.trim()
       ? buildFilterResultCandidates({
           primaryMatches: matchedCards,
           historyMatches: showHistoryMatches ? historyMatchedCards : [],
-          bookmarkMatches: showBookmarkMatches ? bookmarkMatchedCards : []
+          bookmarkMatches: showBookmarkMatches ? bookmarkMatchedCards : [],
         })
       : [],
     [
@@ -611,14 +611,14 @@ export function App() {
       historyMatchedCards,
       matchedCards,
       showBookmarkMatches,
-      showHistoryMatches
-    ]
+      showHistoryMatches,
+    ],
   )
   const filterResultSearchSettled = isReady && !dashboardNeedsFilterSearchRefresh(visibleDashboard, {
     source,
     filter,
     historyRange,
-    historyFilterEnabled
+    historyFilterEnabled,
   })
   const showSettledEmptyState = showPrimaryEmptyState &&
     filterResultSearchSettled &&
@@ -641,8 +641,8 @@ export function App() {
         matchedCards: matchedCards.length,
         realTabs: visibleDashboard.realTabs.length,
         source,
-        workingSet: visibleWorkingSet?.items.length ?? 0
-      }
+        workingSet: visibleWorkingSet?.items.length ?? 0,
+      },
     })
   }, [visibleDashboard, filter, matchedCards.length, source, startupReady, visibleWorkingSet])
 
@@ -653,7 +653,7 @@ export function App() {
       filter,
       isReady,
       matchedCards,
-      workingSet: visibleWorkingSet
+      workingSet: visibleWorkingSet,
     })
   }, [visibleDashboard, filter, isReady, matchedCards, source, visibleWorkingSet])
 
@@ -734,7 +734,7 @@ export function App() {
     showHistoryMatches,
     showHistoryRange,
     showPrimaryEmptyState: showSettledEmptyState,
-    source
+    source,
   }), [bookmarkMatchedCards, bookmarkMatchesFlush, filter, historyMatchedCards, historyMatchesFlush, historyResultsFilter, historySearchSummary, isReady, matchedCards, primaryMissionsEmpty, showBookmarkMatches, showHistoryMatches, showHistoryRange, showSettledEmptyState, source])
 
   useMissionOrderMemory({
@@ -745,7 +745,7 @@ export function App() {
     filter,
     matchedCards,
     bookmarkMatchedCards,
-    historyMatchedCards
+    historyMatchedCards,
   })
 
   // App bails out of React Compiler (the render-time ordering-cache ref reads
@@ -757,7 +757,7 @@ export function App() {
     onTogglePinnedDomain: togglePinnedDomain,
     onReorderPinnedDomain: reorderPinnedDomain,
     onTogglePinnedSection: togglePinnedSection,
-    onTogglePinnedPageChip: togglePinnedPageChip
+    onTogglePinnedPageChip: togglePinnedPageChip,
   }), [handleHoverUrlChange, scheduleMissionsMasonry, togglePinnedDomain, reorderPinnedDomain, togglePinnedSection, togglePinnedPageChip])
 
   return (
@@ -815,6 +815,6 @@ export function attachApp() {
     },
     onRecoverableError: (error, errorInfo) => {
       console.error('[tab-out] recoverable hydration error', error, errorInfo.componentStack)
-    }
+    },
   })
 }

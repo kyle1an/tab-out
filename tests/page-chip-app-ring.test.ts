@@ -23,7 +23,7 @@ function makeChip(overrides: Partial<DashboardChipData> = {}): DashboardChipData
     groupDotColor: null,
     isApp: false,
     envs: null,
-    ...overrides
+    ...overrides,
   }
 }
 

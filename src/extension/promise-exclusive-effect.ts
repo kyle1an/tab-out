@@ -1,7 +1,7 @@
 import { Effect } from 'effect'
 
 export type PromiseExclusiveRunner = <Value>(
-  task: () => Promise<Value>
+  task: () => Promise<Value>,
 ) => Promise<Value>
 
 /**
@@ -16,7 +16,7 @@ export type PromiseExclusiveRunner = <Value>(
 export function runPromiseExclusiveEffect<Value, Failure, Requirements, ExclusiveFailure>(
   runExclusive: PromiseExclusiveRunner,
   effect: Effect.Effect<Value, Failure, Requirements>,
-  mapExclusiveFailure: (cause: unknown) => ExclusiveFailure
+  mapExclusiveFailure: (cause: unknown) => ExclusiveFailure,
 ): Effect.Effect<Value, Failure | ExclusiveFailure, Requirements> {
   return Effect.callback<Value, Failure | ExclusiveFailure, Requirements>((resume, signal) => {
     let acquired = false

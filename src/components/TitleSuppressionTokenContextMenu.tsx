@@ -23,7 +23,7 @@ export function TitleSuppressionTokenContextMenu({
   onSuspend,
   onClose,
   onOpenChange,
-  children
+  children,
 }: TitleSuppressionTokenContextMenuProps) {
   return (
     <ContextMenu onOpenChange={(open) => onOpenChange?.(open)}>

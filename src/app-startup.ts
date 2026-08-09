@@ -29,18 +29,18 @@ export function applyAppStartup(frame: AppStartupFrame): void {
   appDashboardStore.applyStartup({
     historyRange: frame.historyRange,
     snapshot: frame.snapshot,
-    source: frame.source
+    source: frame.source,
   })
   for (const listener of startupListeners) listener()
 }
 
 export function updateAppStartupClosedGhostDismissals(
-  dismissals: ClosedGhostDismissals
+  dismissals: ClosedGhostDismissals,
 ): boolean {
   if (currentStartupState?.phase !== 'ready') return false
   publishAppStartup({
     ...currentStartupState,
-    closedGhostDismissals: dismissals
+    closedGhostDismissals: dismissals,
   })
   return true
 }
@@ -50,7 +50,7 @@ export function resetAppStartupShell(): void {
 }
 
 export function setAppStartupMaterialChangeHandler(
-  handler: ((delayMs?: number) => void) | null
+  handler: ((delayMs?: number) => void) | null,
 ): void {
   startupMaterialChangeHandler = handler
 }

@@ -9,13 +9,13 @@ import { RETAINED_PAGES_EXPIRY_ALARM } from '../src/extension/background/retaine
 import { CLOSED_TAB_RESTORE_STATE_MESSAGE } from '../src/extension/closed-tabs.js'
 import {
   decodeDashboardRetainedPagesWire,
-  type DashboardRetainedPagesWire
+  type DashboardRetainedPagesWire,
 } from '../src/extension/dashboard-retained-pages-wire.js'
 import {
   CLOSED_TAB_RETENTION_SETTLE_MESSAGE,
   RETAINED_PAGE_ACTIVATE_MESSAGE,
   RETAINED_PAGES_REMOVE_MESSAGE,
-  SAVED_PAGE_ACTIVATE_MESSAGE
+  SAVED_PAGE_ACTIVATE_MESSAGE,
 } from '../src/extension/runtime-messages.js'
 import { SAVED_PAGES_STORAGE_KEY } from '../src/extension/saved-pages.js'
 import type { CapturedDashboardServiceState } from '../src/extension/dashboard-service-messages.js'
@@ -23,25 +23,25 @@ import { RETENTION_HEALTH_STORAGE_KEY } from '../src/extension/retention-health.
 import {
   OPEN_SURFACE_DURABLE_STORAGE_KEY,
   OPEN_SURFACE_SESSION_STORAGE_KEY,
-  parseOpenSurfaceInventoryValue
+  parseOpenSurfaceInventoryValue,
 } from '../src/extension/open-surface-inventory-storage.js'
 import { seedOpenSurfaceInventory } from '../src/extension/open-surface-inventory.js'
 import {
   RETAINED_PAGE_LIFETIME_MS,
   type RetainedPageLedger,
   type RetainedPageRecord,
-  type RetainedPageRemovalBoundary
+  type RetainedPageRemovalBoundary,
 } from '../src/extension/retained-pages-ledger.js'
 import {
   RETAINED_PAGES_STORAGE_KEY,
   RETAINED_PAGES_STORAGE_ENCODING,
   decodeRetainedPageLedgerStorageValue,
   encodeRetainedPageLedgerStorageValue,
-  parseRetainedPageLedgerValue
+  parseRetainedPageLedgerValue,
 } from '../src/extension/retained-pages-storage.js'
 import {
   DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY,
-  type DashboardStartupSeed
+  type DashboardStartupSeed,
 } from '../src/extension/startup-snapshot.js'
 import { parseDashboardStartupSeedBoundary } from '../src/extension/startup-snapshot-schema.js'
 import { normalizeChromeOpenTabs } from '../src/extension/tabs.js'
@@ -63,7 +63,7 @@ let activeBackgroundTasks = new Set<Promise<unknown>>()
 
 type BackgroundMockCalls = {
   alarmsClear: string[]
-  alarmsCreate: Array<{ name: string; alarmInfo: chrome.alarms.AlarmCreateInfo }>
+  alarmsCreate: Array<{ name: string, alarmInfo: chrome.alarms.AlarmCreateInfo }>
   badgeColor: chrome.action.BadgeColorDetails[]
   badgeText: chrome.action.BadgeTextDetails[]
   badgeTitle: chrome.action.TitleDetails[]
@@ -71,8 +71,8 @@ type BackgroundMockCalls = {
   nativeHostNames: string[]
   nativeMessages: unknown[]
   remove: number[]
-  runtimeMessages: Array<{ extensionId: string; message: unknown }>
-  storageAccess: Array<{ area: 'local' | 'session'; accessLevel: string }>
+  runtimeMessages: Array<{ extensionId: string, message: unknown }>
+  storageAccess: Array<{ area: 'local' | 'session', accessLevel: string }>
   tabGet: number[]
   tabQuery: chrome.tabs.QueryInfo[]
   update: Array<{
@@ -90,29 +90,29 @@ type BackgroundMockCalls = {
 type DashboardServiceMessageResponse =
   | ({ ok: true } & CapturedDashboardServiceState)
   | {
-      ok: false
-      openTabsSnapshot: null
-      retainedPages: null
-      retentionHealth: null
-      tabHistory: null
-      workingSetActivity: null
-    }
+    ok: false
+    openTabsSnapshot: null
+    retainedPages: null
+    retentionHealth: null
+    tabHistory: null
+    workingSetActivity: null
+  }
 
 type DashboardServiceWireResponse =
   | ({
-      ok: true
-      retainedPages: DashboardRetainedPagesWire
-    } & Omit<CapturedDashboardServiceState, 'retainedPages'>)
+    ok: true
+    retainedPages: DashboardRetainedPagesWire
+  } & Omit<CapturedDashboardServiceState, 'retainedPages'>)
   | Exclude<DashboardServiceMessageResponse, { ok: true }>
 
 type TabHistoryMessageResponse =
-  | { ok: true; snapshot: TabHistorySnapshot }
-  | { ok: false; snapshot: null }
+  | { ok: true, snapshot: TabHistorySnapshot }
+  | { ok: false, snapshot: null }
 
 type RuntimeMessageListener = (
   message: Record<string, unknown>,
   sender: Record<string, unknown>,
-  sendResponse: (response: unknown) => void
+  sendResponse: (response: unknown) => void,
 ) => boolean
 
 type BackgroundRuntimeMessageMock = {
@@ -134,7 +134,7 @@ async function disposeBackgroundRuntime(): Promise<void> {
   } catch (error) {
     assert.ok(
       error instanceof Error && error.message === 'All fibers interrupted without error',
-      `unexpected background runtime disposal failure: ${String(error)}`
+      `unexpected background runtime disposal failure: ${String(error)}`,
     )
   }
   await flushBackgroundWork()
@@ -150,7 +150,7 @@ function trackBackgroundRuntime(runtime: TestBackgroundRuntime): TestBackgroundR
       () => activeBackgroundTasks.delete(task),
       () => {
         activeBackgroundTasks.delete(task)
-      }
+      },
     )
     return task
   }
@@ -188,7 +188,7 @@ function requireStartupSeed(value: unknown): DashboardStartupSeed {
 
 async function parseStoredRetainedPageLedger(value: unknown) {
   return parseRetainedPageLedgerValue(
-    await decodeRetainedPageLedgerStorageValue(value)
+    await decodeRetainedPageLedgerStorageValue(value),
   )
 }
 
@@ -203,15 +203,15 @@ function createEventSlot() {
     api: {
       addListener(fn: any) {
         listeners.push(fn)
-      }
-    }
+      },
+    },
   }
 }
 
 function createStorageArea(
   values: Record<string, any>,
   area: 'local' | 'session',
-  accessCalls: BackgroundMockCalls['storageAccess']
+  accessCalls: BackgroundMockCalls['storageAccess'],
 ) {
   return {
     async setAccessLevel({ accessLevel }: { accessLevel: string }) {
@@ -226,8 +226,8 @@ function createStorageArea(
         return Object.fromEntries(
           Object.entries(keys).map(([key, defaultValue]) => [
             key,
-            values[key] === undefined ? clone(defaultValue) : clone(values[key])
-          ])
+            values[key] === undefined ? clone(defaultValue) : clone(values[key]),
+          ]),
         )
       }
       return clone(values)
@@ -237,7 +237,7 @@ function createStorageArea(
     },
     async remove(keys: string | string[]) {
       for (const key of Array.isArray(keys) ? keys : [keys]) delete values[key]
-    }
+    },
   }
 }
 
@@ -301,18 +301,18 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
           id: windowId,
           type: firstTab?.windowType || 'normal',
           focused: windowId === initialLastFocusedWindowId,
-          ...(firstTab?.windowBounds || {})
+          ...(firstTab?.windowBounds || {}),
         }]
-      })
+      }),
     ),
     nextTabId: Math.max(...initialTabs.map((tab) => tab.id)) + 1,
     nextWindowId: Math.max(1, ...initialWindowIds) + 1,
-    lastFocusedWindowId: initialLastFocusedWindowId
+    lastFocusedWindowId: initialLastFocusedWindowId,
   }
   state.windowsById[initialLastFocusedWindowId] ||= {
     id: initialLastFocusedWindowId,
     type: 'normal',
-    focused: true
+    focused: true,
   }
   normalizeAllTabs(state)
 
@@ -333,11 +333,11 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
     badgeTitle: [],
     tabGet: [],
     tabQuery: [],
-    windowsGetAll: []
+    windowsGetAll: [],
   }
   const storageValues = {
     local: clone(options.storageValues?.local || {}),
-    session: clone(options.storageValues?.session || {})
+    session: clone(options.storageValues?.session || {}),
   }
   const recentlyClosed = clone(options.recentlyClosed || [])
   const alarmsByName = new Map<string, chrome.alarms.Alarm>()
@@ -356,7 +356,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
           onDisconnect: nativePortOnDisconnect.api,
           postMessage(message: unknown) {
             calls.nativeMessages.push(clone(message))
-          }
+          },
         }
       },
       async sendMessage(extensionId: string, message: any) {
@@ -364,26 +364,26 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
         if (extensionId === 'blocked') throw new Error('Cannot message extension')
         if (extensionId === 'rejects') return 'Error: tab is not suspended'
         return undefined
-      }
+      },
     },
     system: {
       display: {
         async getInfo() {
           return clone(options.displays || [])
-        }
-      }
+        },
+      },
     },
     storage: {
       local: createStorageArea(storageValues.local, 'local', calls.storageAccess),
       session: createStorageArea(storageValues.session, 'session', calls.storageAccess),
-      onChanged: storageOnChanged.api
+      onChanged: storageOnChanged.api,
     },
     alarms: {
       async create(name: string, alarmInfo: chrome.alarms.AlarmCreateInfo) {
         calls.alarmsCreate.push({ name, alarmInfo: clone(alarmInfo) })
         alarmsByName.set(name, {
           name,
-          scheduledTime: alarmInfo.when ?? Date.now()
+          scheduledTime: alarmInfo.when ?? Date.now(),
         })
       },
       async get(name: string) {
@@ -393,11 +393,11 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
         calls.alarmsClear.push(name)
         return alarmsByName.delete(name)
       },
-      onAlarm: alarmsOnAlarm.api
+      onAlarm: alarmsOnAlarm.api,
     },
     sessions: {
       getRecentlyClosed: async () => clone(recentlyClosed),
-      onChanged: sessionsOnChanged.api
+      onChanged: sessionsOnChanged.api,
     },
     action: {
       onClicked: actionOnClicked.api,
@@ -409,7 +409,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
       },
       async setTitle(payload: chrome.action.TitleDetails) {
         calls.badgeTitle.push(clone(payload))
-      }
+      },
     },
     tabs: {
       async get(tabId: number) {
@@ -433,7 +433,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
       },
       async update(
         tabId: number,
-        updateProperties: chrome.tabs.UpdateProperties
+        updateProperties: chrome.tabs.UpdateProperties,
       ) {
         const tab = state.tabsById[tabId]
         if (!tab) throw new Error(`Missing tab ${tabId}`)
@@ -480,7 +480,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
           active: createProperties.active !== false,
           pinned: !!createProperties.pinned,
           groupId: -1,
-          index: nextIndex
+          index: nextIndex,
         }
         if (typeof createProperties.openerTabId === 'number') {
           tab.openerTabId = createProperties.openerTabId
@@ -539,7 +539,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
       onAttached: tabsOnAttached.api,
       onDetached: tabsOnDetached.api,
       onReplaced: tabsOnReplaced.api,
-      onUpdated: tabsOnUpdated.api
+      onUpdated: tabsOnUpdated.api,
     },
     windows: {
       WINDOW_ID_NONE: -1,
@@ -565,7 +565,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
       },
       async update(
         windowId: number,
-        updateInfo: chrome.windows.UpdateInfo
+        updateInfo: chrome.windows.UpdateInfo,
       ) {
         const win = state.windowsById[windowId]
         if (!win) throw new Error(`Missing window ${windowId}`)
@@ -586,22 +586,22 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
           left: createData.left,
           top: createData.top,
           width: createData.width,
-          height: createData.height
+          height: createData.height,
         }
         if (createData.focused !== false) focusWindow(state, windowId)
         calls.windowCreate.push(clone(createData))
         return clone(state.windowsById[windowId])
-      }
+      },
     },
     tabGroups: {
       onCreated: tabGroupsOnCreated.api,
       onUpdated: tabGroupsOnUpdated.api,
       onRemoved: tabGroupsOnRemoved.api,
-      onMoved: tabGroupsOnMoved.api
+      onMoved: tabGroupsOnMoved.api,
     },
     commands: {
-      onCommand: commandsOnCommand.api
-    }
+      onCommand: commandsOnCommand.api,
+    },
   }
 
   return {
@@ -624,7 +624,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
       tabsOnUpdated: tabsOnUpdated.listeners,
       windowsOnFocusChanged: windowsOnFocusChanged.listeners,
       sessionsOnChanged: sessionsOnChanged.listeners,
-      commandsOnCommand: commandsOnCommand.listeners
+      commandsOnCommand: commandsOnCommand.listeners,
     },
     getWindowTabs(windowId: number) {
       return Object.values(state.tabsById as Record<string, any>)
@@ -668,27 +668,27 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
       state.nextTabId = Math.max(state.nextTabId, addedTabId + 1)
       const tasks = tabsOnReplaced.listeners.map((listener) => listener(addedTabId, removedTabId))
       await Promise.all(tasks.filter((task) => task instanceof Promise))
-    }
+    },
   }
 }
 
 function sendRuntimeMessage(
   mock: BackgroundRuntimeMessageMock,
-  message: { type: 'tab-out:get-dashboard-service-state' }
+  message: { type: 'tab-out:get-dashboard-service-state' },
 ): Promise<DashboardServiceMessageResponse>
 function sendRuntimeMessage(
   mock: BackgroundRuntimeMessageMock,
   message: {
     type: typeof CLOSED_TAB_RETENTION_SETTLE_MESSAGE
     tabId: number
-  }
+  },
 ): Promise<{ ok: boolean }>
 function sendRuntimeMessage(
   mock: BackgroundRuntimeMessageMock,
   message: {
     type: 'tab-out:get-tab-history' | 'tab-out:switch-tab-history'
     direction?: -1 | 1
-  }
+  },
 ): Promise<TabHistoryMessageResponse>
 function sendRuntimeMessage(
   mock: BackgroundRuntimeMessageMock,
@@ -696,7 +696,7 @@ function sendRuntimeMessage(
     type: typeof CLOSED_TAB_RESTORE_STATE_MESSAGE
     phase: 'settled' | 'started'
     restoreId: string
-  }
+  },
 ): Promise<{ ok: boolean }>
 function sendRuntimeMessage(
   mock: BackgroundRuntimeMessageMock,
@@ -705,8 +705,8 @@ function sendRuntimeMessage(
     identityDigest: string
     closureToken: string
     disposition: 'focus-tab' | 'foreground-tab' | 'background-tab' | 'new-window'
-  }
-): Promise<{ ok: boolean; outcome?: string }>
+  },
+): Promise<{ ok: boolean, outcome?: string }>
 function sendRuntimeMessage(
   mock: BackgroundRuntimeMessageMock,
   message: {
@@ -714,18 +714,18 @@ function sendRuntimeMessage(
     url: string
     surfaceKind: 'normal-tab' | 'app'
     disposition: 'focus-tab' | 'foreground-tab' | 'background-tab' | 'new-window'
-  }
-): Promise<{ ok: boolean; outcome?: string }>
+  },
+): Promise<{ ok: boolean, outcome?: string }>
 function sendRuntimeMessage(
   mock: BackgroundRuntimeMessageMock,
   message: {
     type: typeof RETAINED_PAGES_REMOVE_MESSAGE
-    snapshots: Array<{ identityDigest: string; closureToken: string }>
-  }
-): Promise<{ ok: boolean; outcomes?: string[] }>
+    snapshots: Array<{ identityDigest: string, closureToken: string }>
+  },
+): Promise<{ ok: boolean, outcomes?: string[] }>
 async function sendRuntimeMessage(
   mock: BackgroundRuntimeMessageMock,
-  message: Record<string, unknown>
+  message: Record<string, unknown>,
 ): Promise<unknown> {
   const response = await sendRawRuntimeMessage(mock, message)
   if (
@@ -737,8 +737,8 @@ async function sendRuntimeMessage(
     return {
       ...wireResponse,
       retainedPages: await decodeDashboardRetainedPagesWire(
-        wireResponse.retainedPages
-      )
+        wireResponse.retainedPages,
+      ),
     }
   }
   return response
@@ -746,7 +746,7 @@ async function sendRuntimeMessage(
 
 function sendRawRuntimeMessage(
   mock: BackgroundRuntimeMessageMock,
-  message: Record<string, unknown>
+  message: Record<string, unknown>,
 ): Promise<unknown> {
   const onMessage = mock.listeners.runtimeOnMessage[0]
   assert.ok(onMessage, 'expected a registered runtime message listener')
@@ -761,7 +761,7 @@ function buildWorkingSetFromServiceState(response: CapturedDashboardServiceState
   return buildWorkingSetSnapshot({
     tabs: normalizeChromeOpenTabs(response.openTabsSnapshot),
     activity: response.workingSetActivity,
-    currentWindowId: focusedWindow?.id ?? null
+    currentWindowId: focusedWindow?.id ?? null,
   })
 }
 
@@ -771,7 +771,7 @@ async function flushBackgroundWork() {
 
 async function waitForBackgroundState(
   condition: () => boolean | Promise<boolean>,
-  description: string
+  description: string,
 ) {
   const deadline = performance.now() + 2_000
   do {
@@ -786,10 +786,10 @@ async function loadBackground(initialTabs: any[], options: any = {}) {
   const mock = createChromeMock(initialTabs, options)
   ;(globalThis as any).chrome = mock.chrome
   const background = await import(
-    `${backgroundUrl.href}?test=${backgroundImportId++}`
+    `${backgroundUrl.href}?test=${backgroundImportId++}`,
   )
   activeBackgroundRuntime = trackBackgroundRuntime(
-    background.backgroundRuntime as unknown as TestBackgroundRuntime
+    background.backgroundRuntime as unknown as TestBackgroundRuntime,
   )
   if (!options.deferInitialOpenSurfaceReconciliation) {
     await backgroundClock.tickAsync(0)
@@ -808,8 +808,8 @@ async function loadBackgroundWithPendingLinkTabs() {
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
   const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
   assert.equal(typeof onFocusChanged, 'function')
@@ -821,7 +821,7 @@ async function loadBackgroundWithPendingLinkTabs() {
       windowId: 1,
       url,
       active: false,
-      openerTabId: 81
+      openerTabId: 81,
     })
   }
   await flushBackgroundWork()
@@ -837,12 +837,12 @@ test('retention storage is restricted to trusted extension contexts before use',
     active: true,
     pinned: false,
     groupId: -1,
-    index: 0
+    index: 0,
   }])
 
   assert.deepEqual(mock.calls.storageAccess, [
     { area: 'local', accessLevel: 'TRUSTED_CONTEXTS' },
-    { area: 'session', accessLevel: 'TRUSTED_CONTEXTS' }
+    { area: 'session', accessLevel: 'TRUSTED_CONTEXTS' },
   ])
 })
 
@@ -856,7 +856,7 @@ test('pinned Tab Out navigation follows Chrome default without dashboard replace
       active: true,
       pinned: true,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 12,
@@ -866,8 +866,8 @@ test('pinned Tab Out navigation follows Chrome default without dashboard replace
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
-    }
+      index: 1,
+    },
   ])
 
   const onUpdated = mock.listeners.tabsOnUpdated[0]
@@ -900,8 +900,8 @@ test('service worker lifecycle does not rewrite native new tabs into extension U
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
 
   assert.equal(mock.calls.update.some((call) => call.updateProperties.url === extensionUrl), false)
@@ -925,8 +925,8 @@ test('metadata-only tab updates do not trigger redundant badge tab queries', asy
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
   const onUpdated = mock.listeners.tabsOnUpdated[0]
   assert.equal(typeof onUpdated, 'function')
@@ -953,7 +953,7 @@ test('toolbar badge counts closable duplicates and clicking it runs global dedup
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 42,
@@ -963,7 +963,7 @@ test('toolbar badge counts closable duplicates and clicking it runs global dedup
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
+      index: 1,
     },
     {
       id: 43,
@@ -973,7 +973,7 @@ test('toolbar badge counts closable duplicates and clicking it runs global dedup
       active: false,
       pinned: false,
       groupId: 7,
-      index: 2
+      index: 2,
     },
     {
       id: 44,
@@ -983,8 +983,8 @@ test('toolbar badge counts closable duplicates and clicking it runs global dedup
       active: false,
       pinned: false,
       groupId: 8,
-      index: 3
-    }
+      index: 3,
+    },
   ])
 
   assert.deepEqual(mock.calls.badgeText.at(-1), { text: '1' })
@@ -1011,8 +1011,8 @@ test('dashboard service state captures tabs and windows once for both open tabs 
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
   const allTabsReadsBefore = mock.calls.tabQuery.filter((query: any) => Object.keys(query).length === 0).length
   const allWindowsReadsBefore = mock.calls.windowsGetAll.length
@@ -1024,7 +1024,7 @@ test('dashboard service state captures tabs and windows once for both open tabs 
   assert.equal(response.tabHistory.activeTabId, 26)
   assert.equal(
     mock.calls.tabQuery.filter((query: any) => Object.keys(query).length === 0).length - allTabsReadsBefore,
-    1
+    1,
   )
   assert.equal(mock.calls.windowsGetAll.length - allWindowsReadsBefore, 1)
 })
@@ -1038,11 +1038,11 @@ test('dashboard service state transports retained pages only through its project
     active: true,
     pinned: false,
     groupId: -1,
-    index: 0
+    index: 0,
   }])
 
   const response = await sendRawRuntimeMessage(mock, {
-    type: 'tab-out:get-dashboard-service-state'
+    type: 'tab-out:get-dashboard-service-state',
   }) as DashboardServiceWireResponse
 
   assert.equal(response.ok, true)
@@ -1051,11 +1051,11 @@ test('dashboard service state transports retained pages only through its project
     'data',
     'encoding',
     'identityVersion',
-    'schemaVersion'
+    'schemaVersion',
   ])
   assert.deepEqual(
     await decodeDashboardRetainedPagesWire(response.retainedPages),
-    []
+    [],
   )
 })
 
@@ -1065,7 +1065,7 @@ test('dashboard service state exposes the session-only retention health episode'
     operationKind: 'automatic-capture',
     retryState: 'exhausted-after-one-retry',
     startedAt: 100,
-    lastFailedAt: 150
+    lastFailedAt: 150,
   }
   const mock = await loadBackground([{
     id: 26,
@@ -1075,15 +1075,15 @@ test('dashboard service state exposes the session-only retention health episode'
     active: true,
     pinned: false,
     groupId: -1,
-    index: 0
+    index: 0,
   }], {
     storageValues: {
-      session: { [RETENTION_HEALTH_STORAGE_KEY]: episode }
-    }
+      session: { [RETENTION_HEALTH_STORAGE_KEY]: episode },
+    },
   })
 
   const response = await sendRuntimeMessage(mock, {
-    type: 'tab-out:get-dashboard-service-state'
+    type: 'tab-out:get-dashboard-service-state',
   })
 
   assert.equal(response.ok, true)
@@ -1102,7 +1102,7 @@ test('background captures a physical close and activates its exact retained snap
       active: true,
       pinned: true,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 260,
@@ -1112,8 +1112,8 @@ test('background captures a physical close and activates its exact retained snap
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
-    }
+      index: 1,
+    },
   ])
   let retainedLedgerWrites = 0
   let retainedLedgerReads = 0
@@ -1134,14 +1134,14 @@ test('background captures a physical close and activates its exact retained snap
   mock.closeTabForWindow(260)
   const settled = await Promise.all([1, 2].map(() => sendRuntimeMessage(mock, {
     type: CLOSED_TAB_RETENTION_SETTLE_MESSAGE,
-    tabId: 260
+    tabId: 260,
   })))
   assert.deepEqual(settled, [{ ok: true }, { ok: true }])
   assert.equal(retainedLedgerWrites, 1)
   assert.equal(retainedLedgerReads, 1)
   await flushBackgroundWork()
   const captured = await sendRuntimeMessage(mock, {
-    type: 'tab-out:get-dashboard-service-state'
+    type: 'tab-out:get-dashboard-service-state',
   })
   assert.equal(captured.ok, true)
   assert.equal(captured.retainedPages.length, 1)
@@ -1153,14 +1153,14 @@ test('background captures a physical close and activates its exact retained snap
     type: RETAINED_PAGE_ACTIVATE_MESSAGE,
     identityDigest: retained.identityDigest,
     closureToken: retained.closureToken,
-    disposition: 'foreground-tab'
+    disposition: 'foreground-tab',
   })
   await flushBackgroundWork()
 
   assert.deepEqual(activated, { ok: true, outcome: 'activated' })
   assert.equal(mock.calls.create.at(-1)?.url, exactUrl)
   const after = await sendRuntimeMessage(mock, {
-    type: 'tab-out:get-dashboard-service-state'
+    type: 'tab-out:get-dashboard-service-state',
   })
   assert.equal(after.ok, true)
   assert.deepEqual(after.retainedPages, [])
@@ -1176,7 +1176,7 @@ test('a delayed tab update checkpoint contributes the newest target before physi
     active: true,
     pinned: false,
     groupId: -1,
-    index: 0
+    index: 0,
   }])
   let resolveWindow: ((window: chrome.windows.Window) => void) | undefined
   mock.chrome.windows.get = () => new Promise<chrome.windows.Window>((resolve) => {
@@ -1184,11 +1184,11 @@ test('a delayed tab update checkpoint contributes the newest target before physi
   })
   const onUpdated = valueAt(mock.listeners.tabsOnUpdated, 0)
   onUpdated(262, {
-    url: 'https://example.test/late-update'
+    url: 'https://example.test/late-update',
   }, {
     ...clone(mock.state.tabsById[262]),
     url: 'https://example.test/late-update',
-    title: 'Late update'
+    title: 'Late update',
   })
   // Let the adjacent checkpoint enter its asynchronous window capture before
   // Chrome immediately delivers the physical close.
@@ -1198,17 +1198,17 @@ test('a delayed tab update checkpoint contributes the newest target before physi
   resolveWindow?.({ id: 1, type: 'normal' } as chrome.windows.Window)
   assert.deepEqual(await sendRuntimeMessage(mock, {
     type: CLOSED_TAB_RETENTION_SETTLE_MESSAGE,
-    tabId: 262
+    tabId: 262,
   }), { ok: true })
 
   const session = parseOpenSurfaceInventoryValue(
-    mock.storageValues.session[OPEN_SURFACE_SESSION_STORAGE_KEY]
+    mock.storageValues.session[OPEN_SURFACE_SESSION_STORAGE_KEY],
   )
   const durable = parseOpenSurfaceInventoryValue(
-    mock.storageValues.local[OPEN_SURFACE_DURABLE_STORAGE_KEY]
+    mock.storageValues.local[OPEN_SURFACE_DURABLE_STORAGE_KEY],
   )
   const ledger = await parseStoredRetainedPageLedger(
-    mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY]
+    mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY],
   )
   assert.equal(session.status, 'valid')
   assert.equal(durable.status, 'valid')
@@ -1217,7 +1217,7 @@ test('a delayed tab update checkpoint contributes the newest target before physi
   assert.deepEqual(durable.inventory.entries, {})
   assert.equal(
     Object.values(ledger.ledger.pages)[0]?.url,
-    'https://example.test/late-update'
+    'https://example.test/late-update',
   )
 })
 
@@ -1231,7 +1231,7 @@ test('a delayed checkpoint lookup failure preserves the prior target for physica
     active: true,
     pinned: false,
     groupId: -1,
-    index: 0
+    index: 0,
   }])
   let rejectWindow: ((cause: Error) => void) | undefined
   mock.chrome.windows.get = () => new Promise<chrome.windows.Window>((_resolve, reject) => {
@@ -1239,11 +1239,11 @@ test('a delayed checkpoint lookup failure preserves the prior target for physica
   })
   const onUpdated = valueAt(mock.listeners.tabsOnUpdated, 0)
   onUpdated(264, {
-    url: 'https://example.test/unconfirmed-update'
+    url: 'https://example.test/unconfirmed-update',
   }, {
     ...clone(mock.state.tabsById[264]),
     url: 'https://example.test/unconfirmed-update',
-    title: 'Unconfirmed update'
+    title: 'Unconfirmed update',
   })
   await setImmediate()
 
@@ -1251,11 +1251,11 @@ test('a delayed checkpoint lookup failure preserves the prior target for physica
   rejectWindow?.(new Error('Window metadata disappeared'))
   assert.deepEqual(await sendRuntimeMessage(mock, {
     type: CLOSED_TAB_RETENTION_SETTLE_MESSAGE,
-    tabId: 264
+    tabId: 264,
   }), { ok: true })
 
   const ledger = await parseStoredRetainedPageLedger(
-    mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY]
+    mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY],
   )
   assert.equal(ledger.status, 'valid')
   assert.equal(Object.values(ledger.ledger.pages)[0]?.url, originalUrl)
@@ -1272,7 +1272,7 @@ test('an immediately closed pending navigation retains its newest effective targ
     active: true,
     pinned: false,
     groupId: -1,
-    index: 0
+    index: 0,
   }])
   mock.chrome.windows.get = async (windowId: number) => {
     const window = mock.state.windowsById[windowId]
@@ -1284,16 +1284,16 @@ test('an immediately closed pending navigation retains its newest effective targ
   onUpdated(263, { status: 'loading' }, {
     ...clone(mock.state.tabsById[263]),
     pendingUrl,
-    title: 'Navigating'
+    title: 'Navigating',
   })
   await mock.chrome.tabs.remove(263)
   assert.deepEqual(await sendRuntimeMessage(mock, {
     type: CLOSED_TAB_RETENTION_SETTLE_MESSAGE,
-    tabId: 263
+    tabId: 263,
   }), { ok: true })
 
   const ledger = await parseStoredRetainedPageLedger(
-    mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY]
+    mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY],
   )
   assert.equal(ledger.status, 'valid')
   assert.equal(Object.values(ledger.ledger.pages)[0]?.url, pendingUrl)
@@ -1311,7 +1311,7 @@ test('background removes an exact retained batch with one ledger read and write'
       active: true,
       pinned: true,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 264,
@@ -1321,7 +1321,7 @@ test('background removes an exact retained batch with one ledger read and write'
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
+      index: 1,
     },
     {
       id: 265,
@@ -1331,20 +1331,20 @@ test('background removes an exact retained batch with one ledger read and write'
       active: false,
       pinned: false,
       groupId: -1,
-      index: 2
-    }
+      index: 2,
+    },
   ])
 
   mock.closeTabForWindow(264)
   mock.closeTabForWindow(265)
   await flushBackgroundWork()
   const captured = await sendRuntimeMessage(mock, {
-    type: 'tab-out:get-dashboard-service-state'
+    type: 'tab-out:get-dashboard-service-state',
   })
   assert.equal(captured.ok, true)
   assert.equal(captured.retainedPages.length, 2)
   const retainedByUrl = new Map(
-    captured.retainedPages.map((page: RetainedPageRecord) => [page.url, page])
+    captured.retainedPages.map((page: RetainedPageRecord) => [page.url, page]),
   )
   const first = retainedByUrl.get(firstUrl)
   const second = retainedByUrl.get(secondUrl)
@@ -1373,13 +1373,13 @@ test('background removes an exact retained batch with one ledger read and write'
     snapshots: [
       {
         identityDigest: first.identityDigest,
-        closureToken: first.closureToken
+        closureToken: first.closureToken,
       },
       {
         identityDigest: second.identityDigest,
-        closureToken: second.closureToken
-      }
-    ]
+        closureToken: second.closureToken,
+      },
+    ],
   })
   await flushBackgroundWork()
 
@@ -1388,7 +1388,7 @@ test('background removes an exact retained batch with one ledger read and write'
   assert.equal(retainedLedgerWrites, 1)
   assert.equal(mock.calls.create.length, createCount)
   const ledger = await parseStoredRetainedPageLedger(
-    mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY]
+    mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY],
   )
   assert.equal(ledger.status, 'valid')
   assert.deepEqual(ledger.ledger.pages, {})
@@ -1408,12 +1408,12 @@ for (const action of ['explicit removal', 'activation consumption'] as const) {
       url,
       title: 'Quota-preserved page',
       closedAt,
-      closureToken
+      closureToken,
     }
     const priorBoundary: RetainedPageRemovalBoundary = {
       identityDigest,
       closureToken: priorBoundaryToken,
-      expiresAt: closedAt + RETAINED_PAGE_LIFETIME_MS
+      expiresAt: closedAt + RETAINED_PAGE_LIFETIME_MS,
     }
     // This older lifetime of the same identity is already replay-blocked. A
     // successful action would atomically replace its boundary with the current
@@ -1423,7 +1423,7 @@ for (const action of ['explicit removal', 'activation consumption'] as const) {
       schemaVersion: 1,
       identityVersion: 1,
       pages: { [identityDigest]: page },
-      removalBoundaries: { [priorBoundaryToken]: priorBoundary }
+      removalBoundaries: { [priorBoundaryToken]: priorBoundary },
     }
     const compressed = await encodeRetainedPageLedgerStorageValue(ledger)
     const mock = await loadBackground([{
@@ -1434,18 +1434,18 @@ for (const action of ['explicit removal', 'activation consumption'] as const) {
       active: true,
       pinned: true,
       groupId: -1,
-      index: 0
+      index: 0,
     }], {
       storageValues: {
-        local: { [RETAINED_PAGES_STORAGE_KEY]: compressed }
-      }
+        local: { [RETAINED_PAGES_STORAGE_KEY]: compressed },
+      },
     })
     const storedBefore = Buffer.from(JSON.stringify(
-      mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY]
+      mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY],
     ), 'utf8')
     const attemptedRetainedValues: unknown[] = []
     const originalLocalSet = mock.chrome.storage.local.set.bind(
-      mock.chrome.storage.local
+      mock.chrome.storage.local,
     )
     mock.chrome.storage.local.set = async (items: Record<string, unknown>) => {
       if (Object.hasOwn(items, RETAINED_PAGES_STORAGE_KEY)) {
@@ -1458,13 +1458,13 @@ for (const action of ['explicit removal', 'activation consumption'] as const) {
     const response = action === 'explicit removal'
       ? await sendRuntimeMessage(mock, {
           type: RETAINED_PAGES_REMOVE_MESSAGE,
-          snapshots: [{ identityDigest, closureToken }]
+          snapshots: [{ identityDigest, closureToken }],
         })
       : await sendRuntimeMessage(mock, {
           type: RETAINED_PAGE_ACTIVATE_MESSAGE,
           identityDigest,
           closureToken,
-          disposition: 'foreground-tab'
+          disposition: 'foreground-tab',
         })
     await flushBackgroundWork()
 
@@ -1472,7 +1472,7 @@ for (const action of ['explicit removal', 'activation consumption'] as const) {
       response,
       action === 'explicit removal'
         ? { ok: false }
-        : { ok: true, outcome: 'activated-unconsumed' }
+        : { ok: true, outcome: 'activated-unconsumed' },
     )
     if (action === 'activation consumption') {
       assert.equal(mock.calls.create.at(-1)?.url, url)
@@ -1480,7 +1480,7 @@ for (const action of ['explicit removal', 'activation consumption'] as const) {
     assert.equal(attemptedRetainedValues.length, 1, 'explicit writes must not retry')
 
     const attempted = await parseStoredRetainedPageLedger(
-      attemptedRetainedValues[0]
+      attemptedRetainedValues[0],
     )
     assert.equal(attempted.status, 'valid')
     if (attempted.status !== 'valid') return
@@ -1489,25 +1489,25 @@ for (const action of ['explicit removal', 'activation consumption'] as const) {
       [closureToken]: {
         identityDigest,
         closureToken,
-        expiresAt: closedAt + RETAINED_PAGE_LIFETIME_MS
-      }
+        expiresAt: closedAt + RETAINED_PAGE_LIFETIME_MS,
+      },
     })
 
     const storedAfter = Buffer.from(JSON.stringify(
-      mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY]
+      mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY],
     ), 'utf8')
     assert.deepEqual(storedAfter, storedBefore)
     assert.match(storedAfter.toString('utf8'), new RegExp(
-      `"encoding":"${RETAINED_PAGES_STORAGE_ENCODING}"`
+      `"encoding":"${RETAINED_PAGES_STORAGE_ENCODING}"`,
     ))
     const preserved = await parseStoredRetainedPageLedger(
-      mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY]
+      mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY],
     )
     assert.equal(preserved.status, 'valid')
     if (preserved.status !== 'valid') return
     assert.deepEqual(preserved.ledger.pages, { [identityDigest]: page })
     assert.deepEqual(preserved.ledger.removalBoundaries, {
-      [priorBoundaryToken]: priorBoundary
+      [priorBoundaryToken]: priorBoundary,
     })
 
     await backgroundClock.tickAsync(60_000)
@@ -1515,7 +1515,7 @@ for (const action of ['explicit removal', 'activation consumption'] as const) {
     assert.equal(
       attemptedRetainedValues.length,
       1,
-      'quota failure must not schedule a later retained-ledger retry'
+      'quota failure must not schedule a later retained-ledger retry',
     )
   })
 }
@@ -1531,9 +1531,9 @@ test('background opens an exact closed Saved Page without mutating saved state',
         url: savedUrl,
         title: 'Privacy settings',
         savedAt: 100,
-        updatedAt: 100
-      }
-    }
+        updatedAt: 100,
+      },
+    },
   }
   const mock = await loadBackground([{
     id: 263,
@@ -1543,25 +1543,25 @@ test('background opens an exact closed Saved Page without mutating saved state',
     active: true,
     pinned: true,
     groupId: -1,
-    index: 0
+    index: 0,
   }], {
     storageValues: {
-      local: { [SAVED_PAGES_STORAGE_KEY]: savedStore }
-    }
+      local: { [SAVED_PAGES_STORAGE_KEY]: savedStore },
+    },
   })
 
   const opened = await sendRuntimeMessage(mock, {
     type: SAVED_PAGE_ACTIVATE_MESSAGE,
     url: savedUrl,
     surfaceKind: 'normal-tab',
-    disposition: 'foreground-tab'
+    disposition: 'foreground-tab',
   })
   const createCount = mock.calls.create.length
   const blocked = await sendRuntimeMessage(mock, {
     type: SAVED_PAGE_ACTIVATE_MESSAGE,
     url: 'javascript:alert(1)',
     surfaceKind: 'normal-tab',
-    disposition: 'foreground-tab'
+    disposition: 'foreground-tab',
   })
 
   assert.deepEqual(opened, { ok: true, outcome: 'activated' })
@@ -1570,7 +1570,7 @@ test('background opens an exact closed Saved Page without mutating saved state',
   assert.equal(mock.calls.create.length, createCount)
   assert.deepEqual(
     mock.storageValues.local[SAVED_PAGES_STORAGE_KEY],
-    savedStore
+    savedStore,
   )
 })
 
@@ -1583,7 +1583,7 @@ test('tab activation shares one captured tab across history and Working Set', as
     active: true,
     pinned: false,
     groupId: -1,
-    index: 0
+    index: 0,
   }
   const mock = await loadBackground([tab])
   const onActivated = mock.listeners.tabsOnActivated[0]
@@ -1598,7 +1598,7 @@ test('tab activation shares one captured tab across history and Working Set', as
   assert.deepEqual(
     mock.calls.tabQuery.slice(tabQueriesBefore),
     [{}],
-    'history and Working Set share the exact-tab lookup while the badge reads global dedupe eligibility'
+    'history and Working Set share the exact-tab lookup while the badge reads global dedupe eligibility',
   )
 
   const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-dashboard-service-state' })
@@ -1606,7 +1606,7 @@ test('tab activation shares one captured tab across history and Working Set', as
   assert.equal(response.tabHistory.entries.some((entry: any) => entry.tabId === tab.id), true)
   assert.equal(
     Object.values(response.workingSetActivity.records).some((record: any) => record.url === tab.url),
-    true
+    true,
   )
 })
 
@@ -1619,7 +1619,7 @@ test('failed shared activation capture falls back without dropping either servic
     active: true,
     pinned: false,
     groupId: -1,
-    index: 0
+    index: 0,
   }
   const mock = await loadBackground([tab])
   const originalGet = mock.chrome.tabs.get.bind(mock.chrome.tabs)
@@ -1642,7 +1642,7 @@ test('failed shared activation capture falls back without dropping either servic
   assert.equal(response.tabHistory.entries.some((entry: any) => entry.tabId === tab.id), true)
   assert.equal(
     Object.values(response.workingSetActivity.records).some((record: any) => record.url === tab.url),
-    true
+    true,
   )
 })
 
@@ -1655,7 +1655,7 @@ test('window focus shares one active-tab query across history and Working Set', 
     active: true,
     pinned: false,
     groupId: -1,
-    index: 0
+    index: 0,
   }
   const mock = await loadBackground([tab])
   const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
@@ -1669,7 +1669,7 @@ test('window focus shares one active-tab query across history and Working Set', 
   assert.deepEqual(mock.calls.tabGet.slice(tabGetsBefore), [])
   assert.deepEqual(mock.calls.tabQuery.slice(tabQueriesBefore), [
     {},
-    { windowId: tab.windowId, active: true }
+    { windowId: tab.windowId, active: true },
   ])
 
   const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-dashboard-service-state' })
@@ -1677,7 +1677,7 @@ test('window focus shares one active-tab query across history and Working Set', 
   assert.equal(response.tabHistory.entries.some((entry: any) => entry.tabId === tab.id), true)
   assert.equal(
     Object.values(response.workingSetActivity.records).some((record: any) => record.url === tab.url),
-    true
+    true,
   )
 })
 
@@ -1691,8 +1691,8 @@ test('filter shortcut opens a fresh focus-ready Tab Out tab from a normal page',
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
 
   const onCommand = mock.listeners.commandsOnCommand[0]
@@ -1704,7 +1704,7 @@ test('filter shortcut opens a fresh focus-ready Tab Out tab from a normal page',
   assert.deepEqual(mock.calls.create.at(-1), {
     windowId: 1,
     url: `${extensionUrl}?focusFilter=1`,
-    active: true
+    active: true,
   })
 
   const createdTab = Object.values(mock.state.tabsById as Record<string, any>).find((tab) => tab.url === `${extensionUrl}?focusFilter=1`)
@@ -1723,7 +1723,7 @@ test('filter shortcut opens a fresh focus-ready Tab Out tab from an existing Tab
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 42,
@@ -1733,8 +1733,8 @@ test('filter shortcut opens a fresh focus-ready Tab Out tab from an existing Tab
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
-    }
+      index: 1,
+    },
   ])
 
   const onCommand = mock.listeners.commandsOnCommand[0]
@@ -1747,8 +1747,8 @@ test('filter shortcut opens a fresh focus-ready Tab Out tab from an existing Tab
     {
       windowId: 1,
       url: `${extensionUrl}?focusFilter=1`,
-      active: true
-    }
+      active: true,
+    },
   ])
   assert.deepEqual(mock.calls.remove, [])
   assert.equal(mock.calls.update.some((call) => call.updateProperties.url === `${extensionUrl}?focusFilter=1`), false)
@@ -1771,7 +1771,7 @@ test('filter shortcut opens an unpinned fresh Tab Out tab from a pinned active d
       active: true,
       pinned: true,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 62,
@@ -1781,8 +1781,8 @@ test('filter shortcut opens an unpinned fresh Tab Out tab from a pinned active d
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
-    }
+      index: 1,
+    },
   ])
 
   const onCommand = mock.listeners.commandsOnCommand[0]
@@ -1795,8 +1795,8 @@ test('filter shortcut opens an unpinned fresh Tab Out tab from a pinned active d
     {
       windowId: 1,
       url: `${extensionUrl}?focusFilter=1`,
-      active: true
-    }
+      active: true,
+    },
   ])
   assert.deepEqual(mock.calls.remove, [])
   assert.equal(mock.state.tabsById[61].url, extensionUrl)
@@ -1819,7 +1819,7 @@ test('filter shortcut opens in a normal browser window when a standalone app win
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 72,
@@ -1830,8 +1830,8 @@ test('filter shortcut opens in a normal browser window when a standalone app win
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
 
   const onCommand = mock.listeners.commandsOnCommand[0]
@@ -1844,12 +1844,12 @@ test('filter shortcut opens in a normal browser window when a standalone app win
     {
       windowId: 2,
       url: `${extensionUrl}?focusFilter=1`,
-      active: true
-    }
+      active: true,
+    },
   ])
   assert.deepEqual(mock.calls.windowUpdate.at(-1), {
     windowId: 2,
-    updateInfo: { focused: true }
+    updateInfo: { focused: true },
   })
   assert.equal(mock.state.tabsById[73].windowId, 2)
   assert.equal(mock.state.tabsById[73].url, `${extensionUrl}?focusFilter=1`)
@@ -1866,8 +1866,8 @@ test('global new-tab shortcut opens a native new tab in the last focused normal 
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
 
   const onCommand = mock.listeners.commandsOnCommand[0]
@@ -1879,11 +1879,11 @@ test('global new-tab shortcut opens a native new tab in the last focused normal 
 
   assert.deepEqual(mock.calls.create.at(-1), {
     windowId: 1,
-    active: true
+    active: true,
   })
   assert.deepEqual(mock.calls.windowUpdate.at(-1), {
     windowId: 1,
-    updateInfo: { focused: true }
+    updateInfo: { focused: true },
   })
 
   const createdTab = Object.values(mock.state.tabsById as Record<string, any>).find((tab) => tab.url === 'chrome://newtab/')
@@ -1903,8 +1903,8 @@ test('global new-tab shortcut opens a normal browser window when no normal windo
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
 
   const onCommand = mock.listeners.commandsOnCommand[0]
@@ -1917,8 +1917,8 @@ test('global new-tab shortcut opens a normal browser window when no normal windo
   assert.deepEqual(mock.calls.windowCreate, [
     {
       type: 'normal',
-      focused: true
-    }
+      focused: true,
+    },
   ])
 })
 
@@ -1933,23 +1933,23 @@ test('native placement bridge directly places a requested window without focusin
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ], {
     displays: [
       {
         id: 'remote-display',
         isEnabled: true,
         bounds: { left: 0, top: 0, width: 1440, height: 900 },
-        workArea: { left: 0, top: 25, width: 1440, height: 875 }
+        workArea: { left: 0, top: 25, width: 1440, height: 875 },
       },
       {
         id: 'target-display',
         isEnabled: true,
         bounds: { left: -1920, top: 0, width: 1920, height: 1080 },
-        workArea: { left: -1920, top: 0, width: 1920, height: 1080 }
-      }
-    ]
+        workArea: { left: -1920, top: 0, width: 1920, height: 1080 },
+      },
+    ],
   })
 
   const onNativeMessage = mock.listeners.nativePortOnMessage[0]
@@ -1961,7 +1961,7 @@ test('native placement bridge directly places a requested window without focusin
     requestId: 'hs-bridge-test-1',
     expiresAtMs: Date.now() + 12_000,
     operation: 'filter',
-    targetBounds: { left: -1920, top: 0, width: 1920, height: 1080 }
+    targetBounds: { left: -1920, top: 0, width: 1920, height: 1080 },
   })
   await flushBackgroundWork()
 
@@ -1976,8 +1976,8 @@ test('native placement bridge directly places a requested window without focusin
       left: -1820,
       top: 75,
       width: 1200,
-      height: 700
-    }
+      height: 700,
+    },
   ])
   assert.equal(mock.state.windowsById[1].focused, true)
   assert.equal(mock.state.windowsById[2].focused, false)
@@ -1989,7 +1989,7 @@ test('native placement bridge directly places a requested window without focusin
     requestId: 'hs-bridge-test-1',
     status: 'accepted',
     browserWindowId: 2,
-    creationToken: 'hs-bridge-test-1'
+    creationToken: 'hs-bridge-test-1',
   }])
 })
 
@@ -2003,8 +2003,8 @@ test('background command listener settles every rejected async command', async (
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
   const onCommand = mock.listeners.commandsOnCommand[0]
   assert.equal(typeof onCommand, 'function')
@@ -2027,7 +2027,7 @@ test('background command listener settles every rejected async command', async (
     'switch-to-last-tab',
     'switch-to-next-tab',
     'open-filter-tab',
-    'open-new-tab'
+    'open-new-tab',
   ]) {
     const commandTask = onCommand(command)
     assert.ok(commandTask instanceof Promise)
@@ -2046,8 +2046,8 @@ test('browser startup clears persisted tab-id history before refreshing the star
         active: true,
         pinned: false,
         groupId: -1,
-        index: 0
-      }
+        index: 0,
+      },
     ],
     {
       deferInitialOpenSurfaceReconciliation: true,
@@ -2056,14 +2056,14 @@ test('browser startup clears persisted tab-id history before refreshing the star
           globalTabHistory: {
             stack: [
               { windowId: 1, tabId: 111 },
-              { windowId: 1, tabId: 222 }
+              { windowId: 1, tabId: 222 },
             ],
             index: 1,
-            pending: [{ windowId: 1, tabId: 333 }]
-          }
-        }
-      }
-    }
+            pending: [{ windowId: 1, tabId: 333 }],
+          },
+        },
+      },
+    },
   )
 
   const onStartup = mock.listeners.runtimeOnStartup[0]
@@ -2077,7 +2077,7 @@ test('browser startup clears persisted tab-id history before refreshing the star
     version: 2,
     stack: [{ windowId: 1, tabId: 111, url: 'https://current.example.test/' }],
     index: 0,
-    pending: []
+    pending: [],
   })
 })
 
@@ -2090,9 +2090,9 @@ test('failed initial open-surface reconciliation retries on the next readiness w
     active: true,
     pinned: false,
     groupId: -1,
-    index: 0
+    index: 0,
   }], {
-    deferInitialOpenSurfaceReconciliation: true
+    deferInitialOpenSurfaceReconciliation: true,
   })
 
   mock.failNextTabQuery('Initial inventory capture unavailable')
@@ -2101,26 +2101,26 @@ test('failed initial open-surface reconciliation retries on the next readiness w
 
   assert.equal(
     mock.storageValues.session[OPEN_SURFACE_SESSION_STORAGE_KEY],
-    undefined
+    undefined,
   )
   assert.equal(
     mock.calls.alarmsClear.filter((name) => name === RETAINED_PAGES_EXPIRY_ALARM).length,
-    1
+    1,
   )
 
   const response = await sendRuntimeMessage(mock, {
-    type: 'tab-out:get-dashboard-service-state'
+    type: 'tab-out:get-dashboard-service-state',
   })
   assert.equal(response.ok, true)
 
   const session = parseOpenSurfaceInventoryValue(
-    mock.storageValues.session[OPEN_SURFACE_SESSION_STORAGE_KEY]
+    mock.storageValues.session[OPEN_SURFACE_SESSION_STORAGE_KEY],
   )
   assert.equal(session.status, 'valid')
   assert.deepEqual(Object.keys(session.inventory.entries), ['111'])
   assert.equal(
     mock.calls.alarmsClear.filter((name) => name === RETAINED_PAGES_EXPIRY_ALARM).length,
-    2
+    2,
   )
 })
 
@@ -2129,9 +2129,9 @@ test('browser startup owns retained-page reconciliation before worker-resume can
     tabId: 77,
     surfaceKind: 'normal-tab',
     url: 'https://restored.example.test/article',
-    title: 'Prior browser lifetime'
+    title: 'Prior browser lifetime',
   }], {
-    closureTokenFactory: () => 'prior-browser-lifetime'
+    closureTokenFactory: () => 'prior-browser-lifetime',
   })
   const mock = await loadBackground(
     [{
@@ -2142,16 +2142,16 @@ test('browser startup owns retained-page reconciliation before worker-resume can
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     }],
     {
       deferInitialOpenSurfaceReconciliation: true,
       storageValues: {
         local: {
-          [OPEN_SURFACE_DURABLE_STORAGE_KEY]: priorInventory
-        }
-      }
-    }
+          [OPEN_SURFACE_DURABLE_STORAGE_KEY]: priorInventory,
+        },
+      },
+    },
   )
 
   const onStartup = mock.listeners.runtimeOnStartup[0]
@@ -2162,13 +2162,13 @@ test('browser startup owns retained-page reconciliation before worker-resume can
   await flushBackgroundWork()
 
   const ledger = await parseStoredRetainedPageLedger(
-    mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY]
+    mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY],
   )
   const session = parseOpenSurfaceInventoryValue(
-    mock.storageValues.session[OPEN_SURFACE_SESSION_STORAGE_KEY]
+    mock.storageValues.session[OPEN_SURFACE_SESSION_STORAGE_KEY],
   )
   const durable = parseOpenSurfaceInventoryValue(
-    mock.storageValues.local[OPEN_SURFACE_DURABLE_STORAGE_KEY]
+    mock.storageValues.local[OPEN_SURFACE_DURABLE_STORAGE_KEY],
   )
   assert.equal(ledger.status, 'valid')
   assert.equal(session.status, 'valid')
@@ -2176,26 +2176,26 @@ test('browser startup owns retained-page reconciliation before worker-resume can
   assert.deepEqual(Object.keys(ledger.ledger.pages).length, 1)
   assert.equal(
     Object.values(ledger.ledger.pages)[0]?.closureToken,
-    'prior-browser-lifetime'
+    'prior-browser-lifetime',
   )
   assert.notEqual(
     session.inventory.entries['111']?.closureToken,
-    'prior-browser-lifetime'
+    'prior-browser-lifetime',
   )
   assert.equal(
     durable.inventory.entries['111']?.closureToken,
-    session.inventory.entries['111']?.closureToken
+    session.inventory.entries['111']?.closureToken,
   )
 
   await backgroundClock.tickAsync(0)
   await flushBackgroundWork()
   const afterDeferredFallback = await parseStoredRetainedPageLedger(
-    mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY]
+    mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY],
   )
   assert.equal(afterDeferredFallback.status, 'valid')
   assert.equal(
     Object.values(afterDeferredFallback.ledger.pages)[0]?.closureToken,
-    'prior-browser-lifetime'
+    'prior-browser-lifetime',
   )
 })
 
@@ -2204,9 +2204,9 @@ test('first installation seeds current surfaces before the deferred worker-resum
     tabId: 77,
     surfaceKind: 'normal-tab',
     url: 'https://prior.example.test/article',
-    title: 'Prior durable lifetime'
+    title: 'Prior durable lifetime',
   }], {
-    closureTokenFactory: () => 'must-not-be-retained-on-install'
+    closureTokenFactory: () => 'must-not-be-retained-on-install',
   })
   const mock = await loadBackground(
     [{
@@ -2217,16 +2217,16 @@ test('first installation seeds current surfaces before the deferred worker-resum
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     }],
     {
       deferInitialOpenSurfaceReconciliation: true,
       storageValues: {
         local: {
-          [OPEN_SURFACE_DURABLE_STORAGE_KEY]: impossiblePriorInventory
-        }
-      }
-    }
+          [OPEN_SURFACE_DURABLE_STORAGE_KEY]: impossiblePriorInventory,
+        },
+      },
+    },
   )
 
   const onInstalled = mock.listeners.runtimeOnInstalled[0]
@@ -2236,26 +2236,26 @@ test('first installation seeds current surfaces before the deferred worker-resum
   await backgroundClock.tickAsync(0)
   await waitForBackgroundState(() => (
     parseOpenSurfaceInventoryValue(
-      mock.storageValues.session[OPEN_SURFACE_SESSION_STORAGE_KEY]
+      mock.storageValues.session[OPEN_SURFACE_SESSION_STORAGE_KEY],
     ).status === 'valid' &&
     parseOpenSurfaceInventoryValue(
-      mock.storageValues.local[OPEN_SURFACE_DURABLE_STORAGE_KEY]
+      mock.storageValues.local[OPEN_SURFACE_DURABLE_STORAGE_KEY],
     ).status === 'valid' &&
     parseDashboardStartupSeedBoundary(
-      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
     ) !== null &&
     parseDashboardStartupSeedBoundary(
-      mock.storageValues.local[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+      mock.storageValues.local[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
     ) !== null
   ), 'first-install reconciliation and startup seed')
   await flushBackgroundWork()
 
   assert.equal(mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY], undefined)
   const session = parseOpenSurfaceInventoryValue(
-    mock.storageValues.session[OPEN_SURFACE_SESSION_STORAGE_KEY]
+    mock.storageValues.session[OPEN_SURFACE_SESSION_STORAGE_KEY],
   )
   const durable = parseOpenSurfaceInventoryValue(
-    mock.storageValues.local[OPEN_SURFACE_DURABLE_STORAGE_KEY]
+    mock.storageValues.local[OPEN_SURFACE_DURABLE_STORAGE_KEY],
   )
   assert.equal(session.status, 'valid')
   assert.equal(durable.status, 'valid')
@@ -2270,16 +2270,16 @@ test('extension update owns initial reconciliation and preserves surviving live 
       tabId: 111,
       surfaceKind: 'normal-tab',
       url: 'https://surviving.example.test/article',
-      title: 'Surviving lifetime'
+      title: 'Surviving lifetime',
     },
     {
       tabId: 77,
       surfaceKind: 'normal-tab',
       url: 'https://missing.example.test/article',
-      title: 'Missing lifetime'
-    }
+      title: 'Missing lifetime',
+    },
   ], {
-    closureTokenFactory: () => `prior-update-lifetime-${++nextToken}`
+    closureTokenFactory: () => `prior-update-lifetime-${++nextToken}`,
   })
   const mock = await loadBackground(
     [{
@@ -2290,16 +2290,16 @@ test('extension update owns initial reconciliation and preserves surviving live 
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     }],
     {
       deferInitialOpenSurfaceReconciliation: true,
       storageValues: {
         local: {
-          [OPEN_SURFACE_DURABLE_STORAGE_KEY]: priorInventory
-        }
-      }
-    }
+          [OPEN_SURFACE_DURABLE_STORAGE_KEY]: priorInventory,
+        },
+      },
+    },
   )
 
   const onInstalled = mock.listeners.runtimeOnInstalled[0]
@@ -2310,32 +2310,32 @@ test('extension update owns initial reconciliation and preserves surviving live 
   await waitForBackgroundState(() => (
     mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY] !== undefined &&
     parseOpenSurfaceInventoryValue(
-      mock.storageValues.session[OPEN_SURFACE_SESSION_STORAGE_KEY]
+      mock.storageValues.session[OPEN_SURFACE_SESSION_STORAGE_KEY],
     ).status === 'valid' &&
     parseDashboardStartupSeedBoundary(
-      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
     ) !== null &&
     parseDashboardStartupSeedBoundary(
-      mock.storageValues.local[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+      mock.storageValues.local[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
     ) !== null
   ), 'extension-update reconciliation and startup seed')
   await flushBackgroundWork()
 
   const ledger = await parseStoredRetainedPageLedger(
-    mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY]
+    mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY],
   )
   const session = parseOpenSurfaceInventoryValue(
-    mock.storageValues.session[OPEN_SURFACE_SESSION_STORAGE_KEY]
+    mock.storageValues.session[OPEN_SURFACE_SESSION_STORAGE_KEY],
   )
   assert.equal(ledger.status, 'valid')
   assert.equal(session.status, 'valid')
   assert.equal(
     Object.values(ledger.ledger.pages)[0]?.closureToken,
-    priorInventory.entries['77']?.closureToken
+    priorInventory.entries['77']?.closureToken,
   )
   assert.equal(
     session.inventory.entries['111']?.closureToken,
-    priorInventory.entries['111']?.closureToken
+    priorInventory.entries['111']?.closureToken,
   )
   assert.deepEqual(Object.keys(session.inventory.entries), ['111'])
 })
@@ -2350,7 +2350,7 @@ test('tab replacement rebases live state while the URL-keyed Warm seed remains s
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 202,
@@ -2360,7 +2360,7 @@ test('tab replacement rebases live state while the URL-keyed Warm seed remains s
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
+      index: 1,
     },
     {
       id: 203,
@@ -2370,8 +2370,8 @@ test('tab replacement rebases live state while the URL-keyed Warm seed remains s
       active: false,
       pinned: false,
       groupId: -1,
-      index: 2
-    }
+      index: 2,
+    },
   ])
   const onActivated = mock.listeners.tabsOnActivated[0]
   const onInstalled = mock.listeners.runtimeOnInstalled[0]
@@ -2386,13 +2386,13 @@ test('tab replacement rebases live state while the URL-keyed Warm seed remains s
   onInstalled({ reason: 'install' })
   await waitForBackgroundState(() => {
     const value = parseDashboardStartupSeedBoundary(
-      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
     )
     return value?.workingSetPriority.keys.includes('https://one.example.test/') ?? false
   }, 'first-install startup seed')
 
   const warmBefore = requireStartupSeed(
-    mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+    mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
   )
   assert.ok(warmBefore.workingSetPriority.keys.includes('https://one.example.test/'))
 
@@ -2402,7 +2402,7 @@ test('tab replacement rebases live state while the URL-keyed Warm seed remains s
   await flushBackgroundWork()
 
   const warmAfter = requireStartupSeed(
-    mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+    mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
   )
   assert.deepEqual(warmAfter.cardOrder, warmBefore.cardOrder)
   assert.deepEqual(warmAfter.workingSetPriority, warmBefore.workingSetPriority)
@@ -2421,7 +2421,7 @@ test('tab lifecycle events invalidate session-only title retention before the de
     tabId,
     url: `https://${domain}/docs`,
     title: `${domain} docs`,
-    kind: 'suspended'
+    kind: 'suspended',
   })
   const mock = await loadBackground([
     {
@@ -2432,7 +2432,7 @@ test('tab lifecycle events invalidate session-only title retention before the de
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 702,
@@ -2442,7 +2442,7 @@ test('tab lifecycle events invalidate session-only title retention before the de
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
+      index: 1,
     },
     {
       id: 703,
@@ -2452,8 +2452,8 @@ test('tab lifecycle events invalidate session-only title retention before the de
       active: false,
       pinned: false,
       groupId: -1,
-      index: 2
-    }
+      index: 2,
+    },
   ], {
     storageValues: {
       session: {
@@ -2467,38 +2467,38 @@ test('tab lifecycle events invalidate session-only title retention before the de
             retainedTitle(701, 'created.example'),
             retainedTitle(702, 'removed.example'),
             retainedTitle(703, 'replaced.example'),
-            retainedTitle(704, 'replacement.example')
-          ]
-        }
-      }
-    }
+            retainedTitle(704, 'replacement.example'),
+          ],
+        },
+      },
+    },
   })
 
   const onCreated = valueAt(mock.listeners.tabsOnCreated, 0)
   onCreated(clone(mock.state.tabsById[701]))
   await waitForBackgroundState(() => {
     const value = parseDashboardStartupSeedBoundary(
-      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
     )
     return value?.titleRetention?.map((entry) => entry.tabId).join(',') === '702,703,704'
   }, 'created-tab title invalidation')
   assert.deepEqual(
     requireStartupSeed(mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY])
       .titleRetention?.map((entry) => entry.tabId),
-    [702, 703, 704]
+    [702, 703, 704],
   )
 
   await mock.chrome.tabs.remove(702)
   await waitForBackgroundState(() => {
     const value = parseDashboardStartupSeedBoundary(
-      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
     )
     return value?.titleRetention?.map((entry) => entry.tabId).join(',') === '703,704'
   }, 'removed-tab title invalidation')
   assert.deepEqual(
     requireStartupSeed(mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY])
       .titleRetention?.map((entry) => entry.tabId),
-    [703, 704]
+    [703, 704],
   )
 
   await mock.replaceTab(703, 704)
@@ -2506,7 +2506,7 @@ test('tab lifecycle events invalidate session-only title retention before the de
   assert.equal(
     requireStartupSeed(mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY])
       .titleRetention,
-    undefined
+    undefined,
   )
 })
 
@@ -2520,7 +2520,7 @@ test('active tab is primed to close back to the previous same-window tab without
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 72,
@@ -2530,7 +2530,7 @@ test('active tab is primed to close back to the previous same-window tab without
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
+      index: 1,
     },
     {
       id: 73,
@@ -2540,8 +2540,8 @@ test('active tab is primed to close back to the previous same-window tab without
       active: false,
       pinned: false,
       groupId: -1,
-      index: 2
-    }
+      index: 2,
+    },
   ])
 
   const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
@@ -2556,7 +2556,7 @@ test('active tab is primed to close back to the previous same-window tab without
 
   assert.deepEqual(mock.calls.update.at(-1), {
     tabId: 72,
-    updateProperties: { openerTabId: 71 }
+    updateProperties: { openerTabId: 71 },
   })
   assert.equal(mock.state.tabsById[72].openerTabId, 71)
 
@@ -2567,7 +2567,7 @@ test('active tab is primed to close back to the previous same-window tab without
   assert.equal(mock.state.tabsById[73].active, false)
   assert.equal(
     mock.calls.update.some((call) => call.updateProperties.active === true && call.tabId === 71),
-    false
+    false,
   )
 })
 
@@ -2581,7 +2581,7 @@ test('tab history snapshot exposes previous and next command targets', async () 
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 82,
@@ -2591,7 +2591,7 @@ test('tab history snapshot exposes previous and next command targets', async () 
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
+      index: 1,
     },
     {
       id: 83,
@@ -2601,8 +2601,8 @@ test('tab history snapshot exposes previous and next command targets', async () 
       active: false,
       pinned: false,
       groupId: -1,
-      index: 2
-    }
+      index: 2,
+    },
   ])
 
   const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
@@ -2658,7 +2658,7 @@ test('tab history keeps a valid target when activation succeeds but window focus
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 82,
@@ -2668,8 +2668,8 @@ test('tab history keeps a valid target when activation succeeds but window focus
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
 
   const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
@@ -2688,7 +2688,7 @@ test('tab history keeps a valid target when activation succeeds but window focus
 
   const response = await sendRuntimeMessage(mock, {
     type: 'tab-out:switch-tab-history',
-    direction: -1
+    direction: -1,
   })
   await flushBackgroundWork()
 
@@ -2713,13 +2713,13 @@ test('background-created link tabs become FIFO indexed next history targets', as
       tabId: entry.tabId,
       index: entry.index,
       pending: entry.pending,
-      nextTarget: entry.nextTarget
+      nextTarget: entry.nextTarget,
     }))),
     [
       { tabId: 81, index: 0, pending: false, nextTarget: false },
       { tabId: 82, index: 1, pending: true, nextTarget: true },
-      { tabId: 83, index: 2, pending: true, nextTarget: false }
-    ]
+      { tabId: 83, index: 2, pending: true, nextTarget: false },
+    ],
   )
 })
 
@@ -2733,8 +2733,8 @@ test('a background-created pending target survives a redirect before first activ
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
   const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
   const onUpdated = mock.listeners.tabsOnUpdated[0]
@@ -2745,14 +2745,14 @@ test('a background-created pending target survives a redirect before first activ
     windowId: 1,
     url: 'https://example.test/redirect-start',
     active: false,
-    openerTabId: 81
+    openerTabId: 81,
   })
   await flushBackgroundWork()
   mock.state.tabsById[pendingTab.id].url = 'https://example.test/redirect-final'
   onUpdated(
     pendingTab.id,
     { url: 'https://example.test/redirect-final' },
-    clone(mock.state.tabsById[pendingTab.id])
+    clone(mock.state.tabsById[pendingTab.id]),
   )
   await flushBackgroundWork()
 
@@ -2764,12 +2764,12 @@ test('a background-created pending target survives a redirect before first activ
     clone(response.snapshot.entries.map((entry) => ({
       tabId: entry.tabId,
       url: entry.url,
-      pending: entry.pending
+      pending: entry.pending,
     }))),
     [
       { tabId: 81, url: 'https://example.test/current', pending: false },
-      { tabId: pendingTab.id, url: 'https://example.test/redirect-final', pending: true }
-    ]
+      { tabId: pendingTab.id, url: 'https://example.test/redirect-final', pending: true },
+    ],
   )
 })
 
@@ -2787,7 +2787,7 @@ test('failed pending-tab activation does not promote or advance history', async 
 
   const response = await sendRuntimeMessage(mock, {
     type: 'tab-out:switch-tab-history',
-    direction: 1
+    direction: 1,
   })
   const snapshotResponse = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
 
@@ -2804,13 +2804,13 @@ test('failed pending-tab activation does not promote or advance history', async 
       tabId: entry.tabId,
       pending: entry.pending,
       current: entry.current,
-      nextTarget: entry.nextTarget
+      nextTarget: entry.nextTarget,
     }))),
     [
       { tabId: 81, pending: false, current: true, nextTarget: false },
       { tabId: 82, pending: true, current: false, nextTarget: true },
-      { tabId: 83, pending: true, current: false, nextTarget: false }
-    ]
+      { tabId: 83, pending: true, current: false, nextTarget: false },
+    ],
   )
 })
 
@@ -2819,7 +2819,7 @@ test('forward history promotes the first pending tab and advances to the next on
 
   const response = await sendRuntimeMessage(mock, {
     type: 'tab-out:switch-tab-history',
-    direction: 1
+    direction: 1,
   })
   await flushBackgroundWork()
 
@@ -2835,13 +2835,13 @@ test('forward history promotes the first pending tab and advances to the next on
       index: entry.index,
       pending: entry.pending,
       current: entry.current,
-      nextTarget: entry.nextTarget
+      nextTarget: entry.nextTarget,
     }))),
     [
       { tabId: 81, index: 0, pending: false, current: false, nextTarget: false },
       { tabId: 82, index: 1, pending: false, current: true, nextTarget: false },
-      { tabId: 83, index: 2, pending: true, current: false, nextTarget: true }
-    ]
+      { tabId: 83, index: 2, pending: true, current: false, nextTarget: true },
+    ],
   )
 })
 
@@ -2855,7 +2855,7 @@ test('activated forward history stays ahead of pending background tabs', async (
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 82,
@@ -2865,7 +2865,7 @@ test('activated forward history stays ahead of pending background tabs', async (
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
+      index: 1,
     },
     {
       id: 83,
@@ -2875,8 +2875,8 @@ test('activated forward history stays ahead of pending background tabs', async (
       active: false,
       pinned: false,
       groupId: -1,
-      index: 2
-    }
+      index: 2,
+    },
   ])
 
   const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
@@ -2896,7 +2896,7 @@ test('activated forward history stays ahead of pending background tabs', async (
     windowId: 1,
     url: 'https://delta.example/',
     active: false,
-    openerTabId: 82
+    openerTabId: 82,
   })
   await flushBackgroundWork()
 
@@ -2913,7 +2913,7 @@ test('activated forward history stays ahead of pending background tabs', async (
 
   const response = await sendRuntimeMessage(mock, {
     type: 'tab-out:switch-tab-history',
-    direction: 1
+    direction: 1,
   })
   await flushBackgroundWork()
 
@@ -2946,13 +2946,13 @@ test('manual activation promotes only the selected pending background tab', asyn
     clone(snapshot.entries.map((entry) => ({
       tabId: entry.tabId,
       pending: entry.pending,
-      current: entry.current
+      current: entry.current,
     }))),
     [
       { tabId: 81, pending: false, current: false },
       { tabId: 83, pending: false, current: true },
-      { tabId: 82, pending: true, current: false }
-    ]
+      { tabId: 82, pending: true, current: false },
+    ],
   )
 })
 
@@ -2971,7 +2971,7 @@ test('closing a pending background tab removes it from indexed history', async (
   assert.equal(snapshot.nextIndex, 1)
   assert.deepEqual(
     clone(snapshot.entries.map((entry) => entry.tabId)),
-    [81, 83]
+    [81, 83],
   )
   assert.equal(pendingEntry.pending, true)
   assert.equal(pendingEntry.nextTarget, true)
@@ -2987,8 +2987,8 @@ test('inactive tabs without an opener do not enter pending history', async () =>
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
 
   const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
@@ -2997,7 +2997,7 @@ test('inactive tabs without an opener do not enter pending history', async () =>
   await mock.chrome.tabs.create({
     windowId: 1,
     url: 'https://restored.example/',
-    active: false
+    active: false,
   })
   await flushBackgroundWork()
 
@@ -3007,7 +3007,7 @@ test('inactive tabs without an opener do not enter pending history', async () =>
   assert.equal(snapshot.pendingSize, 0)
   assert.deepEqual(
     clone(snapshot.entries.map((entry) => entry.tabId)),
-    [81]
+    [81],
   )
 })
 
@@ -3022,7 +3022,7 @@ test('tab history command unsuspends the selected history target', async () => {
       active: false,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 87,
@@ -3032,7 +3032,7 @@ test('tab history command unsuspends the selected history target', async () => {
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
+      index: 1,
     },
     {
       id: 88,
@@ -3042,8 +3042,8 @@ test('tab history command unsuspends the selected history target', async () => {
       active: true,
       pinned: false,
       groupId: -1,
-      index: 2
-    }
+      index: 2,
+    },
   ])
 
   const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
@@ -3064,16 +3064,16 @@ test('tab history command unsuspends the selected history target', async () => {
   assert.deepEqual(mock.calls.runtimeMessages, [
     {
       extensionId: 'blocked',
-      message: { action: 'unsuspend', tabId: 87 }
-    }
+      message: { action: 'unsuspend', tabId: 87 },
+    },
   ])
   assert.deepEqual(mock.calls.update.findLast((call) => call.updateProperties.active === true && call.tabId === 87), {
     tabId: 87,
-    updateProperties: { active: true, url: 'https://example.com/docs' }
+    updateProperties: { active: true, url: 'https://example.com/docs' },
   })
   assert.deepEqual(mock.calls.update.at(-1), {
     tabId: 87,
-    updateProperties: { openerTabId: 88 }
+    updateProperties: { openerTabId: 88 },
   })
   assert.equal(mock.state.tabsById[87].url, 'https://example.com/docs')
   assert.equal(mock.state.tabsById[87].active, true)
@@ -3089,7 +3089,7 @@ test('tab history snapshot marks standalone app entries', async () => {
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 85,
@@ -3100,8 +3100,8 @@ test('tab history snapshot marks standalone app entries', async () => {
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
 
   const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
@@ -3130,8 +3130,8 @@ test('tab history snapshot exposes effective and raw URLs for suspended tabs', a
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
 
   const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
@@ -3160,7 +3160,7 @@ test('combined service state ranks activated and actively navigated open tabs', 
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 402,
@@ -3170,7 +3170,7 @@ test('combined service state ranks activated and actively navigated open tabs', 
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
+      index: 1,
     },
     {
       id: 403,
@@ -3180,7 +3180,7 @@ test('combined service state ranks activated and actively navigated open tabs', 
       active: false,
       pinned: false,
       groupId: -1,
-      index: 2
+      index: 2,
     },
     {
       id: 404,
@@ -3190,8 +3190,8 @@ test('combined service state ranks activated and actively navigated open tabs', 
       active: false,
       pinned: false,
       groupId: -1,
-      index: 3
-    }
+      index: 3,
+    },
   ])
 
   const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
@@ -3225,7 +3225,7 @@ test('combined service state ranks activated and actively navigated open tabs', 
     const snapshot = buildWorkingSetFromServiceState(response)
     assert.deepEqual(
       snapshot.items.map((item) => item.tabId),
-      [403, 402, 401]
+      [403, 402, 401],
     )
     assert.equal(valueAt(snapshot.items, 1).displayUrl, 'bravo.example/issues/123')
     assert.equal(snapshot.items.some((item) => item.title === 'Tab Out'), false)
@@ -3244,8 +3244,8 @@ test('combined service state ignores a same-page refresh signal', async () => {
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
   const onActivated = mock.listeners.tabsOnActivated[0]
   const onUpdated = mock.listeners.tabsOnUpdated[0]
@@ -3259,7 +3259,7 @@ test('combined service state ignores a same-page refresh signal', async () => {
   onUpdated(
     501,
     { url: mock.state.tabsById[501].url, status: 'loading' },
-    clone(mock.state.tabsById[501])
+    clone(mock.state.tabsById[501]),
   )
   await flushBackgroundWork()
   const after = await sendRuntimeMessage(mock, { type: 'tab-out:get-dashboard-service-state' })
@@ -3270,11 +3270,11 @@ test('combined service state ignores a same-page refresh signal', async () => {
   assert.ok(workflowRecord)
   assert.deepEqual(
     workflowRecord.events.map((event) => event.kind),
-    ['activation']
+    ['activation'],
   )
   assert.deepEqual(
     after.tabHistory.entries.map((entry) => entry.tabId),
-    before.tabHistory.entries.map((entry) => entry.tabId)
+    before.tabHistory.entries.map((entry) => entry.tabId),
   )
   assert.equal(after.tabHistory.currentIndex, before.tabHistory.currentIndex)
 })
@@ -3292,7 +3292,7 @@ test('combined service state ignores title-only updates so idle tabs do not resh
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 602,
@@ -3302,7 +3302,7 @@ test('combined service state ignores title-only updates so idle tabs do not resh
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 603,
@@ -3312,8 +3312,8 @@ test('combined service state ignores title-only updates so idle tabs do not resh
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
-    }
+      index: 1,
+    },
   ])
 
   const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
@@ -3341,7 +3341,7 @@ test('combined service state ignores title-only updates so idle tabs do not resh
     const beforeSnapshot = buildWorkingSetFromServiceState(before)
     assert.deepEqual(
       beforeSnapshot.items.map((item) => item.tabId),
-      [603, 601, 602]
+      [603, 601, 602],
     )
 
     now += 60_000
@@ -3354,7 +3354,7 @@ test('combined service state ignores title-only updates so idle tabs do not resh
     const afterSnapshot = buildWorkingSetFromServiceState(after)
     assert.deepEqual(
       afterSnapshot.items.map((item) => item.tabId),
-      beforeSnapshot.items.map((item) => item.tabId)
+      beforeSnapshot.items.map((item) => item.tabId),
     )
   } finally {
     Date.now = originalDateNow
@@ -3371,8 +3371,8 @@ test('recently closed session changes do not rewrite the compact Warm seed', asy
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
   const onInstalled = mock.listeners.runtimeOnInstalled[0]
   const onSessionsChanged = mock.listeners.sessionsOnChanged[0]
@@ -3382,11 +3382,11 @@ test('recently closed session changes do not rewrite the compact Warm seed', asy
   onInstalled({ reason: 'install' })
   await waitForBackgroundState(() => (
     parseDashboardStartupSeedBoundary(
-      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
     ) !== null
   ), 'first-install startup seed')
   const beforeSeed = requireStartupSeed(
-    mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+    mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
   )
   const tabQueriesBefore = mock.calls.tabQuery.length
 
@@ -3398,15 +3398,15 @@ test('recently closed session changes do not rewrite the compact Warm seed', asy
       windowId: 1,
       url: 'https://closed.example.test/report',
       title: 'Closed report',
-      favIconUrl: ''
-    }
+      favIconUrl: '',
+    },
   })
   onSessionsChanged()
   await backgroundClock.tickAsync(150 + STARTUP_SNAPSHOT_DEBOUNCE_MS)
   await flushBackgroundWork()
 
   const afterSeed = requireStartupSeed(
-    mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+    mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
   )
   assert.deepEqual(afterSeed, beforeSeed)
   assert.equal(mock.calls.tabQuery.length, tabQueriesBefore)
@@ -3422,8 +3422,8 @@ test('background restore messages remain acknowledged without scheduling seed wo
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ], {
     recentlyClosed: [{
       lastModified: 1_700_000_000,
@@ -3433,9 +3433,9 @@ test('background restore messages remain acknowledged without scheduling seed wo
         windowId: 1,
         url: 'https://closed.example.test/slow',
         title: 'Slow restore',
-        favIconUrl: ''
-      }
-    }]
+        favIconUrl: '',
+      },
+    }],
   })
   const onSessionsChanged = mock.listeners.sessionsOnChanged[0]
   assert.equal(typeof onSessionsChanged, 'function')
@@ -3443,14 +3443,14 @@ test('background restore messages remain acknowledged without scheduling seed wo
   assert.deepEqual(await sendRuntimeMessage(mock, {
     type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
     restoreId: 'restore-slow',
-    phase: 'started'
+    phase: 'started',
   }), { ok: true })
   onSessionsChanged()
 
   assert.deepEqual(await sendRuntimeMessage(mock, {
     type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
     restoreId: 'restore-slow',
-    phase: 'settled'
+    phase: 'settled',
   }), { ok: true })
   await backgroundClock.tickAsync(STARTUP_SNAPSHOT_DEBOUNCE_MS * 2)
   await flushBackgroundWork()
@@ -3463,7 +3463,7 @@ test('background rejects malformed restore message envelopes', async () => {
   assert.deepEqual(await sendRuntimeMessage(mock, {
     type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
     restoreId: '',
-    phase: 'started'
+    phase: 'started',
   }), { ok: false })
 })
 
@@ -3477,7 +3477,7 @@ test('tab history survives extension reload through persistent storage', async (
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 302,
@@ -3487,7 +3487,7 @@ test('tab history survives extension reload through persistent storage', async (
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
+      index: 1,
     },
     {
       id: 303,
@@ -3497,8 +3497,8 @@ test('tab history survives extension reload through persistent storage', async (
       active: false,
       pinned: false,
       groupId: -1,
-      index: 2
-    }
+      index: 2,
+    },
   ])
 
   const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
@@ -3517,7 +3517,7 @@ test('tab history survives extension reload through persistent storage', async (
 
   assert.deepEqual(
     clone(mock.storageValues.local.globalTabHistory.stack.map((entry: { tabId: number }) => entry.tabId)),
-    [301, 302, 303]
+    [301, 302, 303],
   )
 
   const reloadedTabs = Object.values(mock.state.tabsById).map((tab) => clone(tab))
@@ -3527,7 +3527,7 @@ test('tab history survives extension reload through persistent storage', async (
   assert.equal(response.ok, true)
   assert.deepEqual(
     clone(response.snapshot.entries.map((entry) => entry.tabId)),
-    [301, 302, 303]
+    [301, 302, 303],
   )
   assert.equal(response.snapshot.currentIndex, 2)
   assert.equal(response.snapshot.previousIndex, 1)
@@ -3544,7 +3544,7 @@ test('tab history keeps only the latest entry for a repeated tab id', async () =
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 102,
@@ -3554,7 +3554,7 @@ test('tab history keeps only the latest entry for a repeated tab id', async () =
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
+      index: 1,
     },
     {
       id: 103,
@@ -3564,8 +3564,8 @@ test('tab history keeps only the latest entry for a repeated tab id', async () =
       active: false,
       pinned: false,
       groupId: -1,
-      index: 2
-    }
+      index: 2,
+    },
   ])
 
   const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
@@ -3589,7 +3589,7 @@ test('tab history keeps only the latest entry for a repeated tab id', async () =
   assert.equal(response.ok, true)
   assert.deepEqual(
     clone(response.snapshot.entries.map((entry) => entry.tabId)),
-    [102, 103, 101]
+    [102, 103, 101],
   )
   assert.equal(response.snapshot.stackSize, 3)
   assert.equal(response.snapshot.currentIndex, 2)
@@ -3599,7 +3599,7 @@ test('tab history keeps only the latest entry for a repeated tab id', async () =
   const secondSnapshot = requireHistorySnapshot(secondResponse)
   assert.deepEqual(
     clone(secondSnapshot.entries.map((entry) => entry.tabId)),
-    [102, 103, 101]
+    [102, 103, 101],
   )
 })
 
@@ -3613,7 +3613,7 @@ test('tab history serializes rapid activation events in order', async () => {
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 132,
@@ -3623,7 +3623,7 @@ test('tab history serializes rapid activation events in order', async () => {
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
+      index: 1,
     },
     {
       id: 133,
@@ -3633,8 +3633,8 @@ test('tab history serializes rapid activation events in order', async () => {
       active: false,
       pinned: false,
       groupId: -1,
-      index: 2
-    }
+      index: 2,
+    },
   ])
 
   const onActivated = mock.listeners.tabsOnActivated[0]
@@ -3651,7 +3651,7 @@ test('tab history serializes rapid activation events in order', async () => {
   assert.equal(response.ok, true)
   assert.deepEqual(
     clone(response.snapshot.entries.map((entry) => entry.tabId)),
-    [131, 132, 133]
+    [131, 132, 133],
   )
   assert.equal(response.snapshot.currentIndex, 2)
   assert.equal(response.snapshot.previousIndex, 1)
@@ -3667,7 +3667,7 @@ test('history shortcut focuses the current Chrome tab first when Chrome is not f
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 112,
@@ -3677,7 +3677,7 @@ test('history shortcut focuses the current Chrome tab first when Chrome is not f
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
+      index: 1,
     },
     {
       id: 113,
@@ -3687,8 +3687,8 @@ test('history shortcut focuses the current Chrome tab first when Chrome is not f
       active: false,
       pinned: false,
       groupId: -1,
-      index: 2
-    }
+      index: 2,
+    },
   ])
 
   const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
@@ -3719,13 +3719,13 @@ test('history shortcut focuses the current Chrome tab first when Chrome is not f
   assert.equal(mock.state.tabsById[112].active, false)
   assert.deepEqual(
     commandUpdates.filter((call) => call.updateProperties.active === true).map((call) => call.tabId),
-    [113]
+    [113],
   )
   assert.deepEqual(mock.calls.windowUpdate.slice(windowUpdateCount), [
     {
       windowId: 1,
-      updateInfo: { focused: true }
-    }
+      updateInfo: { focused: true },
+    },
   ])
 
   const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
@@ -3744,7 +3744,7 @@ test('history shortcut does not move or rewrite the cursor when focused-window s
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 117,
@@ -3754,8 +3754,8 @@ test('history shortcut does not move or rewrite the cursor when focused-window s
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
 
   const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
@@ -3778,7 +3778,7 @@ test('history shortcut does not move or rewrite the cursor when focused-window s
 
   const response = await sendRuntimeMessage(mock, {
     type: 'tab-out:switch-tab-history',
-    direction: -1
+    direction: -1,
   })
 
   assert.equal(response.ok, false)
@@ -3798,7 +3798,7 @@ test('history shortcut prefers current history tab over stale last-focused windo
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 122,
@@ -3808,7 +3808,7 @@ test('history shortcut prefers current history tab over stale last-focused windo
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
+      index: 1,
     },
     {
       id: 123,
@@ -3818,8 +3818,8 @@ test('history shortcut prefers current history tab over stale last-focused windo
       active: false,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
 
   const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
@@ -3852,13 +3852,13 @@ test('history shortcut prefers current history tab over stale last-focused windo
   assert.equal(mock.state.windowsById[1].focused, false)
   assert.deepEqual(
     commandUpdates.filter((call) => call.updateProperties.active === true).map((call) => call.tabId),
-    [123]
+    [123],
   )
   assert.deepEqual(mock.calls.windowUpdate.slice(windowUpdateCount), [
     {
       windowId: 2,
-      updateInfo: { focused: true }
-    }
+      updateInfo: { focused: true },
+    },
   ])
 })
 
@@ -3873,7 +3873,7 @@ test('window-closing tabs are removed before they consume history slots', async 
       active: index === 0,
       pinned: false,
       groupId: -1,
-      index
+      index,
     }
   })
   const mock = await loadBackground(tabs)
@@ -3910,7 +3910,7 @@ test('tab history snapshot prunes missing tabs before returning entries', async 
       active: true,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 92,
@@ -3920,7 +3920,7 @@ test('tab history snapshot prunes missing tabs before returning entries', async 
       active: false,
       pinned: false,
       groupId: -1,
-      index: 1
+      index: 1,
     },
     {
       id: 93,
@@ -3930,8 +3930,8 @@ test('tab history snapshot prunes missing tabs before returning entries', async 
       active: false,
       pinned: false,
       groupId: -1,
-      index: 2
-    }
+      index: 2,
+    },
   ])
 
   const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
@@ -3951,7 +3951,7 @@ test('tab history snapshot prunes missing tabs before returning entries', async 
   assert.equal(response.ok, true)
   assert.deepEqual(
     clone(response.snapshot.entries.map((entry) => entry.tabId)),
-    [91, 93]
+    [91, 93],
   )
   assert.equal(response.snapshot.stackSize, 2)
   assert.equal(response.snapshot.currentIndex, 1)
@@ -3962,6 +3962,6 @@ test('tab history snapshot prunes missing tabs before returning entries', async 
   const secondSnapshot = requireHistorySnapshot(secondResponse)
   assert.deepEqual(
     clone(secondSnapshot.entries.map((entry) => entry.tabId)),
-    [91, 93]
+    [91, 93],
   )
 })

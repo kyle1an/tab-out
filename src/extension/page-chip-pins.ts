@@ -42,7 +42,7 @@ export function pageChipPinScopeId(
   domain: string,
   subdomainKey: string,
   websitePathKey: string,
-  pathgroupKey: string
+  pathgroupKey: string,
 ): string {
   return ['scope', domain, subdomainKey, websitePathKey, pathgroupKey].join('|')
 }
@@ -145,7 +145,7 @@ export function pinnedPageChipOrder(
   index: PinnedPageChipIndex | null | undefined,
   source: string,
   scopeId: string,
-  chipKey: string
+  chipKey: string,
 ): number | null {
   const order = index?.get(pageChipPinScopeIndexKey(source, scopeId))?.get(chipKey)
   return typeof order === 'number' ? order : null

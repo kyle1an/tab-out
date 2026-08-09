@@ -20,15 +20,15 @@ test('a cached suspended tab seeds title retention before the first live refresh
         pinned: false,
         groupId: -1,
         index: 0,
-        favIconUrl: ''
-      }]
+        favIconUrl: '',
+      }],
     },
     windows: {
-      getAll: async () => [{ id: 1, type: 'normal' }]
+      getAll: async () => [{ id: 1, type: 'normal' }],
     },
     tabGroups: {
-      query: async () => []
-    }
+      query: async () => [],
+    },
   } as unknown as ChromeTabsApi
 
   setChromeTabsApi(api)

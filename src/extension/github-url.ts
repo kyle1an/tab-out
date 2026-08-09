@@ -17,7 +17,7 @@ const GITHUB_RESERVED_ROUTE_OWNERS = new Set([
   'events',
   'sponsors',
   'codespaces',
-  'account'
+  'account',
 ])
 
 export function isGitHubRepositoryOwnerPathSegment(segment: string): boolean {

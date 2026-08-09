@@ -27,7 +27,7 @@ export function CardActionsMenu({
   closeSuspendedEnabled = true,
   onCloseSuspended,
   removeFromTabsLabel,
-  onRemoveFromTabs
+  onRemoveFromTabs,
 }: CardActionsMenuProps) {
   const pinLabel = pinned ? 'Unpin card' : 'Pin card'
 

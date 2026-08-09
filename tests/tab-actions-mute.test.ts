@@ -4,7 +4,7 @@ import test from 'node:test'
 import { replaceDashboardRefreshForTesting } from '../src/extension/dashboard-intake.js'
 import { historyEntryMuteFailureToastMessage, setChipTargetMuted, setHistoryEntryMuted } from '../src/extension/tab-actions.js'
 
-type MuteCall = { tabId: number; muted: boolean }
+type MuteCall = { tabId: number, muted: boolean }
 
 function installChromeMock(initialTabs: Array<Record<string, unknown>>) {
   let tabs = initialTabs.map((t) => ({ ...t }))
@@ -26,7 +26,7 @@ function installChromeMock(initialTabs: Array<Record<string, unknown>>) {
         if (typeof props.muted === 'boolean') muteCalls.push({ tabId, muted: props.muted })
         tabs = tabs.map((t) => (t.id === tabId ? { ...t, mutedInfo: { muted: props.muted } } : t))
         return tabs.find((t) => t.id === tabId)
-      }
+      },
     },
     windows: {
       async getAll() {
@@ -34,8 +34,8 @@ function installChromeMock(initialTabs: Array<Record<string, unknown>>) {
       },
       async getCurrent() {
         return { id: 1 }
-      }
-    }
+      },
+    },
   }
   return {
     muteCalls,
@@ -44,7 +44,7 @@ function installChromeMock(initialTabs: Array<Record<string, unknown>>) {
     },
     get queryCount() {
       return queryCount
-    }
+    },
   }
 }
 
@@ -65,7 +65,7 @@ test('setChipTargetMuted mutes every matching tab with one inventory read', asyn
   const chromeMock = installChromeMock([
     { id: 1, url: 'https://example.com/a', windowId: 1 },
     { id: 2, url: 'https://example.com/a', windowId: 1 },
-    { id: 3, url: 'https://example.com/b', windowId: 1 }
+    { id: 3, url: 'https://example.com/b', windowId: 1 },
   ])
   await setChipTargetMuted({ tabUrl: 'https://example.com/a', muted: true })
   assert.deepEqual(chromeMock.muteCalls.map((c) => c.tabId).sort(), [1, 2])
@@ -77,19 +77,19 @@ test('setChipTargetMuted mutes every tab across folded envs', async () => {
   const { muteCalls } = installChromeMock([
     { id: 1, url: 'https://a.example.com/', windowId: 1 },
     { id: 2, url: 'https://b.example.com/', windowId: 1 },
-    { id: 3, url: 'https://c.example.com/', windowId: 1 }
+    { id: 3, url: 'https://c.example.com/', windowId: 1 },
   ])
   await setChipTargetMuted({
     tabUrl: 'https://a.example.com/',
     envs: [{ tabUrl: 'https://a.example.com/' }, { tabUrl: 'https://b.example.com/' }] as any,
-    muted: true
+    muted: true,
   })
   assert.deepEqual(muteCalls.map((c) => c.tabId).sort(), [1, 2])
 })
 
 test('setChipTargetMuted reports failure without refreshing when the live inventory is unknown', async () => {
   const { muteCalls } = installChromeMock([
-    { id: 1, url: 'https://example.test/docs', windowId: 1 }
+    { id: 1, url: 'https://example.test/docs', windowId: 1 },
   ])
   ;(globalThis as any).chrome.tabs.query = async () => {
     throw new Error('Tab inventory unavailable')
@@ -102,7 +102,7 @@ test('setChipTargetMuted reports failure without refreshing when the live invent
   try {
     const result = await setChipTargetMuted({
       tabUrl: 'https://example.test/docs',
-      muted: true
+      muted: true,
     })
 
     assert.equal(result, false)
@@ -115,7 +115,7 @@ test('setChipTargetMuted reports failure without refreshing when the live invent
 
 test('setChipTargetMuted reports failure without refreshing when every mute write fails', async () => {
   const { muteCalls } = installChromeMock([
-    { id: 1, url: 'https://example.test/docs', windowId: 1 }
+    { id: 1, url: 'https://example.test/docs', windowId: 1 },
   ])
   ;(globalThis as any).chrome.tabs.update = async () => {
     throw new Error('Tab update unavailable')
@@ -128,7 +128,7 @@ test('setChipTargetMuted reports failure without refreshing when every mute writ
   try {
     const result = await setChipTargetMuted({
       tabUrl: 'https://example.test/docs',
-      muted: true
+      muted: true,
     })
 
     assert.equal(result, false)
@@ -142,7 +142,7 @@ test('setChipTargetMuted reports failure without refreshing when every mute writ
 test('setChipTargetMuted preserves and refreshes a confirmed partial mute', async () => {
   const { muteCalls } = installChromeMock([
     { id: 1, url: 'https://example.test/docs', windowId: 1 },
-    { id: 2, url: 'https://example.test/docs', windowId: 1 }
+    { id: 2, url: 'https://example.test/docs', windowId: 1 },
   ])
   const updateTab = (globalThis as any).chrome.tabs.update.bind((globalThis as any).chrome.tabs)
   ;(globalThis as any).chrome.tabs.update = async (tabId: number, properties: { muted?: boolean }) => {
@@ -157,7 +157,7 @@ test('setChipTargetMuted preserves and refreshes a confirmed partial mute', asyn
   try {
     const result = await setChipTargetMuted({
       tabUrl: 'https://example.test/docs',
-      muted: true
+      muted: true,
     })
 
     assert.equal(result, false)
@@ -171,7 +171,7 @@ test('setChipTargetMuted preserves and refreshes a confirmed partial mute', asyn
 test('setChipTargetMuted skips a later target that navigates while earlier updates settle', async () => {
   const chromeMock = installChromeMock([
     { id: 1, url: 'https://example.test/docs', windowId: 1 },
-    { id: 2, url: 'https://example.test/docs', windowId: 1 }
+    { id: 2, url: 'https://example.test/docs', windowId: 1 },
   ])
   const updateTab = (globalThis as any).chrome.tabs.update.bind((globalThis as any).chrome.tabs)
   ;(globalThis as any).chrome.tabs.update = async (tabId: number, properties: { muted?: boolean }) => {
@@ -188,7 +188,7 @@ test('setChipTargetMuted skips a later target that navigates while earlier updat
   try {
     const result = await setChipTargetMuted({
       tabUrl: 'https://example.test/docs',
-      muted: true
+      muted: true,
     })
 
     assert.equal(result, false)
@@ -215,7 +215,7 @@ test('setHistoryEntryMuted rejects a reused tab id whose live URL no longer matc
 
 test('setHistoryEntryMuted reports unknown for a URL-only target when live tabs cannot be read', async () => {
   const { muteCalls } = installChromeMock([
-    { id: 7, url: 'https://example.test/docs', windowId: 1 }
+    { id: 7, url: 'https://example.test/docs', windowId: 1 },
   ])
   ;(globalThis as any).chrome.tabs.query = async () => {
     throw new Error('Tab inventory unavailable')

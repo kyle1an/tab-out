@@ -6,7 +6,7 @@ import { closedGhostDismissalKey } from '../src/extension/closed-ghost-dismissal
 import type { TabHistoryEntry, TabHistorySnapshot, WorkingSetItem, WorkingSetSnapshot } from '../src/extension/types'
 import type { ClosedTabEntry } from '../src/extension/closed-tabs.js'
 
-function makeStackEntry(overrides: Partial<TabHistoryEntry> & { index: number; tabId: number; url: string }): TabHistoryEntry {
+function makeStackEntry(overrides: Partial<TabHistoryEntry> & { index: number, tabId: number, url: string }): TabHistoryEntry {
   return {
     windowId: 1,
     exists: true,
@@ -25,11 +25,11 @@ function makeStackEntry(overrides: Partial<TabHistoryEntry> & { index: number; t
     displayUrl: overrides.url,
     favIconUrl: '',
     lastActivatedAt: null,
-    ...overrides
+    ...overrides,
   }
 }
 
-function makeWorkingSetItem(overrides: Partial<WorkingSetItem> & { key: string; tabId: number }): WorkingSetItem {
+function makeWorkingSetItem(overrides: Partial<WorkingSetItem> & { key: string, tabId: number }): WorkingSetItem {
   return {
     windowId: 1,
     tabUrl: overrides.key,
@@ -42,18 +42,18 @@ function makeWorkingSetItem(overrides: Partial<WorkingSetItem> & { key: string; 
     activeInOtherWindow: false,
     score: 100,
     lastActivatedAt: 0,
-    ...overrides
+    ...overrides,
   }
 }
 
-function makeClosed(overrides: Partial<ClosedTabEntry> & { sessionId: string; url: string; lastClosedAt: number }): ClosedTabEntry {
+function makeClosed(overrides: Partial<ClosedTabEntry> & { sessionId: string, url: string, lastClosedAt: number }): ClosedTabEntry {
   return {
     tabId: -1,
     rawUrl: overrides.url,
     displayUrl: overrides.url,
     title: `Closed ${overrides.sessionId}`,
     favIconUrl: '',
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -68,7 +68,7 @@ function snapshotOf(entries: TabHistoryEntry[], maxSize = 24): TabHistorySnapsho
     activeTabId: null,
     activeWindowId: null,
     activeWasInserted: false,
-    entries
+    entries,
   }
 }
 
@@ -81,7 +81,7 @@ test('buildHistoryPanelRows produces one row per source candidate', () => {
     snapshot: snapshotOf([makeStackEntry({ index: 0, tabId: 1, url: 'https://example.com/a', lastActivatedAt: 1000 })]),
     workingSet: workingSetOf([makeWorkingSetItem({ key: 'https://example.com/b', tabId: 2, lastActivatedAt: 2000 })]),
     closedTabs: [makeClosed({ sessionId: 'c', url: 'https://example.com/c', lastClosedAt: 3000 })],
-    filter: ''
+    filter: '',
   })
   assert.equal(rows.length, 3)
   assert.deepEqual(rows.map((r) => r.kind).sort(), ['closed-ghost', 'open-ghost', 'stack'])
@@ -92,7 +92,7 @@ test('buildHistoryPanelRows handles all-empty sources', () => {
     snapshot: null,
     workingSet: null,
     closedTabs: [],
-    filter: ''
+    filter: '',
   })
   assert.deepEqual(rows, [])
 })
@@ -101,17 +101,17 @@ test('buildHistoryPanelRows applies filter to all three kinds by title and url',
   const rows = buildHistoryPanelRows({
     snapshot: snapshotOf([
       makeStackEntry({ index: 0, tabId: 1, url: 'https://example.com/alpha', title: 'Alpha', lastActivatedAt: 1 }),
-      makeStackEntry({ index: 1, tabId: 2, url: 'https://example.com/bravo', title: 'Bravo', lastActivatedAt: 2 })
+      makeStackEntry({ index: 1, tabId: 2, url: 'https://example.com/bravo', title: 'Bravo', lastActivatedAt: 2 }),
     ]),
     workingSet: workingSetOf([
       makeWorkingSetItem({ key: 'https://example.com/charlie', tabId: 3, title: 'Charlie', lastActivatedAt: 3 }),
-      makeWorkingSetItem({ key: 'https://example.com/alpha2', tabId: 4, title: 'Alpha 2', lastActivatedAt: 4 })
+      makeWorkingSetItem({ key: 'https://example.com/alpha2', tabId: 4, title: 'Alpha 2', lastActivatedAt: 4 }),
     ]),
     closedTabs: [
       makeClosed({ sessionId: 'd', url: 'https://example.com/delta', title: 'Delta', lastClosedAt: 5 }),
-      makeClosed({ sessionId: 'a', url: 'https://example.com/alpha-archive', title: 'Alpha Archive', lastClosedAt: 6 })
+      makeClosed({ sessionId: 'a', url: 'https://example.com/alpha-archive', title: 'Alpha Archive', lastClosedAt: 6 }),
     ],
-    filter: 'alpha'
+    filter: 'alpha',
   })
 
   const kinds = rows.map((r) => r.kind).sort()
@@ -122,13 +122,13 @@ test('buildHistoryPanelRows applies filter to all three kinds by title and url',
 test('buildHistoryPanelRows hides open-ghost when same URL exists as stack', () => {
   const rows = buildHistoryPanelRows({
     snapshot: snapshotOf([
-      makeStackEntry({ index: 0, tabId: 1, url: 'https://example.com/shared', title: 'Shared', lastActivatedAt: 10 })
+      makeStackEntry({ index: 0, tabId: 1, url: 'https://example.com/shared', title: 'Shared', lastActivatedAt: 10 }),
     ]),
     workingSet: workingSetOf([
-      makeWorkingSetItem({ key: 'https://example.com/shared', tabId: 1, lastActivatedAt: 20 })
+      makeWorkingSetItem({ key: 'https://example.com/shared', tabId: 1, lastActivatedAt: 20 }),
     ]),
     closedTabs: [],
-    filter: ''
+    filter: '',
   })
 
   assert.equal(rows.length, 1)
@@ -143,22 +143,22 @@ test('buildHistoryPanelRows keeps every pending tab indexed even when URLs match
       index: 0,
       tabId: 1,
       url: 'https://example.com/current',
-      current: true
+      current: true,
     }),
     makeStackEntry({
       index: 1,
       tabId: 2,
       url: 'https://example.com/shared',
       pending: true,
-      createdAt: 2000
+      createdAt: 2000,
     }),
     makeStackEntry({
       index: 2,
       tabId: 3,
       url: 'https://example.com/shared',
       pending: true,
-      createdAt: 3000
-    })
+      createdAt: 3000,
+    }),
   ]
   const snapshot: TabHistorySnapshot = {
     ...snapshotOf(entries),
@@ -166,19 +166,19 @@ test('buildHistoryPanelRows keeps every pending tab indexed even when URLs match
     pendingSize: 2,
     cursorIndex: 0,
     currentIndex: 0,
-    nextIndex: 1
+    nextIndex: 1,
   }
 
   const rows = buildHistoryPanelRows({
     snapshot,
     workingSet: null,
     closedTabs: [],
-    filter: ''
+    filter: '',
   })
 
   assert.deepEqual(
     rows.map((row) => row.kind === 'stack' ? row.entry.index : -1),
-    [0, 1, 2]
+    [0, 1, 2],
   )
 })
 
@@ -186,12 +186,12 @@ test('buildHistoryPanelRows hides closed-ghost when same URL exists as open-ghos
   const rows = buildHistoryPanelRows({
     snapshot: snapshotOf([]),
     workingSet: workingSetOf([
-      makeWorkingSetItem({ key: 'https://example.com/shared', tabId: 1, lastActivatedAt: 5 })
+      makeWorkingSetItem({ key: 'https://example.com/shared', tabId: 1, lastActivatedAt: 5 }),
     ]),
     closedTabs: [
-      makeClosed({ sessionId: 'x', url: 'https://example.com/shared', lastClosedAt: 100 })
+      makeClosed({ sessionId: 'x', url: 'https://example.com/shared', lastClosedAt: 100 }),
     ],
-    filter: ''
+    filter: '',
   })
 
   assert.equal(rows.length, 1)
@@ -203,13 +203,13 @@ test('buildHistoryPanelRows hides closed-ghost when same URL exists as open-ghos
 test('buildHistoryPanelRows hides closed-ghost when same URL exists as stack', () => {
   const rows = buildHistoryPanelRows({
     snapshot: snapshotOf([
-      makeStackEntry({ index: 0, tabId: 1, url: 'https://example.com/shared', title: 'Shared', lastActivatedAt: 1 })
+      makeStackEntry({ index: 0, tabId: 1, url: 'https://example.com/shared', title: 'Shared', lastActivatedAt: 1 }),
     ]),
     workingSet: workingSetOf([]),
     closedTabs: [
-      makeClosed({ sessionId: 'x', url: 'https://example.com/shared', lastClosedAt: 100 })
+      makeClosed({ sessionId: 'x', url: 'https://example.com/shared', lastClosedAt: 100 }),
     ],
-    filter: ''
+    filter: '',
   })
 
   assert.equal(rows.length, 1)
@@ -222,17 +222,17 @@ test('buildHistoryPanelRows caps merged rows to the history max size', () => {
   const rows = buildHistoryPanelRows({
     snapshot: snapshotOf([
       makeStackEntry({ index: 0, tabId: 1, url: 'https://example.com/stack-a', lastActivatedAt: 100 }),
-      makeStackEntry({ index: 1, tabId: 2, url: 'https://example.com/stack-b', lastActivatedAt: 90 })
+      makeStackEntry({ index: 1, tabId: 2, url: 'https://example.com/stack-b', lastActivatedAt: 90 }),
     ], 3),
     workingSet: workingSetOf([
       makeWorkingSetItem({ key: 'https://example.com/work-a', tabId: 3, lastActivatedAt: 300 }),
-      makeWorkingSetItem({ key: 'https://example.com/work-b', tabId: 4, lastActivatedAt: 250 })
+      makeWorkingSetItem({ key: 'https://example.com/work-b', tabId: 4, lastActivatedAt: 250 }),
     ]),
     closedTabs: [
       makeClosed({ sessionId: 'closed-a', url: 'https://example.com/closed-a', lastClosedAt: 1000 }),
-      makeClosed({ sessionId: 'closed-b', url: 'https://example.com/closed-b', lastClosedAt: 900 })
+      makeClosed({ sessionId: 'closed-b', url: 'https://example.com/closed-b', lastClosedAt: 900 }),
     ],
-    filter: ''
+    filter: '',
   })
 
   assert.equal(rows.length, 3)
@@ -246,7 +246,7 @@ test('buildHistoryPanelRows hides a closed-ghost dismissed at or after its close
     workingSet: null,
     closedTabs: [closed],
     filter: '',
-    dismissedClosedGhosts: new Map([[closedGhostDismissalKey(closed), 3000]])
+    dismissedClosedGhosts: new Map([[closedGhostDismissalKey(closed), 3000]]),
   })
 
   assert.equal(rows.length, 0)
@@ -255,14 +255,14 @@ test('buildHistoryPanelRows hides a closed-ghost dismissed at or after its close
 test('buildHistoryPanelRows suppresses closed ghosts while dismissal state is unknown', () => {
   const rows = buildHistoryPanelRows({
     snapshot: snapshotOf([
-      makeStackEntry({ index: 0, tabId: 1, url: 'https://example.com/open', lastActivatedAt: 100 })
+      makeStackEntry({ index: 0, tabId: 1, url: 'https://example.com/open', lastActivatedAt: 100 }),
     ]),
     workingSet: null,
     closedTabs: [
-      makeClosed({ sessionId: 'c', url: 'https://example.com/forgotten', lastClosedAt: 3000 })
+      makeClosed({ sessionId: 'c', url: 'https://example.com/forgotten', lastClosedAt: 3000 }),
     ],
     filter: '',
-    dismissedClosedGhosts: null
+    dismissedClosedGhosts: null,
   })
 
   assert.deepEqual(rows.map((row) => row.kind), ['stack'])
@@ -273,10 +273,10 @@ test('buildHistoryPanelRows shows closed ghosts after a confirmed empty dismissa
     snapshot: null,
     workingSet: null,
     closedTabs: [
-      makeClosed({ sessionId: 'c', url: 'https://example.com/recent', lastClosedAt: 3000 })
+      makeClosed({ sessionId: 'c', url: 'https://example.com/recent', lastClosedAt: 3000 }),
     ],
     filter: '',
-    dismissedClosedGhosts: new Map()
+    dismissedClosedGhosts: new Map(),
   })
 
   assert.deepEqual(rows.map((row) => row.kind), ['closed-ghost'])
@@ -289,7 +289,7 @@ test('buildHistoryPanelRows keeps a closed-ghost re-closed after its dismissal t
     workingSet: null,
     closedTabs: [closed],
     filter: '',
-    dismissedClosedGhosts: new Map([[closedGhostDismissalKey(closed), 3000]])
+    dismissedClosedGhosts: new Map([[closedGhostDismissalKey(closed), 3000]]),
   })
 
   assert.equal(rows.length, 1)
@@ -302,20 +302,20 @@ test('buildHistoryPanelRows sorts rows by recency descending', () => {
   const rows = buildHistoryPanelRows({
     snapshot: snapshotOf([
       makeStackEntry({ index: 0, tabId: 1, url: 'https://example.com/a', lastActivatedAt: 100 }),
-      makeStackEntry({ index: 1, tabId: 2, url: 'https://example.com/b', lastActivatedAt: 300 })
+      makeStackEntry({ index: 1, tabId: 2, url: 'https://example.com/b', lastActivatedAt: 300 }),
     ]),
     workingSet: workingSetOf([
-      makeWorkingSetItem({ key: 'https://example.com/c', tabId: 3, lastActivatedAt: 200 })
+      makeWorkingSetItem({ key: 'https://example.com/c', tabId: 3, lastActivatedAt: 200 }),
     ]),
     closedTabs: [
-      makeClosed({ sessionId: 'd', url: 'https://example.com/d', lastClosedAt: 400 })
+      makeClosed({ sessionId: 'd', url: 'https://example.com/d', lastClosedAt: 400 }),
     ],
-    filter: ''
+    filter: '',
   })
 
   assert.deepEqual(
     rows.map((r) => r.lastTouchedAt),
-    [400, 300, 200, 100]
+    [400, 300, 200, 100],
   )
 })
 
@@ -334,12 +334,12 @@ test('buildHistoryPanelRows slots stack rows with null timestamp by cursor dista
       entries: [
         makeStackEntry({ index: 0, tabId: 1, url: 'https://example.com/a' }),
         makeStackEntry({ index: 1, tabId: 2, url: 'https://example.com/b' }),
-        makeStackEntry({ index: 2, tabId: 3, url: 'https://example.com/c' })
-      ]
+        makeStackEntry({ index: 2, tabId: 3, url: 'https://example.com/c' }),
+      ],
     },
     workingSet: null,
     closedTabs: [],
-    filter: ''
+    filter: '',
   })
 
   assert.equal(rows.length, 3)
@@ -368,19 +368,19 @@ test('buildHistoryPanelRows keeps stack rows in cursor order despite a fresher c
         makeStackEntry({ index: 1, tabId: 2, url: 'https://example.com/mattpocock', lastActivatedAt: 400 }),
         makeStackEntry({ index: 2, tabId: 3, url: 'https://example.com/dev-web', lastActivatedAt: 500 }),
         makeStackEntry({ index: 3, tabId: 4, url: 'https://example.com/claude', lastActivatedAt: 900 }),
-        makeStackEntry({ index: 4, tabId: 5, url: 'https://example.com/newtab', lastActivatedAt: 1000 })
-      ]
+        makeStackEntry({ index: 4, tabId: 5, url: 'https://example.com/newtab', lastActivatedAt: 1000 }),
+      ],
     },
     workingSet: null,
     closedTabs: [],
-    filter: ''
+    filter: '',
   })
 
   // Cursor is index 4 (relative 0). Display must follow cursor distance:
   // 4 (0), 3 (-1), 2 (-2), 1 (-3), 0 (-4) — NOT recency order.
   assert.deepEqual(
     rows.map((r) => (r as { entry: TabHistoryEntry }).entry.index),
-    [4, 3, 2, 1, 0]
+    [4, 3, 2, 1, 0],
   )
 })
 
@@ -399,12 +399,12 @@ test('buildHistoryPanelRows dedupes utility-URL stack entries to the one closest
       entries: [
         makeStackEntry({ index: 0, tabId: 1, url: 'chrome://newtab/' }),
         makeStackEntry({ index: 1, tabId: 2, url: 'chrome://newtab/' }),
-        makeStackEntry({ index: 2, tabId: 3, url: 'chrome://newtab/' })
-      ]
+        makeStackEntry({ index: 2, tabId: 3, url: 'chrome://newtab/' }),
+      ],
     },
     workingSet: null,
     closedTabs: [],
-    filter: ''
+    filter: '',
   })
 
   assert.equal(rows.length, 1)

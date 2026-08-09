@@ -13,7 +13,7 @@ import { DEFAULT_HISTORY_RANGE } from './history-range.js'
 import {
   buildDashboardDataFromTabsEffect,
   getCurrentWindowIdResultEffect,
-  type BuildDashboardDataOptions
+  type BuildDashboardDataOptions,
 } from './render.js'
 import { annotateSavedPageHints, savedPageKeysFromStore } from './saved-pages.js'
 import { loadSavedPagesStoreEffect } from './saved-pages-storage.js'
@@ -28,26 +28,26 @@ type FetchDashboardDataOptions = BuildDashboardDataOptions & {
 
 function dashboardTabsForDataEffect(
   dashboardTabs?: DashboardTab[],
-  retainedLiveTabs?: readonly DashboardTab[]
+  retainedLiveTabs?: readonly DashboardTab[],
 ) {
   if (dashboardTabs) {
     return Effect.succeed({
       dashboardTabs,
-      retainedLiveTabs: retainedLiveTabs ?? dashboardTabs
+      retainedLiveTabs: retainedLiveTabs ?? dashboardTabs,
     })
   }
   return fetchOpenTabsSnapshotEffect().pipe(
     Effect.map((result) => ({
       dashboardTabs: getDashboardTabsFromOpenTabs(result.tabs),
-      retainedLiveTabs: result.tabs
-    }))
+      retainedLiveTabs: result.tabs,
+    })),
   )
 }
 
 /** Refresh browser tab state and return the current page-side dashboard snapshot. */
 export const fetchDashboardDataEffect = Effect.fn(
-  'dashboard.fetchData'
-)(function*(
+  'dashboard.fetchData',
+)(function* (
   previousOrder: Map<string, number> = new Map(),
   source: DashboardSource = 'tabs',
   {
@@ -65,8 +65,8 @@ export const fetchDashboardDataEffect = Effect.fn(
     currentWindowId,
     savedPagesStore,
     retainedPages = [],
-    retainedLiveTabs
-  }: FetchDashboardDataOptions = {}
+    retainedLiveTabs,
+  }: FetchDashboardDataOptions = {},
 ) {
   if (source === 'bookmarks') {
     const resolvedSavedPagesStore = savedPagesStore ?? (yield* loadSavedPagesStoreEffect())
@@ -87,7 +87,7 @@ export const fetchDashboardDataEffect = Effect.fn(
       historySearchStatus: 'idle' as const,
       // Merging only updates Saved Page record fields, so the pre-merge keys
       // also describe the history panel's saved state.
-      savedKeys: savedPageKeysFromStore(resolvedSavedPagesStore)
+      savedKeys: savedPageKeysFromStore(resolvedSavedPagesStore),
     }
   }
 
@@ -95,7 +95,7 @@ export const fetchDashboardDataEffect = Effect.fn(
     dashboardTabsForDataEffect(dashboardTabs, retainedLiveTabs),
     currentWindowId === undefined
       ? getCurrentWindowIdResultEffect().pipe(Effect.map((result) => result.value))
-      : Effect.succeed(currentWindowId)
+      : Effect.succeed(currentWindowId),
   ] as const, { concurrency: 'unbounded' })
   const { dashboard, savedPageUpdates } = yield* buildDashboardDataFromTabsEffect(resolvedTabs.dashboardTabs, resolvedCurrentWindowId, previousOrder, {
     pinnedDomains,
@@ -110,16 +110,16 @@ export const fetchDashboardDataEffect = Effect.fn(
     historyTabs,
     retainedPages,
     retainedLiveTabs: resolvedTabs.retainedLiveTabs,
-    ...(savedPagesStore === undefined ? {} : { savedPagesStore })
+    ...(savedPagesStore === undefined ? {} : { savedPagesStore }),
   })
   // Page fetchers are the only Saved Pages metadata writers; builds stay pure
   // and the worker discards its copy of these updates.
   yield* persistSavedPageMetadataUpdatesEffect(
     savedPageUpdates.base,
-    savedPageUpdates.merged
+    savedPageUpdates.merged,
   ).pipe(
     Effect.catchTag('SavedPagesMutationError', () => Effect.void),
-    Effect.forkDetach({ startImmediately: true })
+    Effect.forkDetach({ startImmediately: true }),
   )
   return dashboard
 })
@@ -127,9 +127,9 @@ export const fetchDashboardDataEffect = Effect.fn(
 export function fetchDashboardData(
   previousOrder: Map<string, number> = new Map(),
   source: DashboardSource = 'tabs',
-  options: FetchDashboardDataOptions = {}
+  options: FetchDashboardDataOptions = {},
 ): Promise<Required<DashboardData>> {
   return getAppRuntime().runPromise(fetchDashboardDataEffect(previousOrder, source, options).pipe(
-    Effect.catchTag('DashboardDataBuildError', (error) => Effect.fail(error.cause))
+    Effect.catchTag('DashboardDataBuildError', (error) => Effect.fail(error.cause)),
   ))
 }

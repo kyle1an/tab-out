@@ -17,7 +17,7 @@ import {
   parseLatestStableVersion,
   type ChromePlatform,
   type ChromeStableVersions,
-  type ChromeSupportPolicy
+  type ChromeSupportPolicy,
 } from '../src/extension/chrome-support.js'
 
 const REPO_ROOT = resolve(import.meta.dirname, '..')
@@ -33,8 +33,8 @@ class ChromeSupportCliError extends Schema.TaggedErrorClass<ChromeSupportCliErro
   'ChromeSupportCliError',
   {
     operation: Schema.String,
-    cause: Schema.Defect()
-  }
+    cause: Schema.Defect(),
+  },
 ) {
   override get message(): string {
     const detail = this.cause instanceof Error ? this.cause.message : String(this.cause)
@@ -43,17 +43,17 @@ class ChromeSupportCliError extends Schema.TaggedErrorClass<ChromeSupportCliErro
 }
 
 const generatedManifestSchema = Schema.Struct({
-  minimum_chrome_version: Schema.String
+  minimum_chrome_version: Schema.String,
 })
 
 const playwrightBrowsersMetadataSchema = Schema.Struct({
-  browsers: Schema.Array(Schema.Unknown)
+  browsers: Schema.Array(Schema.Unknown),
 })
 
 const defaultPlaywrightChromiumSchema = Schema.Struct({
   name: Schema.Literals(['chromium']),
   installByDefault: Schema.Literals([true]),
-  browserVersion: Schema.optionalKey(Schema.Unknown)
+  browserVersion: Schema.optionalKey(Schema.Unknown),
 })
 
 const isGeneratedManifest = Schema.is(generatedManifestSchema)
@@ -71,19 +71,19 @@ function chromeSupportError(operation: string, cause: unknown): ChromeSupportCli
 
 export function assertGeneratedManifestMatchesPolicy(
   value: unknown,
-  policy: ChromeSupportPolicy
+  policy: ChromeSupportPolicy,
 ): void {
   const expected = String(policy.minimumMajor)
   if (!isGeneratedManifest(value) || value.minimum_chrome_version !== expected) {
     throw new Error(
-      `extension/manifest.json must set minimum_chrome_version to ${expected}; run pnpm build`
+      `extension/manifest.json must set minimum_chrome_version to ${expected}; run pnpm build`,
     )
   }
 }
 
 export function assertBrowserTestFloorMatchesPolicy(
   browserVersion: unknown,
-  policy: ChromeSupportPolicy
+  policy: ChromeSupportPolicy,
 ): void {
   const match = typeof browserVersion === 'string'
     ? /^(\d+)\./.exec(browserVersion)
@@ -92,7 +92,7 @@ export function assertBrowserTestFloorMatchesPolicy(
   if (browserMajor !== policy.minimumMajor) {
     throw new Error(
       `Playwright must bundle Chromium ${policy.minimumMajor}.x for minimum-version tests; ` +
-      `found ${String(browserVersion)}. Update @playwright/test to a matching release.`
+      `found ${String(browserVersion)}. Update @playwright/test to a matching release.`,
     )
   }
 }
@@ -103,7 +103,7 @@ export function parsePlaywrightChromiumVersion(value: unknown): unknown {
   return chromium ? chromium.browserVersion : null
 }
 
-const playwrightChromiumVersion = Effect.fn('chromeSupport.playwrightChromiumVersion')(function*() {
+const playwrightChromiumVersion = Effect.fn('chromeSupport.playwrightChromiumVersion')(function* () {
   const fileSystem = yield* FileSystem.FileSystem
   const browsersFile = yield* Effect.try({
     try: () => {
@@ -114,14 +114,14 @@ const playwrightChromiumVersion = Effect.fn('chromeSupport.playwrightChromiumVer
       const playwrightCorePackage = playwrightCoreRequire.resolve('playwright-core/package.json')
       return join(dirname(playwrightCorePackage), 'browsers.json')
     },
-    catch: (cause) => chromeSupportError('resolve Playwright Chromium metadata', cause)
+    catch: (cause) => chromeSupportError('resolve Playwright Chromium metadata', cause),
   })
   const source = yield* fileSystem.readFileString(browsersFile).pipe(
-    Effect.mapError((cause) => chromeSupportError('read Playwright Chromium metadata', cause))
+    Effect.mapError((cause) => chromeSupportError('read Playwright Chromium metadata', cause)),
   )
   const metadata = yield* Effect.try({
     try: (): unknown => JSON.parse(source),
-    catch: (cause) => chromeSupportError('parse Playwright Chromium metadata', cause)
+    catch: (cause) => chromeSupportError('parse Playwright Chromium metadata', cause),
   })
   return parsePlaywrightChromiumVersion(metadata)
 })
@@ -131,32 +131,32 @@ export function chromeVersionHistoryUrl(platform: ChromePlatform): string {
     'page_size=1&order_by=version%20desc'
 }
 
-const fetchVersionHistory = Effect.fn('chromeSupport.fetchVersionHistory')(function*(platform: ChromePlatform) {
+const fetchVersionHistory = Effect.fn('chromeSupport.fetchVersionHistory')(function* (platform: ChromePlatform) {
   return yield* HttpClient.get(chromeVersionHistoryUrl(platform), {
-    headers: { accept: 'application/json' }
+    headers: { accept: 'application/json' },
   }).pipe(
     Effect.flatMap(HttpClientResponse.filterStatusOk),
     Effect.flatMap((response) => response.json),
     Effect.timeout(VERSION_HISTORY_TIMEOUT_MS),
-    Effect.mapError((cause) => chromeSupportError(`fetch Chrome Stable for ${platform}`, cause))
+    Effect.mapError((cause) => chromeSupportError(`fetch Chrome Stable for ${platform}`, cause)),
   )
 })
 
-const observeChromeStable = Effect.fn('chromeSupport.observeChromeStable')(function*() {
+const observeChromeStable = Effect.fn('chromeSupport.observeChromeStable')(function* () {
   const entries = yield* Effect.forEach(CHROME_PLATFORMS, (platform) => fetchVersionHistory(platform).pipe(
     Effect.flatMap((value) => Effect.try({
       try: (): readonly [ChromePlatform, string] => [
         platform,
-        parseLatestStableVersion(value, platform)
+        parseLatestStableVersion(value, platform),
       ],
-      catch: (cause) => chromeSupportError(`parse Chrome Stable for ${platform}`, cause)
-    }))
+      catch: (cause) => chromeSupportError(`parse Chrome Stable for ${platform}`, cause),
+    })),
   ), { concurrency: 'unbounded' })
   const versions = Object.fromEntries(entries)
   if (!isChromeStableVersions(versions)) {
     return yield* Effect.fail(chromeSupportError(
       'observe Chrome Stable',
-      new TypeError('Chrome Stable observation is missing a supported platform')
+      new TypeError('Chrome Stable observation is missing a supported platform'),
     ))
   }
   return versions
@@ -166,45 +166,45 @@ function formatStableVersions(versions: ChromeStableVersions): string {
   return CHROME_PLATFORMS.map((platform) => `${platform}=${versions[platform]}`).join(', ')
 }
 
-const readJsonFile = Effect.fn('chromeSupport.readJsonFile')(function*(filePath: string) {
+const readJsonFile = Effect.fn('chromeSupport.readJsonFile')(function* (filePath: string) {
   const fileSystem = yield* FileSystem.FileSystem
   const source = yield* fileSystem.readFileString(filePath).pipe(
-    Effect.mapError((cause) => chromeSupportError(`read ${filePath}`, cause))
+    Effect.mapError((cause) => chromeSupportError(`read ${filePath}`, cause)),
   )
   return yield* Effect.try({
     try: (): unknown => JSON.parse(source),
-    catch: (cause) => chromeSupportError(`parse ${filePath}`, cause)
+    catch: (cause) => chromeSupportError(`parse ${filePath}`, cause),
   })
 })
 
-const assertManifestIsCurrent = Effect.fn('chromeSupport.assertManifestIsCurrent')(function*() {
+const assertManifestIsCurrent = Effect.fn('chromeSupport.assertManifestIsCurrent')(function* () {
   const manifest = yield* readJsonFile(MANIFEST_FILE)
   yield* Effect.try({
     try: () => assertGeneratedManifestMatchesPolicy(manifest, chromeSupportPolicy),
-    catch: (cause) => chromeSupportError('validate generated manifest', cause)
+    catch: (cause) => chromeSupportError('validate generated manifest', cause),
   })
 })
 
-const observeAndReport = Effect.fn('chromeSupport.observeAndReport')(function*() {
+const observeAndReport = Effect.fn('chromeSupport.observeAndReport')(function* () {
   const stableVersions = yield* observeChromeStable()
   yield* Console.log(`Chrome Stable: ${formatStableVersions(stableVersions)}`)
   return {
     stableVersions,
-    assessment: assessChromeSupport(chromeSupportPolicy, stableVersions)
+    assessment: assessChromeSupport(chromeSupportPolicy, stableVersions),
   }
 })
 
-const runCheck = Effect.fn('chromeSupport.check')(function*() {
+const runCheck = Effect.fn('chromeSupport.check')(function* () {
   yield* assertManifestIsCurrent()
   const browserVersion = yield* playwrightChromiumVersion()
   yield* Effect.try({
     try: () => assertBrowserTestFloorMatchesPolicy(browserVersion, chromeSupportPolicy),
-    catch: (cause) => chromeSupportError('validate browser test floor', cause)
+    catch: (cause) => chromeSupportError('validate browser test floor', cause),
   })
   yield* Console.log(`Chrome support is internally consistent at Chrome ${chromeSupportPolicy.minimumMajor}.`)
 })
 
-const runReleaseCheck = Effect.fn('chromeSupport.releaseCheck')(function*() {
+const runReleaseCheck = Effect.fn('chromeSupport.releaseCheck')(function* () {
   yield* assertManifestIsCurrent()
   const { assessment } = yield* observeAndReport()
   if (assessment.status === 'unsupported') {
@@ -212,8 +212,8 @@ const runReleaseCheck = Effect.fn('chromeSupport.releaseCheck')(function*() {
       'release check',
       new Error(
         `Chrome ${assessment.committedMinimumMajor} is above the safe cross-platform floor ` +
-        `${assessment.desiredMinimumMajor}; review the policy instead of lowering it automatically.`
-      )
+        `${assessment.desiredMinimumMajor}; review the policy instead of lowering it automatically.`,
+      ),
     ))
   }
   if (assessment.status === 'behind') {
@@ -221,14 +221,14 @@ const runReleaseCheck = Effect.fn('chromeSupport.releaseCheck')(function*() {
       'release check',
       new Error(
         `Chrome support is stale: expected ${assessment.desiredMinimumMajor}, ` +
-        `found ${assessment.committedMinimumMajor}. Run pnpm chrome-support:bump.`
-      )
+        `found ${assessment.committedMinimumMajor}. Run pnpm chrome-support:bump.`,
+      ),
     ))
   }
   yield* Console.log(`Chrome ${assessment.committedMinimumMajor} remains the latest-two support floor.`)
 })
 
-const runBump = Effect.fn('chromeSupport.bump')(function*() {
+const runBump = Effect.fn('chromeSupport.bump')(function* () {
   yield* assertManifestIsCurrent()
   const { stableVersions, assessment } = yield* observeAndReport()
   if (assessment.status === 'unsupported') {
@@ -236,8 +236,8 @@ const runBump = Effect.fn('chromeSupport.bump')(function*() {
       'bump support floor',
       new Error(
         `Chrome ${assessment.committedMinimumMajor} is above the safe cross-platform floor ` +
-        `${assessment.desiredMinimumMajor}; review the policy instead of lowering it automatically.`
-      )
+        `${assessment.desiredMinimumMajor}; review the policy instead of lowering it automatically.`,
+      ),
     ))
   }
   if (assessment.status === 'current') {
@@ -249,18 +249,18 @@ const runBump = Effect.fn('chromeSupport.bump')(function*() {
     try: () => createBumpedChromeSupportPolicy(
       chromeSupportPolicy,
       stableVersions,
-      new Date()
+      new Date(),
     ),
-    catch: (cause) => chromeSupportError('create bumped Chrome support policy', cause)
+    catch: (cause) => chromeSupportError('create bumped Chrome support policy', cause),
   })
   if (!bumpedPolicy) return
   const fileSystem = yield* FileSystem.FileSystem
   yield* fileSystem.writeFileString(POLICY_FILE, `${JSON.stringify(bumpedPolicy, null, 2)}\n`).pipe(
-    Effect.mapError((cause) => chromeSupportError('write chrome-support.json', cause))
+    Effect.mapError((cause) => chromeSupportError('write chrome-support.json', cause)),
   )
   yield* Console.log(
     `Updated chrome-support.json from Chrome ${assessment.committedMinimumMajor} to ` +
-    `${assessment.desiredMinimumMajor}. Review the generated diff before committing.`
+    `${assessment.desiredMinimumMajor}. Review the generated diff before committing.`,
   )
 })
 
@@ -272,7 +272,7 @@ function chromeSupportProgram(argv: readonly string[]) {
   const command = argv.length === 1 ? parseCommand(argv[0]) : null
   if (!command) {
     return Console.error('Usage: chrome-support.ts <check|bump|release-check>').pipe(
-      Effect.as(2)
+      Effect.as(2),
     )
   }
 
@@ -284,15 +284,15 @@ function chromeSupportProgram(argv: readonly string[]) {
   return program.pipe(
     Effect.as(0),
     Effect.catch((error) => Console.error(
-      `Chrome support check failed: ${errorMessage(error)}`
-    ).pipe(Effect.as(1)))
+      `Chrome support check failed: ${errorMessage(error)}`,
+    ).pipe(Effect.as(1))),
   )
 }
 
 function provideChromeSupportNodeServices<A, E>(effect: Effect.Effect<A, E, FileSystem.FileSystem | HttpClient.HttpClient>) {
   return effect.pipe(
     Effect.provide(NodeHttpClient.layerUndici),
-    Effect.provide(NodeServices.layer)
+    Effect.provide(NodeServices.layer),
   )
 }
 
@@ -301,6 +301,6 @@ if (import.meta.main) {
     Effect.tap((exitCode) => Effect.sync(() => {
       process.exitCode = exitCode
     })),
-    NodeRuntime.runMain
+    NodeRuntime.runMain,
   )
 }

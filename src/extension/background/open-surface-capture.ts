@@ -4,12 +4,12 @@ import { unwrapSuspenderTitle, unwrapSuspenderUrl } from '../suspension.js'
 import type { ChromeApi } from './chrome-api.js'
 
 export type OpenSurfaceCheckpointCapture =
-  | { readonly status: 'captured'; readonly observation: OpenSurfaceObservation }
+  | { readonly status: 'captured', readonly observation: OpenSurfaceObservation }
   | { readonly status: 'ineligible' }
   | { readonly status: 'unavailable' }
 
 function surfaceKindFromWindowType(
-  windowType: chrome.windows.Window['type'] | undefined
+  windowType: chrome.windows.Window['type'] | undefined,
 ): OpenSurfaceObservation['surfaceKind'] | null {
   if (windowType === undefined) return null
   return windowType === 'app' || windowType === 'popup' ? 'app' : 'normal-tab'
@@ -17,7 +17,7 @@ function surfaceKindFromWindowType(
 
 export function openSurfaceObservationFromTab(
   tab: chrome.tabs.Tab,
-  windowType?: chrome.windows.Window['type']
+  windowType?: chrome.windows.Window['type'],
 ): OpenSurfaceObservation | null {
   // Incognito must be rejected before unwrapping, parsing, or copying any
   // private URL or title into an observation that could reach shared storage.
@@ -33,13 +33,13 @@ export function openSurfaceObservationFromTab(
     url,
     ...(rawUrl && rawUrl !== url ? { rawUrl } : {}),
     title: suspendedTitle || tab.title || '',
-    ...(tab.favIconUrl ? { favIconUrl: tab.favIconUrl } : {})
+    ...(tab.favIconUrl ? { favIconUrl: tab.favIconUrl } : {}),
   }
 }
 
 export async function captureOpenSurfaceObservation(
   chromeApi: ChromeApi,
-  tab: chrome.tabs.Tab
+  tab: chrome.tabs.Tab,
 ): Promise<OpenSurfaceObservation | null> {
   const captured = await captureOpenSurfaceCheckpoint(chromeApi, tab)
   return captured.status === 'captured' ? captured.observation : null
@@ -53,7 +53,7 @@ export async function captureOpenSurfaceObservation(
  */
 export async function captureOpenSurfaceCheckpoint(
   chromeApi: ChromeApi,
-  tab: chrome.tabs.Tab
+  tab: chrome.tabs.Tab,
 ): Promise<OpenSurfaceCheckpointCapture> {
   if (tab.incognito || typeof tab.id !== 'number') return { status: 'ineligible' }
 
@@ -70,11 +70,11 @@ export async function captureOpenSurfaceCheckpoint(
 }
 
 export async function captureCurrentOpenSurfaceObservations(
-  chromeApi: ChromeApi
+  chromeApi: ChromeApi,
 ): Promise<OpenSurfaceObservation[]> {
   const [tabs, windows] = await Promise.all([
     chromeApi.tabs.query({}),
-    chromeApi.windows.getAll()
+    chromeApi.windows.getAll(),
   ])
   const windowTypeById = new Map<number, chrome.windows.Window['type']>()
   for (const window of windows) {
@@ -87,7 +87,7 @@ export async function captureCurrentOpenSurfaceObservations(
   for (const tab of tabs) {
     const observation = openSurfaceObservationFromTab(
       tab,
-      windowTypeById.get(tab.windowId)
+      windowTypeById.get(tab.windowId),
     )
     if (observation) observations.push(observation)
   }

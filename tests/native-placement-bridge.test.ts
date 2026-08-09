@@ -6,7 +6,7 @@ import { Effect, ManagedRuntime } from 'effect'
 import {
   NativePlacementBridge,
   NATIVE_PLACEMENT_BRIDGE_VERSION,
-  handleNativePlacementBridgeMessageEffect
+  handleNativePlacementBridgeMessageEffect,
 } from '../src/extension/background/native-placement-bridge.js'
 import type { ChromeApi } from '../src/extension/background/chrome-api.js'
 
@@ -15,7 +15,7 @@ const nowMs = 1_800_000_000_000
 function handleNativePlacementBridgeMessage(
   message: unknown,
   chromeApi: ChromeApi,
-  at: number
+  at: number,
 ) {
   return Effect.runPromise(handleNativePlacementBridgeMessageEffect(message, chromeApi, at))
 }
@@ -29,7 +29,7 @@ const targetDisplay = {
   workArea: { left: 1440, top: 25, width: 1920, height: 1055 },
   rotation: 0,
   dpiX: 110,
-  dpiY: 110
+  dpiY: 110,
 } as chrome.system.display.DisplayUnitInfo
 
 function createChromeApi(windows: chrome.windows.Window[] = []) {
@@ -40,8 +40,8 @@ function createChromeApi(windows: chrome.windows.Window[] = []) {
       display: {
         async getInfo() {
           return [targetDisplay]
-        }
-      }
+        },
+      },
     },
     windows: {
       async getAll() {
@@ -50,8 +50,8 @@ function createChromeApi(windows: chrome.windows.Window[] = []) {
       async create(createData: chrome.windows.CreateData) {
         createCalls.push(createData)
         return { id: 91, type: 'normal', focused: false, state: 'normal' } as chrome.windows.Window
-      }
-    }
+      },
+    },
   } as unknown as ChromeApi
 
   return { chromeApi, createCalls }
@@ -65,7 +65,7 @@ function createRequest(overrides: Record<string, unknown> = {}) {
     expiresAtMs: nowMs + 12_000,
     operation: 'filter',
     targetBounds: targetDisplay.bounds,
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -74,7 +74,7 @@ test('native placement bridge preserves the v3 token echo for staggered reloads'
   const creationToken = 'hs:1800000000000:filter'
 
   const result = await handleNativePlacementBridgeMessage(createRequest({
-    requestId: creationToken
+    requestId: creationToken,
   }), chromeApi, nowMs)
 
   assert.deepEqual(result, {
@@ -83,7 +83,7 @@ test('native placement bridge preserves the v3 token echo for staggered reloads'
     requestId: creationToken,
     status: 'accepted',
     browserWindowId: 91,
-    creationToken
+    creationToken,
   })
   assert.deepEqual(createCalls, [{
     type: 'normal',
@@ -92,7 +92,7 @@ test('native placement bridge preserves the v3 token echo for staggered reloads'
     left: 1440,
     top: 25,
     width: 1920,
-    height: 1055
+    height: 1055,
   }])
 })
 
@@ -102,7 +102,7 @@ test('native placement bridge creates new-page requests through a uniquely token
 
   const result = await handleNativePlacementBridgeMessage(createRequest({
     operation: 'newPage',
-    requestId: creationToken
+    requestId: creationToken,
   }), chromeApi, nowMs)
 
   assert.deepEqual(result, {
@@ -111,7 +111,7 @@ test('native placement bridge creates new-page requests through a uniquely token
     requestId: creationToken,
     status: 'accepted',
     browserWindowId: 91,
-    creationToken
+    creationToken,
   })
   assert.deepEqual(createCalls, [{
     type: 'normal',
@@ -120,7 +120,7 @@ test('native placement bridge creates new-page requests through a uniquely token
     left: 1440,
     top: 25,
     width: 1920,
-    height: 1055
+    height: 1055,
   }])
 })
 
@@ -138,13 +138,13 @@ test('native placement bridge reports profile-owned normal window identities wit
     { id: 71, type: 'normal', focused: false, state: 'normal' },
     { id: 72, type: 'popup', focused: false, state: 'normal' },
     { id: 73, type: 'normal', focused: false, state: 'minimized' },
-    { type: 'normal', focused: false, state: 'normal' }
+    { type: 'normal', focused: false, state: 'normal' },
   ] as chrome.windows.Window[])
 
   const result = await handleNativePlacementBridgeMessage(
     createRequest({ type: 'list-profile-windows' }),
     chromeApi,
-    nowMs
+    nowMs,
   )
 
   assert.deepEqual(result, {
@@ -152,7 +152,7 @@ test('native placement bridge reports profile-owned normal window identities wit
     type: 'response',
     requestId: 'hs-1800000000000-1',
     status: 'accepted',
-    windowIds: [71]
+    windowIds: [71],
   })
   assert.deepEqual(createCalls, [])
 })
@@ -162,13 +162,13 @@ test('native placement bridge turns a rejected profile-window read into a respon
   Object.assign(chromeApi.windows, {
     async getAll() {
       throw new Error('Profile window inventory unavailable')
-    }
+    },
   })
 
   const result = await handleNativePlacementBridgeMessage(
     createRequest({ type: 'list-profile-windows' }),
     chromeApi,
-    nowMs
+    nowMs,
   )
 
   assert.deepEqual(result, {
@@ -176,7 +176,7 @@ test('native placement bridge turns a rejected profile-window read into a respon
     type: 'response',
     requestId: 'hs-1800000000000-1',
     status: 'rejected',
-    reason: 'Profile window inventory unavailable'
+    reason: 'Profile window inventory unavailable',
   })
   assert.deepEqual(createCalls, [])
 })
@@ -186,7 +186,7 @@ test('native placement bridge turns a rejected placement read into a response', 
   Object.assign(chromeApi.system.display, {
     async getInfo() {
       throw new Error('Display inventory unavailable')
-    }
+    },
   })
 
   const result = await handleNativePlacementBridgeMessage(createRequest(), chromeApi, nowMs)
@@ -196,7 +196,7 @@ test('native placement bridge turns a rejected placement read into a response', 
     type: 'response',
     requestId: 'hs-1800000000000-1',
     status: 'rejected',
-    reason: 'Display inventory unavailable'
+    reason: 'Display inventory unavailable',
   })
   assert.deepEqual(createCalls, [])
 })
@@ -207,7 +207,7 @@ test('native placement bridge rejects an expired request before mutation', async
   const result = await handleNativePlacementBridgeMessage(
     createRequest({ expiresAtMs: nowMs - 1 }),
     chromeApi,
-    nowMs
+    nowMs,
   )
 
   assert.equal(result.status, 'rejected')
@@ -221,7 +221,7 @@ test('native placement bridge rejects malformed target bounds before mutation', 
   const result = await handleNativePlacementBridgeMessage(
     createRequest({ targetBounds: { left: 0, top: 0, width: 0, height: 900 } }),
     chromeApi,
-    nowMs
+    nowMs,
   )
 
   assert.equal(result.status, 'rejected')
@@ -231,35 +231,35 @@ test('native placement bridge rejects malformed target bounds before mutation', 
 
 test('native placement bridge schema preserves envelope rejection reasons', async () => {
   const { chromeApi, createCalls } = createChromeApi()
-  const cases: ReadonlyArray<{ message: unknown; reason: RegExp; requestId: string }> = [
+  const cases: ReadonlyArray<{ message: unknown, reason: RegExp, requestId: string }> = [
     { message: null, reason: /not an object/, requestId: 'invalid' },
     {
       message: createRequest({ version: NATIVE_PLACEMENT_BRIDGE_VERSION + 1 }),
       reason: /version is unsupported/,
-      requestId: 'hs-1800000000000-1'
+      requestId: 'hs-1800000000000-1',
     },
     {
       message: createRequest({ requestId: 'contains spaces' }),
       reason: /request ID is invalid/,
-      requestId: 'invalid'
+      requestId: 'invalid',
     },
     {
       message: createRequest({ type: 'unknown' }),
       reason: /request type is unsupported/,
-      requestId: 'hs-1800000000000-1'
+      requestId: 'hs-1800000000000-1',
     },
     {
       message: createRequest({ operation: 'unknown' }),
       reason: /operation is invalid/,
-      requestId: 'hs-1800000000000-1'
+      requestId: 'hs-1800000000000-1',
     },
     {
       message: createRequest({
-        targetBounds: { left: 100_001, top: 0, width: 900, height: 700 }
+        targetBounds: { left: 100_001, top: 0, width: 900, height: 700 },
       }),
       reason: /target bounds are invalid/,
-      requestId: 'hs-1800000000000-1'
-    }
+      requestId: 'hs-1800000000000-1',
+    },
   ]
 
   for (const entry of cases) {
@@ -284,18 +284,18 @@ test('native placement bridge reconnects after the host port disconnects', async
           disconnect() {},
           onMessage: {
             addListener() {},
-            removeListener() {}
+            removeListener() {},
           },
           onDisconnect: {
             addListener(listener: () => void) {
               disconnectListeners.push(listener)
             },
-            removeListener: noOp
+            removeListener: noOp,
           },
-          postMessage() {}
+          postMessage() {},
         }
-      }
-    }
+      },
+    },
   } as unknown as ChromeApi
 
   try {
@@ -328,10 +328,10 @@ test('native placement bridge escalates delays across connection failures', asyn
           disconnect() {},
           onMessage: { addListener() {}, removeListener() {} },
           onDisconnect: { addListener() {}, removeListener() {} },
-          postMessage() {}
+          postMessage() {},
         }
-      }
-    }
+      },
+    },
   } as unknown as ChromeApi
 
   try {
@@ -393,7 +393,7 @@ test('native placement bridge backs off beyond the MV3 idle window when the host
 test('native placement bridge resets backoff after a native message', async () => {
   const clock = FakeTimers.install({
     now: nowMs,
-    toFake: ['Date', 'setTimeout', 'clearTimeout']
+    toFake: ['Date', 'setTimeout', 'clearTimeout'],
   })
   const messageListeners: Array<(message: unknown) => void> = []
   const disconnectListeners: Array<() => void> = []
@@ -409,18 +409,18 @@ test('native placement bridge resets backoff after a native message', async () =
             addListener(listener: (message: unknown) => void) {
               messageListeners.push(listener)
             },
-            removeListener() {}
+            removeListener() {},
           },
           onDisconnect: {
             addListener(listener: () => void) {
               disconnectListeners.push(listener)
             },
-            removeListener() {}
+            removeListener() {},
           },
-          postMessage() {}
+          postMessage() {},
         }
-      }
-    }
+      },
+    },
   } as unknown as ChromeApi
 
   try {
@@ -458,12 +458,12 @@ test('disposing the native placement bridge cancels reconnect sleep', async () =
             addListener(listener: () => void) {
               disconnectListeners.push(listener)
             },
-            removeListener() {}
+            removeListener() {},
           },
-          postMessage() {}
+          postMessage() {},
         }
-      }
-    }
+      },
+    },
   } as unknown as ChromeApi
 
   try {

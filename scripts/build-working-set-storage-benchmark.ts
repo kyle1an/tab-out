@@ -10,14 +10,14 @@ import {
   readlink,
   realpath,
   rm,
-  writeFile
+  writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import {
   join,
   relative,
   resolve,
-  sep
+  sep,
 } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -39,7 +39,7 @@ import {
   WORKING_SET_BENCHMARK_VARIANTS,
   type WorkingSetBenchmarkBuildSelection,
   type WorkingSetBenchmarkInstrumentation,
-  type WorkingSetBenchmarkVariant
+  type WorkingSetBenchmarkVariant,
 } from './working-set-benchmark-build-config.js'
 
 export const WORKING_SET_BENCHMARK_BUILD_SIDECAR =
@@ -65,7 +65,7 @@ const generatedExtensionEntries = new Set([
   'dist',
   'index.html',
   'manifest.json',
-  WORKING_SET_BENCHMARK_CONTROLLER_PAGE
+  WORKING_SET_BENCHMARK_CONTROLLER_PAGE,
 ])
 
 const moduleGraphSchema = Schema.Struct({
@@ -74,7 +74,7 @@ const moduleGraphSchema = Schema.Struct({
   instrumentation: workingSetBenchmarkInstrumentationSchema,
   selectedBackendModule: Schema.String,
   includedBackendModules: Schema.Array(Schema.String),
-  moduleIds: Schema.Array(Schema.String)
+  moduleIds: Schema.Array(Schema.String),
 })
 const isModuleGraph = Schema.is(moduleGraphSchema)
 
@@ -121,8 +121,8 @@ class WorkingSetBenchmarkBuildError extends Schema.TaggedErrorClass<WorkingSetBe
   'WorkingSetBenchmarkBuildError',
   {
     operation: Schema.String,
-    cause: Schema.Defect()
-  }
+    cause: Schema.Defect(),
+  },
 ) {
   override get message(): string {
     const detail = this.cause instanceof Error
@@ -134,7 +134,7 @@ class WorkingSetBenchmarkBuildError extends Schema.TaggedErrorClass<WorkingSetBe
 
 function benchmarkBuildError(
   operation: string,
-  cause: unknown
+  cause: unknown,
 ): WorkingSetBenchmarkBuildError {
   return WorkingSetBenchmarkBuildError.make({ operation, cause })
 }
@@ -212,12 +212,12 @@ async function trackedExtensionSha256(repositoryRoot: string): Promise<string> {
 }
 
 function trackedExtensionRepositoryPaths(
-  repositoryRoot: string
+  repositoryRoot: string,
 ): readonly string[] {
   const listedFiles = execFileSync(
     'git',
     ['ls-files', '-z', '--', 'extension'],
-    { cwd: repositoryRoot, encoding: 'utf8' }
+    { cwd: repositoryRoot, encoding: 'utf8' },
   ).split('\0').filter((path) => path.length > 0).sort()
   if (listedFiles.length === 0) {
     throw new Error('Git reported no tracked extension files')
@@ -227,12 +227,12 @@ function trackedExtensionRepositoryPaths(
 
 export function assertTrackedExtensionHashUnchanged(
   beforeSha256: string,
-  afterSha256: string
+  afterSha256: string,
 ): void {
   if (beforeSha256 !== afterSha256) {
     throw new Error(
       'Tracked extension files changed during the disposable benchmark build ' +
-      `(before=${beforeSha256}, after=${afterSha256})`
+      `(before=${beforeSha256}, after=${afterSha256})`,
     )
   }
 }
@@ -240,13 +240,13 @@ export function assertTrackedExtensionHashUnchanged(
 async function copyExtensionScaffold(
   repositoryRoot: string,
   sourceDirectory: string,
-  targetDirectory: string
+  targetDirectory: string,
 ): Promise<void> {
   const trackedExtensionRoot = resolve(repositoryRoot, 'extension')
   const trackedStaticFiles = trackedExtensionRepositoryPaths(repositoryRoot)
     .map((path) => relative(
       trackedExtensionRoot,
-      resolve(repositoryRoot, path)
+      resolve(repositoryRoot, path),
     ))
     .filter((path) => !generatedExtensionEntries.has(path.split(sep)[0] ?? ''))
   await cp(sourceDirectory, targetDirectory, {
@@ -263,32 +263,32 @@ async function copyExtensionScaffold(
       ) return false
       return trackedStaticFiles.some((trackedPath) =>
         trackedPath === sourceRelativePath ||
-        trackedPath.startsWith(`${sourceRelativePath}${sep}`)
+        trackedPath.startsWith(`${sourceRelativePath}${sep}`),
       )
-    }
+    },
   })
 }
 
 function runExtensionBuild(
   repositoryRoot: string,
   selection: WorkingSetBenchmarkBuildSelection,
-  nonce: string
+  nonce: string,
 ): Promise<void> {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(process.execPath, [
       '--experimental-import-text',
       '--import',
       'tsx',
-      resolve(repositoryRoot, 'scripts/build-extension.ts')
+      resolve(repositoryRoot, 'scripts/build-extension.ts'),
     ], {
       cwd: repositoryRoot,
       env: {
         ...process.env,
         [WORKING_SET_BENCHMARK_BACKEND_ENV]: selection.variant,
         [WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV]: selection.extensionDirectory,
-        [WORKING_SET_BENCHMARK_NONCE_ENV]: nonce
+        [WORKING_SET_BENCHMARK_NONCE_ENV]: nonce,
       },
-      stdio: 'inherit'
+      stdio: 'inherit',
     })
 
     child.once('error', reject)
@@ -300,7 +300,7 @@ function runExtensionBuild(
       reject(new Error(
         signal === null
           ? `Extension build exited with code ${String(code)}`
-          : `Extension build exited after signal ${signal}`
+          : `Extension build exited after signal ${signal}`,
       ))
     })
   })
@@ -308,7 +308,7 @@ function runExtensionBuild(
 
 async function readAndValidateModuleGraph(
   selection: WorkingSetBenchmarkBuildSelection,
-  repositoryRoot: string
+  repositoryRoot: string,
 ): Promise<void> {
   const parsed: unknown = JSON.parse(await readFile(selection.moduleGraphPath, 'utf8'))
   if (!isModuleGraph(parsed)) {
@@ -320,13 +320,13 @@ async function readAndValidateModuleGraph(
     parsed.selectedBackendModule !== selection.backendModulePath
   ) {
     throw new Error(
-      `Benchmark module graph does not describe ${selection.variant}`
+      `Benchmark module graph does not describe ${selection.variant}`,
     )
   }
   assertWorkingSetBackendModuleGraph(
     selection,
     repositoryRoot,
-    parsed.moduleIds
+    parsed.moduleIds,
   )
 }
 
@@ -338,7 +338,7 @@ async function buildVariant(
   commonHashes: Pick<
     WorkingSetBenchmarkArtifactHashes,
     'lockfileSha256' | 'workloadFixtureSha256'
-  >
+  >,
 ): Promise<WorkingSetBenchmarkArtifactSidecar> {
   const variantDirectory = resolve(benchmarkRoot, variant)
   const extensionDirectory = resolve(variantDirectory, 'extension')
@@ -346,22 +346,22 @@ async function buildVariant(
   await copyExtensionScaffold(
     repositoryRoot,
     resolve(repositoryRoot, 'extension'),
-    extensionDirectory
+    extensionDirectory,
   )
   await writeFile(
     resolve(extensionDirectory, WORKING_SET_BENCHMARK_CONTROLLER_PAGE),
     controllerHtml,
-    { encoding: 'utf8', flag: 'wx' }
+    { encoding: 'utf8', flag: 'wx' },
   )
 
   const selectionEnvironment: NodeJS.ProcessEnv = {
     [WORKING_SET_BENCHMARK_BACKEND_ENV]: variant,
     [WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV]: extensionDirectory,
-    [WORKING_SET_BENCHMARK_NONCE_ENV]: nonce
+    [WORKING_SET_BENCHMARK_NONCE_ENV]: nonce,
   }
   const selection = resolveWorkingSetBuildSelection(
     repositoryRoot,
-    selectionEnvironment
+    selectionEnvironment,
   )
   if (selection.mode !== 'benchmark') {
     throw new Error(`Expected a benchmark build selection for ${variant}`)
@@ -373,7 +373,7 @@ async function buildVariant(
   const backgroundBundle = await readFile(backgroundBundlePath, 'utf8')
   if (!backgroundBundle.includes(WORKING_SET_BENCHMARK_SENTINEL)) {
     throw new Error(
-      `Benchmark background bundle omits its protocol sentinel: ${backgroundBundlePath}`
+      `Benchmark background bundle omits its protocol sentinel: ${backgroundBundlePath}`,
     )
   }
 
@@ -390,13 +390,13 @@ async function buildVariant(
       backendModuleGraphSha256: await sha256File(selection.moduleGraphPath),
       backgroundBundleSha256: await sha256File(backgroundBundlePath),
       selectedBackendModuleSha256: await sha256File(selection.backendModulePath),
-      ...commonHashes
-    }
+      ...commonHashes,
+    },
   }
   await writeFile(
     resolve(variantDirectory, WORKING_SET_BENCHMARK_VARIANT_SIDECAR),
     `${JSON.stringify(artifact, null, 2)}\n`,
-    { encoding: 'utf8', flag: 'wx' }
+    { encoding: 'utf8', flag: 'wx' },
   )
   return artifact
 }
@@ -405,13 +405,13 @@ async function assertBenchmarkSourcesExist(repositoryRoot: string): Promise<void
   const sourcePaths = [
     resolve(
       repositoryRoot,
-      'tests/extension/working-set-storage-benchmark-background.ts'
+      'tests/extension/working-set-storage-benchmark-background.ts',
     ),
     workingSetBenchmarkSelectorModulePath(repositoryRoot),
     resolve(repositoryRoot, 'tests/helpers/working-set-storage-profile.ts'),
     ...WORKING_SET_BENCHMARK_VARIANTS.map((variant) =>
-      workingSetBenchmarkBackendModulePath(repositoryRoot, variant)
-    )
+      workingSetBenchmarkBackendModulePath(repositoryRoot, variant),
+    ),
   ]
   for (const sourcePath of sourcePaths) {
     const metadata = await lstat(sourcePath)
@@ -422,7 +422,7 @@ async function assertBenchmarkSourcesExist(repositoryRoot: string): Promise<void
 }
 
 async function buildWorkingSetStorageBenchmarkArtifactsUnsafe(
-  repositoryRootInput: string
+  repositoryRootInput: string,
 ): Promise<WorkingSetBenchmarkBuildResult> {
   const repositoryRoot = await realpath(repositoryRootInput)
   const trackedExtensionBefore = await trackedExtensionSha256(repositoryRoot)
@@ -432,21 +432,21 @@ async function buildWorkingSetStorageBenchmarkArtifactsUnsafe(
     await assertBenchmarkSourcesExist(repositoryRoot)
     const temporaryParent = await realpath(tmpdir())
     benchmarkRoot = await mkdtemp(
-      join(temporaryParent, WORKING_SET_BENCHMARK_TEMP_PREFIX)
+      join(temporaryParent, WORKING_SET_BENCHMARK_TEMP_PREFIX),
     )
     const nonce = randomUUID()
     await writeFile(
       resolve(benchmarkRoot, WORKING_SET_BENCHMARK_ROOT_MARKER),
       `${JSON.stringify({ schemaVersion: 1, nonce }, null, 2)}\n`,
-      { encoding: 'utf8', flag: 'wx', mode: 0o600 }
+      { encoding: 'utf8', flag: 'wx', mode: 0o600 },
     )
 
     const commonHashes = {
       lockfileSha256: await sha256File(resolve(repositoryRoot, 'pnpm-lock.yaml')),
       workloadFixtureSha256: await sha256File(resolve(
         repositoryRoot,
-        'tests/helpers/working-set-storage-profile.ts'
-      ))
+        'tests/helpers/working-set-storage-profile.ts',
+      )),
     }
     const variants: WorkingSetBenchmarkArtifactSidecar[] = []
     for (const variant of WORKING_SET_BENCHMARK_VARIANTS) {
@@ -455,14 +455,14 @@ async function buildWorkingSetStorageBenchmarkArtifactsUnsafe(
         benchmarkRoot,
         nonce,
         variant,
-        commonHashes
+        commonHashes,
       ))
     }
 
     const trackedExtensionAfter = await trackedExtensionSha256(repositoryRoot)
     assertTrackedExtensionHashUnchanged(
       trackedExtensionBefore,
-      trackedExtensionAfter
+      trackedExtensionAfter,
     )
     const sidecar: WorkingSetBenchmarkBuildSidecar = {
       schemaVersion: 1,
@@ -472,36 +472,36 @@ async function buildWorkingSetStorageBenchmarkArtifactsUnsafe(
       instrumentation: 'none',
       trackedExtension: {
         beforeSha256: trackedExtensionBefore,
-        afterSha256: trackedExtensionAfter
+        afterSha256: trackedExtensionAfter,
       },
-      variants
+      variants,
     }
     const sidecarPath = resolve(
       benchmarkRoot,
-      WORKING_SET_BENCHMARK_BUILD_SIDECAR
+      WORKING_SET_BENCHMARK_BUILD_SIDECAR,
     )
     await writeFile(
       sidecarPath,
       `${JSON.stringify(sidecar, null, 2)}\n`,
-      { encoding: 'utf8', flag: 'wx' }
+      { encoding: 'utf8', flag: 'wx' },
     )
     const retainedBenchmarkRoot = benchmarkRoot
     const dispose = () => rm(
       retainedBenchmarkRoot,
-      { force: true, recursive: true }
+      { force: true, recursive: true },
     )
     return {
       sidecar,
       sidecarPath,
       dispose,
-      [Symbol.asyncDispose]: dispose
+      [Symbol.asyncDispose]: dispose,
     }
   } catch (cause) {
     let extensionHashFailure: unknown
     try {
       assertTrackedExtensionHashUnchanged(
         trackedExtensionBefore,
-        await trackedExtensionSha256(repositoryRoot)
+        await trackedExtensionSha256(repositoryRoot),
       )
     } catch (hashCause) {
       extensionHashFailure = hashCause
@@ -512,7 +512,7 @@ async function buildWorkingSetStorageBenchmarkArtifactsUnsafe(
     if (extensionHashFailure !== undefined) {
       throw new Error(
         `${String(extensionHashFailure)}; original build failure: ${String(cause)}`,
-        { cause }
+        { cause },
       )
     }
     throw cause
@@ -520,16 +520,16 @@ async function buildWorkingSetStorageBenchmarkArtifactsUnsafe(
 }
 
 export function buildWorkingSetStorageBenchmarkArtifacts(
-  repositoryRoot = fileURLToPath(new URL('../', import.meta.url))
+  repositoryRoot = fileURLToPath(new URL('../', import.meta.url)),
 ): Promise<WorkingSetBenchmarkBuildResult> {
   return Effect.runPromise(
     Effect.tryPromise({
       try: () => buildWorkingSetStorageBenchmarkArtifactsUnsafe(repositoryRoot),
       catch: (cause) => benchmarkBuildError(
         'build disposable Working Set storage benchmark artifacts',
-        cause
-      )
-    })
+        cause,
+      ),
+    }),
   )
 }
 
@@ -539,19 +539,19 @@ if (import.meta.main) {
     cliArguments[0] === '--retain'
   const validArguments = cliArguments.length === 0 || retainArtifacts
 
-  Effect.gen(function*() {
+  Effect.gen(function* () {
     if (!validArguments) {
       return yield* Effect.fail(benchmarkBuildError(
         'parse benchmark builder arguments',
-        new Error('Usage: build-working-set-storage-benchmark.ts [--retain]')
+        new Error('Usage: build-working-set-storage-benchmark.ts [--retain]'),
       ))
     }
     const result = yield* Effect.tryPromise({
       try: () => buildWorkingSetStorageBenchmarkArtifacts(),
       catch: (cause) => benchmarkBuildError(
         'build disposable Working Set storage benchmark artifacts',
-        cause
-      )
+        cause,
+      ),
     })
     if (retainArtifacts) {
       yield* Effect.sync(() => console.log(result.sidecarPath))
@@ -561,8 +561,8 @@ if (import.meta.main) {
       try: result.dispose,
       catch: (cause) => benchmarkBuildError(
         'dispose verified Working Set benchmark artifacts',
-        cause
-      )
+        cause,
+      ),
     })
     yield* Effect.sync(() => console.log(JSON.stringify({
       disposed: true,
@@ -571,10 +571,10 @@ if (import.meta.main) {
       variants: result.sidecar.variants.map(({ variant, hashes }) => ({
         variant,
         artifactTreeSha256: hashes.artifactTreeSha256,
-        backgroundBundleSha256: hashes.backgroundBundleSha256
-      }))
+        backgroundBundleSha256: hashes.backgroundBundleSha256,
+      })),
     }, null, 2)))
   }).pipe(
-    NodeRuntime.runMain
+    NodeRuntime.runMain,
   )
 }

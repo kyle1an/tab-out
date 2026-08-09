@@ -6,12 +6,12 @@ import type { WorkingSetBenchmarkBackend } from './benchmark-backend.js'
 
 function unselectedBackend(): never {
   throw new Error(
-    'Working Set benchmark backend selection was not replaced at build time'
+    'Working Set benchmark backend selection was not replaced at build time',
   )
 }
 
 export function makeWorkingSetActivityStorageLayer(
-  _chromeApi: ChromeApi
+  _chromeApi: ChromeApi,
 ): Layer.Layer<WorkingSetActivityStorage> {
   return unselectedBackend()
 }
@@ -24,10 +24,10 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
   writeInvocationCount: unselectedBackend,
   failNextMutation: unselectedBackend,
   corrupt: () => Promise.reject(new Error(
-    'Working Set benchmark backend selection was not replaced at build time'
+    'Working Set benchmark backend selection was not replaced at build time',
   )),
   reset: () => Promise.reject(new Error(
-    'Working Set benchmark backend selection was not replaced at build time'
+    'Working Set benchmark backend selection was not replaced at build time',
   )),
-  close: unselectedBackend
+  close: unselectedBackend,
 }

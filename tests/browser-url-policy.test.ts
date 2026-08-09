@@ -15,7 +15,7 @@ test('browser URL policy classifies Chrome internal schemes without hiding files
     'chrome-extension://example-id/index.html',
     'chrome-search://local-ntp/local-ntp.html',
     'chrome-untrusted://new-tab-page/one-google-bar',
-    'devtools://devtools/bundled/inspector.html'
+    'devtools://devtools/bundled/inspector.html',
   ]) {
     assert.equal(isBrowserInternalUrl(url), true, url)
   }
@@ -30,7 +30,7 @@ test('dashboard composition excludes internal schemes but retains its own Tab Ou
     { id: 3, url: 'devtools://devtools/bundled/inspector.html' },
     { id: 4, url: 'file:///tmp/example.html' },
     { id: 5, url: 'https://example.test/' },
-    { id: 6, url: 'chrome-extension://tab-out/index.html', isTabOut: true }
+    { id: 6, url: 'chrome-extension://tab-out/index.html', isTabOut: true },
   ] as DashboardTab[]
 
   assert.deepEqual(getDashboardTabsFromOpenTabs(tabs).map((tab) => tab.id), [4, 5, 6])
@@ -43,7 +43,7 @@ test('toolbar badge counts duplicate extras while excluding every browser-intern
     'chrome-untrusted://new-tab-page/one-google-bar',
     'devtools://devtools/bundled/inspector.html',
     'file:///tmp/example.html',
-    'https://example.test/'
+    'https://example.test/',
   ]
   const chromeApi = {
     tabs: {
@@ -51,17 +51,17 @@ test('toolbar badge counts duplicate extras while excluding every browser-intern
         id: urlIndex * 2 + copyIndex + 1,
         windowId: 1,
         url,
-        groupId: -1
-      })))
+        groupId: -1,
+      }))),
     },
     windows: {
-      getCurrent: async () => ({ id: 1 })
+      getCurrent: async () => ({ id: 1 }),
     },
     action: {
       setBadgeText: async ({ text }: { text: string }) => { badgeText.push(text) },
       setBadgeBackgroundColor: async () => {},
-      setTitle: async () => {}
-    }
+      setTitle: async () => {},
+    },
   } as unknown as ChromeApi
 
   const runtime = createBackgroundRuntime(chromeApi)

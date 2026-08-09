@@ -49,18 +49,18 @@ export type ClosedGhostDismissalMutationStore = {
   restore: (
     entry: ClosedGhostIdentity,
     expectedDismissedAt: number,
-    now?: number
+    now?: number,
   ) => Promise<Map<string, number>>
 }
 
 class ClosedGhostDismissalMutationError extends Schema.TaggedErrorClass<ClosedGhostDismissalMutationError>()(
   'ClosedGhostDismissalMutationError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 class ClosedGhostDismissalReadError extends Schema.TaggedErrorClass<ClosedGhostDismissalReadError>()(
   'ClosedGhostDismissalReadError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 export function closedGhostDismissalKey(entry: ClosedGhostIdentity): string {
@@ -69,7 +69,7 @@ export function closedGhostDismissalKey(entry: ClosedGhostIdentity): string {
 
 export function isClosedGhostDismissed(
   dismissals: ClosedGhostDismissals | null | undefined,
-  entry: ClosedGhostDismissalTarget
+  entry: ClosedGhostDismissalTarget,
 ): boolean {
   if (!dismissals || dismissals.size === 0) return false
   const dismissedAt = dismissals.get(closedGhostDismissalKey(entry))
@@ -94,40 +94,40 @@ export function normalizeClosedGhostDismissals(value: unknown, now: number = Dat
 }
 
 export const loadClosedGhostDismissalsResultEffect = Effect.fn(
-  'closedGhostDismissals.loadResult'
-)(function*(
-  now: number = Date.now()
+  'closedGhostDismissals.loadResult',
+)(function* (
+  now: number = Date.now(),
 ) {
   if (typeof chrome === 'undefined' || !chrome.storage?.local) {
     return { ok: false, value: new Map() }
   }
   const stored = yield* Effect.result(Effect.tryPromise({
     try: () => chrome.storage.local.get(CLOSED_GHOST_DISMISSAL_STORAGE_KEY),
-    catch: (cause) => ClosedGhostDismissalReadError.make({ cause })
+    catch: (cause) => ClosedGhostDismissalReadError.make({ cause }),
   }))
   if (Result.isFailure(stored)) {
     return { ok: false, value: new Map() }
   }
   return {
     ok: true,
-    value: normalizeClosedGhostDismissals(stored.success[CLOSED_GHOST_DISMISSAL_STORAGE_KEY], now)
+    value: normalizeClosedGhostDismissals(stored.success[CLOSED_GHOST_DISMISSAL_STORAGE_KEY], now),
   }
 })
 
 export function loadClosedGhostDismissalsResult(
-  now: number = Date.now()
+  now: number = Date.now(),
 ): Promise<BrowserReadResult<Map<string, number>>> {
   return getAppRuntime().runPromise(loadClosedGhostDismissalsResultEffect(now))
 }
 
 export function subscribeClosedGhostDismissals(
-  handler: (dismissals: Map<string, number>) => void
+  handler: (dismissals: Map<string, number>) => void,
 ): () => void {
   const event = globalThis.chrome?.storage?.onChanged
   if (!event?.addListener) return () => {}
   const listener = (
     changes: Record<string, chrome.storage.StorageChange>,
-    areaName: string
+    areaName: string,
   ) => {
     if (areaName !== 'local' || !Object.hasOwn(changes, CLOSED_GHOST_DISMISSAL_STORAGE_KEY)) return
     handler(normalizeClosedGhostDismissals(changes[CLOSED_GHOST_DISMISSAL_STORAGE_KEY]?.newValue))
@@ -143,35 +143,35 @@ export function subscribeClosedGhostDismissals(
  * caller cannot apply or toast state that was never persisted.
  */
 export function createClosedGhostDismissalMutationStore(
-  adapter: ClosedGhostDismissalStoreAdapter
+  adapter: ClosedGhostDismissalStoreAdapter,
 ): ClosedGhostDismissalMutationStore {
   const mutationSemaphore = Semaphore.makeUnsafe(1)
 
-  const runClosedGhostDismissalMutation = Effect.fn('closedGhostDismissals.runMutation')(function*(
+  const runClosedGhostDismissalMutation = Effect.fn('closedGhostDismissals.runMutation')(function* (
     now: number,
-    mutation: (map: Map<string, number>) => boolean
+    mutation: (map: Map<string, number>) => boolean,
   ) {
-    const transaction = Effect.gen(function*() {
+    const transaction = Effect.gen(function* () {
       const stored = yield* Effect.tryPromise({
         try: adapter.read,
-        catch: (cause) => ClosedGhostDismissalMutationError.make({ cause })
+        catch: (cause) => ClosedGhostDismissalMutationError.make({ cause }),
       })
       const map = yield* Effect.try({
         try: () => normalizeClosedGhostDismissals(stored, now),
-        catch: (cause) => ClosedGhostDismissalMutationError.make({ cause })
+        catch: (cause) => ClosedGhostDismissalMutationError.make({ cause }),
       })
       const changed = yield* Effect.try({
         try: () => mutation(map),
-        catch: (cause) => ClosedGhostDismissalMutationError.make({ cause })
+        catch: (cause) => ClosedGhostDismissalMutationError.make({ cause }),
       })
       if (changed) {
         const value = yield* Effect.try({
           try: () => Object.fromEntries(map),
-          catch: (cause) => ClosedGhostDismissalMutationError.make({ cause })
+          catch: (cause) => ClosedGhostDismissalMutationError.make({ cause }),
         })
         yield* Effect.tryPromise({
           try: () => adapter.write(value),
-          catch: (cause) => ClosedGhostDismissalMutationError.make({ cause })
+          catch: (cause) => ClosedGhostDismissalMutationError.make({ cause }),
         })
       }
       return map
@@ -182,24 +182,24 @@ export function createClosedGhostDismissalMutationStore(
     return yield* runPromiseExclusiveEffect(
       runExclusive,
       transaction,
-      (cause) => ClosedGhostDismissalMutationError.make({ cause })
+      (cause) => ClosedGhostDismissalMutationError.make({ cause }),
     )
   })
 
   function mutate(
     now: number,
-    mutation: (map: Map<string, number>) => boolean
+    mutation: (map: Map<string, number>) => boolean,
   ): Promise<Map<string, number>> {
     return getAppRuntime().runPromise(
       mutationSemaphore.withPermit(runClosedGhostDismissalMutation(now, mutation)).pipe(
-        Effect.catchTag('ClosedGhostDismissalMutationError', (error) => Effect.fail(error.cause))
-      )
+        Effect.catchTag('ClosedGhostDismissalMutationError', (error) => Effect.fail(error.cause)),
+      ),
     )
   }
 
   function dismiss(
     entry: ClosedGhostDismissalTarget,
-    now: number = Date.now()
+    now: number = Date.now(),
   ): Promise<Map<string, number>> {
     return mutate(now, (map) => {
       const key = closedGhostDismissalKey(entry)
@@ -207,7 +207,7 @@ export function createClosedGhostDismissalMutationStore(
       const dismissedAt = Math.max(
         previousDismissedAt ?? Number.NEGATIVE_INFINITY,
         Number.isFinite(entry.lastClosedAt) ? entry.lastClosedAt : Number.NEGATIVE_INFINITY,
-        Number.isFinite(now) ? now : Date.now()
+        Number.isFinite(now) ? now : Date.now(),
       )
 
       if (previousDismissedAt !== dismissedAt) {
@@ -221,7 +221,7 @@ export function createClosedGhostDismissalMutationStore(
   function restore(
     entry: ClosedGhostIdentity,
     expectedDismissedAt: number,
-    now: number = Date.now()
+    now: number = Date.now(),
   ): Promise<Map<string, number>> {
     return mutate(now, (map) => {
       const key = closedGhostDismissalKey(entry)
@@ -252,19 +252,19 @@ async function readClosedGhostDismissalsValue(): Promise<unknown> {
 
 async function writeClosedGhostDismissalsValue(value: Record<string, number>): Promise<void> {
   await closedGhostDismissalStorageArea().set({
-    [CLOSED_GHOST_DISMISSAL_STORAGE_KEY]: value
+    [CLOSED_GHOST_DISMISSAL_STORAGE_KEY]: value,
   })
 }
 
 const closedGhostDismissalMutationStore = createClosedGhostDismissalMutationStore({
   read: readClosedGhostDismissalsValue,
   write: writeClosedGhostDismissalsValue,
-  runExclusive: (task) => navigator.locks.request(CLOSED_GHOST_DISMISSAL_MUTATION_LOCK, task)
+  runExclusive: (task) => navigator.locks.request(CLOSED_GHOST_DISMISSAL_MUTATION_LOCK, task),
 })
 
 export async function dismissClosedGhost(
   entry: ClosedGhostDismissalTarget,
-  now: number = Date.now()
+  now: number = Date.now(),
 ): Promise<Map<string, number>> {
   return closedGhostDismissalMutationStore.dismiss(entry, now)
 }
@@ -272,7 +272,7 @@ export async function dismissClosedGhost(
 export async function restoreClosedGhost(
   entry: ClosedGhostIdentity,
   expectedDismissedAt: number,
-  now: number = Date.now()
+  now: number = Date.now(),
 ): Promise<Map<string, number>> {
   return closedGhostDismissalMutationStore.restore(entry, expectedDismissedAt, now)
 }

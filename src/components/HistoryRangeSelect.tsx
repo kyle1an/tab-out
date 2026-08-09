@@ -3,7 +3,7 @@ import { HISTORY_RANGE_OPTIONS, isHistoryRangeValue } from '../extension/history
 
 export function HistoryRangeSelect({
   value,
-  onValueChange
+  onValueChange,
 }: {
   value: string
   onValueChange?: (historyRange: string) => void | Promise<void>

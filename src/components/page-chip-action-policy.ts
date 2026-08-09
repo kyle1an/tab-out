@@ -22,7 +22,7 @@ export type PageChipTargetActionPolicy = {
 
 export function pageChipTargetActionPolicy(
   target: PageChipActionTarget,
-  { interactive = true }: PageChipActionPolicyOptions = {}
+  { interactive = true }: PageChipActionPolicyOptions = {},
 ): PageChipTargetActionPolicy {
   const closedSaved = target.sourceType === 'saved-page' ||
     target.sourceType === 'retained-page' ||
@@ -41,6 +41,6 @@ export function pageChipTargetActionPolicy(
     canRemoveRetained: interactive && target.sourceType === 'retained-page',
     canToggleSaved,
     canUseChromeTabActions: interactive && target.sourceType === 'tab' && !closedSaved,
-    showSavedHint: interactive && !!target.saved && !canToggleSaved
+    showSavedHint: interactive && !!target.saved && !canToggleSaved,
   }
 }

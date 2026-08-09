@@ -2,7 +2,7 @@ import {
   createClosureToken,
   createRetainedPageIdentity,
   RETAINED_PAGE_IDENTITY_VERSION,
-  type RetainedPageSurfaceKind
+  type RetainedPageSurfaceKind,
 } from './retained-page-identity.js'
 
 export const OPEN_SURFACE_INVENTORY_SCHEMA_VERSION = 2
@@ -86,7 +86,7 @@ export function emptyOpenSurfaceInventory(): OpenSurfaceInventory {
   return {
     schemaVersion: OPEN_SURFACE_INVENTORY_SCHEMA_VERSION,
     identityVersion: RETAINED_PAGE_IDENTITY_VERSION,
-    entries: {}
+    entries: {},
   }
 }
 
@@ -110,7 +110,7 @@ function reusableFaviconUrl(favIconUrl: string | undefined): string | undefined 
 }
 
 function identityOptions(
-  options: OpenSurfaceInventoryOptions
+  options: OpenSurfaceInventoryOptions,
 ): { runtimeId?: string | null } {
   return options.runtimeId === undefined ? {} : { runtimeId: options.runtimeId }
 }
@@ -120,7 +120,7 @@ async function entryFromObservation(
   previous: OpenSurfaceInventoryEntry | undefined,
   existingClosureToken: string | undefined,
   existingClosedAt: number | undefined,
-  options: OpenSurfaceInventoryOptions
+  options: OpenSurfaceInventoryOptions,
 ): Promise<OpenSurfaceInventoryEntry | null> {
   // Incognito is rejected before URL normalization, hashing, or metadata work.
   if (observation.incognito || !isValidTabId(observation.tabId)) return null
@@ -128,7 +128,7 @@ async function entryFromObservation(
   const identity = await createRetainedPageIdentity({
     surfaceKind: observation.surfaceKind,
     url: observation.url,
-    ...(observation.rawUrl === undefined ? {} : { rawUrl: observation.rawUrl })
+    ...(observation.rawUrl === undefined ? {} : { rawUrl: observation.rawUrl }),
   }, identityOptions(options))
   if (!identity) return null
   const closureToken = existingClosureToken || (options.closureTokenFactory || createClosureToken)()
@@ -148,13 +148,13 @@ async function entryFromObservation(
     url: identity.url,
     title,
     ...(favIconUrl ? { favIconUrl } : {}),
-    ...(existingClosedAt === undefined ? {} : { closedAt: existingClosedAt })
+    ...(existingClosedAt === undefined ? {} : { closedAt: existingClosedAt }),
   }
 }
 
 function entriesEqual(
   left: OpenSurfaceInventoryEntry,
-  right: OpenSurfaceInventoryEntry
+  right: OpenSurfaceInventoryEntry,
 ): boolean {
   return (
     left.tabId === right.tabId &&
@@ -171,7 +171,7 @@ function entriesEqual(
 
 export function openSurfaceInventoriesEqual(
   left: OpenSurfaceInventory,
-  right: OpenSurfaceInventory
+  right: OpenSurfaceInventory,
 ): boolean {
   if (
     left.schemaVersion !== right.schemaVersion ||
@@ -189,7 +189,7 @@ export function openSurfaceInventoriesEqual(
 
 function withoutEntry(
   entries: Readonly<Record<string, OpenSurfaceInventoryEntry>>,
-  tabId: number
+  tabId: number,
 ): Readonly<Record<string, OpenSurfaceInventoryEntry>> {
   const key = entryKey(tabId)
   if (!entries[key]) return entries
@@ -203,7 +203,7 @@ function withoutEntry(
 export async function observeOpenSurface(
   inventory: OpenSurfaceInventory,
   observation: OpenSurfaceObservation,
-  options: OpenSurfaceInventoryOptions = {}
+  options: OpenSurfaceInventoryOptions = {},
 ): Promise<ObserveOpenSurfaceResult> {
   const key = entryKey(observation.tabId)
   const previous = inventory.entries[key]
@@ -212,7 +212,7 @@ export async function observeOpenSurface(
     previous,
     previous?.closureToken,
     previous?.closedAt,
-    options
+    options,
   )
 
   if (!entry) {
@@ -220,7 +220,7 @@ export async function observeOpenSurface(
     return {
       inventory: { ...inventory, entries: withoutEntry(inventory.entries, observation.tabId) },
       entry: null,
-      changed: true
+      changed: true,
     }
   }
   if (previous && entriesEqual(previous, entry)) {
@@ -230,16 +230,16 @@ export async function observeOpenSurface(
   return {
     inventory: {
       ...inventory,
-      entries: { ...inventory.entries, [key]: entry }
+      entries: { ...inventory.entries, [key]: entry },
     },
     entry,
-    changed: true
+    changed: true,
   }
 }
 
 export async function seedOpenSurfaceInventory(
   observations: readonly OpenSurfaceObservation[],
-  options: OpenSurfaceInventoryOptions = {}
+  options: OpenSurfaceInventoryOptions = {},
 ): Promise<OpenSurfaceInventory> {
   let inventory = emptyOpenSurfaceInventory()
   for (const observation of observations) {
@@ -250,14 +250,14 @@ export async function seedOpenSurfaceInventory(
 
 export function removeOpenSurface(
   inventory: OpenSurfaceInventory,
-  tabId: number
+  tabId: number,
 ): RemoveOpenSurfaceResult {
   const entry = inventory.entries[entryKey(tabId)]
   if (!entry) return { inventory, entry: null, changed: false }
   return {
     inventory: { ...inventory, entries: withoutEntry(inventory.entries, tabId) },
     entry,
-    changed: true
+    changed: true,
   }
 }
 
@@ -265,24 +265,24 @@ export function markOpenSurfaceClosure(
   inventory: OpenSurfaceInventory,
   tabId: number,
   closedAt: number,
-  closureToken?: string
+  closureToken?: string,
 ): MarkOpenSurfaceClosureResult {
   const result = markOpenSurfaceClosures(inventory, [{
     tabId,
     closedAt,
-    ...(closureToken === undefined ? {} : { closureToken })
+    ...(closureToken === undefined ? {} : { closureToken }),
   }])
   return {
     inventory: result.inventory,
     entry: result.entries[0] ?? null,
-    changed: result.changed
+    changed: result.changed,
   }
 }
 
 /** Mark a close batch while cloning the inventory entries at most once. */
 export function markOpenSurfaceClosures(
   inventory: OpenSurfaceInventory,
-  marks: readonly OpenSurfaceClosureMark[]
+  marks: readonly OpenSurfaceClosureMark[],
 ): MarkOpenSurfaceClosuresResult {
   let nextEntries: Record<string, OpenSurfaceInventoryEntry> | null = null
   const entries: Array<OpenSurfaceInventoryEntry | null> = []
@@ -308,14 +308,14 @@ export function markOpenSurfaceClosures(
   return {
     inventory: { ...inventory, entries: nextEntries },
     entries,
-    changed: true
+    changed: true,
   }
 }
 
 /** Remove only the exact captured lifetimes while cloning entries at most once. */
 export function removeOpenSurfaceLifetimes(
   inventory: OpenSurfaceInventory,
-  lifetimes: readonly OpenSurfaceLifetimeReference[]
+  lifetimes: readonly OpenSurfaceLifetimeReference[],
 ): RemoveOpenSurfaceLifetimesResult {
   let nextEntries: Record<string, OpenSurfaceInventoryEntry> | null = null
   const entries: Array<OpenSurfaceInventoryEntry | null> = []
@@ -336,7 +336,7 @@ export function removeOpenSurfaceLifetimes(
   return {
     inventory: { ...inventory, entries: nextEntries },
     entries,
-    changed: true
+    changed: true,
   }
 }
 
@@ -344,7 +344,7 @@ export async function transferOpenSurfaceLifetime(
   inventory: OpenSurfaceInventory,
   removedTabId: number,
   replacement: OpenSurfaceObservation,
-  options: OpenSurfaceInventoryOptions = {}
+  options: OpenSurfaceInventoryOptions = {},
 ): Promise<TransferOpenSurfaceLifetimeResult> {
   const removedEntry = inventory.entries[entryKey(removedTabId)]
   if (!removedEntry) {
@@ -360,7 +360,7 @@ export async function transferOpenSurfaceLifetime(
     previousReplacement || removedEntry,
     removedEntry.closureToken,
     removedEntry.closedAt,
-    options
+    options,
   )
 
   if (!entry) {
@@ -368,17 +368,17 @@ export async function transferOpenSurfaceLifetime(
       inventory: { ...inventory, entries: withoutReplacement },
       entry: null,
       changed: true,
-      transferred: true
+      transferred: true,
     }
   }
 
   return {
     inventory: {
       ...inventory,
-      entries: { ...withoutReplacement, [entryKey(replacement.tabId)]: entry }
+      entries: { ...withoutReplacement, [entryKey(replacement.tabId)]: entry },
     },
     entry,
     changed: true,
-    transferred: true
+    transferred: true,
   }
 }

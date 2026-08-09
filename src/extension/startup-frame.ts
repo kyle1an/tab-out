@@ -11,13 +11,13 @@ import {
   dashboardStartupPreviousOrder,
   dashboardStartupTitleHistory,
   loadDashboardStartupSeedEffect,
-  rebaseDashboardStartupWorkingSetPriority
+  rebaseDashboardStartupWorkingSetPriority,
 } from './startup-snapshot.js'
 import { seedOpenTabsTitleHistory } from './tabs.js'
 
 export class StartupFrameAuthorityError extends Schema.TaggedErrorClass<StartupFrameAuthorityError>()(
   'StartupFrameAuthorityError',
-  { authority: Schema.String }
+  { authority: Schema.String },
 ) {}
 
 function unknownAuthority(authority: string): StartupFrameAuthorityError {
@@ -30,20 +30,20 @@ function unknownAuthority(authority: string): StartupFrameAuthorityError {
  * visible row, action, preference, or dismissal on its own.
  */
 export const captureAppStartupFrameEffect = Effect.fn(
-  'startupFrame.capture'
-)(function*() {
+  'startupFrame.capture',
+)(function* () {
   const [
     seed,
     localStateResult,
     historyRangeResult,
     dismissalsResult,
-    serviceStateResult
+    serviceStateResult,
   ] = yield* Effect.all([
     loadDashboardStartupSeedEffect(),
     loadDashboardLocalStateResultEffect(),
     loadHistoryRangePreferenceResultEffect(),
     loadClosedGhostDismissalsResultEffect(),
-    fetchDashboardServiceStateResultEffect()
+    fetchDashboardServiceStateResultEffect(),
   ] as const, { concurrency: 'unbounded' })
 
   if (!localStateResult.ok) return yield* Effect.fail(unknownAuthority('pins'))
@@ -58,7 +58,7 @@ export const captureAppStartupFrameEffect = Effect.fn(
   const previousOrder: MissionOrderMap = {
     tabs: tabOrder,
     bookmarks: new Map(),
-    history: new Map()
+    history: new Map(),
   }
   const snapshotOptions = {
     source,
@@ -67,7 +67,7 @@ export const captureAppStartupFrameEffect = Effect.fn(
     historyFilterEnabled: isHistoryFilterEnabled(historyRangeResult.value),
     pinnedDomains: [...localStateResult.state.pinnedDomains],
     prefetchedServiceStateResult: serviceStateResult,
-    previousOrder
+    previousOrder,
   }
   const tabsSnapshot = yield* fetchDashboardStartupSnapshotEffect({
     ...snapshotOptions,
@@ -75,7 +75,7 @@ export const captureAppStartupFrameEffect = Effect.fn(
     // Tabs-side bookmark/history companions are visible only when Tabs is the
     // selected source. A Bookmarks startup still captures the Tabs authorities
     // needed by Activation History without reading hidden filter companions.
-    filter: source === 'tabs' ? filter : ''
+    filter: source === 'tabs' ? filter : '',
   })
   const sourceSnapshot = source === 'tabs'
     ? null
@@ -83,7 +83,7 @@ export const captureAppStartupFrameEffect = Effect.fn(
   const snapshot = {
     ...tabsSnapshot,
     ...(sourceSnapshot ? { dashboard: sourceSnapshot.dashboard } : {}),
-    workingSet: rebaseDashboardStartupWorkingSetPriority(seed, tabsSnapshot.workingSet)
+    workingSet: rebaseDashboardStartupWorkingSetPriority(seed, tabsSnapshot.workingSet),
   }
 
   return {
@@ -91,6 +91,6 @@ export const captureAppStartupFrameEffect = Effect.fn(
     historyRange: historyRangeResult.value,
     localState: localStateResult.state,
     snapshot,
-    source
+    source,
   } satisfies AppStartupFrame
 })

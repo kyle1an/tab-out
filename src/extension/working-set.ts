@@ -7,7 +7,7 @@ import type {
   WorkingSetActivityRecord,
   WorkingSetActivityStore,
   WorkingSetItem,
-  WorkingSetSnapshot
+  WorkingSetSnapshot,
 } from './types'
 import { compareNumericText } from './numeric-sort.js'
 import { unwrapSuspenderUrl } from './suspension.js'
@@ -26,11 +26,11 @@ const MAX_EVENTS_PER_RECORD = 80
 
 const workingSetActivityEnvelopeSchema = Schema.Struct({
   version: Schema.Literals([WORKING_SET_ACTIVITY_VERSION]),
-  records: Schema.Record(Schema.String, Schema.Unknown)
+  records: Schema.Record(Schema.String, Schema.Unknown),
 })
 
 const workingSetActivityVersionedValueSchema = Schema.Struct({
-  version: Schema.Finite
+  version: Schema.Finite,
 })
 
 const workingSetActivityRecordCandidateSchema = Schema.Struct({
@@ -39,12 +39,12 @@ const workingSetActivityRecordCandidateSchema = Schema.Struct({
   domain: Schema.optionalKey(Schema.Unknown),
   dismissedAt: Schema.optionalKey(Schema.Unknown),
   dismissedUntil: Schema.optionalKey(Schema.Unknown),
-  events: Schema.optionalKey(Schema.Unknown)
+  events: Schema.optionalKey(Schema.Unknown),
 })
 
 const workingSetActivityEventSchema = Schema.Struct({
   kind: Schema.Literals(['activation', 'navigation']),
-  at: Schema.Finite
+  at: Schema.Finite,
 }) satisfies Schema.Schema<WorkingSetActivityEvent>
 
 const isWorkingSetActivityEnvelope = Schema.is(workingSetActivityEnvelopeSchema)
@@ -60,7 +60,7 @@ const NOISY_QUERY_PARAMS = new Set([
   'mc_cid',
   'mc_eid',
   'ref',
-  'source'
+  'source',
 ])
 type WorkingSetActivityInput = {
   kind: WorkingSetActivityKind
@@ -69,10 +69,10 @@ type WorkingSetActivityInput = {
 }
 
 export type WorkingSetActivityStorageParseResult =
-  | { readonly status: 'missing'; readonly activity: WorkingSetActivityStore }
-  | { readonly status: 'valid'; readonly activity: WorkingSetActivityStore }
+  | { readonly status: 'missing', readonly activity: WorkingSetActivityStore }
+  | { readonly status: 'valid', readonly activity: WorkingSetActivityStore }
   | { readonly status: 'malformed' }
-  | { readonly status: 'unsupported-version'; readonly version: number }
+  | { readonly status: 'unsupported-version', readonly version: number }
 
 export type WorkingSetActivityRecordMutation = {
   readonly activity: WorkingSetActivityStore
@@ -96,14 +96,14 @@ export function emptyWorkingSetActivity(): WorkingSetActivityStore {
 
 function normalizeWorkingSetActivityEnvelope(
   value: typeof workingSetActivityEnvelopeSchema.Type,
-  now: number
+  now: number,
 ): WorkingSetActivityStore {
   const minAt = now - ACTIVITY_RETENTION_MS
   const records: Record<string, WorkingSetActivityRecord> = {}
   for (const [key, record] of Object.entries(value.records)) {
     if (!isWorkingSetActivityRecordCandidate(record)) continue
     const normalizedKey = pageIdentityForWorkingSet(
-      typeof record.url === 'string' ? record.url : key
+      typeof record.url === 'string' ? record.url : key,
     )
     if (!normalizedKey || normalizedKey !== key) continue
     const events = isUnknownArray(record.events)
@@ -135,7 +135,7 @@ function normalizeWorkingSetActivityEnvelope(
       ...(lastActivatedAt === undefined ? {} : { lastActivatedAt }),
       ...(lastNavigatedAt === undefined ? {} : { lastNavigatedAt }),
       ...(dismissalIsActive ? { dismissedAt, dismissedUntil } : {}),
-      events
+      events,
     }
   }
   return { version: WORKING_SET_ACTIVITY_VERSION, records }
@@ -143,7 +143,7 @@ function normalizeWorkingSetActivityEnvelope(
 
 export function parseWorkingSetActivityStorageValue(
   value: unknown,
-  now = Date.now()
+  now = Date.now(),
 ): WorkingSetActivityStorageParseResult {
   if (value === undefined) {
     return { status: 'missing', activity: emptyWorkingSetActivity() }
@@ -151,7 +151,7 @@ export function parseWorkingSetActivityStorageValue(
   if (isWorkingSetActivityEnvelope(value)) {
     return {
       status: 'valid',
-      activity: normalizeWorkingSetActivityEnvelope(value, now)
+      activity: normalizeWorkingSetActivityEnvelope(value, now),
     }
   }
   if (
@@ -204,19 +204,19 @@ function isGoogleSearchResultPage(parsed: URL): boolean {
 
 export function recordWorkingSetActivity(
   store: Partial<WorkingSetActivityStore> | null | undefined,
-  { kind, at, tab }: WorkingSetActivityInput
+  { kind, at, tab }: WorkingSetActivityInput,
 ): WorkingSetActivityStore {
   return recordWorkingSetActivityMutation(store, { kind, at, tab }).activity
 }
 
 export function recordWorkingSetActivityMutation(
   store: Partial<WorkingSetActivityStore> | null | undefined,
-  { kind, at, tab }: WorkingSetActivityInput
+  { kind, at, tab }: WorkingSetActivityInput,
 ): WorkingSetActivityRecordMutation {
   const before = normalizeWorkingSetActivity(store, Number.isFinite(at) ? at : Date.now())
   const key = pageIdentityForWorkingSet(tab.url || tab.rawUrl || '')
   const deleteKeys = Object.keys(store?.records ?? {}).filter(
-    (recordKey) => before.records[recordKey] === undefined
+    (recordKey) => before.records[recordKey] === undefined,
   )
   if (!key || !Number.isFinite(at)) {
     return { activity: before, upsert: null, deleteKeys }
@@ -242,15 +242,15 @@ export function recordWorkingSetActivityMutation(
       : existing?.lastNavigatedAt === undefined
         ? {}
         : { lastNavigatedAt: existing.lastNavigatedAt }),
-    events
+    events,
   }
   return {
     activity: {
       version: WORKING_SET_ACTIVITY_VERSION,
-      records: { ...before.records, [key]: upsert }
+      records: { ...before.records, [key]: upsert },
     },
     upsert,
-    deleteKeys: deleteKeys.filter((recordKey) => recordKey !== key)
+    deleteKeys: deleteKeys.filter((recordKey) => recordKey !== key),
   }
 }
 
@@ -261,7 +261,7 @@ export function buildWorkingSetSnapshot({
   defaultLimit = WORKING_SET_DEFAULT_LIMIT,
   expandedLimit = WORKING_SET_EXPANDED_LIMIT,
   minItems = WORKING_SET_MIN_ITEMS,
-  currentWindowId = null
+  currentWindowId = null,
 }: WorkingSetSnapshotOptions): WorkingSetSnapshot {
   const normalizedActivity = normalizeWorkingSetActivity(activity, now)
   const openByKey = new Map<string, DashboardTab[]>()
@@ -305,7 +305,7 @@ export function buildWorkingSetSnapshot({
       audible: !!representative.audible,
       muted: !!representative.muted,
       score,
-      lastActivatedAt: Math.max(record.lastActivatedAt || 0, record.lastNavigatedAt || 0)
+      lastActivatedAt: Math.max(record.lastActivatedAt || 0, record.lastNavigatedAt || 0),
     })
   }
 
@@ -316,7 +316,7 @@ export function buildWorkingSetSnapshot({
   return {
     defaultLimit,
     expandedLimit,
-    items: rankedItems.length >= minItems ? rankedItems : []
+    items: rankedItems.length >= minItems ? rankedItems : [],
   }
 }
 

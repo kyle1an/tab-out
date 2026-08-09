@@ -16,7 +16,7 @@ function fakeTab(id: number, url: string): chrome.tabs.Tab {
     active: false,
     pinned: false,
     groupId: -1,
-    index: id
+    index: id,
   } as chrome.tabs.Tab
 }
 
@@ -32,15 +32,15 @@ test('BrowserTabs resolves the live gateway on every Effect call', async (t) => 
   setChromeTabsApi(createFakeChromeApi({ tabs: [fakeTab(1, 'https://first.test/')] }))
   assert.deepEqual(
     (await runtime.runPromise(service.queryAllTabsResult())).value.map((tab) => tab.url),
-    ['https://first.test/']
+    ['https://first.test/'],
   )
 
   setChromeTabsApi(createFakeChromeApi({ tabs: [
     fakeTab(2, 'https://second.test/'),
-    fakeTab(3, 'https://third.test/')
+    fakeTab(3, 'https://third.test/'),
   ] }))
   assert.deepEqual(
     (await runtime.runPromise(service.queryAllTabsResult())).value.map((tab) => tab.url),
-    ['https://second.test/', 'https://third.test/']
+    ['https://second.test/', 'https://third.test/'],
   )
 })

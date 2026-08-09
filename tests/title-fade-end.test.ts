@@ -18,7 +18,7 @@ test('truncatedTitleFadeEndPx anchors the fade to the last visible line end', ()
   const fragments = [
     fragment(BOX.top, 244),
     fragment(BOX.top + LINE_HEIGHT, 209.5),
-    fragment(BOX.top + LINE_HEIGHT * 2, 233.3)
+    fragment(BOX.top + LINE_HEIGHT * 2, 233.3),
   ]
   assert.equal(truncatedTitleFadeEndPx(fragments, BOX), 134.5)
 })
@@ -28,7 +28,7 @@ test('truncatedTitleFadeEndPx groups same-line fragments despite sub-pixel top j
     fragment(BOX.top, 200),
     fragment(BOX.top + LINE_HEIGHT, 150),
     fragment(BOX.top + LINE_HEIGHT - 1, 180),
-    fragment(BOX.top + LINE_HEIGHT + 1, 165)
+    fragment(BOX.top + LINE_HEIGHT + 1, 165),
   ]
   assert.equal(truncatedTitleFadeEndPx(fragments, BOX), 180 - BOX.left)
 })
@@ -37,7 +37,7 @@ test('truncatedTitleFadeEndPx ignores zero-size fragments', () => {
   const fragments = [
     fragment(BOX.top, 244),
     { top: BOX.top + LINE_HEIGHT, right: 246, width: 0, height: 0 },
-    fragment(BOX.top + LINE_HEIGHT, 209.5)
+    fragment(BOX.top + LINE_HEIGHT, 209.5),
   ]
   assert.equal(truncatedTitleFadeEndPx(fragments, BOX), 134.5)
 })
@@ -45,7 +45,7 @@ test('truncatedTitleFadeEndPx ignores zero-size fragments', () => {
 test('truncatedTitleFadeEndPx keeps at least one fade ramp of text solid', () => {
   const fragments = [
     fragment(BOX.top, 244),
-    fragment(BOX.top + LINE_HEIGHT, BOX.left + 30, 30)
+    fragment(BOX.top + LINE_HEIGHT, BOX.left + 30, 30),
   ]
   assert.equal(truncatedTitleFadeEndPx(fragments, BOX), 60)
 })

@@ -8,7 +8,7 @@ test('adjacent close batching drains one deduplicated transaction without a time
   const batches: number[][] = []
   const batcher = createAdjacentCloseBatcher(
     (tabIds) => { batches.push([...tabIds]) },
-    { schedule: (drain) => scheduled.push(drain) }
+    { schedule: (drain) => scheduled.push(drain) },
   )
 
   batcher.enqueue(1)
@@ -26,7 +26,7 @@ test('a close arriving after the drain boundary starts a new immediate batch', (
   const batches: number[][] = []
   const batcher = createAdjacentCloseBatcher(
     (tabIds) => { batches.push([...tabIds]) },
-    { schedule: (drain) => scheduled.push(drain) }
+    { schedule: (drain) => scheduled.push(drain) },
   )
 
   batcher.enqueue(1)
@@ -47,7 +47,7 @@ test('close events arriving during an asynchronous write drain together after it
       batches.push([...tabIds])
       return new Promise<void>((resolve) => releases.push(resolve))
     },
-    { schedule: (drain) => scheduled.push(drain) }
+    { schedule: (drain) => scheduled.push(drain) },
   )
 
   batcher.enqueue(1)
@@ -79,7 +79,7 @@ test('a rejected asynchronous batch still releases the next accumulated drain', 
       if (batches.length > 1) return
       return new Promise<void>((_resolve, reject) => { rejections.push(reject) })
     },
-    { schedule: (drain) => scheduled.push(drain) }
+    { schedule: (drain) => scheduled.push(drain) },
   )
 
   batcher.enqueue(1)
@@ -102,7 +102,7 @@ test('settlement waits for the async batch and reuses its recent completion', as
       batches.push([...tabIds])
       return new Promise<void>((resolve) => releases.push(resolve))
     },
-    { schedule: (drain) => scheduled.push(drain) }
+    { schedule: (drain) => scheduled.push(drain) },
   )
 
   batcher.enqueue(7)
@@ -131,7 +131,7 @@ test('settlement queues a missing event and releases even when capture rejects',
   const scheduled: Array<() => void> = []
   const batcher = createAdjacentCloseBatcher(
     () => Promise.reject(new Error('capture failed')),
-    { schedule: (drain) => scheduled.push(drain) }
+    { schedule: (drain) => scheduled.push(drain) },
   )
 
   const settlement = batcher.whenSettled(9)

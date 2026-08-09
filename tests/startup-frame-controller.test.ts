@@ -2,13 +2,13 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  createStartupAdmissionController
+  createStartupAdmissionController,
 } from '../src/extension/startup-frame-controller.js'
 import type {
   StartupAdmissionCaptureRequest,
   StartupAdmissionCaptureResult,
   StartupAdmissionCaptureRunner,
-  StartupAdmissionSchedule
+  StartupAdmissionSchedule,
 } from '../src/extension/startup-frame-controller.js'
 
 type TestTimer = {
@@ -28,13 +28,13 @@ function createTestTime() {
       id: ++timerSequence,
       at: currentTime + Math.max(0, delayMs),
       callback,
-      cancelled: false
+      cancelled: false,
     }
     timers.push(timer)
     return {
       cancel() {
         timer.cancelled = true
-      }
+      },
     }
   }
 
@@ -63,7 +63,7 @@ function createTestTime() {
     now: () => currentTime,
     schedule,
     advanceBy,
-    pendingTimerCount: () => timers.filter((timer) => !timer.cancelled).length
+    pendingTimerCount: () => timers.filter((timer) => !timer.cancelled).length,
   }
 }
 
@@ -79,13 +79,13 @@ function createCaptureHarness<Value, Error>() {
     const pending: PendingCapture<Value, Error> = {
       request,
       settle,
-      cancelled: false
+      cancelled: false,
     }
     captures.push(pending)
     return {
       cancel() {
         pending.cancelled = true
-      }
+      },
     }
   }
   return { capture, captures }
@@ -97,7 +97,7 @@ test('startup admission stays quiet until the complete frame is ready', () => {
   const controller = createStartupAdmissionController({
     capture: harness.capture,
     now: time.now,
-    schedule: time.schedule
+    schedule: time.schedule,
   })
 
   assert.deepEqual(controller.read(), { phase: 'shell' })
@@ -105,27 +105,27 @@ test('startup admission stays quiet until the complete frame is ready', () => {
   controller.start()
   assert.deepEqual(controller.read(), {
     phase: 'capturing',
-    attempt: 1
+    attempt: 1,
   })
   assert.deepEqual(harness.captures[0]?.request, {
     attempt: 1,
     generation: 0,
     startedAt: 0,
     deadlineAt: 5_000,
-    remainingMs: 5_000
+    remainingMs: 5_000,
   })
 
   time.advanceBy(300)
   assert.deepEqual(controller.read(), {
     phase: 'capturing',
-    attempt: 1
+    attempt: 1,
   })
 
   harness.captures[0]?.settle({ ok: true, value: 'live frame' })
   assert.deepEqual(controller.read(), {
     phase: 'ready',
     attempt: 1,
-    value: 'live frame'
+    value: 'live frame',
   })
   assert.equal(time.pendingTimerCount(), 0)
 })
@@ -136,7 +136,7 @@ test('material changes coalesce and recapture inside the original fixed deadline
   const controller = createStartupAdmissionController({
     capture: harness.capture,
     now: time.now,
-    schedule: time.schedule
+    schedule: time.schedule,
   })
 
   controller.start()
@@ -154,7 +154,7 @@ test('material changes coalesce and recapture inside the original fixed deadline
     generation: 2,
     startedAt: 0,
     deadlineAt: 5_000,
-    remainingMs: 4_000
+    remainingMs: 4_000,
   })
 
   harness.captures[0]?.settle({ ok: true, value: 'stale frame' })
@@ -166,7 +166,7 @@ test('material changes coalesce and recapture inside the original fixed deadline
   assert.deepEqual(controller.read(), {
     phase: 'failed',
     attempt: 1,
-    failure: { kind: 'timeout' }
+    failure: { kind: 'timeout' },
   })
   assert.equal(harness.captures[1]?.cancelled, true)
 
@@ -180,7 +180,7 @@ test('delayed material changes invalidate immediately and slide recapture within
   const controller = createStartupAdmissionController({
     capture: harness.capture,
     now: time.now,
-    schedule: time.schedule
+    schedule: time.schedule,
   })
 
   controller.start()
@@ -199,7 +199,7 @@ test('delayed material changes invalidate immediately and slide recapture within
     generation: 2,
     startedAt: 0,
     deadlineAt: 5_000,
-    remainingMs: 4_550
+    remainingMs: 4_550,
   })
 })
 
@@ -209,7 +209,7 @@ test('a delayed material change from failure also coalesces before the fresh cap
   const controller = createStartupAdmissionController({
     capture: harness.capture,
     now: time.now,
-    schedule: time.schedule
+    schedule: time.schedule,
   })
 
   controller.start()
@@ -218,7 +218,7 @@ test('a delayed material change from failure also coalesces before the fresh cap
 
   assert.deepEqual(controller.read(), {
     phase: 'capturing',
-    attempt: 2
+    attempt: 2,
   })
   time.advanceBy(100)
   controller.materialChanged(200)
@@ -231,7 +231,7 @@ test('a delayed material change from failure also coalesces before the fresh cap
     generation: 1,
     startedAt: 0,
     deadlineAt: 5_000,
-    remainingMs: 4_700
+    remainingMs: 4_700,
   })
 })
 
@@ -241,7 +241,7 @@ test('capture failure stays failed until visibility or material state changes', 
   const controller = createStartupAdmissionController({
     capture: harness.capture,
     now: time.now,
-    schedule: time.schedule
+    schedule: time.schedule,
   })
 
   controller.start()
@@ -249,7 +249,7 @@ test('capture failure stays failed until visibility or material state changes', 
   assert.deepEqual(controller.read(), {
     phase: 'failed',
     attempt: 1,
-    failure: { kind: 'capture', error: 'storage unavailable' }
+    failure: { kind: 'capture', error: 'storage unavailable' },
   })
 
   time.advanceBy(20_000)
@@ -262,7 +262,7 @@ test('capture failure stays failed until visibility or material state changes', 
     generation: 0,
     startedAt: 20_000,
     deadlineAt: 25_000,
-    remainingMs: 5_000
+    remainingMs: 5_000,
   })
 
   harness.captures[1]?.settle({ ok: false, error: 'still unavailable' })
@@ -273,7 +273,7 @@ test('capture failure stays failed until visibility or material state changes', 
     generation: 0,
     startedAt: 20_200,
     deadlineAt: 25_200,
-    remainingMs: 5_000
+    remainingMs: 5_000,
   })
 
   harness.captures[2]?.settle({ ok: false, error: 'again unavailable' })
@@ -284,7 +284,7 @@ test('capture failure stays failed until visibility or material state changes', 
     generation: 0,
     startedAt: 20_400,
     deadlineAt: 25_400,
-    remainingMs: 5_000
+    remainingMs: 5_000,
   })
 })
 
@@ -294,7 +294,7 @@ test('visibility return recaptures inside an active attempt without resetting it
   const controller = createStartupAdmissionController({
     capture: harness.capture,
     now: time.now,
-    schedule: time.schedule
+    schedule: time.schedule,
   })
 
   controller.start()
@@ -308,7 +308,7 @@ test('visibility return recaptures inside an active attempt without resetting it
     generation: 1,
     startedAt: 0,
     deadlineAt: 5_000,
-    remainingMs: 3_750
+    remainingMs: 3_750,
   })
 
   harness.captures[0]?.settle({ ok: true, value: 'stale attempt' })
@@ -317,7 +317,7 @@ test('visibility return recaptures inside an active attempt without resetting it
   assert.deepEqual(controller.read(), {
     phase: 'ready',
     attempt: 1,
-    value: 'current attempt'
+    value: 'current attempt',
   })
 })
 
@@ -327,7 +327,7 @@ test('dispose is idempotent and rejects every later completion', () => {
   const controller = createStartupAdmissionController({
     capture: harness.capture,
     now: time.now,
-    schedule: time.schedule
+    schedule: time.schedule,
   })
   let notifications = 0
   controller.subscribe(() => { notifications += 1 })

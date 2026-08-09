@@ -40,7 +40,7 @@ export function createExpansionMeasureElement(sourceEl: HTMLElement, { className
     top: '0',
     visibility: 'hidden',
     whiteSpace: 'normal',
-    width: 'max-content'
+    width: 'max-content',
   })
   measureEl.style.setProperty('hyphenate-character', '')
   measureEl.style.setProperty('mask-image', 'none')

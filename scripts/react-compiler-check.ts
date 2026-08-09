@@ -40,7 +40,7 @@ const BASELINE: ReadonlyMap<string, number> = new Map([
   ['src/components/App.tsx', 5], // deliberate ordering-cache reads and forwarded grid refs in render
   ['src/components/title-expansion/use-title-expansion.ts', 1], // lazy-init ref facade (stable return)
   ['src/components/ui/tooltip.tsx', 3], // mergeRefs composition (documented suppressions)
-  ['src/extension/layout.ts', 2] // latest-ref render writes; returns are manual useCallbacks
+  ['src/extension/layout.ts', 2], // latest-ref render writes; returns are manual useCallbacks
 ])
 
 const repoRequire = createRequire(join(REPO, 'package.json'))
@@ -51,7 +51,7 @@ function sourceFiles(): string[] {
   const sourceRoot = join(REPO, 'src')
   return globSync('**/*.{ts,tsx}', {
     cwd: sourceRoot,
-    exclude: ['**/*.d.ts']
+    exclude: ['**/*.d.ts'],
   })
     .map((file) => join(sourceRoot, file))
     .sort()
@@ -76,11 +76,11 @@ function bailoutsForFile(file: string): string[] {
                 if (event.kind === 'CompileError') {
                   errors.push(`fn@${event.fnLoc?.start?.line ?? '?'}: ${event.detail?.reason ?? 'unknown reason'}`)
                 }
-              }
-            }
-          }
-        ]
-      ]
+              },
+            },
+          },
+        ],
+      ],
     })
   } catch (error) {
     errors.push(`pipeline error: ${error instanceof Error ? error.message.split('\n')[0] : String(error)}`)

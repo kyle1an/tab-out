@@ -4,21 +4,21 @@ import type { ChromeApi } from '../../../src/extension/background/chrome-api.js'
 import {
   readChromeStorageValue,
   removeChromeStorageValue,
-  writeChromeStorageValue
+  writeChromeStorageValue,
 } from '../../../src/extension/background/chrome-storage.js'
 import {
   emptyWorkingSetActivity,
-  parseWorkingSetActivityStorageValue
+  parseWorkingSetActivityStorageValue,
 } from '../../../src/extension/working-set.js'
 import {
   WORKING_SET_ACTIVITY_KEY,
   WorkingSetActivityStorage,
   WorkingSetActivityStorageError,
-  type WorkingSetActivityWrite
+  type WorkingSetActivityWrite,
 } from '../../../src/extension/background/working-set-activity-storage.js'
 import {
   makeMutationDiagnostics,
-  type WorkingSetBenchmarkBackend
+  type WorkingSetBenchmarkBackend,
 } from './benchmark-backend.js'
 
 const diagnostics = makeMutationDiagnostics()
@@ -35,17 +35,17 @@ function fallbackValidActivity() {
     domain: 'example.test',
     lastSeenAt: at,
     lastActivatedAt: at,
-    events: [{ kind: 'activation', at }]
+    events: [{ kind: 'activation', at }],
   }
   return activity
 }
 
 export function makeWorkingSetActivityStorageLayer(
-  chromeApi: ChromeApi
+  chromeApi: ChromeApi,
 ): Layer.Layer<WorkingSetActivityStorage> {
   const storage = chromeApi.storage?.local
   const unavailable = (): Promise<never> => Promise.reject(
-    new Error('Chrome local storage is unavailable for Working Set activity')
+    new Error('Chrome local storage is unavailable for Working Set activity'),
   )
   const legacyLayer = WorkingSetActivityStorage.layer({
     read: () => storage
@@ -55,19 +55,19 @@ export function makeWorkingSetActivityStorageLayer(
       ? writeChromeStorageValue(
           storage,
           WORKING_SET_ACTIVITY_KEY,
-          change.activity
+          change.activity,
         )
       : unavailable(),
     replace: (activity) => storage
       ? writeChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY, activity)
-      : unavailable()
+      : unavailable(),
   })
   return Layer.effect(
     WorkingSetActivityStorage,
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const legacyStorage = yield* WorkingSetActivityStorage
       const write = Effect.fn('WorkingSetBenchmark.currentEnvelope.write')(
-        function*(change: WorkingSetActivityWrite) {
+        function* (change: WorkingSetActivityWrite) {
           yield* Effect.sync(diagnostics.beginWrite)
           const shouldFail = yield* Effect.sync(() => {
             if (!failNextWrite) return false
@@ -78,22 +78,22 @@ export function makeWorkingSetActivityStorageLayer(
             return yield* Effect.fail(WorkingSetActivityStorageError.make({
               operation: 'write',
               reason: 'backend',
-              cause: new Error('Synthetic Working Set benchmark write failure')
+              cause: new Error('Synthetic Working Set benchmark write failure'),
             }))
           }
           yield* legacyStorage.write(change)
           yield* Effect.sync(() => diagnostics.commitMutation(
             [change.activity],
-            [WORKING_SET_ACTIVITY_KEY]
+            [WORKING_SET_ACTIVITY_KEY],
           ))
-        }
+        },
       )
       return WorkingSetActivityStorage.of({
         read: legacyStorage.read,
         write,
-        replace: legacyStorage.replace
+        replace: legacyStorage.replace,
       })
-    })
+    }),
   ).pipe(Layer.provide(legacyLayer))
 }
 
@@ -101,7 +101,7 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
   variant: 'current',
   ownedStorage: {
     kind: 'chrome-storage',
-    keys: [WORKING_SET_ACTIVITY_KEY]
+    keys: [WORKING_SET_ACTIVITY_KEY],
   },
   lastMutationLogicalBytes: diagnostics.lastMutationLogicalBytes,
   lastMutationPhysicalWrites: diagnostics.lastMutationPhysicalWrites,
@@ -123,13 +123,13 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
     if (kind === 'outer-version') {
       await writeChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY, {
         version: 2,
-        records: {}
+        records: {},
       })
       return
     }
 
     const parsed = parseWorkingSetActivityStorageValue(
-      await readChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY)
+      await readChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY),
     )
     const activity = parsed.status === 'valid' &&
       Object.keys(parsed.activity.records).length > 0
@@ -139,8 +139,8 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
       version: 1,
       records: {
         ...activity.records,
-        'invalid-benchmark-row': null
-      }
+        'invalid-benchmark-row': null,
+      },
     })
   },
   async reset(chromeApi): Promise<void> {
@@ -151,5 +151,5 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
       await removeChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY)
     }
   },
-  close: () => {}
+  close: () => {},
 }

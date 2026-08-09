@@ -6,9 +6,9 @@ import { tabMatchesFilter } from '../extension/filter-match.js'
 import { pageIdentityForWorkingSet } from '../extension/working-set.js'
 
 export type HistoryPanelRow =
-  | { kind: 'stack'; entry: TabHistoryEntry; lastTouchedAt: number }
-  | { kind: 'open-ghost'; item: WorkingSetItem; lastTouchedAt: number }
-  | { kind: 'closed-ghost'; closed: ClosedTabEntry; lastTouchedAt: number }
+  | { kind: 'stack', entry: TabHistoryEntry, lastTouchedAt: number }
+  | { kind: 'open-ghost', item: WorkingSetItem, lastTouchedAt: number }
+  | { kind: 'closed-ghost', closed: ClosedTabEntry, lastTouchedAt: number }
 
 export interface UseHistoryPanelRowsArgs {
   snapshot: TabHistorySnapshot | null
@@ -32,14 +32,14 @@ export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter
   const stackEntries = snapshot?.entries ?? []
   const stackBaseTimestamp = stackEntries.reduce(
     (max, entry) => Math.max(max, entry.lastActivatedAt ?? entry.createdAt ?? 0),
-    0
+    0,
   )
   const stackCursorIndex = snapshot?.currentIndex ?? stackEntries.length - 1
 
   // Collect each stack entry with its cursor distance and a "base" timestamp:
   // the real activity-log value when present, else a synthesized fallback
   // derived from cursor distance.
-  const rawStackCandidates: Array<{ entry: TabHistoryEntry; cursorDistance: number; base: number }> = []
+  const rawStackCandidates: Array<{ entry: TabHistoryEntry, cursorDistance: number, base: number }> = []
   for (const entry of stackEntries) {
     if (filterActive && !tabMatchesFilter({ title: entry.title, url: entry.url, isTabOut: false }, filter)) continue
     const cursorDistance = Math.abs(entry.index - stackCursorIndex)
@@ -49,7 +49,7 @@ export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter
     rawStackCandidates.push({
       entry,
       cursorDistance,
-      base: entry.lastActivatedAt ?? entry.createdAt ?? synthesizedTouchedAt
+      base: entry.lastActivatedAt ?? entry.createdAt ?? synthesizedTouchedAt,
     })
   }
   rawStackCandidates.sort((a, b) => a.cursorDistance - b.cursorDistance)
@@ -62,7 +62,7 @@ export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter
   // effective timestamp strictly below the previous one pins the indexed rows
   // into navigation order, while leaving gaps where ghost rows still interleave
   // by their own real timestamps.
-  const stackCandidates: Array<{ row: HistoryPanelRow; cursorDistance: number }> = []
+  const stackCandidates: Array<{ row: HistoryPanelRow, cursorDistance: number }> = []
   let previousStackEffective = Number.POSITIVE_INFINITY
   for (const { entry, cursorDistance, base } of rawStackCandidates) {
     const lastTouchedAt = Math.min(base, previousStackEffective - 1)
@@ -104,7 +104,7 @@ export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter
     consume(
       row,
       pageIdentityForWorkingSet(row.entry.url) || row.entry.url,
-      !!row.entry.pending
+      !!row.entry.pending,
     )
   }
   for (const row of openGhostCandidates) {
@@ -127,8 +127,8 @@ export function useHistoryPanelRows({ snapshot, workingSet, closedTabs, filter, 
       workingSet,
       closedTabs,
       filter,
-      ...(dismissedClosedGhosts === undefined ? {} : { dismissedClosedGhosts })
+      ...(dismissedClosedGhosts === undefined ? {} : { dismissedClosedGhosts }),
     }),
-    [snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts]
+    [snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts],
   )
 }

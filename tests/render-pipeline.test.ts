@@ -14,7 +14,7 @@ import {
   deleteHistorySourceUrl,
   fetchHistorySourceSearch,
   flattenHistoryItems,
-  isHistoryFilterEnabled
+  isHistoryFilterEnabled,
 } from '../src/extension/history-source.js'
 import { filterInputFromSearch, isFilterFocusShortcut, titleForFilterInput, urlForFilterInput } from '../src/extension/app-url.js'
 import { readFilterFocusPendingInput, releaseFilterFocusBootValue } from '../src/extension/filter-focus-buffer.js'
@@ -37,9 +37,9 @@ import type { DashboardCardVM, DashboardChipData, DashboardTab } from '../src/ex
   runtime: {
     getURL(path: string) {
       return `chrome-extension://tab-out${path}`
-    }
-  }
-};
+    },
+  },
+}
 
 function expectDefined<T>(value: T | null | undefined, message = 'Expected a defined value'): T {
   assert.ok(value !== null && value !== undefined, message)
@@ -72,7 +72,7 @@ function makeTab(overrides: Partial<DashboardTab> & { url: string }): DashboardT
     pinned: overrides.pinned ?? false,
     groupId: overrides.groupId ?? -1,
     isTabOut: overrides.isTabOut ?? false,
-    isApp: overrides.isApp ?? false
+    isApp: overrides.isApp ?? false,
   }
 
   if (overrides.status !== undefined) tab.status = overrides.status
@@ -91,7 +91,7 @@ function makeTab(overrides: Partial<DashboardTab> & { url: string }): DashboardT
 test('buildDomainGroups keeps homepage routes inside their native domain cards', () => {
   const tabs = [
     makeTab({ url: 'https://github.com/', title: 'GitHub' }),
-    makeTab({ id: 2, url: 'https://github.com/openai/openai', title: 'openai/openai' })
+    makeTab({ id: 2, url: 'https://github.com/openai/openai', title: 'openai/openai' }),
   ]
 
   const groups = buildDomainGroups(tabs)
@@ -106,8 +106,8 @@ test('computeDomainCardViewModel preserves title suffixes for hostless file URLs
     domain: 'local-files',
     tabs: [makeTab({
       url: 'file:///Users/example/Example%20Document.txt',
-      title: 'Example Document - Local Files'
-    })]
+      title: 'Example Document - Local Files',
+    })],
   })
   const chip = atOrThrow(firstSection(vm).flatVisibleChips, 0)
 
@@ -122,7 +122,7 @@ test('buildDomainGroups keeps eligible hostless pages visible and places view-so
       url: 'view-source:https://example.test/article',
       title: 'Source of Example article',
       sourceType: 'retained-page',
-      closedSaved: true
+      closedSaved: true,
     }),
     makeTab({
       id: 'mailto',
@@ -130,13 +130,13 @@ test('buildDomainGroups keeps eligible hostless pages visible and places view-so
       title: 'Email person',
       sourceType: 'saved-page',
       saved: true,
-      closedSaved: true
-    })
+      closedSaved: true,
+    }),
   ])
 
   assert.deepEqual(groups.map(({ domain, label }) => ({ domain, label })), [
     { domain: 'example.test', label: undefined },
-    { domain: '__hostless-pages__', label: 'Other pages' }
+    { domain: '__hostless-pages__', label: 'Other pages' },
   ])
   assert.equal(groups.flatMap((group) => group.tabs).length, 2)
 })
@@ -146,12 +146,12 @@ test('buildDomainGroups orders normal domain cards by tab count', () => {
     makeTab({ url: 'https://github.com/', title: 'GitHub' }),
     makeTab({ id: 2, url: 'https://github.com/openai/openai', title: 'openai/openai' }),
     makeTab({ id: 3, url: 'https://openai.com/research', title: 'Research' }),
-    makeTab({ id: 4, url: 'https://openai.com/api', title: 'API' })
+    makeTab({ id: 4, url: 'https://openai.com/api', title: 'API' }),
   ])
 
   assert.deepEqual(
     groups.map((group) => group.domain),
-    ['github.com', 'openai.com']
+    ['github.com', 'openai.com'],
   )
 })
 
@@ -163,16 +163,16 @@ test('buildDashboardDataFromTabs builds dashboard data from an injected open-tab
     url: 'https://example.com/docs',
     title: 'Retained Docs',
     closedAt: 1,
-    closureToken: 'retained-docs-closure'
+    closureToken: 'retained-docs-closure',
   }
   const { dashboard } = await buildDashboardDataFromTabs(
     [
       makeTab({ url: 'https://example.com/docs', title: 'Docs' }),
-      makeTab({ id: 2, url: 'https://example.test/app', title: 'App' })
+      makeTab({ id: 2, url: 'https://example.test/app', title: 'App' }),
     ],
     1,
     new Map(),
-    { retainedPages: [retainedPage], now: 1_000 }
+    { retainedPages: [retainedPage], now: 1_000 },
   )
 
   assert.deepEqual(dashboard.realTabs.map((tab) => tab.url), ['https://example.com/docs', 'https://example.test/app'])
@@ -182,7 +182,7 @@ test('buildDashboardDataFromTabs builds dashboard data from an injected open-tab
   assert.equal(dashboard.historySearchQuery, '')
   assert.deepEqual(dashboard.retainedPageSurfaceMatches, [{
     canonicalKey: retainedPage.canonicalKey,
-    surfaceKind: retainedPage.surfaceKind
+    surfaceKind: retainedPage.surfaceKind,
   }])
 })
 
@@ -195,12 +195,12 @@ test('expired retention cannot infer an app surface for Activation History', asy
     url: 'https://example.test/app',
     title: 'Expired app',
     closedAt: now - RETAINED_PAGE_LIFETIME_MS,
-    closureToken: 'retained-expired-app-closure'
+    closureToken: 'retained-expired-app-closure',
   }
 
   const { dashboard } = await buildDashboardDataFromTabs([], null, new Map(), {
     retainedPages: [expiredAppPage],
-    now
+    now,
   })
 
   assert.deepEqual(dashboard.realTabs, [])
@@ -212,14 +212,14 @@ test('buildDomainGroups puts pinned domain cards above higher-count normal cards
     [
       makeTab({ url: 'https://github.com/', title: 'GitHub' }),
       makeTab({ id: 2, url: 'https://github.com/openai/openai', title: 'openai/openai' }),
-      makeTab({ id: 3, url: 'https://openai.com/research', title: 'Research' })
+      makeTab({ id: 3, url: 'https://openai.com/research', title: 'Research' }),
     ],
-    { pinnedDomains: ['openai.com'] }
+    { pinnedDomains: ['openai.com'] },
   )
 
   assert.deepEqual(
     groups.map((group) => group.domain),
-    ['openai.com', 'github.com']
+    ['openai.com', 'github.com'],
   )
   assert.deepEqual(groups.map((group) => group.pinned), [true, false])
 })
@@ -229,21 +229,21 @@ test('buildDomainGroups keeps saved pin order ahead of previous card order', () 
     [
       makeTab({ url: 'https://github.com/', title: 'GitHub' }),
       makeTab({ id: 2, url: 'https://openai.com/research', title: 'Research' }),
-      makeTab({ id: 3, url: 'https://example.com/docs', title: 'Docs' })
+      makeTab({ id: 3, url: 'https://example.com/docs', title: 'Docs' }),
     ],
     {
       pinnedDomains: ['example.com', 'openai.com'],
       previousOrder: new Map([
         ['domain-github.com', 0],
         ['domain-openai.com', 1],
-        ['domain-example.com', 2]
-      ])
-    }
+        ['domain-example.com', 2],
+      ]),
+    },
   )
 
   assert.deepEqual(
     groups.map((group) => group.domain),
-    ['example.com', 'openai.com', 'github.com']
+    ['example.com', 'openai.com', 'github.com'],
   )
 })
 
@@ -257,14 +257,14 @@ test('buildDomainGroups leaves utility cards unpinned by default', () => {
     [
       makeTab({ url: 'https://openai.com/research', title: 'Research' }),
       makeTab({ id: 2, url: 'https://mail.google.com/mail/u/0/', title: 'Inbox', isApp: true }),
-      makeTab({ id: 3, url: 'chrome-extension://tab-out/index.html', rawUrl: 'chrome-extension://tab-out/index.html', title: 'Tab Out', isTabOut: true })
+      makeTab({ id: 3, url: 'chrome-extension://tab-out/index.html', rawUrl: 'chrome-extension://tab-out/index.html', title: 'Tab Out', isTabOut: true }),
     ],
-    { pinnedDomains: ['openai.com'] }
+    { pinnedDomains: ['openai.com'] },
   )
 
   assert.deepEqual(
     groups.map((group) => group.domain),
-    ['openai.com', '__tab-out__', '__standalone-apps__']
+    ['openai.com', '__tab-out__', '__standalone-apps__'],
   )
   assert.equal(groups.find((group) => group.domain === '__tab-out__')?.pinned, false)
   assert.equal(groups.find((group) => group.domain === '__standalone-apps__')?.pinned, false)
@@ -275,14 +275,14 @@ test('buildDomainGroups lets utility cards be explicitly pinned', () => {
     [
       makeTab({ url: 'https://openai.com/research', title: 'Research' }),
       makeTab({ id: 2, url: 'https://mail.google.com/mail/u/0/', title: 'Inbox', isApp: true }),
-      makeTab({ id: 3, url: 'chrome-extension://tab-out/index.html', rawUrl: 'chrome-extension://tab-out/index.html', title: 'Tab Out', isTabOut: true })
+      makeTab({ id: 3, url: 'chrome-extension://tab-out/index.html', rawUrl: 'chrome-extension://tab-out/index.html', title: 'Tab Out', isTabOut: true }),
     ],
-    { pinnedDomains: ['__standalone-apps__', '__tab-out__'] }
+    { pinnedDomains: ['__standalone-apps__', '__tab-out__'] },
   )
 
   assert.deepEqual(
     groups.map((group) => group.domain),
-    ['__standalone-apps__', '__tab-out__', 'openai.com']
+    ['__standalone-apps__', '__tab-out__', 'openai.com'],
   )
   assert.deepEqual(groups.map((group) => group.pinned), [true, true, false])
 })
@@ -291,7 +291,7 @@ test('buildDomainGroups collects standalone app tabs into a dedicated apps card'
   const groups = buildDomainGroups([
     makeTab({ url: 'https://mail.google.com/mail/u/0/', title: 'Inbox', active: true, isApp: true, windowId: 2 }),
     makeTab({ id: 2, url: 'https://calendar.google.com/calendar/u/0/r', title: 'Calendar', active: true, isApp: true, windowId: 3 }),
-    makeTab({ id: 3, url: 'https://github.com/openai/openai', title: 'openai/openai' })
+    makeTab({ id: 3, url: 'https://github.com/openai/openai', title: 'openai/openai' }),
   ])
 
   const appsGroup = groups.find((group) => group.domain === '__standalone-apps__')
@@ -299,7 +299,7 @@ test('buildDomainGroups collects standalone app tabs into a dedicated apps card'
   assert.equal(appsGroup.label, 'Apps')
   assert.deepEqual(
     appsGroup.tabs.map((tab) => tab.url),
-    ['https://mail.google.com/mail/u/0/', 'https://calendar.google.com/calendar/u/0/r']
+    ['https://mail.google.com/mail/u/0/', 'https://calendar.google.com/calendar/u/0/r'],
   )
 
   const appsVm = computeDomainCardViewModel(appsGroup, { currentWindowId: 1 })
@@ -318,7 +318,7 @@ test('buildDomainGroups collects standalone app tabs into a dedicated apps card'
   const filteredVm = buildDashboardViewModel({
     realTabs: groups.flatMap((group) => group.tabs),
     domainGroups: groups,
-    filter: 'inbox'
+    filter: 'inbox',
   })
   assert.equal(filteredVm.stats.visibleTabs, 1)
   assert.equal(filteredVm.stats.totalTabs, 3)
@@ -330,7 +330,7 @@ test('buildDomainGroups collects standalone app tabs into a dedicated apps card'
   assert.deepEqual(filteredVm.filteredCloseTargets, [])
   assert.deepEqual(
     buildFilterResultCandidates({ primaryMatches: filteredVm.matchedCards }).map((candidate) => candidate.identity),
-    ['https://mail.google.com/mail/u/0/']
+    ['https://mail.google.com/mail/u/0/'],
   )
 })
 
@@ -338,13 +338,13 @@ test('matching Apps render beside normal tabs without entering global filtered c
   const groups = buildDomainGroups([
     makeTab({ id: 1, url: 'https://app.example.test/reference', title: 'Matching App', isApp: true, windowId: 2 }),
     makeTab({ id: 2, url: 'https://docs.example.test/reference', title: 'Matching Tab', windowId: 1 }),
-    makeTab({ id: 3, url: 'https://other.example.test/', title: 'Other Tab', windowId: 1 })
+    makeTab({ id: 3, url: 'https://other.example.test/', title: 'Other Tab', windowId: 1 }),
   ])
 
   const vm = buildDashboardViewModel({
     realTabs: groups.flatMap((group) => group.tabs),
     domainGroups: groups,
-    filter: 'matching'
+    filter: 'matching',
   })
 
   assert.deepEqual(vm.matchedCards.map(({ group }) => group.domain), ['example.test', '__standalone-apps__'])
@@ -352,7 +352,7 @@ test('matching Apps render beside normal tabs without entering global filtered c
   assert.equal(vm.stats.filteredCloseCount, 1)
   assert.deepEqual(vm.filteredCloseTargets, [{
     tabId: 2,
-    tabUrl: 'https://docs.example.test/reference'
+    tabUrl: 'https://docs.example.test/reference',
   }])
 })
 
@@ -363,7 +363,7 @@ test('open and closed standalone-app pages remain filterable', () => {
       url: 'https://mail.example.test/inbox',
       title: 'Open inbox',
       isApp: true,
-      windowId: 2
+      windowId: 2,
     }),
     makeTab({
       id: 'retained-app',
@@ -373,8 +373,8 @@ test('open and closed standalone-app pages remain filterable', () => {
       sourceType: 'retained-page',
       closedSaved: true,
       retainedPageIdentity: 'identity-retained-app',
-      retainedPageClosureToken: 'lifetime-retained-app'
-    })
+      retainedPageClosureToken: 'lifetime-retained-app',
+    }),
   ])
   const appsGroup = groups.find((group) => group.domain === '__standalone-apps__')
   assert.ok(appsGroup)
@@ -384,7 +384,7 @@ test('open and closed standalone-app pages remain filterable', () => {
   assert.equal(matchingClosed.tabCountLabel, '1 closed')
   assert.deepEqual(
     firstSection(matchingClosed).flatVisibleChips.map((chip) => chip.sourceType),
-    ['retained-page']
+    ['retained-page'],
   )
 
   const matchingOpen = computeDomainCardViewModel(appsGroup, { filter: 'inbox' })
@@ -392,7 +392,7 @@ test('open and closed standalone-app pages remain filterable', () => {
   assert.equal(matchingOpen.tabCountLabel, '1')
   assert.deepEqual(
     firstSection(matchingOpen).flatVisibleChips.map((chip) => chip.sourceType),
-    ['tab']
+    ['tab'],
   )
 })
 
@@ -402,7 +402,7 @@ test('standalone-app cards use ordinary Page Chip overflow presentation', () => 
     url: `https://app-${index}.example.test/`,
     title: `App ${index}`,
     isApp: true,
-    windowId: index + 2
+    windowId: index + 2,
   }))).find((candidate) => candidate.domain === '__standalone-apps__')
   assert.ok(group)
 
@@ -421,9 +421,9 @@ test('buildDomainGroups collects Tab Out pages into a dedicated new tabs card', 
       url: 'chrome-extension://tab-out/index.html?focusFilter=1',
       rawUrl: 'chrome-extension://tab-out/index.html?focusFilter=1',
       title: 'Tab Out',
-      isTabOut: true
+      isTabOut: true,
     }),
-    makeTab({ id: 4, url: 'https://openai.com/', title: 'OpenAI' })
+    makeTab({ id: 4, url: 'https://openai.com/', title: 'OpenAI' }),
   ])
 
   const newTabsGroup = groups.find((group) => group.domain === '__tab-out__')
@@ -431,7 +431,7 @@ test('buildDomainGroups collects Tab Out pages into a dedicated new tabs card', 
   assert.equal(newTabsGroup.label, 'New tabs')
   assert.deepEqual(
     newTabsGroup.tabs.map((tab) => tab.rawUrl),
-    ['chrome-extension://tab-out/index.html', 'chrome://newtab/', 'chrome-extension://tab-out/index.html?focusFilter=1']
+    ['chrome-extension://tab-out/index.html', 'chrome://newtab/', 'chrome-extension://tab-out/index.html?focusFilter=1'],
   )
 })
 
@@ -445,23 +445,23 @@ test('computeDomainCardViewModel keeps pinned new tabs out of close and dedupe c
         rawUrl: 'chrome-extension://tab-out/index.html',
         title: 'Tab Out',
         isTabOut: true,
-        pinned: true
+        pinned: true,
       }),
       makeTab({
         id: 2,
         url: 'chrome-extension://tab-out/index.html',
         rawUrl: 'chrome-extension://tab-out/index.html',
         title: 'Tab Out',
-        isTabOut: true
+        isTabOut: true,
       }),
       makeTab({
         id: 3,
         url: 'chrome-extension://tab-out/index.html',
         rawUrl: 'chrome-extension://tab-out/index.html',
         title: 'Tab Out',
-        isTabOut: true
-      })
-    ]
+        isTabOut: true,
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -485,10 +485,10 @@ test('computeDomainCardViewModel labels card-level suspend for live tabs only', 
         url: 'https://example.com/c',
         rawUrl: 'chrome-extension://suspender/suspended.html#uri=https%3A%2F%2Fexample.com%2Fc',
         suspended: true,
-        title: 'Charlie'
+        title: 'Charlie',
       }),
-      makeTab({ id: 4, url: 'https://example.com/d', title: 'Delta', groupId: 7 })
-    ]
+      makeTab({ id: 4, url: 'https://example.com/d', title: 'Delta', groupId: 7 }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -508,16 +508,16 @@ test('computeDomainCardViewModel labels closing every suspended tab in a card', 
         url: 'https://example.com/a',
         rawUrl: 'chrome-extension://suspender/suspended.html#uri=https%3A%2F%2Fexample.com%2Fa',
         suspended: true,
-        title: 'Alpha'
+        title: 'Alpha',
       }),
       makeTab({
         id: 2,
         url: 'https://example.com/b',
         rawUrl: 'chrome-extension://suspender/suspended.html#uri=https%3A%2F%2Fexample.com%2Fb',
         suspended: true,
-        title: 'Bravo'
-      })
-    ]
+        title: 'Bravo',
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -536,7 +536,7 @@ test('computeDomainCardViewModel excludes the current Tab Out page from pinned d
         title: 'Tab Out',
         active: true,
         windowId: 1,
-        isTabOut: true
+        isTabOut: true,
       }),
       makeTab({
         id: 2,
@@ -545,7 +545,7 @@ test('computeDomainCardViewModel excludes the current Tab Out page from pinned d
         title: 'Tab Out',
         pinned: true,
         windowId: 1,
-        isTabOut: true
+        isTabOut: true,
       }),
       makeTab({
         id: 3,
@@ -553,9 +553,9 @@ test('computeDomainCardViewModel excludes the current Tab Out page from pinned d
         rawUrl: 'chrome-extension://tab-out/index.html',
         title: 'Tab Out',
         windowId: 1,
-        isTabOut: true
-      })
-    ]
+        isTabOut: true,
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
@@ -574,7 +574,7 @@ test('computeDomainCardViewModel excludes the current Tab Out page from grouped 
         title: 'Tab Out',
         active: true,
         windowId: 1,
-        isTabOut: true
+        isTabOut: true,
       }),
       makeTab({
         id: 2,
@@ -583,7 +583,7 @@ test('computeDomainCardViewModel excludes the current Tab Out page from grouped 
         title: 'Tab Out',
         groupId: 7,
         windowId: 1,
-        isTabOut: true
+        isTabOut: true,
       }),
       makeTab({
         id: 3,
@@ -591,9 +591,9 @@ test('computeDomainCardViewModel excludes the current Tab Out page from grouped 
         rawUrl: 'chrome-extension://tab-out/index.html',
         title: 'Tab Out',
         windowId: 1,
-        isTabOut: true
-      })
-    ]
+        isTabOut: true,
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
@@ -616,7 +616,7 @@ test('computeDomainCardViewModel splits duplicate Tab Out pages by preserved Chr
         pinned: true,
         groupId: 7,
         windowId: 1,
-        isTabOut: true
+        isTabOut: true,
       }),
       makeTab({
         id: 2,
@@ -625,7 +625,7 @@ test('computeDomainCardViewModel splits duplicate Tab Out pages by preserved Chr
         title: 'Tab Out',
         pinned: true,
         windowId: 1,
-        isTabOut: true
+        isTabOut: true,
       }),
       makeTab({
         id: 3,
@@ -634,7 +634,7 @@ test('computeDomainCardViewModel splits duplicate Tab Out pages by preserved Chr
         title: 'Tab Out',
         groupId: 7,
         windowId: 1,
-        isTabOut: true
+        isTabOut: true,
       }),
       makeTab({
         id: 4,
@@ -643,7 +643,7 @@ test('computeDomainCardViewModel splits duplicate Tab Out pages by preserved Chr
         title: 'Tab Out',
         groupId: 7,
         windowId: 1,
-        isTabOut: true
+        isTabOut: true,
       }),
       makeTab({
         id: 5,
@@ -652,7 +652,7 @@ test('computeDomainCardViewModel splits duplicate Tab Out pages by preserved Chr
         title: 'Tab Out',
         groupId: 8,
         windowId: 1,
-        isTabOut: true
+        isTabOut: true,
       }),
       makeTab({
         id: 6,
@@ -660,7 +660,7 @@ test('computeDomainCardViewModel splits duplicate Tab Out pages by preserved Chr
         rawUrl: tabOutUrl,
         title: 'Tab Out',
         windowId: 1,
-        isTabOut: true
+        isTabOut: true,
       }),
       makeTab({
         id: 7,
@@ -668,9 +668,9 @@ test('computeDomainCardViewModel splits duplicate Tab Out pages by preserved Chr
         rawUrl: tabOutUrl,
         title: 'Tab Out',
         windowId: 1,
-        isTabOut: true
-      })
-    ]
+        isTabOut: true,
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
@@ -691,8 +691,8 @@ test('computeDomainCardViewModel groups same-title URL variants in one rendered 
     domain: 'example.com',
     tabs: [
       makeTab({ url: 'https://example.com/team/dashboard', title: 'Dashboard' }),
-      makeTab({ id: 2, url: 'https://example.com/me/dashboard', title: 'Dashboard' })
-    ]
+      makeTab({ id: 2, url: 'https://example.com/me/dashboard', title: 'Dashboard' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -710,8 +710,8 @@ test('computeDomainCardViewModel uses query crumbs for same-title URL variants o
     domain: 'example.com',
     tabs: [
       makeTab({ url: 'https://example.com/content/item?search_id=alpha', title: 'Example content item' }),
-      makeTab({ id: 2, url: 'https://example.com/content/item?search_id=bravo', title: 'Example content item' })
-    ]
+      makeTab({ id: 2, url: 'https://example.com/content/item?search_id=bravo', title: 'Example content item' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -726,8 +726,8 @@ test('computeDomainCardViewModel keeps same-title URL variant labels unique when
     domain: 'atlassian.net',
     tabs: [
       makeTab({ url: 'https://example.atlassian.net/jira/your-work', title: '[CO] Work item search - JIRA' }),
-      makeTab({ id: 2, url: 'https://example.atlassian.net/jira/your-work/', title: '[CO] Work item search - JIRA' })
-    ]
+      makeTab({ id: 2, url: 'https://example.atlassian.net/jira/your-work/', title: '[CO] Work item search - JIRA' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -745,10 +745,10 @@ test('computeDomainCardViewModel keeps saved state scoped to same-title URL vari
         url: 'https://example.com/content/item?search_id=alpha',
         title: 'Example content item',
         saved: true,
-        savedPageKey: 'https://example.com/content/item?search_id=alpha'
+        savedPageKey: 'https://example.com/content/item?search_id=alpha',
       }),
-      makeTab({ id: 2, url: 'https://example.com/content/item?search_id=bravo', title: 'Example content item' })
-    ]
+      makeTab({ id: 2, url: 'https://example.com/content/item?search_id=bravo', title: 'Example content item' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -769,22 +769,22 @@ test('same-title groups use a live state representative when remembered order pu
       title: 'Shared title',
       sourceType: 'saved-page',
       saved: true,
-      closedSaved: true
+      closedSaved: true,
     }),
     makeTab({
       id: 42,
       url: 'https://example.com/reference?kind=open',
       title: 'Shared title',
       sourceType: 'tab',
-      active: true
-    })
+      active: true,
+    }),
   ]
   const group = atOrThrow(buildDomainGroups(tabs), 0)
   const chip = atOrThrow(firstSection(computeDomainCardViewModel(group, {
     chipOrder: new Map([
       [dashboardChipOrderKeyForTab(atOrThrow(tabs, 0)), 0],
-      [dashboardChipOrderKeyForTab(atOrThrow(tabs, 1)), 1]
-    ])
+      [dashboardChipOrderKeyForTab(atOrThrow(tabs, 1)), 1],
+    ]),
   })).flatVisibleChips, 0)
 
   assert.equal(chip.sourceType, 'tab')
@@ -802,11 +802,11 @@ test('closed-page chips keep raw snapshot metadata separate from display title a
     title: 'Example reference - Example Workspace',
     favIconUrl: rawFavicon,
     sourceType: 'retained-page',
-    closedSaved: true
+    closedSaved: true,
   })
   const chip = atOrThrow(firstSection(computeDomainCardViewModel({
     domain: 'example.com',
-    tabs: [tab]
+    tabs: [tab],
   })).flatVisibleChips, 0)
 
   assert.equal(chip.actionTitle, tab.title)
@@ -819,8 +819,8 @@ test('computeDomainCardViewModel inlines title suppression when same-title URL v
     domain: 'example.com',
     tabs: [
       makeTab({ url: 'https://example.com/content/item?search_id=alpha', title: 'Example content item - Example Workspace' }),
-      makeTab({ id: 2, url: 'https://example.com/content/item?search_id=bravo', title: 'Example content item - Example Workspace' })
-    ]
+      makeTab({ id: 2, url: 'https://example.com/content/item?search_id=bravo', title: 'Example content item - Example Workspace' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -835,7 +835,7 @@ test('computeDomainCardViewModel inlines title suppression when same-title URL v
   assert.deepEqual(chip.titleVariantChips?.map((variant) => variant.suppressedTitleParts), [[], []])
   assert.deepEqual(chip.titleVariantChips?.map((variant) => variant.displaySegments), [
     ['Example content item - Example Workspace'],
-    ['Example content item - Example Workspace']
+    ['Example content item - Example Workspace'],
   ])
 })
 
@@ -845,8 +845,8 @@ test('computeDomainCardViewModel counts same-title URL variants as one title sup
     tabs: [
       makeTab({ url: 'https://example.com/content/item?search_id=alpha', title: 'Example content item - Example Workspace' }),
       makeTab({ id: 2, url: 'https://example.com/content/item?search_id=bravo', title: 'Example content item - Example Workspace' }),
-      makeTab({ id: 3, url: 'https://example.com/settings', title: 'Settings - Example Workspace' })
-    ]
+      makeTab({ id: 3, url: 'https://example.com/settings', title: 'Settings - Example Workspace' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -869,8 +869,8 @@ test('computeDomainCardViewModel maps a suppression token to exact closeable and
     tabs: [
       makeTab({ url: 'https://example.com/content/item?search_id=alpha', title: 'Example content item - Example Workspace' }),
       makeTab({ id: 2, url: 'https://example.com/content/item?search_id=bravo', title: 'Example content item - Example Workspace' }),
-      makeTab({ id: 3, url: 'https://example.com/settings', title: 'Settings - Example Workspace', suspended: true })
-    ]
+      makeTab({ id: 3, url: 'https://example.com/settings', title: 'Settings - Example Workspace', suspended: true }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -881,14 +881,14 @@ test('computeDomainCardViewModel maps a suppression token to exact closeable and
     '- example workspace': [
       { tabId: 1, tabUrl: 'https://example.com/content/item?search_id=alpha' },
       { tabId: 2, tabUrl: 'https://example.com/content/item?search_id=bravo' },
-      { tabId: 3, tabUrl: 'https://example.com/settings' }
-    ]
+      { tabId: 3, tabUrl: 'https://example.com/settings' },
+    ],
   })
   assert.deepEqual(vm.suppressionSuspendTargetsByText, {
     '- example workspace': [
       { tabId: 1, tabUrl: 'https://example.com/content/item?search_id=alpha' },
-      { tabId: 2, tabUrl: 'https://example.com/content/item?search_id=bravo' }
-    ]
+      { tabId: 2, tabUrl: 'https://example.com/content/item?search_id=bravo' },
+    ],
   })
 })
 
@@ -899,8 +899,8 @@ test('suppression token actions exclude a same-URL duplicate whose own title lac
     tabs: [
       makeTab({ id: 1, url: sharedUrl, title: 'Alpha - Example Workspace' }),
       makeTab({ id: 2, url: sharedUrl, title: 'Unrelated' }),
-      makeTab({ id: 3, url: 'https://example.com/other', title: 'Gamma - Example Workspace' })
-    ]
+      makeTab({ id: 3, url: 'https://example.com/other', title: 'Gamma - Example Workspace' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -908,8 +908,8 @@ test('suppression token actions exclude a same-URL duplicate whose own title lac
   assert.deepEqual(vm.suppressionCloseTargetsByText, {
     '- example workspace': [
       { tabId: 1, tabUrl: sharedUrl },
-      { tabId: 3, tabUrl: 'https://example.com/other' }
-    ]
+      { tabId: 3, tabUrl: 'https://example.com/other' },
+    ],
   })
 })
 
@@ -919,22 +919,22 @@ test('suppression token action target maps exclude grouped tabs and are empty wh
     tabs: [
       makeTab({ url: 'https://example.com/a', title: 'Alpha - Example Workspace' }),
       makeTab({ id: 2, url: 'https://example.com/b', title: 'Bravo - Example Workspace' }),
-      makeTab({ id: 3, url: 'https://example.com/c', title: 'Charlie - Example Workspace', groupId: 7 })
-    ]
+      makeTab({ id: 3, url: 'https://example.com/c', title: 'Charlie - Example Workspace', groupId: 7 }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
   assert.deepEqual(vm.suppressionCloseTargetsByText, {
     '- example workspace': [
       { tabId: 1, tabUrl: 'https://example.com/a' },
-      { tabId: 2, tabUrl: 'https://example.com/b' }
-    ]
+      { tabId: 2, tabUrl: 'https://example.com/b' },
+    ],
   })
   assert.deepEqual(vm.suppressionSuspendTargetsByText, {
     '- example workspace': [
       { tabId: 1, tabUrl: 'https://example.com/a' },
-      { tabId: 2, tabUrl: 'https://example.com/b' }
-    ]
+      { tabId: 2, tabUrl: 'https://example.com/b' },
+    ],
   })
 
   const readOnlyVm = computeDomainCardViewModel(group, { allowMutations: false })
@@ -947,8 +947,8 @@ test('computeDomainCardViewModel skips path suffixes for duplicate titles in dif
     domain: 'atlassian.net',
     tabs: [
       makeTab({ url: 'https://example.atlassian.net/browse/APP-1001', title: 'Example task' }),
-      makeTab({ id: 2, url: 'https://example.atlassian.net/browse/DOC-2001', title: 'Example task' })
-    ]
+      makeTab({ id: 2, url: 'https://example.atlassian.net/browse/DOC-2001', title: 'Example task' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -963,8 +963,8 @@ test('computeDomainCardViewModel groups duplicate titles inside the same rendere
     domain: 'atlassian.net',
     tabs: [
       makeTab({ url: 'https://example.atlassian.net/browse/APP-1001', title: 'Example task' }),
-      makeTab({ id: 2, url: 'https://example.atlassian.net/browse/APP-1002', title: 'Example task' })
-    ]
+      makeTab({ id: 2, url: 'https://example.atlassian.net/browse/APP-1002', title: 'Example task' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -981,8 +981,8 @@ test('computeDomainCardViewModel hides repeated trailing title suffixes in norma
     domain: 'slack.com',
     tabs: [
       makeTab({ url: 'https://app.slack.com/client/T123/C123', title: 'Alpha channel - Example Workspace - Slack' }),
-      makeTab({ id: 2, url: 'https://app.slack.com/client/T123/C456', title: 'Beta channel - Example Workspace - Slack' })
-    ]
+      makeTab({ id: 2, url: 'https://app.slack.com/client/T123/C456', title: 'Beta channel - Example Workspace - Slack' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1001,8 +1001,8 @@ test('computeDomainCardViewModel keeps repeated title suffixes visible while fil
     domain: 'slack.com',
     tabs: [
       makeTab({ url: 'https://app.slack.com/client/T123/C123', title: 'Alpha channel - Example Workspace - Slack' }),
-      makeTab({ id: 2, url: 'https://app.slack.com/client/T123/C456', title: 'Beta channel - Example Workspace - Slack' })
-    ]
+      makeTab({ id: 2, url: 'https://app.slack.com/client/T123/C456', title: 'Beta channel - Example Workspace - Slack' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group, { filter: 'workspace' })
@@ -1021,8 +1021,8 @@ test('computeDomainCardViewModel tracks multiple hidden title parts per chip', (
     domain: 'slack.com',
     tabs: [
       makeTab({ url: 'https://app.slack.com/client/T123/C123', title: 'Alpha channel - JIRA - Example Workspace - Slack' }),
-      makeTab({ id: 2, url: 'https://app.slack.com/client/T123/C456', title: 'Beta channel - JIRA - Example Workspace - Slack' })
-    ]
+      makeTab({ id: 2, url: 'https://app.slack.com/client/T123/C456', title: 'Beta channel - JIRA - Example Workspace - Slack' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1042,8 +1042,8 @@ test('computeDomainCardViewModel scopes title suppression tokens to the narrowes
     tabs: [
       makeTab({ url: 'https://app.slack.com/client/T123/C123', title: 'Alpha channel - Example Workspace - Slack' }),
       makeTab({ id: 2, url: 'https://app.slack.com/client/T123/C456', title: 'Beta channel - Example Workspace - Slack' }),
-      makeTab({ id: 3, url: 'https://help.slack.com/articles/welcome', title: 'Welcome to Slack Help' })
-    ]
+      makeTab({ id: 3, url: 'https://help.slack.com/articles/welcome', title: 'Welcome to Slack Help' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1062,19 +1062,19 @@ test('computeDomainCardViewModel keeps a single Contentful tab in its environmen
     tabs: [
       makeTab({
         url: 'https://app.contentful.com/spaces/example-space/environments/env-alpha/entries/entry-alpha',
-        title: 'Example Article Alpha — env-alpha — Contentful'
+        title: 'Example Article Alpha — env-alpha — Contentful',
       }),
       makeTab({
         id: 2,
         url: 'https://app.contentful.com/spaces/example-space/environments/env-beta/entries/entry-beta',
-        title: 'Example Article Beta — env-beta — Contentful'
+        title: 'Example Article Beta — env-beta — Contentful',
       }),
       makeTab({
         id: 3,
         url: 'https://app.contentful.com/spaces/example-space/environments/env-beta/entries/entry-gamma',
-        title: 'Example Article Gamma — env-beta — Contentful'
-      })
-    ]
+        title: 'Example Article Gamma — env-beta — Contentful',
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1085,8 +1085,8 @@ test('computeDomainCardViewModel keeps a single Contentful tab in its environmen
     appSection.clusters.map((cluster) => ({ label: cluster.label, count: cluster.count })),
     [
       { label: 'env-alpha', count: 1 },
-      { label: 'env-beta', count: 2 }
-    ]
+      { label: 'env-beta', count: 2 },
+    ],
   )
   assert.equal(appSection.hasFlat, false)
 })
@@ -1097,19 +1097,19 @@ test('computeDomainCardViewModel scopes title suppression tokens to a pathgroup 
     tabs: [
       makeTab({
         url: 'https://app.contentful.com/spaces/example-space/environments/env-alpha/entries/entry-alpha',
-        title: 'Example Article Alpha — Content — Example Website — env-alpha — Contentful'
+        title: 'Example Article Alpha — Content — Example Website — env-alpha — Contentful',
       }),
       makeTab({
         id: 2,
         url: 'https://app.contentful.com/spaces/example-space/environments/env-alpha/entries/entry-beta',
-        title: 'Example Article Beta — Content — Example Website — env-alpha — Contentful'
+        title: 'Example Article Beta — Content — Example Website — env-alpha — Contentful',
       }),
       makeTab({
         id: 3,
         url: 'https://app.contentful.com/spaces/example-space/environments/env-beta/entries/entry-gamma',
-        title: 'Example Taxonomy | Example Help Center'
-      })
-    ]
+        title: 'Example Taxonomy | Example Help Center',
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1127,19 +1127,19 @@ test('computeDomainCardViewModel orders title suppression summary by source titl
     tabs: [
       makeTab({
         url: 'https://app.contentful.com/spaces/example-space/environments/env-alpha/entries/entry-alpha',
-        title: 'Example Article Alpha — Content — Example Website — env-alpha — Contentful'
+        title: 'Example Article Alpha — Content — Example Website — env-alpha — Contentful',
       }),
       makeTab({
         id: 2,
         url: 'https://app.contentful.com/spaces/example-space/environments/env-alpha/entries/entry-beta',
-        title: 'Example Article Beta — Content — Example Website — env-alpha — Contentful'
+        title: 'Example Article Beta — Content — Example Website — env-alpha — Contentful',
       }),
       makeTab({
         id: 3,
         url: 'https://app.contentful.com/spaces/example-space/environments/env-alpha/entries/entry-gamma',
-        title: 'Content: All entries — env-alpha — Contentful'
-      })
-    ]
+        title: 'Content: All entries — env-alpha — Contentful',
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1147,7 +1147,7 @@ test('computeDomainCardViewModel orders title suppression summary by source titl
   const envAlphaCluster = appSection?.clusters.find((cluster) => cluster.label === 'env-alpha')
   const expectedSummary = [
     { text: '— Content — Example Website —', count: 2 },
-    { text: '— Contentful', count: 3 }
+    { text: '— Contentful', count: 3 },
   ]
 
   assert.deepEqual(vm.suppressedTitleParts, [])
@@ -1158,15 +1158,15 @@ test('computeDomainCardViewModel orders title suppression summary by source titl
 test('computeDomainCardViewModel suppresses shared title text before structural path labels', () => {
   const titles = [
     'Example Article Alpha — Content — Example Website — env-alpha — Contentful',
-    'Example Article Beta — Content — Example Website — env-alpha — Contentful'
+    'Example Article Beta — Content — Example Website — env-alpha — Contentful',
   ]
   const group = {
     domain: 'contentful.com',
     tabs: titles.map((title, index) => makeTab({
       id: index + 1,
       url: `https://app.contentful.com/spaces/example-space/environments/env-alpha/entries/entry-${index + 1}`,
-      title
-    }))
+      title,
+    })),
   }
   const chipTitle = (chip: DashboardChipData) => chip.displaySegments.map((segment) => {
     if (typeof segment === 'string') return segment
@@ -1190,7 +1190,7 @@ test('computeDomainCardViewModel suppresses shared title text before structural 
   assert.deepEqual(structuralPlaceholderLabels, ['env-alpha', 'env-alpha'])
   assert.deepEqual(visibleTitles, [
     'Example Article Alpha ˷ /',
-    'Example Article Beta ˷ /'
+    'Example Article Beta ˷ /',
   ])
   assert.ok(visibleTitles.every((title) => !title.includes('Content') && !title.includes('Example Website')))
 
@@ -1208,8 +1208,8 @@ test('computeDomainCardViewModel treats Google Search as shared hidden title tex
     domain: 'google.com',
     tabs: [
       makeTab({ url: 'https://www.google.com/search?q=alpha', title: 'alpha - Google Search' }),
-      makeTab({ id: 2, url: 'https://www.google.com/search?q=beta', title: 'beta - Google Search' })
-    ]
+      makeTab({ id: 2, url: 'https://www.google.com/search?q=beta', title: 'beta - Google Search' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1225,15 +1225,15 @@ test('computeDomainCardViewModel treats Google Search as shared hidden title tex
 test('resolveWebsitePathSection returns raw Google document product paths', () => {
   assert.deepEqual(resolveWebsitePathSection('https://docs.google.com/document/d/doc-alpha/edit'), {
     key: '/document',
-    label: '/document'
+    label: '/document',
   })
   assert.deepEqual(resolveWebsitePathSection('https://docs.google.com/spreadsheets/d/sheet-alpha/edit'), {
     key: '/spreadsheets',
-    label: '/spreadsheets'
+    label: '/spreadsheets',
   })
   assert.deepEqual(resolveWebsitePathSection('https://docs.google.com/presentation/d/deck-alpha/edit'), {
     key: '/presentation',
-    label: '/presentation'
+    label: '/presentation',
   })
   assert.equal(resolveWebsitePathSection('https://docs.google.com/viewer?url=https%3A%2F%2Fexample.com'), null)
 })
@@ -1244,14 +1244,14 @@ test('computeDomainCardViewModel splits docs.google.com products into website pa
     tabs: [
       makeTab({
         url: 'https://docs.google.com/document/d/doc-alpha/edit',
-        title: 'Example Spec - Google Docs'
+        title: 'Example Spec - Google Docs',
       }),
       makeTab({
         id: 2,
         url: 'https://docs.google.com/spreadsheets/d/sheet-alpha/edit',
-        title: 'Example Budget - Google Sheets'
-      })
-    ]
+        title: 'Example Budget - Google Sheets',
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1261,14 +1261,14 @@ test('computeDomainCardViewModel splits docs.google.com products into website pa
   assert.equal(docsSection.hasFlat, false)
   assert.deepEqual(
     docsSection.websitePathSections.map((section) => section.label),
-    ['/document', '/spreadsheets']
+    ['/document', '/spreadsheets'],
   )
   assert.deepEqual(
     docsSection.websitePathSections.map((section) => section.flatVisibleChips.map((chip) => chip.tabUrl)),
     [
       ['https://docs.google.com/document/d/doc-alpha/edit'],
-      ['https://docs.google.com/spreadsheets/d/sheet-alpha/edit']
-    ]
+      ['https://docs.google.com/spreadsheets/d/sheet-alpha/edit'],
+    ],
   )
 })
 
@@ -1278,34 +1278,34 @@ test('computeDomainCardViewModel keeps Atlassian tenants separate while nesting 
     tabs: [
       makeTab({
         url: 'https://alpha.atlassian.net/browse/APP-1001',
-        title: '[APP-1001] Example task'
+        title: '[APP-1001] Example task',
       }),
       makeTab({
         id: 2,
         url: 'https://alpha.atlassian.net/wiki/spaces/KB/pages/page-alpha',
-        title: 'Alpha guide - Example-Site - Confluence'
+        title: 'Alpha guide - Example-Site - Confluence',
       }),
       makeTab({
         id: 3,
         url: 'https://alpha.atlassian.net/wiki/spaces/KB/pages/page-beta',
-        title: 'Beta guide - Example-Site - Confluence'
+        title: 'Beta guide - Example-Site - Confluence',
       }),
       makeTab({
         id: 4,
         url: 'https://beta.atlassian.net/browse/OPS-2001',
-        title: '[OPS-2001] Example incident'
+        title: '[OPS-2001] Example incident',
       }),
       makeTab({
         id: 5,
         url: 'https://beta.atlassian.net/wiki/spaces/RUN/pages/page-alpha',
-        title: 'Runbook alpha - Example-Site - Confluence'
+        title: 'Runbook alpha - Example-Site - Confluence',
       }),
       makeTab({
         id: 6,
         url: 'https://beta.atlassian.net/wiki/spaces/RUN/pages/page-beta',
-        title: 'Runbook beta - Example-Site - Confluence'
-      })
-    ]
+        title: 'Runbook beta - Example-Site - Confluence',
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1332,34 +1332,34 @@ test('computeDomainCardViewModel creates generic first-segment path sections wit
     tabs: [
       makeTab({
         url: 'https://env-a.example.test/resource/contentKeys/account/en-US.json',
-        title: 'env-a.example.test/resource/contentKeys/account/en-US.json'
+        title: 'env-a.example.test/resource/contentKeys/account/en-US.json',
       }),
       makeTab({
         id: 2,
         url: 'https://env-a.example.test/resource/contentKeys/cart/en-US.json',
-        title: 'env-a.example.test/resource/contentKeys/cart/en-US.json'
+        title: 'env-a.example.test/resource/contentKeys/cart/en-US.json',
       }),
       makeTab({
         id: 3,
         url: 'https://env-a.example.test/gateway/contentful-sync/sync',
-        title: 'env-a.example.test/gateway/contentful-sync/sync'
+        title: 'env-a.example.test/gateway/contentful-sync/sync',
       }),
       makeTab({
         id: 4,
         url: 'https://env-a.example.test/shop/frames',
-        title: 'Example Shop'
+        title: 'Example Shop',
       }),
       makeTab({
         id: 5,
         url: 'https://env-b.example.test/resource/contentKeys/only-here/en-US.json',
-        title: 'env-b.example.test/resource/contentKeys/only-here/en-US.json'
+        title: 'env-b.example.test/resource/contentKeys/only-here/en-US.json',
       }),
       makeTab({
         id: 6,
         url: 'https://env-b.example.test/shop/sunglasses',
-        title: 'Example Sunglasses'
-      })
-    ]
+        title: 'Example Sunglasses',
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1370,27 +1370,27 @@ test('computeDomainCardViewModel creates generic first-segment path sections wit
   assert.ok(envBSection)
   assert.deepEqual(
     envASection.websitePathSections.map((section) => section.label),
-    ['/resource']
+    ['/resource'],
   )
   assert.deepEqual(
     atOrThrow(envASection.websitePathSections, 0).flatVisibleChips.map((chip) => chip.tabUrl),
     [
       'https://env-a.example.test/resource/contentKeys/account/en-US.json',
-      'https://env-a.example.test/resource/contentKeys/cart/en-US.json'
-    ]
+      'https://env-a.example.test/resource/contentKeys/cart/en-US.json',
+    ],
   )
   assert.equal(envASection.hasFlat, true)
   assert.deepEqual(
     envASection.flatVisibleChips.map((chip) => chip.tabUrl),
     [
       'https://env-a.example.test/gateway/contentful-sync/sync',
-      'https://env-a.example.test/shop/frames'
-    ]
+      'https://env-a.example.test/shop/frames',
+    ],
   )
   assert.equal(envBSection.websitePathSections.length, 0)
   assert.deepEqual(
     envBSection.flatVisibleChips.map((chip) => chip.tabUrl),
-    ['https://env-b.example.test/resource/contentKeys/only-here/en-US.json', 'https://env-b.example.test/shop/sunglasses']
+    ['https://env-b.example.test/resource/contentKeys/only-here/en-US.json', 'https://env-b.example.test/shop/sunglasses'],
   )
 })
 
@@ -1400,19 +1400,19 @@ test('computeDomainCardViewModel applies generic path sections to root-domain se
     tabs: [
       makeTab({
         url: 'https://example.test/resource/contentKeys/account/en-US.json',
-        title: 'example.test/resource/contentKeys/account/en-US.json'
+        title: 'example.test/resource/contentKeys/account/en-US.json',
       }),
       makeTab({
         id: 2,
         url: 'https://example.test/resource/contentKeys/cart/en-US.json',
-        title: 'example.test/resource/contentKeys/cart/en-US.json'
+        title: 'example.test/resource/contentKeys/cart/en-US.json',
       }),
       makeTab({
         id: 3,
         url: 'https://example.test/shop/frames',
-        title: 'Example Shop'
-      })
-    ]
+        title: 'Example Shop',
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1421,7 +1421,7 @@ test('computeDomainCardViewModel applies generic path sections to root-domain se
   assert.ok(rootSection)
   assert.deepEqual(
     rootSection.websitePathSections.map((section) => section.label),
-    ['/resource']
+    ['/resource'],
   )
   assert.deepEqual(rootSection.flatVisibleChips.map((chip) => chip.tabUrl), ['https://example.test/shop/frames'])
 })
@@ -1432,9 +1432,9 @@ test('computeDomainCardViewModel leaves a single docs.google.com product tab fla
     tabs: [
       makeTab({
         url: 'https://docs.google.com/document/d/doc-alpha/edit',
-        title: 'Example Spec - Google Docs'
-      })
-    ]
+        title: 'Example Spec - Google Docs',
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1449,23 +1449,23 @@ test('computeDomainCardViewModel leaves a single docs.google.com product tab fla
 test('resolveWebsitePathSection groups Atlassian Jira app paths under /jira', () => {
   assert.deepEqual(resolveWebsitePathSection('https://example.atlassian.net/browse/APP-123'), {
     key: '/browse',
-    label: '/browse'
+    label: '/browse',
   })
   assert.deepEqual(resolveWebsitePathSection('https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha'), {
     key: '/wiki',
-    label: '/wiki'
+    label: '/wiki',
   })
   assert.deepEqual(resolveWebsitePathSection('https://example.atlassian.net/jira/for-you'), {
     key: '/jira',
-    label: '/jira'
+    label: '/jira',
   })
   assert.deepEqual(resolveWebsitePathSection('https://example.atlassian.net/jira/software/projects/APP/boards/1'), {
     key: '/jira',
-    label: '/jira'
+    label: '/jira',
   })
   assert.deepEqual(resolveWebsitePathSection('https://example.atlassian.net/jira/servicedesk/projects/HELP/queues/custom/1'), {
     key: '/jira',
-    label: '/jira'
+    label: '/jira',
   })
   assert.equal(resolveWebsitePathSection('https://example.atlassian.net/rest/api/3/issue/APP-123'), null)
 })
@@ -1476,24 +1476,24 @@ test('computeDomainCardViewModel scopes title suppression to a website path befo
     tabs: [
       makeTab({
         url: 'https://example.atlassian.net/wiki/home',
-        title: 'Wiki home - Example-Site - Confluence'
+        title: 'Wiki home - Example-Site - Confluence',
       }),
       makeTab({
         id: 2,
         url: 'https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha',
-        title: 'Alpha guide - Example-Site - Confluence'
+        title: 'Alpha guide - Example-Site - Confluence',
       }),
       makeTab({
         id: 3,
         url: 'https://example.atlassian.net/wiki/spaces/KB/pages/page-beta',
-        title: 'Beta guide - Example-Site - Confluence'
+        title: 'Beta guide - Example-Site - Confluence',
       }),
       makeTab({
         id: 4,
         url: 'https://example.atlassian.net/browse/APP-1001',
-        title: '[APP-1001] Example task'
-      })
-    ]
+        title: '[APP-1001] Example task',
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1513,29 +1513,29 @@ test('computeDomainCardViewModel marks single title suppression that spans rende
     tabs: [
       makeTab({
         url: 'https://example.atlassian.net/jira/your-work',
-        title: 'Work item search - JIRA'
+        title: 'Work item search - JIRA',
       }),
       makeTab({
         id: 2,
         url: 'https://example.atlassian.net/browse/TASK-1001',
-        title: '[TASK-1001] Account settings - JIRA'
+        title: '[TASK-1001] Account settings - JIRA',
       }),
       makeTab({
         id: 3,
         url: 'https://example.atlassian.net/browse/DOC-201',
-        title: '[DOC-201] Example checklist - JIRA'
+        title: '[DOC-201] Example checklist - JIRA',
       }),
       makeTab({
         id: 4,
         url: 'https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha',
-        title: 'Platform Architecture Notes - Example-Site - Confluence'
+        title: 'Platform Architecture Notes - Example-Site - Confluence',
       }),
       makeTab({
         id: 5,
         url: 'https://example.atlassian.net/wiki/spaces/KB/pages/page-beta',
-        title: 'Shared Library Plan - Example-Site - Confluence'
-      })
-    ]
+        title: 'Shared Library Plan - Example-Site - Confluence',
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1555,24 +1555,24 @@ test('computeDomainCardViewModel keeps single title suppression neutral when it 
     tabs: [
       makeTab({
         url: 'https://www.example.test/',
-        title: 'Deployment History - ENV A | Example Retail'
+        title: 'Deployment History - ENV A | Example Retail',
       }),
       makeTab({
         id: 2,
         url: 'https://env-a.example.test/order',
-        title: 'Order Page | Example Retail'
+        title: 'Order Page | Example Retail',
       }),
       makeTab({
         id: 3,
         url: 'https://env-b.example.test/resource/config/account/en-US.json',
-        title: 'env-b.example.test/resource/config/account/en-US.json | Example Retail'
+        title: 'env-b.example.test/resource/config/account/en-US.json | Example Retail',
       }),
       makeTab({
         id: 4,
         url: 'https://stage.example.test/help',
-        title: 'stage.example.test/help | Example Retail'
-      })
-    ]
+        title: 'stage.example.test/help | Example Retail',
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1589,29 +1589,29 @@ test('computeDomainCardViewModel exposes Confluence product and site suffixes as
     tabs: [
       makeTab({
         url: 'https://example.atlassian.net/browse/TASK-1001',
-        title: '[TASK-1001] My account: Suggestion to add'
+        title: '[TASK-1001] My account: Suggestion to add',
       }),
       makeTab({
         id: 2,
         url: 'https://example.atlassian.net/browse/DOC-1002',
-        title: '[DOC-1002] Example Product Article'
+        title: '[DOC-1002] Example Product Article',
       }),
       makeTab({
         id: 3,
         url: 'https://example.atlassian.net/wiki/spaces/DOCS/pages/page-alpha/Platform+Architecture+Notes',
-        title: 'Platform Architecture Notes - Example-Site - Confluence'
+        title: 'Platform Architecture Notes - Example-Site - Confluence',
       }),
       makeTab({
         id: 4,
         url: 'https://example.atlassian.net/wiki/spaces/DOCS/pages/page-beta/Shared+Library+Plan',
-        title: 'Shared Library Plan - Example-Site - Confluence'
+        title: 'Shared Library Plan - Example-Site - Confluence',
       }),
       makeTab({
         id: 5,
         url: 'https://example.atlassian.net/wiki/spaces/DOCS/pages/page-gamma/Content+Guide',
-        title: 'Example Content Guide - Example-Site - Confluence'
-      })
-    ]
+        title: 'Example Content Guide - Example-Site - Confluence',
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1631,7 +1631,7 @@ test('computeDomainCardViewModel exposes Confluence product and site suffixes as
   assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [
     ['- Example-Site - Confluence'],
     ['- Example-Site - Confluence'],
-    ['- Example-Site - Confluence']
+    ['- Example-Site - Confluence'],
   ])
   assert.ok(titles.every((title) => !title.includes('Example-Site')))
   assert.ok(titles.every((title) => !title.includes('Confluence')))
@@ -1644,14 +1644,14 @@ test('computeDomainCardViewModel keeps one-off cleaned title suffixes out of the
     tabs: [
       makeTab({
         url: wikiUrl,
-        title: 'Example Architecture Plan - Confluence'
+        title: 'Example Architecture Plan - Confluence',
       }),
       makeTab({
         id: 2,
         url: 'https://example.atlassian.net/browse/TASK-1001',
-        title: '[TASK-1001] My account: Suggestion to add'
-      })
-    ]
+        title: '[TASK-1001] My account: Suggestion to add',
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1660,8 +1660,8 @@ test('computeDomainCardViewModel keeps one-off cleaned title suffixes out of the
     ...section.clusters.flatMap((cluster) => cluster.visibleChips),
     ...section.websitePathSections.flatMap((websitePathSection) => [
       ...websitePathSection.flatVisibleChips,
-      ...websitePathSection.clusters.flatMap((cluster) => cluster.visibleChips)
-    ])
+      ...websitePathSection.clusters.flatMap((cluster) => cluster.visibleChips),
+    ]),
   ])
   const wikiChip = chips.find((chip) => chip.tabUrl === wikiUrl)
   const wikiTitle = wikiChip?.displaySegments.filter((seg) => typeof seg === 'string').join('')
@@ -1676,8 +1676,8 @@ test('computeDomainCardViewModel marks active tabs from other windows', () => {
     domain: 'example.com',
     tabs: [
       makeTab({ url: 'https://example.com/current-window', title: 'Current window', active: true, windowId: 1 }),
-      makeTab({ id: 2, url: 'https://example.com/other-window', title: 'Other window', active: true, windowId: 2 })
-    ]
+      makeTab({ id: 2, url: 'https://example.com/other-window', title: 'Other window', active: true, windowId: 2 }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
@@ -1693,8 +1693,8 @@ test('computeDomainCardViewModel keeps live tab favicons aligned with Chrome tab
   const group = {
     domain: 'example.test',
     tabs: [
-      makeTab({ url: 'https://example.test/glasses-lenses', title: 'Example Lenses', favIconUrl: '' })
-    ]
+      makeTab({ url: 'https://example.test/glasses-lenses', title: 'Example Lenses', favIconUrl: '' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1712,9 +1712,9 @@ test('computeDomainCardViewModel resolves suspended tab favicons from the origin
         rawUrl: 'chrome-extension://suspender/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.test%2Fdocs',
         title: 'Example Docs',
         suspended: true,
-        favIconUrl: 'data:image/png;base64,suspended'
-      })
-    ]
+        favIconUrl: 'data:image/png;base64,suspended',
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1727,8 +1727,8 @@ test('computeDomainCardViewModel can use Chrome favicon cache for read-only sour
   const group = {
     domain: 'example.com',
     tabs: [
-      makeTab({ id: 'h1', url: 'https://example.com/docs', title: 'Example Docs', favIconUrl: '', sourceType: 'history' })
-    ]
+      makeTab({ id: 'h1', url: 'https://example.com/docs', title: 'Example Docs', favIconUrl: '', sourceType: 'history' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1742,8 +1742,8 @@ test('computeDomainCardViewModel frames a duplicate URL when the active copy is 
     domain: 'example.com',
     tabs: [
       makeTab({ url: 'https://example.com/current-page', title: 'Inactive duplicate', windowId: 2 }),
-      makeTab({ id: 2, url: 'https://example.com/current-page', title: 'Active duplicate', active: true, windowId: 1 })
-    ]
+      makeTab({ id: 2, url: 'https://example.com/current-page', title: 'Active duplicate', active: true, windowId: 1 }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
@@ -1759,8 +1759,8 @@ test('computeDomainCardViewModel marks a duplicate URL active in another window 
     domain: 'example.com',
     tabs: [
       makeTab({ url: 'https://example.com/other-window-page', title: 'Inactive duplicate', windowId: 1 }),
-      makeTab({ id: 2, url: 'https://example.com/other-window-page', title: 'Active duplicate', active: true, windowId: 2 })
-    ]
+      makeTab({ id: 2, url: 'https://example.com/other-window-page', title: 'Active duplicate', active: true, windowId: 2 }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
@@ -1782,7 +1782,7 @@ test('computeDomainCardViewModel frames the current Tab Out page without marking
         title: 'Tab Out',
         active: true,
         windowId: 1,
-        isTabOut: true
+        isTabOut: true,
       }),
       makeTab({
         id: 2,
@@ -1790,9 +1790,9 @@ test('computeDomainCardViewModel frames the current Tab Out page without marking
         rawUrl: 'chrome-extension://tab-out/index.html?focusFilter=1',
         title: 'Tab Out',
         windowId: 2,
-        isTabOut: true
-      })
-    ]
+        isTabOut: true,
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
@@ -1808,8 +1808,8 @@ test('computeDomainCardViewModel keeps the shared folded section headerless', ()
     tabs: [
       makeTab({ url: 'https://dev.example.com/settings', title: 'Settings' }),
       makeTab({ id: 2, url: 'https://qa.example.com/settings', title: 'Settings', active: true, windowId: 2 }),
-      makeTab({ id: 3, url: 'https://dev.example.com/logs', title: 'Logs' })
-    ]
+      makeTab({ id: 3, url: 'https://dev.example.com/logs', title: 'Logs' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
@@ -1823,11 +1823,11 @@ test('computeDomainCardViewModel keeps the shared folded section headerless', ()
   assert.equal(chip.activeInOtherWindow, true)
   assert.deepEqual(
     envs.map((env) => env.prefix),
-    ['dev', 'qa']
+    ['dev', 'qa'],
   )
   assert.deepEqual(
     envs.map((env) => env.activeInOtherWindow ?? false),
-    [false, true]
+    [false, true],
   )
 })
 
@@ -1837,8 +1837,8 @@ test('computeDomainCardViewModel keeps same-path tabs in separate subdomain sect
     tabs: [
       makeTab({ url: 'https://dev1.example.test/deployments', title: 'Deployment History - DEV1' }),
       makeTab({ id: 2, url: 'https://dev2.example.test/deployments', title: 'Deployment History - DEV2' }),
-      makeTab({ id: 3, url: 'https://qa.example.test/deployments', title: 'Deployment History - QA' })
-    ]
+      makeTab({ id: 3, url: 'https://qa.example.test/deployments', title: 'Deployment History - QA' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1850,8 +1850,8 @@ test('computeDomainCardViewModel keeps same-path tabs in separate subdomain sect
     [
       'https://dev1.example.test/deployments',
       'https://dev2.example.test/deployments',
-      'https://qa.example.test/deployments'
-    ]
+      'https://qa.example.test/deployments',
+    ],
   )
   assert.ok(sectionsOf(vm).every((section) => section.flatVisibleChips.every((chip) => !chip.envs?.length)))
 })
@@ -1861,8 +1861,8 @@ test('computeDomainCardViewModel carries every env suppression token on folded c
     domain: 'example.test',
     tabs: [
       makeTab({ url: 'https://dev1.example.test/deployments', title: 'Deployment History | Example Retail' }),
-      makeTab({ id: 2, url: 'https://dev2.example.test/deployments', title: 'Deployment History | Example Retail' })
-    ]
+      makeTab({ id: 2, url: 'https://dev2.example.test/deployments', title: 'Deployment History | Example Retail' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -1871,15 +1871,15 @@ test('computeDomainCardViewModel carries every env suppression token on folded c
   assert.equal(firstSection(vm).isShared, true)
   assert.deepEqual(vm.suppressedTitleParts, [])
   assert.deepEqual(vm.allSuppressedTitleParts, [
-    { text: '| Example Retail', count: 2 }
+    { text: '| Example Retail', count: 2 },
   ])
   assert.deepEqual(firstSection(vm).suppressedTitleParts, [
-    { text: '| Example Retail', count: 2 }
+    { text: '| Example Retail', count: 2 },
   ])
   assert.deepEqual(foldedChip.suppressedTitleParts, ['| Example Retail'])
   assert.deepEqual(
     foldedChip.displaySegments.filter((seg) => typeof seg === 'string').join(''),
-    'Deployment History'
+    'Deployment History',
   )
 })
 
@@ -1887,14 +1887,14 @@ test('buildDashboardViewModel derives only matching cards in one pass', () => {
   const groups = buildDomainGroups([
     makeTab({ url: 'https://alpha.example.com/overview', title: 'Overview' }),
     makeTab({ id: 2, url: 'https://alpha.example.com/beta', title: 'Beta rollout' }),
-    makeTab({ id: 3, url: 'https://second.test.com/other', title: 'Other page' })
+    makeTab({ id: 3, url: 'https://second.test.com/other', title: 'Other page' }),
   ])
   const realTabs = groups.flatMap((group) => group.tabs)
 
   const vm = buildDashboardViewModel({
     realTabs,
     domainGroups: groups,
-    filter: 'beta'
+    filter: 'beta',
   })
 
   assert.equal(vm.stats.totalTabs, 3)
@@ -1908,19 +1908,18 @@ test('buildDashboardViewModel derives only matching cards in one pass', () => {
   assert.equal(matchedCard.vm.totalTabCount, 2)
   assert.equal(matchedCard.vm.tabCountLabel, '1/2')
   assert.equal(matchedCard.vm.tabCountTitle, '1 of 2 open tabs shown while filtering')
-
 })
 
 test('filtered close targets preserve per-tab title scope for same-URL duplicates', () => {
   const sharedUrl = 'https://example.test/shared'
   const groups = buildDomainGroups([
     makeTab({ id: 1, url: sharedUrl, title: 'Alpha match' }),
-    makeTab({ id: 2, url: sharedUrl, title: 'Beta non-match' })
+    makeTab({ id: 2, url: sharedUrl, title: 'Beta non-match' }),
   ])
   const vm = buildDashboardViewModel({
     realTabs: groups.flatMap((group) => group.tabs),
     domainGroups: groups,
-    filter: 'alpha'
+    filter: 'alpha',
   })
 
   assert.deepEqual(vm.filteredCloseUrls, [sharedUrl])
@@ -1932,7 +1931,7 @@ test('buildDashboardViewModel counts active (unsuspended) open tabs', () => {
   const tabs = [
     makeTab({ id: 1, url: 'https://a.example.com/', title: 'A' }),
     makeTab({ id: 2, url: 'https://b.example.com/', title: 'B', suspended: true }),
-    makeTab({ id: 3, url: 'https://c.example.com/', title: 'C', suspended: true })
+    makeTab({ id: 3, url: 'https://c.example.com/', title: 'C', suspended: true }),
   ]
   const groups = buildDomainGroups(tabs)
 
@@ -1945,7 +1944,7 @@ test('buildDashboardViewModel counts active (unsuspended) open tabs', () => {
 test('buildDashboardViewModel keeps known chip URLs in their previous card order when titles change', () => {
   const tabs = [
     makeTab({ url: 'https://example.test/?page=alpha', title: 'Alpha loading title' }),
-    makeTab({ id: 2, url: 'https://example.test/?page=bravo', title: 'Bravo final title' })
+    makeTab({ id: 2, url: 'https://example.test/?page=bravo', title: 'Bravo final title' }),
   ]
   const groups = buildDomainGroups(tabs)
   const previousChipOrder = new Map([
@@ -1953,20 +1952,20 @@ test('buildDashboardViewModel keeps known chip URLs in their previous card order
       domainCardId('example.test'),
       new Map([
         [dashboardChipOrderKeyForTab(atOrThrow(tabs, 1)), 0],
-        [dashboardChipOrderKeyForTab(atOrThrow(tabs, 0)), 1]
-      ])
-    ]
+        [dashboardChipOrderKeyForTab(atOrThrow(tabs, 0)), 1],
+      ]),
+    ],
   ])
 
   const vm = buildDashboardViewModel({
     realTabs: groups.flatMap((group) => group.tabs),
     domainGroups: groups,
-    chipOrder: previousChipOrder
+    chipOrder: previousChipOrder,
   })
 
   assert.deepEqual(
     firstSection(atOrThrow(vm.matchedCards, 0).vm).flatVisibleChips.map((chip) => chip.tabUrl),
-    ['https://example.test/?page=bravo', 'https://example.test/?page=alpha']
+    ['https://example.test/?page=bravo', 'https://example.test/?page=alpha'],
   )
 })
 
@@ -1974,7 +1973,7 @@ test('buildDashboardViewModel ranks working-set-priority chips before remembered
   const tabs = [
     makeTab({ url: 'https://example.test/?page=alpha', title: 'Alpha page' }),
     makeTab({ id: 2, url: 'https://example.test/?page=bravo', title: 'Bravo page' }),
-    makeTab({ id: 3, url: 'https://example.test/?page=charlie', title: 'Charlie page' })
+    makeTab({ id: 3, url: 'https://example.test/?page=charlie', title: 'Charlie page' }),
   ]
   const groups = buildDomainGroups(tabs)
   const previousChipOrder = new Map([
@@ -1983,9 +1982,9 @@ test('buildDashboardViewModel ranks working-set-priority chips before remembered
       new Map([
         [dashboardChipOrderKeyForTab(atOrThrow(tabs, 0)), 0],
         [dashboardChipOrderKeyForTab(atOrThrow(tabs, 1)), 1],
-        [dashboardChipOrderKeyForTab(atOrThrow(tabs, 2)), 2]
-      ])
-    ]
+        [dashboardChipOrderKeyForTab(atOrThrow(tabs, 2)), 2],
+      ]),
+    ],
   ])
 
   const vm = buildDashboardViewModel({
@@ -1993,13 +1992,13 @@ test('buildDashboardViewModel ranks working-set-priority chips before remembered
     domainGroups: groups,
     chipOrder: previousChipOrder,
     chipPriority: new Map([
-      ['https://example.test/?page=charlie', 100]
-    ])
+      ['https://example.test/?page=charlie', 100],
+    ]),
   })
 
   assert.deepEqual(
     firstSection(atOrThrow(vm.matchedCards, 0).vm).flatVisibleChips.map((chip) => chip.tabUrl),
-    ['https://example.test/?page=charlie', 'https://example.test/?page=alpha', 'https://example.test/?page=bravo']
+    ['https://example.test/?page=charlie', 'https://example.test/?page=alpha', 'https://example.test/?page=bravo'],
   )
 })
 
@@ -2007,7 +2006,7 @@ test('buildDashboardViewModel keeps remembered order across saved-page and raw-u
   const rawUrl = 'chrome-extension://suspender/suspended.html?url=https%3A%2F%2Fexample.test%2Fbravo'
   const tabs = [
     makeTab({ url: 'https://example.test/alpha', title: 'Alpha page' }),
-    makeTab({ id: 2, url: 'https://example.test/bravo', rawUrl, title: 'Zulu page' })
+    makeTab({ id: 2, url: 'https://example.test/bravo', rawUrl, title: 'Zulu page' }),
   ]
   const groups = buildDomainGroups(tabs)
   const previousChipOrder = new Map([
@@ -2015,20 +2014,20 @@ test('buildDashboardViewModel keeps remembered order across saved-page and raw-u
       domainCardId('example.test'),
       new Map([
         [dashboardChipOrderKeyForTab({ ...atOrThrow(tabs, 1), sourceType: 'saved-page', url: rawUrl }), 0],
-        [dashboardChipOrderKeyForTab(atOrThrow(tabs, 0)), 1]
-      ])
-    ]
+        [dashboardChipOrderKeyForTab(atOrThrow(tabs, 0)), 1],
+      ]),
+    ],
   ])
 
   const vm = buildDashboardViewModel({
     realTabs: groups.flatMap((group) => group.tabs),
     domainGroups: groups,
-    chipOrder: previousChipOrder
+    chipOrder: previousChipOrder,
   })
 
   assert.deepEqual(
     firstSection(atOrThrow(vm.matchedCards, 0).vm).flatVisibleChips.map((chip) => chip.tabUrl),
-    ['https://example.test/bravo', 'https://example.test/alpha']
+    ['https://example.test/bravo', 'https://example.test/alpha'],
   )
 })
 
@@ -2041,21 +2040,21 @@ test('computeDomainCardViewModel does not inspect an empty remembered chip order
 
   const tabs = [
     makeTab({ url: 'https://example.test/alpha', title: 'Alpha page' }),
-    makeTab({ id: 2, url: 'https://example.test/bravo', title: 'Bravo page' })
+    makeTab({ id: 2, url: 'https://example.test/bravo', title: 'Bravo page' }),
   ]
 
   const baseline = computeDomainCardViewModel(
     { domain: 'example.test', tabs },
-    { source: 'tabs' }
+    { source: 'tabs' },
   )
   const withEmptyOrder = computeDomainCardViewModel(
     { domain: 'example.test', tabs },
-    { source: 'tabs', chipOrder: new UnreadableEmptyOrder() }
+    { source: 'tabs', chipOrder: new UnreadableEmptyOrder() },
   )
 
   assert.deepEqual(
     firstSection(withEmptyOrder).flatVisibleChips.map((chip) => chip.tabUrl),
-    firstSection(baseline).flatVisibleChips.map((chip) => chip.tabUrl)
+    firstSection(baseline).flatVisibleChips.map((chip) => chip.tabUrl),
   )
 })
 
@@ -2073,22 +2072,22 @@ function renderHookValue<T>(run: () => T): T {
 test('useDashboardViewModels holds tabs chip order during the startup freeze and resumes after it', () => {
   const tabs = [
     makeTab({ id: 1, url: 'https://example.test/alpha', title: 'Alpha' }),
-    makeTab({ id: 2, url: 'https://example.test/bravo', title: 'Bravo' })
+    makeTab({ id: 2, url: 'https://example.test/bravo', title: 'Bravo' }),
   ]
   const groups = buildDomainGroups(tabs)
   const dashboard = {
     realTabs: groups.flatMap((group) => group.tabs),
     domainGroups: groups,
-    currentWindowId: 1
+    currentWindowId: 1,
   } as any
   // Remembered chip order that disagrees with the deterministic label fallback (bravo first).
   const rememberedChipOrder = {
     tabs: new Map([[domainCardId('example.test'), new Map([
       [dashboardChipOrderKeyForTab(atOrThrow(tabs, 1)), 0],
-      [dashboardChipOrderKeyForTab(atOrThrow(tabs, 0)), 1]
+      [dashboardChipOrderKeyForTab(atOrThrow(tabs, 0)), 1],
     ])]]),
     bookmarks: new Map(),
-    history: new Map()
+    history: new Map(),
   }
   const base = {
     dashboard,
@@ -2097,21 +2096,21 @@ test('useDashboardViewModels holds tabs chip order during the startup freeze and
     historyRange: DEFAULT_HISTORY_RANGE,
     historyFilterEnabled: false,
     isReady: true,
-    chipOrder: rememberedChipOrder
+    chipOrder: rememberedChipOrder,
   }
   // During the startup freeze the remembered order is ignored, so first paint and live
   // hydration both render the stable fallback order instead of re-sorting the chip window.
   const frozen = renderHookValue(() => useDashboardViewModels({ ...base, freezeTabsChipOrder: true }))
   assert.deepEqual(
     firstSection(atOrThrow(frozen.matchedCards, 0).vm).flatVisibleChips.map((chip) => chip.tabUrl),
-    ['https://example.test/alpha', 'https://example.test/bravo']
+    ['https://example.test/alpha', 'https://example.test/bravo'],
   )
 
   // Once the freeze lifts (filter/source change) the remembered order is honored again.
   const live = renderHookValue(() => useDashboardViewModels({ ...base, freezeTabsChipOrder: false }))
   assert.deepEqual(
     firstSection(atOrThrow(live.matchedCards, 0).vm).flatVisibleChips.map((chip) => chip.tabUrl),
-    ['https://example.test/bravo', 'https://example.test/alpha']
+    ['https://example.test/bravo', 'https://example.test/alpha'],
   )
 })
 
@@ -2120,7 +2119,7 @@ test('computeDomainCardViewModel applies working-set priority before remembered 
     makeTab({ url: 'https://example.atlassian.net/browse/DOC-201', title: '[DOC-201] Example checklist - JIRA' }),
     makeTab({ id: 2, url: 'https://example.atlassian.net/browse/TASK-1001', title: '[TASK-1001] Account settings - JIRA' }),
     makeTab({ id: 3, url: 'https://example.atlassian.net/jira/your-work', title: 'Work item search - JIRA' }),
-    makeTab({ id: 4, url: 'https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha', title: 'Platform notes - Confluence' })
+    makeTab({ id: 4, url: 'https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha', title: 'Platform notes - Confluence' }),
   ]
   const chipOrder = new Map(tabs.map((tab, index) => [dashboardChipOrderKeyForTab(tab), index]))
 
@@ -2130,9 +2129,9 @@ test('computeDomainCardViewModel applies working-set priority before remembered 
       chipOrder,
       chipPriority: new Map([
         ['https://example.atlassian.net/browse/TASK-1001', 90],
-        ['https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha', 100]
-      ])
-    }
+        ['https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha', 100],
+      ]),
+    },
   )
 
   const rootSection = firstSection(vm)
@@ -2150,16 +2149,16 @@ test('computeDomainCardViewModel applies chip priority before the overflow split
     makeTab({ id: 4, url: 'https://example.test/pages/delta', title: 'Delta page' }),
     makeTab({ id: 5, url: 'https://example.test/pages/echo', title: 'Echo page' }),
     makeTab({ id: 6, url: 'https://example.test/pages/foxtrot', title: 'Foxtrot page' }),
-    makeTab({ id: 7, url: 'https://example.test/pages/golf', title: 'Golf page' })
+    makeTab({ id: 7, url: 'https://example.test/pages/golf', title: 'Golf page' }),
   ]
 
   const vm = computeDomainCardViewModel(
     { domain: 'example.test', tabs },
     {
       chipPriority: new Map([
-        ['https://example.test/pages/golf', 100]
-      ])
-    }
+        ['https://example.test/pages/golf', 100],
+      ]),
+    },
   )
   const section = firstSection(vm)
 
@@ -2171,16 +2170,16 @@ test('computeDomainCardViewModel applies chip priority before the overflow split
 test('computeDomainCardViewModel ranks subdomain sections by their strongest chip priority', () => {
   const tabs = [
     makeTab({ url: 'https://alpha.example.test/one', title: 'Alpha page' }),
-    makeTab({ id: 2, url: 'https://beta.example.test/two', title: 'Beta page' })
+    makeTab({ id: 2, url: 'https://beta.example.test/two', title: 'Beta page' }),
   ]
 
   const vm = computeDomainCardViewModel(
     { domain: 'example.test', tabs },
     {
       chipPriority: new Map([
-        ['https://beta.example.test/two', 100]
-      ])
-    }
+        ['https://beta.example.test/two', 100],
+      ]),
+    },
   )
 
   assert.deepEqual(sectionsOf(vm).map((section) => section.key), ['beta', 'alpha'])
@@ -2191,16 +2190,16 @@ test('computeDomainCardViewModel ranks website path sections by their strongest 
     makeTab({ url: 'https://example.test/docs/alpha', title: 'Docs alpha' }),
     makeTab({ id: 2, url: 'https://example.test/docs/bravo', title: 'Docs bravo' }),
     makeTab({ id: 3, url: 'https://example.test/shop/alpha', title: 'Shop alpha' }),
-    makeTab({ id: 4, url: 'https://example.test/shop/bravo', title: 'Shop bravo' })
+    makeTab({ id: 4, url: 'https://example.test/shop/bravo', title: 'Shop bravo' }),
   ]
 
   const vm = computeDomainCardViewModel(
     { domain: 'example.test', tabs },
     {
       chipPriority: new Map([
-        ['https://example.test/shop/bravo', 100]
-      ])
-    }
+        ['https://example.test/shop/bravo', 100],
+      ]),
+    },
   )
 
   assert.deepEqual(firstSection(vm).websitePathSections.map((section) => section.label), ['/shop', '/docs'])
@@ -2211,16 +2210,16 @@ test('computeDomainCardViewModel ranks path groups by their strongest chip prior
     makeTab({ url: 'https://github.com/example/alpha/pull/1', title: 'Alpha pull request' }),
     makeTab({ id: 2, url: 'https://github.com/example/alpha/issues/2', title: 'Alpha issue' }),
     makeTab({ id: 3, url: 'https://github.com/example/bravo/pull/1', title: 'Bravo pull request' }),
-    makeTab({ id: 4, url: 'https://github.com/example/bravo/issues/2', title: 'Bravo issue' })
+    makeTab({ id: 4, url: 'https://github.com/example/bravo/issues/2', title: 'Bravo issue' }),
   ]
 
   const vm = computeDomainCardViewModel(
     { domain: 'github.com', tabs },
     {
       chipPriority: new Map([
-        ['https://github.com/example/bravo/issues/2', 100]
-      ])
-    }
+        ['https://github.com/example/bravo/issues/2', 100],
+      ]),
+    },
   )
 
   assert.deepEqual(firstSection(vm).clusters.map((cluster) => cluster.label), ['example/bravo', 'example/alpha'])
@@ -2231,22 +2230,22 @@ test('parseFilterQuery separates tokens, quoted phrases, and open-ended phrases'
     { kind: 'token', value: 'github' },
     { kind: 'phrase', value: 'pull request' },
     { kind: 'token', value: '4706' },
-    { kind: 'phrase', value: 'open ended' }
+    { kind: 'phrase', value: 'open ended' },
   ])
 })
 
 test('tabMatchesFilter uses tokenized AND and quoted phrase semantics', () => {
   const tab = makeTab({
     url: 'https://github.com/example/repo/pull/4706',
-    title: 'Pull Request review'
+    title: 'Pull Request review',
   })
   const hyphenatedTab = makeTab({
     url: 'https://example.test/tab-out',
-    title: 'Tab-Out guide'
+    title: 'Tab-Out guide',
   })
   const spacedTab = makeTab({
     url: 'https://example.test/tab-out',
-    title: 'Tab Out guide'
+    title: 'Tab Out guide',
   })
 
   assert.equal(tabMatchesFilter(tab, 'github 4706'), true)
@@ -2265,14 +2264,14 @@ test('tabMatchesFilter uses tokenized AND and quoted phrase semantics', () => {
 test('tokenized filter matches drive filtered close targets for open tabs', () => {
   const groups = buildDomainGroups([
     makeTab({ url: 'https://github.com/example/repo/pull/4706', title: 'Pull Request review' }),
-    makeTab({ id: 2, url: 'https://github.com/example/repo/pull/9999', title: 'Pull Request review' })
+    makeTab({ id: 2, url: 'https://github.com/example/repo/pull/9999', title: 'Pull Request review' }),
   ])
   const realTabs = groups.flatMap((group) => group.tabs)
 
   const vm = buildDashboardViewModel({
     realTabs,
     domainGroups: groups,
-    filter: 'github pr 4706'
+    filter: 'github pr 4706',
   })
 
   assert.deepEqual(vm.filteredCloseUrls, ['https://github.com/example/repo/pull/4706'])
@@ -2281,7 +2280,7 @@ test('tokenized filter matches drive filtered close targets for open tabs', () =
   const blankVm = buildDashboardViewModel({
     realTabs,
     domainGroups: groups,
-    filter: '   '
+    filter: '   ',
   })
   assert.equal(blankVm.stats.filtering, false)
   assert.deepEqual(blankVm.filteredCloseUrls, [])
@@ -2290,10 +2289,10 @@ test('tokenized filter matches drive filtered close targets for open tabs', () =
 test('history source uses parsed filter semantics for returned candidates', () => {
   const historyTabs = [
     makeTab({ id: 'h1', url: 'https://openai.com/docs', title: 'OpenAI Docs', sourceType: 'history' }),
-    makeTab({ id: 'h2', url: 'https://example.test/tab-out', title: 'Tab-Out guide', sourceType: 'history' })
+    makeTab({ id: 'h2', url: 'https://example.test/tab-out', title: 'Tab-Out guide', sourceType: 'history' }),
   ]
   const bookmarkTabs = [
-    makeTab({ id: 'b1', url: 'https://openai.com/docs', title: 'OpenAI Docs', sourceType: 'bookmark' })
+    makeTab({ id: 'b1', url: 'https://openai.com/docs', title: 'OpenAI Docs', sourceType: 'bookmark' }),
   ]
   const historyGroups = buildDomainGroups(historyTabs)
   const bookmarkGroups = buildDomainGroups(bookmarkTabs)
@@ -2306,19 +2305,19 @@ test('history source uses parsed filter semantics for returned candidates', () =
     realTabs: historyTabs,
     domainGroups: historyGroups,
     filter: 'docs openai',
-    source: 'history'
+    source: 'history',
   })
   const separatorHistoryVm = buildDashboardViewModel({
     realTabs: historyTabs,
     domainGroups: historyGroups,
     filter: 'tab out',
-    source: 'history'
+    source: 'history',
   })
   const bookmarkVm = buildDashboardViewModel({
     realTabs: bookmarkTabs,
     domainGroups: bookmarkGroups,
     filter: 'docs openai',
-    source: 'bookmarks'
+    source: 'bookmarks',
   })
 
   assert.deepEqual(historyVm.matchedCards.map(({ group }) => group.domain), ['openai.com'])
@@ -2331,8 +2330,8 @@ test('computeDomainCardViewModel uses the simple count when every chip matches t
     domain: 'example.com',
     tabs: [
       makeTab({ url: 'https://alpha.example.com/overview', title: 'Alpha overview' }),
-      makeTab({ id: 2, url: 'https://alpha.example.com/details', title: 'Alpha details' })
-    ]
+      makeTab({ id: 2, url: 'https://alpha.example.com/details', title: 'Alpha details' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group, { filter: 'alpha' })
@@ -2374,7 +2373,7 @@ test('filter focus pending input adopts the pre-app value and releases its liste
   let releaseCount = 0
   const bootWindow = {
     __tabOutFilterFocusBootValue: 'git',
-    __tabOutReleaseFilterFocusBoot: () => { releaseCount += 1 }
+    __tabOutReleaseFilterFocusBoot: () => { releaseCount += 1 },
   }
   globalThis.window = bootWindow as unknown as Window & typeof globalThis
   try {
@@ -2397,16 +2396,16 @@ test('filtering ignores Tab Out keywords injected by the active filter title and
       url: 'chrome-extension://tab-out/index.html?filter=github',
       rawUrl: 'chrome-extension://tab-out/index.html?filter=github',
       title: 'github - Tab Out',
-      isTabOut: true
+      isTabOut: true,
     }),
-    makeTab({ id: 2, url: 'https://openai.com/', title: 'OpenAI' })
+    makeTab({ id: 2, url: 'https://openai.com/', title: 'OpenAI' }),
   ])
   const realTabs = groups.flatMap((group) => group.tabs)
 
   const vm = buildDashboardViewModel({
     realTabs,
     domainGroups: groups,
-    filter: 'github'
+    filter: 'github',
   })
 
   assert.equal(vm.stats.visibleTabs, 0)
@@ -2426,8 +2425,8 @@ test('normalizeTabHistorySnapshot keeps command target markers stable', () => {
     entries: [
       { index: 0, tabId: 11, windowId: 1, title: 'Alpha', displayUrl: 'alpha.example', exists: true, previousTarget: true },
       { index: 1, tabId: 12, windowId: 1, title: 'Bravo', displayUrl: 'bravo.example', exists: true, active: true, current: true },
-      { index: 2, tabId: 13, windowId: 1, title: 'Charlie', displayUrl: 'charlie.example', exists: true, activeInOtherWindow: true, cursor: true, nextTarget: true }
-    ] as any
+      { index: 2, tabId: 13, windowId: 1, title: 'Charlie', displayUrl: 'charlie.example', exists: true, activeInOtherWindow: true, cursor: true, nextTarget: true },
+    ] as any,
   })
 
   assert.equal(snapshot.stackSize, 3)
@@ -2453,7 +2452,7 @@ test('normalizeTabHistorySnapshot resolves live history favicons from Chrome tab
         title: 'Alpha',
         url: 'https://alpha.example/docs',
         favIconUrl: '',
-        exists: true
+        exists: true,
       },
       {
         index: 1,
@@ -2462,9 +2461,9 @@ test('normalizeTabHistorySnapshot resolves live history favicons from Chrome tab
         title: 'Bravo',
         url: 'https://bravo.example/docs',
         favIconUrl: 'data:image/png;base64,abc',
-        exists: true
-      }
-    ] as any
+        exists: true,
+      },
+    ] as any,
   })
 
   assert.equal(atOrThrow(snapshot.entries, 0).favIconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Falpha.example%2Fdocs&size=32')
@@ -2482,9 +2481,9 @@ test('normalizeTabHistorySnapshot resolves suspended-row favicons from the origi
         url: 'https://charlie.example/docs',
         rawUrl: 'chrome-extension://suspenderid/suspended.html#ttl=Charlie&uri=https://charlie.example/docs',
         favIconUrl: 'data:image/png;base64,faded',
-        exists: true
-      }
-    ] as any
+        exists: true,
+      },
+    ] as any,
   })
 
   assert.equal(atOrThrow(snapshot.entries, 0).favIconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Fcharlie.example%2Fdocs&size=32')
@@ -2501,9 +2500,9 @@ test('normalizeTabHistorySnapshot falls back to Chrome favicon cache for suspend
         url: 'https://charlie.example/docs',
         rawUrl: 'chrome-extension://suspenderid/suspended.html#ttl=Charlie&uri=https://charlie.example/docs',
         favIconUrl: '',
-        exists: true
-      }
-    ] as any
+        exists: true,
+      },
+    ] as any,
   })
 
   assert.equal(atOrThrow(snapshot.entries, 0).favIconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Fcharlie.example%2Fdocs&size=32')
@@ -2520,9 +2519,9 @@ test('normalizeTabHistorySnapshot honors the explicit suspended flag over url co
         url: 'https://delta.example/docs',
         suspended: true,
         favIconUrl: 'data:image/png;base64,faded',
-        exists: true
-      }
-    ] as any
+        exists: true,
+      },
+    ] as any,
   })
 
   assert.equal(atOrThrow(snapshot.entries, 0).suspended, true)
@@ -2539,30 +2538,30 @@ test('flattenBookmarkNodes turns bookmark tree nodes into read-only dashboard it
         {
           id: '3',
           title: 'Nested',
-          children: [{ id: '4', title: 'GitHub', url: 'https://github.com/' }]
-        }
-      ]
-    }
+          children: [{ id: '4', title: 'GitHub', url: 'https://github.com/' }],
+        },
+      ],
+    },
   ])
 
   assert.deepEqual(
     bookmarks.map((bookmark) => ({ url: bookmark.url, sourceType: bookmark.sourceType })),
     [
       { url: 'https://openai.com/', sourceType: 'bookmark' },
-      { url: 'https://github.com/', sourceType: 'bookmark' }
-    ]
+      { url: 'https://github.com/', sourceType: 'bookmark' },
+    ],
   )
 })
 
 test('flattenHistoryItems turns Chrome history items into read-only dashboard items', () => {
   const historyItems = flattenHistoryItems([
     { id: '1', title: 'OpenAI Docs', url: 'https://openai.com/docs' },
-    { id: '2', title: 'Chrome internal', url: 'chrome://settings' }
+    { id: '2', title: 'Chrome internal', url: 'chrome://settings' },
   ])
 
   assert.deepEqual(
     historyItems.map((item) => ({ url: item.url, sourceType: item.sourceType })),
-    [{ url: 'https://openai.com/docs', sourceType: 'history' }]
+    [{ url: 'https://openai.com/docs', sourceType: 'history' }],
   )
 })
 
@@ -2570,7 +2569,7 @@ test('history range options default to the last day search window', () => {
   assert.equal(DEFAULT_HISTORY_RANGE, '1d')
   assert.deepEqual(
     HISTORY_RANGE_OPTIONS.map((option) => option.value),
-    [HISTORY_FILTER_OFF, '1d', '7d', '30d', '90d', '180d', '365d', 'all']
+    [HISTORY_FILTER_OFF, '1d', '7d', '30d', '90d', '180d', '365d', 'all'],
   )
   assert.equal(expectDefined(HISTORY_RANGE_OPTIONS.find((option) => option.value === DEFAULT_HISTORY_RANGE)).days, 1)
 })
@@ -2582,7 +2581,7 @@ test('history source sends the raw trimmed filter text to Chrome history search'
     async search(query: any) {
       searchedText = query.text
       return [{ id: '1', title: 'Pull Request review', url: 'https://github.com/example/repo/pull/4706' }]
-    }
+    },
   }
 
   try {
@@ -2600,7 +2599,7 @@ test('history source keeps search failures distinct from zero matches', async ()
   ;(globalThis.chrome as any).history = {
     async search() {
       throw new Error('History unavailable')
-    }
+    },
   }
 
   try {
@@ -2617,46 +2616,46 @@ test('history search status copy distinguishes visible, deduped, empty, and upda
     phase: 'ready',
     totalMatches: 4,
     visibleMatches: 2,
-    dedupedMatches: 2
+    dedupedMatches: 2,
   }), {
     title: '2 shown in Tabs',
-    detail: '2 of 4 returned matches appear below.'
+    detail: '2 of 4 returned matches appear below.',
   })
   assert.deepEqual(historySearchStatusCopy({
     phase: 'ready',
     totalMatches: 3,
     visibleMatches: 0,
-    dedupedMatches: 3
+    dedupedMatches: 3,
   }), {
     title: '3 shown in Tabs',
-    detail: 'No returned matches repeated below.'
+    detail: 'No returned matches repeated below.',
   })
   assert.deepEqual(historySearchStatusCopy({
     phase: 'ready',
     totalMatches: 0,
     visibleMatches: 0,
-    dedupedMatches: 0
+    dedupedMatches: 0,
   }), {
     title: 'No returned History matches',
-    detail: 'Try a wider range.'
+    detail: 'Try a wider range.',
   })
   assert.deepEqual(historySearchStatusCopy({
     phase: 'updating',
     totalMatches: 1,
     visibleMatches: 1,
-    dedupedMatches: 0
+    dedupedMatches: 0,
   }), {
     title: '1 returned History match',
-    detail: 'Updating…'
+    detail: 'Updating…',
   })
   assert.deepEqual(historySearchStatusCopy({
     phase: 'error',
     totalMatches: 1,
     visibleMatches: 1,
-    dedupedMatches: 0
+    dedupedMatches: 0,
   }), {
     title: 'History update failed',
-    detail: 'Previous results remain below.'
+    detail: 'Previous results remain below.',
   })
 })
 
@@ -2669,7 +2668,7 @@ test('history filter off skips Chrome history search', async () => {
     async search() {
       searched = true
       return [{ id: '1', title: 'OpenAI Docs', url: 'https://openai.com/docs' }]
-    }
+    },
   }
 
   try {
@@ -2689,7 +2688,7 @@ test('all-time history search starts at the Unix epoch', async () => {
     async search(query: any) {
       searchQuery = query
       return []
-    }
+    },
   }
 
   try {
@@ -2709,15 +2708,15 @@ test('filter search request owns bookmark and history inclusion rules', () => {
       source: 'tabs',
       filter: ' openai ',
       historyRange: '7d',
-      historyFilterEnabled: true
+      historyFilterEnabled: true,
     }),
     {
       query: ' openai ',
       historyQuery: 'openai',
       historyRange: '7d',
       includeBookmarkMatches: true,
-      includeHistoryMatches: true
-    }
+      includeHistoryMatches: true,
+    },
   )
 
   assert.deepEqual(
@@ -2725,15 +2724,15 @@ test('filter search request owns bookmark and history inclusion rules', () => {
       source: 'bookmarks',
       filter: 'openai',
       historyRange: '7d',
-      historyFilterEnabled: true
+      historyFilterEnabled: true,
     }),
     {
       query: 'openai',
       historyQuery: '',
       historyRange: '7d',
       includeBookmarkMatches: false,
-      includeHistoryMatches: false
-    }
+      includeHistoryMatches: false,
+    },
   )
 
   assert.deepEqual(
@@ -2741,15 +2740,15 @@ test('filter search request owns bookmark and history inclusion rules', () => {
       source: 'tabs',
       filter: '   ',
       historyRange: '7d',
-      historyFilterEnabled: true
+      historyFilterEnabled: true,
     }),
     {
       query: '   ',
       historyQuery: '',
       historyRange: '7d',
       includeBookmarkMatches: false,
-      includeHistoryMatches: false
-    }
+      includeHistoryMatches: false,
+    },
   )
 })
 
@@ -2759,8 +2758,8 @@ test('history range changes retain same-query results while requiring an exact r
       id: 2,
       sourceType: 'history',
       title: 'OpenAI Docs',
-      url: 'https://example.test/openai'
-    })
+      url: 'https://example.test/openai',
+    }),
   ]
   const dashboard = {
     realTabs: [],
@@ -2769,13 +2768,13 @@ test('history range changes retain same-query results while requiring an exact r
     historyTabs,
     historyDomainGroups: buildDomainGroups(historyTabs),
     historySearchQuery: 'openai',
-    historyRange: '1d'
+    historyRange: '1d',
   }
   const options = {
     source: 'tabs' as const,
     filter: 'openai',
     historyRange: '7d',
-    historyFilterEnabled: true
+    historyFilterEnabled: true,
   }
 
   assert.equal(canUseHistorySearchResults(dashboard, options), false)
@@ -2788,8 +2787,8 @@ test('history range changes retain same-query results while requiring an exact r
     chipOrder: {
       tabs: new Map(),
       bookmarks: new Map(),
-      history: new Map()
-    }
+      history: new Map(),
+    },
   }))
   assert.equal(stale.historyResultsFilter, 'openai')
   assert.deepEqual(stale.historyMatchedCards.map(({ group }) => group.domain), ['example.test'])
@@ -2798,28 +2797,28 @@ test('history range changes retain same-query results while requiring an exact r
     phase: 'updating',
     totalMatches: 1,
     visibleMatches: 1,
-    dedupedMatches: 0
+    dedupedMatches: 0,
   })
   assert.equal(
     canDisplayHistorySearchResults(dashboard, {
       ...options,
-      filter: 'github'
+      filter: 'github',
     }),
-    false
+    false,
   )
   assert.equal(
     dashboardNeedsFilterSearchRefresh(dashboard, {
       ...options,
-      historyFilterEnabled: false
+      historyFilterEnabled: false,
     }),
-    false
+    false,
   )
   assert.equal(
     canDisplayHistorySearchResults(dashboard, {
       ...options,
-      historyFilterEnabled: false
+      historyFilterEnabled: false,
     }),
-    false
+    false,
   )
 })
 
@@ -2832,13 +2831,13 @@ test('failed history searches settle without becoming usable result snapshots', 
     historyDomainGroups: [],
     historySearchQuery: 'example',
     historyRange: '7d',
-    historySearchStatus: 'error' as const
+    historySearchStatus: 'error' as const,
   }
   const options = {
     source: 'tabs' as const,
     filter: 'example',
     historyRange: '7d',
-    historyFilterEnabled: true
+    historyFilterEnabled: true,
   }
 
   assert.equal(isHistorySearchRequestSettled(dashboard, options), true)
@@ -2853,14 +2852,14 @@ test('failed history searches settle without becoming usable result snapshots', 
     chipOrder: {
       tabs: new Map(),
       bookmarks: new Map(),
-      history: new Map()
-    }
+      history: new Map(),
+    },
   }))
   assert.deepEqual(failed.historySearchSummary, {
     phase: 'error',
     totalMatches: 0,
     visibleMatches: 0,
-    dedupedMatches: 0
+    dedupedMatches: 0,
   })
 
   const retrying = renderHookValue(() => useDashboardViewModels({
@@ -2871,8 +2870,8 @@ test('failed history searches settle without becoming usable result snapshots', 
     chipOrder: {
       tabs: new Map(),
       bookmarks: new Map(),
-      history: new Map()
-    }
+      history: new Map(),
+    },
   }))
   assert.equal(retrying.historySearchSummary?.phase, 'searching')
 })
@@ -2882,7 +2881,7 @@ test('failed same-query history refreshes retain the previous result candidates'
     id: 'history-previous',
     sourceType: 'history',
     title: 'Previous History result',
-    url: 'https://history-previous.test/docs'
+    url: 'https://history-previous.test/docs',
   })
   const previous = {
     realTabs: [],
@@ -2891,7 +2890,7 @@ test('failed same-query history refreshes retain the previous result candidates'
     historyDomainGroups: buildDomainGroups([historyTab]),
     historySearchQuery: 'history',
     historyRange: '1d',
-    historySearchStatus: 'ready' as const
+    historySearchStatus: 'ready' as const,
   }
   const next = {
     realTabs: [],
@@ -2900,7 +2899,7 @@ test('failed same-query history refreshes retain the previous result candidates'
     historyDomainGroups: [],
     historySearchQuery: 'history',
     historyRange: '7d',
-    historySearchStatus: 'error' as const
+    historySearchStatus: 'error' as const,
   }
 
   const retained = retainHistorySearchResultsOnError(next, previous)
@@ -2910,7 +2909,7 @@ test('failed same-query history refreshes retain the previous result candidates'
   assert.deepEqual(retained.historyDomainGroups, previous.historyDomainGroups)
   const retainedAfterRetryFailure = retainHistorySearchResultsOnError(
     { ...next, historyRange: '30d' },
-    retained
+    retained,
   )
   assert.equal(retainedAfterRetryFailure.historyRange, '30d')
   assert.deepEqual(retainedAfterRetryFailure.historyTabs, [historyTab])
@@ -2918,9 +2917,9 @@ test('failed same-query history refreshes retain the previous result candidates'
   assert.equal(
     retainHistorySearchResultsOnError(
       { ...next, historySearchQuery: 'another query' },
-      previous
+      previous,
     ).historyTabs?.length,
-    0
+    0,
   )
 })
 
@@ -2928,13 +2927,13 @@ test('a history result suppressed by an open tab appears immediately after that 
   const openTab = makeTab({
     id: 1,
     title: 'World Reference',
-    url: 'https://priority.test/reference'
+    url: 'https://priority.test/reference',
   })
   const historyTab = makeTab({
     id: 'history-reference',
     sourceType: 'history',
     title: 'World Reference',
-    url: 'https://priority.test/reference'
+    url: 'https://priority.test/reference',
   })
   const { dashboard } = await buildDashboardDataFromTabs(
     [openTab],
@@ -2945,8 +2944,8 @@ test('a history result suppressed by an open tab appears immediately after that 
       includeHistoryMatches: true,
       searchQuery: 'world',
       historyRange: '7d',
-      historyTabs: [historyTab]
-    }
+      historyTabs: [historyTab],
+    },
   )
   const options = {
     source: 'tabs' as const,
@@ -2957,12 +2956,12 @@ test('a history result suppressed by an open tab appears immediately after that 
     chipOrder: {
       tabs: new Map(),
       bookmarks: new Map(),
-      history: new Map()
-    }
+      history: new Map(),
+    },
   }
   const open = renderHookValue(() => useDashboardViewModels({
     dashboard,
-    ...options
+    ...options,
   }))
   assert.equal(open.matchedCards.length, 1)
   assert.equal(open.showHistoryMatches, false)
@@ -2970,16 +2969,16 @@ test('a history result suppressed by an open tab appears immediately after that 
     phase: 'ready',
     totalMatches: 1,
     visibleMatches: 0,
-    dedupedMatches: 1
+    dedupedMatches: 1,
   })
 
   const afterClose = renderHookValue(() => useDashboardViewModels({
     dashboard: {
       ...dashboard,
       realTabs: [],
-      domainGroups: []
+      domainGroups: [],
     },
-    ...options
+    ...options,
   }))
   assert.deepEqual(afterClose.historyMatchedCards.map(({ group }) => group.domain), ['priority.test'])
   assert.equal(afterClose.showHistoryMatches, true)
@@ -2987,7 +2986,7 @@ test('a history result suppressed by an open tab appears immediately after that 
     phase: 'ready',
     totalMatches: 1,
     visibleMatches: 1,
-    dedupedMatches: 0
+    dedupedMatches: 0,
   })
 })
 
@@ -2999,13 +2998,13 @@ test('filter companion results dedupe by tabs, then history, then bookmarks', as
       children: [
         { id: 'b1', title: 'World Open Bookmark', url: 'https://priority.test/open' },
         { id: 'b2', title: 'World History Bookmark', url: 'https://priority.test/history' },
-        { id: 'b3', title: 'World Bookmark', url: 'https://priority.test/bookmark' }
-      ]
-    }
+        { id: 'b3', title: 'World Bookmark', url: 'https://priority.test/bookmark' },
+      ],
+    },
   ])
   const historyTabs = flattenHistoryItems([
     { id: 'h1', title: 'World Open History', url: 'https://priority.test/open' },
-    { id: 'h2', title: 'World History', url: 'https://priority.test/history' }
+    { id: 'h2', title: 'World History', url: 'https://priority.test/history' },
   ])
   const { dashboard } = await buildDashboardDataFromTabs(
     [makeTab({ url: 'https://priority.test/open', title: 'World Open' })],
@@ -3017,17 +3016,17 @@ test('filter companion results dedupe by tabs, then history, then bookmarks', as
       searchQuery: 'world',
       historyRange: '7d',
       bookmarkTabs,
-      historyTabs
-    }
+      historyTabs,
+    },
   )
 
   assert.deepEqual(
     dashboard.historyTabs.map((tab) => tab.url),
-    ['https://priority.test/open', 'https://priority.test/history']
+    ['https://priority.test/open', 'https://priority.test/history'],
   )
   assert.deepEqual(
     dashboard.bookmarkTabs.map((tab) => tab.url),
-    ['https://priority.test/open', 'https://priority.test/history', 'https://priority.test/bookmark']
+    ['https://priority.test/open', 'https://priority.test/history', 'https://priority.test/bookmark'],
   )
   const viewModels = renderHookValue(() => useDashboardViewModels({
     dashboard,
@@ -3039,22 +3038,22 @@ test('filter companion results dedupe by tabs, then history, then bookmarks', as
     chipOrder: {
       tabs: new Map(),
       bookmarks: new Map(),
-      history: new Map()
-    }
+      history: new Map(),
+    },
   }))
   assert.deepEqual(
     viewModels.historyMatchedCards.flatMap(({ group }) => group.tabs.map((tab) => tab.url)),
-    ['https://priority.test/history']
+    ['https://priority.test/history'],
   )
   assert.deepEqual(
     viewModels.bookmarkMatchedCards.flatMap(({ group }) => group.tabs.map((tab) => tab.url)),
-    ['https://priority.test/bookmark']
+    ['https://priority.test/bookmark'],
   )
   assert.deepEqual(viewModels.historySearchSummary, {
     phase: 'ready',
     totalMatches: 2,
     visibleMatches: 1,
-    dedupedMatches: 1
+    dedupedMatches: 1,
   })
 })
 
@@ -3064,7 +3063,7 @@ test('deleteHistorySourceUrl deletes a URL from Chrome history', async () => {
   ;(globalThis.chrome as any).history = {
     async deleteUrl(details: any) {
       deletedUrl = details.url
-    }
+    },
   }
 
   try {
@@ -3080,14 +3079,14 @@ test('deleteHistorySourceUrl deletes a URL from Chrome history', async () => {
 test('buildDashboardViewModel disables destructive actions for bookmarks source', () => {
   const groups = buildDomainGroups([
     makeTab({ url: 'https://bookmarks.test/a', title: 'Bookmark A', sourceType: 'bookmark' }),
-    makeTab({ id: 2, url: 'https://bookmarks.test/b', title: 'Bookmark B', sourceType: 'bookmark' })
+    makeTab({ id: 2, url: 'https://bookmarks.test/b', title: 'Bookmark B', sourceType: 'bookmark' }),
   ])
   const realTabs = groups.flatMap((group) => group.tabs)
 
   const vm = buildDashboardViewModel({
     realTabs,
     domainGroups: groups,
-    source: 'bookmarks'
+    source: 'bookmarks',
   })
 
   assert.equal(vm.source, 'bookmarks')
@@ -3102,24 +3101,24 @@ test('buildDashboardViewModel disables destructive actions for bookmarks source'
 test('combined tab and bookmark search keeps bookmark matches read-only', () => {
   const tabGroups = buildDomainGroups([
     makeTab({ url: 'https://openai.com/docs', title: 'OpenAI Docs' }),
-    makeTab({ id: 2, url: 'https://example.com/', title: 'Example' })
+    makeTab({ id: 2, url: 'https://example.com/', title: 'Example' }),
   ])
   const bookmarkGroups = buildDomainGroups([
     makeTab({ id: 'b1', url: 'https://openai.com/research', title: 'OpenAI Research', sourceType: 'bookmark' }),
-    makeTab({ id: 'b2', url: 'https://github.com/', title: 'GitHub', sourceType: 'bookmark' })
+    makeTab({ id: 'b2', url: 'https://github.com/', title: 'GitHub', sourceType: 'bookmark' }),
   ])
 
   const tabsVm = buildDashboardViewModel({
     realTabs: tabGroups.flatMap((group) => group.tabs),
     domainGroups: tabGroups,
     filter: 'openai',
-    source: 'tabs'
+    source: 'tabs',
   })
   const bookmarksVm = buildDashboardViewModel({
     realTabs: bookmarkGroups.flatMap((group) => group.tabs),
     domainGroups: bookmarkGroups,
     filter: 'openai',
-    source: 'bookmarks'
+    source: 'bookmarks',
   })
 
   assert.deepEqual(tabsVm.filteredCloseUrls, ['https://openai.com/docs'])
@@ -3135,14 +3134,14 @@ test('combined tab and bookmark search keeps bookmark matches read-only', () => 
 test('history search matches are not tab-closable dashboard results', () => {
   const historyGroups = buildDomainGroups([
     makeTab({ id: 'h1', url: 'https://openai.com/docs', title: 'OpenAI Docs', sourceType: 'history' }),
-    makeTab({ id: 'h2', url: 'https://example.com/', title: 'Example', sourceType: 'history' })
+    makeTab({ id: 'h2', url: 'https://example.com/', title: 'Example', sourceType: 'history' }),
   ])
 
   const vm = buildDashboardViewModel({
     realTabs: historyGroups.flatMap((group) => group.tabs),
     domainGroups: historyGroups,
     filter: 'openai',
-    source: 'history'
+    source: 'history',
   })
 
   assert.equal(vm.stats.dedupCount, 0)
@@ -3163,15 +3162,15 @@ test('closed saved pages stay searchable without counting as open tabs or close 
       title: 'Saved reference',
       sourceType: 'saved-page',
       saved: true,
-      closedSaved: true
-    })
+      closedSaved: true,
+    }),
   ])
   const realTabs = groups.flatMap((group) => group.tabs)
 
   const unfiltered = buildDashboardViewModel({
     realTabs,
     domainGroups: groups,
-    source: 'tabs'
+    source: 'tabs',
   })
   const unfilteredCard = atOrThrow(unfiltered.matchedCards, 0)
   assert.equal(unfiltered.stats.totalTabs, 1)
@@ -3180,7 +3179,7 @@ test('closed saved pages stay searchable without counting as open tabs or close 
   assert.equal(unfilteredCard.vm.closableCount, 1)
   assert.deepEqual(
     sectionsOf(unfilteredCard.vm).flatMap((section) => section.sectionClosableUrls),
-    ['https://example.test/open']
+    ['https://example.test/open'],
   )
   assert.deepEqual(unfiltered.globalDedupeUrls, [])
 
@@ -3188,7 +3187,7 @@ test('closed saved pages stay searchable without counting as open tabs or close 
     realTabs,
     domainGroups: groups,
     filter: 'reference',
-    source: 'tabs'
+    source: 'tabs',
   })
   const filteredCard = atOrThrow(filtered.matchedCards, 0)
   assert.equal(filtered.stats.visibleTabs, 0)
@@ -3204,7 +3203,7 @@ test('filtered saved-only cards show the matched closed-page fraction in their b
     makeTab({ id: 'saved-1', url: 'https://example.test/saved-1', title: 'Matching reference one', sourceType: 'saved-page', saved: true, closedSaved: true }),
     makeTab({ id: 'saved-2', url: 'https://example.test/saved-2', title: 'Matching reference two', sourceType: 'saved-page', saved: true, closedSaved: true }),
     makeTab({ id: 'saved-3', url: 'https://example.test/saved-3', title: 'Other saved page', sourceType: 'saved-page', saved: true, closedSaved: true }),
-    makeTab({ id: 'saved-4', url: 'https://example.test/saved-4', title: 'Another saved page', sourceType: 'saved-page', saved: true, closedSaved: true })
+    makeTab({ id: 'saved-4', url: 'https://example.test/saved-4', title: 'Another saved page', sourceType: 'saved-page', saved: true, closedSaved: true }),
   ])
   const realTabs = groups.flatMap((group) => group.tabs)
 
@@ -3212,7 +3211,7 @@ test('filtered saved-only cards show the matched closed-page fraction in their b
     realTabs,
     domainGroups: groups,
     filter: 'matching reference',
-    source: 'tabs'
+    source: 'tabs',
   })
 
   assert.equal(filtered.matchedCards.length, 1)
@@ -3228,7 +3227,7 @@ test('filtered cards show the closed-page fraction alongside their open-tab coun
     makeTab({ id: 'saved-1', url: 'https://example.test/saved-1', title: 'Matching saved page one', sourceType: 'saved-page', saved: true, closedSaved: true }),
     makeTab({ id: 'saved-2', url: 'https://example.test/saved-2', title: 'Matching saved page two', sourceType: 'saved-page', saved: true, closedSaved: true }),
     makeTab({ id: 'saved-3', url: 'https://example.test/saved-3', title: 'Other saved page', sourceType: 'saved-page', saved: true, closedSaved: true }),
-    makeTab({ id: 'saved-4', url: 'https://example.test/saved-4', title: 'Another saved page', sourceType: 'saved-page', saved: true, closedSaved: true })
+    makeTab({ id: 'saved-4', url: 'https://example.test/saved-4', title: 'Another saved page', sourceType: 'saved-page', saved: true, closedSaved: true }),
   ])
   const realTabs = groups.flatMap((group) => group.tabs)
 
@@ -3236,7 +3235,7 @@ test('filtered cards show the closed-page fraction alongside their open-tab coun
     realTabs,
     domainGroups: groups,
     filter: 'matching',
-    source: 'tabs'
+    source: 'tabs',
   })
 
   assert.equal(filtered.matchedCards.length, 1)
@@ -3249,7 +3248,7 @@ test('New tabs bulk-close scopes exclude pinned physical copies in card and sect
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
   const group = atOrThrow(buildDomainGroups([
     makeTab({ id: 1, url: tabOutUrl, title: 'Pinned Tab Out', isTabOut: true, pinned: true }),
-    makeTab({ id: 2, url: tabOutUrl, title: 'Ordinary Tab Out', isTabOut: true })
+    makeTab({ id: 2, url: tabOutUrl, title: 'Ordinary Tab Out', isTabOut: true }),
   ]), 0)
 
   const vm = computeDomainCardViewModel(group)
@@ -3261,13 +3260,13 @@ test('New tabs bulk-close scopes exclude pinned physical copies in card and sect
 test('closed saved pages render after open tabs within their domain card scope', () => {
   const groups = buildDomainGroups([
     makeTab({ id: 'saved-1', url: 'https://example.test/a-saved', title: 'Alpha Saved', sourceType: 'saved-page', saved: true, closedSaved: true }),
-    makeTab({ id: 2, url: 'https://example.test/z-open', title: 'Zulu Open' })
+    makeTab({ id: 2, url: 'https://example.test/z-open', title: 'Zulu Open' }),
   ])
 
   const vm = computeDomainCardViewModel(atOrThrow(groups, 0))
   assert.deepEqual(
     firstSection(vm).flatVisibleChips.map((chip) => chip.tabUrl),
-    ['https://example.test/z-open', 'https://example.test/a-saved']
+    ['https://example.test/z-open', 'https://example.test/a-saved'],
   )
 })
 
@@ -3275,19 +3274,19 @@ test('buildDomainGroups keeps saved-only cards after cards with open tabs despit
   const groups = buildDomainGroups(
     [
       makeTab({ id: 'saved-1', url: 'https://saved-only.test/a', title: 'Saved only', sourceType: 'saved-page', saved: true, closedSaved: true }),
-      makeTab({ id: 2, url: 'https://open-tabs.test/z', title: 'Open tab' })
+      makeTab({ id: 2, url: 'https://open-tabs.test/z', title: 'Open tab' }),
     ],
     {
       previousOrder: new Map([
         ['domain-saved-only.test', 0],
-        ['domain-open-tabs.test', 1]
-      ])
-    }
+        ['domain-open-tabs.test', 1],
+      ]),
+    },
   )
 
   assert.deepEqual(
     groups.map((group) => group.domain),
-    ['open-tabs.test', 'saved-only.test']
+    ['open-tabs.test', 'saved-only.test'],
   )
 })
 
@@ -3303,7 +3302,7 @@ test('manifest keeps only the permissions used by the extension', () => {
     'alarms',
     'favicon',
     'system.display',
-    'nativeMessaging'
+    'nativeMessaging',
   ])
   assert.equal(manifest.incognito, 'not_allowed')
   assert.equal(manifest.commands['switch-to-last-tab'].description, 'Switch to the previous tab in global activation history')
@@ -3315,7 +3314,7 @@ test('manifest keeps only the permissions used by the extension', () => {
     'switch-to-last-tab',
     'switch-to-next-tab',
     'open-filter-tab',
-    'open-new-tab'
+    'open-new-tab',
   ])
 })
 
@@ -3335,15 +3334,15 @@ function installSavedPagesStorageProbe(initialStore: unknown) {
             state.writes += 1
             state.stored = values[SAVED_PAGES_STORAGE_KEY]
           }
-        }
-      }
-    }
+        },
+      },
+    },
   }
   return {
     state,
     restore: () => {
       ;(globalThis as { chrome?: unknown }).chrome = previousChrome
-    }
+    },
   }
 }
 
@@ -3360,7 +3359,7 @@ function staleSavedPageStore(savedUrl: string) {
     title: 'Stale saved title',
     favIconUrl: '',
     isTabOut: false,
-    isApp: false
+    isApp: false,
   }, 100)
 }
 
@@ -3373,7 +3372,7 @@ test('buildDashboardDataFromTabs returns saved page metadata updates instead of 
       [makeTab({ url: savedUrl, title: 'Fresh page title' })],
       1,
       new Map(),
-      { savedPagesStore: baseStore }
+      { savedPagesStore: baseStore },
     )
     await drainSavedPagesWrites()
 
@@ -3395,7 +3394,7 @@ test('fetchDashboardData heals changed Saved Page metadata with a single storage
     const dashboard = await fetchDashboardData(new Map(), 'tabs', {
       dashboardTabs: [makeTab({ url: savedUrl, title: 'Fresh page title' })],
       currentWindowId: 1,
-      savedPagesStore: baseStore
+      savedPagesStore: baseStore,
     })
     await drainSavedPagesWrites()
 

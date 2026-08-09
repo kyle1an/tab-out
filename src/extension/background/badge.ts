@@ -6,7 +6,7 @@ import {
   Option,
   Ref,
   Result,
-  Schema
+  Schema,
 } from 'effect'
 
 import type { ChromeApi } from './chrome-api.js'
@@ -33,12 +33,12 @@ type BadgeFlight = {
 
 class BadgeBrowserReadError extends Schema.TaggedErrorClass<BadgeBrowserReadError>()(
   'BadgeBrowserReadError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 class BadgePresentationWriteError extends Schema.TaggedErrorClass<BadgePresentationWriteError>()(
   'BadgePresentationWriteError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 export class Badge extends Context.Service<Badge, {
@@ -51,7 +51,7 @@ export class Badge extends Context.Service<Badge, {
 
 export const refreshBadge: Effect.Effect<void, never, Badge> = Effect.flatMap(
   Badge,
-  (badge) => badge.refresh
+  (badge) => badge.refresh,
 )
 
 /**
@@ -71,46 +71,46 @@ function badgePresentationForTabs(tabs: chrome.tabs.Tab[], currentWindowId: numb
 }
 
 function makeBadgeLayer(chromeApi: ChromeApi): Layer.Layer<Badge> {
-  return Layer.effect(Badge, Effect.gen(function*() {
+  return Layer.effect(Badge, Effect.gen(function* () {
     const scope = yield* Effect.scope
     const state = yield* Ref.make<BadgeState>({
       appliedColor: null,
       appliedText: null,
       appliedTitle: null,
       inFlight: Option.none(),
-      requestedVersion: 0
+      requestedVersion: 0,
     })
 
-    const readBadgePresentation = Effect.fn('Badge.readPresentation')(function*() {
+    const readBadgePresentation = Effect.fn('Badge.readPresentation')(function* () {
       const [tabs, currentWindow] = yield* Effect.tryPromise({
         try: () => Promise.all([
           chromeApi.tabs.query({}),
-          chromeApi.windows.getCurrent()
+          chromeApi.windows.getCurrent(),
         ]),
-        catch: (cause) => BadgeBrowserReadError.make({ cause })
+        catch: (cause) => BadgeBrowserReadError.make({ cause }),
       })
       if (currentWindow.id == null) {
         return yield* Effect.fail(BadgeBrowserReadError.make({
-          cause: new Error('Current window unavailable')
+          cause: new Error('Current window unavailable'),
         }))
       }
       return badgePresentationForTabs(tabs, currentWindow.id)
     })
 
-    const applyBadgePresentation = Effect.fn('Badge.applyPresentation')(function*(
+    const applyBadgePresentation = Effect.fn('Badge.applyPresentation')(function* (
       presentation: BadgePresentation,
-      version: number
+      version: number,
     ) {
       let currentState = yield* Ref.get(state)
       if (presentation.text !== currentState.appliedText) {
         const writeResult = yield* Effect.result(Effect.tryPromise({
           try: () => chromeApi.action.setBadgeText({ text: presentation.text }),
-          catch: (cause) => BadgePresentationWriteError.make({ cause })
+          catch: (cause) => BadgePresentationWriteError.make({ cause }),
         }))
         if (Result.isFailure(writeResult)) return
         yield* Ref.update(state, (current) => ({
           ...current,
-          appliedText: presentation.text
+          appliedText: presentation.text,
         }))
       }
 
@@ -120,7 +120,7 @@ function makeBadgeLayer(chromeApi: ChromeApi): Layer.Layer<Badge> {
       if (color != null && color !== currentState.appliedColor) {
         const writeResult = yield* Effect.result(Effect.tryPromise({
           try: () => chromeApi.action.setBadgeBackgroundColor({ color }),
-          catch: (cause) => BadgePresentationWriteError.make({ cause })
+          catch: (cause) => BadgePresentationWriteError.make({ cause }),
         }))
         if (Result.isSuccess(writeResult)) {
           yield* Ref.update(state, (current) => ({ ...current, appliedColor: color }))
@@ -131,17 +131,17 @@ function makeBadgeLayer(chromeApi: ChromeApi): Layer.Layer<Badge> {
       if (version !== currentState.requestedVersion || presentation.title === currentState.appliedTitle) return
       const writeResult = yield* Effect.result(Effect.tryPromise({
         try: () => chromeApi.action.setTitle({ title: presentation.title }),
-        catch: (cause) => BadgePresentationWriteError.make({ cause })
+        catch: (cause) => BadgePresentationWriteError.make({ cause }),
       }))
       if (Result.isSuccess(writeResult)) {
         yield* Ref.update(state, (current) => ({
           ...current,
-          appliedTitle: presentation.title
+          appliedTitle: presentation.title,
         }))
       }
     })
 
-    const runBadgeRefreshLoop = Effect.fn('Badge.runRefreshLoop')(function*() {
+    const runBadgeRefreshLoop = Effect.fn('Badge.runRefreshLoop')(function* () {
       while (true) {
         const version = (yield* Ref.get(state)).requestedVersion
         const readResult = yield* Effect.result(readBadgePresentation())
@@ -160,21 +160,21 @@ function makeBadgeLayer(chromeApi: ChromeApi): Layer.Layer<Badge> {
       }
     })
 
-    const refresh = Effect.fn('Badge.refresh')(function*() {
-      return yield* Effect.uninterruptibleMask((restore) => Effect.gen(function*() {
+    const refresh = Effect.fn('Badge.refresh')(function* () {
+      return yield* Effect.uninterruptibleMask((restore) => Effect.gen(function* () {
         const candidate = yield* Deferred.make<void>()
         const flight = yield* Ref.modify(state, (current): readonly [BadgeFlight, BadgeState] => {
           const requestedVersion = current.requestedVersion + 1
           if (Option.isSome(current.inFlight)) {
             return [{ completion: current.inFlight.value, shouldStart: false }, {
               ...current,
-              requestedVersion
+              requestedVersion,
             }]
           }
           return [{ completion: candidate, shouldStart: true }, {
             ...current,
             inFlight: Option.some(candidate),
-            requestedVersion
+            requestedVersion,
           }]
         })
 
@@ -183,12 +183,12 @@ function makeBadgeLayer(chromeApi: ChromeApi): Layer.Layer<Badge> {
             Effect.onExit((exit) => Ref.update(state, (current) =>
               Option.isSome(current.inFlight) && current.inFlight.value === flight.completion
                 ? { ...current, inFlight: Option.none() }
-                : current
+                : current,
             ).pipe(
               Effect.andThen(Deferred.done(flight.completion, exit)),
-              Effect.asVoid
+              Effect.asVoid,
             )),
-            Effect.forkIn(scope, { startImmediately: true })
+            Effect.forkIn(scope, { startImmediately: true }),
           )
         }
 

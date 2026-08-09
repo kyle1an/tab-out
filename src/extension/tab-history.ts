@@ -12,8 +12,8 @@ import type { TabHistoryEntry, TabHistorySnapshot, TabSnapshot, WorkingSetItem }
 import type { ClosedTabEntry } from './closed-tabs.js'
 
 export type TabHistoryFetchResult =
-  | { ok: true; value: TabHistorySnapshot }
-  | { ok: false; value: TabHistorySnapshot }
+  | { ok: true, value: TabHistorySnapshot }
+  | { ok: false, value: TabHistorySnapshot }
 
 const tabHistoryEntryCandidateSchema = Schema.Struct({
   index: Schema.optionalKey(Schema.Unknown),
@@ -40,7 +40,7 @@ const tabHistoryEntryCandidateSchema = Schema.Struct({
   rawUrl: Schema.optionalKey(Schema.Unknown),
   displayUrl: Schema.optionalKey(Schema.Unknown),
   favIconUrl: Schema.optionalKey(Schema.Unknown),
-  lastActivatedAt: Schema.optionalKey(Schema.Unknown)
+  lastActivatedAt: Schema.optionalKey(Schema.Unknown),
 })
 
 const tabHistorySnapshotCandidateSchema = Schema.Struct({
@@ -54,7 +54,7 @@ const tabHistorySnapshotCandidateSchema = Schema.Struct({
   activeTabId: Schema.optionalKey(Schema.Unknown),
   activeWindowId: Schema.optionalKey(Schema.Unknown),
   activeWasInserted: Schema.optionalKey(Schema.Unknown),
-  entries: Schema.Array(Schema.Unknown)
+  entries: Schema.Array(Schema.Unknown),
 })
 
 const isTabHistoryEntryCandidate = Schema.is(tabHistoryEntryCandidateSchema)
@@ -73,7 +73,7 @@ function emptySnapshot(): TabHistorySnapshot {
     activeTabId: null,
     activeWindowId: null,
     activeWasInserted: false,
-    entries: []
+    entries: [],
   }
 }
 
@@ -125,7 +125,7 @@ function normalizeEntry(value: unknown, index: number): TabHistoryEntry {
     rawUrl,
     displayUrl: String(entry.displayUrl || url || (tabId === -1 ? '' : `tab ${tabId}`)),
     favIconUrl: pickTabFavicon({ favIconUrl, url, suspended }) || pickFavicon({ favIconUrl, url }),
-    lastActivatedAt: integerOrNull(entry.lastActivatedAt)
+    lastActivatedAt: integerOrNull(entry.lastActivatedAt),
   }
 }
 
@@ -156,7 +156,7 @@ export function makeHistoryEntry(entry: HistoryEntryInput): TabHistoryEntry {
     previousTarget: false,
     nextTarget: false,
     lastActivatedAt: null,
-    ...entry
+    ...entry,
   }
   result.loading = !!result.exists && !result.suspended && !!result.loading
   return result
@@ -179,7 +179,7 @@ export function historyEntryFromWorkingSetItem(item: WorkingSetItem): TabHistory
     favIconUrl: item.faviconUrl,
     ...(item.audible === undefined ? {} : { audible: item.audible }),
     ...(item.muted === undefined ? {} : { muted: item.muted }),
-    lastActivatedAt: item.lastActivatedAt
+    lastActivatedAt: item.lastActivatedAt,
   })
 }
 
@@ -195,7 +195,7 @@ export function historyEntryFromClosedTab(closed: ClosedTabEntry): TabHistoryEnt
     url: closed.url,
     rawUrl: closed.rawUrl,
     displayUrl: closed.displayUrl,
-    favIconUrl: pickTabFavicon({ favIconUrl: closed.favIconUrl, url: closed.url, suspended })
+    favIconUrl: pickTabFavicon({ favIconUrl: closed.favIconUrl, url: closed.url, suspended }),
   })
 }
 
@@ -213,7 +213,7 @@ export function normalizeTabHistorySnapshot(value: unknown): TabHistorySnapshot 
     activeTabId: integerOrNull(value.activeTabId),
     activeWindowId: integerOrNull(value.activeWindowId),
     activeWasInserted: !!value.activeWasInserted,
-    entries
+    entries,
   }
 }
 
@@ -238,13 +238,13 @@ export async function fetchTabHistorySnapshot(): Promise<TabHistorySnapshot> {
   return (await fetchTabHistorySnapshotResult()).value
 }
 
-const focusHistoryEntryEffect = Effect.fn('tabHistory.focusEntry')(function*(entry: TabHistoryEntry) {
+const focusHistoryEntryEffect = Effect.fn('tabHistory.focusEntry')(function* (entry: TabHistoryEntry) {
   if (!entry?.exists) return HISTORY_ENTRY_NOT_FOUND
   return yield* focusExistingTabTargetEffect({
     tabId: entry.tabId,
     windowId: entry.windowId,
     url: entry.url,
-    rawUrl: entry.rawUrl
+    rawUrl: entry.rawUrl,
   })
 })
 
@@ -260,12 +260,12 @@ export type CloseHistoryEntryResult = {
 
 function closeHistoryEntryResult(
   status: CloseHistoryEntryResult['status'],
-  snapshot: TabSnapshot[] = []
+  snapshot: TabSnapshot[] = [],
 ): CloseHistoryEntryResult {
   return { status, closed: status === 'closed', snapshot }
 }
 
-const closeHistoryEntryEffect = Effect.fn('tabHistory.closeEntry')(function*(entry: TabHistoryEntry) {
+const closeHistoryEntryEffect = Effect.fn('tabHistory.closeEntry')(function* (entry: TabHistoryEntry) {
   const tabId = entry?.tabId
   if (!entry?.exists || typeof tabId !== 'number' || !Number.isInteger(tabId)) {
     return closeHistoryEntryResult('not-found')
@@ -278,7 +278,7 @@ const closeHistoryEntryEffect = Effect.fn('tabHistory.closeEntry')(function*(ent
   const tab = liveTabByValidatedId(allTabsResult.value, {
     tabId,
     url: entry.url,
-    rawUrl: entry.rawUrl
+    rawUrl: entry.rawUrl,
   })
   if (!tab) return closeHistoryEntryResult('not-found')
 

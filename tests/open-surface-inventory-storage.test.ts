@@ -4,11 +4,11 @@ import { ManagedRuntime } from 'effect'
 
 import {
   emptyOpenSurfaceInventory,
-  OPEN_SURFACE_INVENTORY_SCHEMA_VERSION
+  OPEN_SURFACE_INVENTORY_SCHEMA_VERSION,
 } from '../src/extension/open-surface-inventory.js'
 import {
   OpenSurfaceInventoryStorage,
-  parseOpenSurfaceInventoryValue
+  parseOpenSurfaceInventoryValue,
 } from '../src/extension/open-surface-inventory-storage.js'
 import { createRetainedPageIdentity } from '../src/extension/retained-page-identity.js'
 
@@ -34,7 +34,7 @@ test('Open Surface Inventory storage keeps session and durable checkpoints separ
     readDurable: async () => durableStored,
     writeDurable: async (value) => {
       durableStored = value
-    }
+    },
   }))
   t.after(() => runtime.dispose())
   const storage = runtime.runSync(OpenSurfaceInventoryStorage)
@@ -63,7 +63,7 @@ test('Open Surface Inventory storage preserves backend method receivers', async 
     },
     async writeDurable(value: unknown) {
       this.durableStored = value
-    }
+    },
   }
   const runtime = ManagedRuntime.make(OpenSurfaceInventoryStorage.layer(backend))
   t.after(() => runtime.dispose())
@@ -89,7 +89,7 @@ test('Open Surface Inventory storage reindexes identities without collapsing phy
         surfaceKind: 'normal-tab',
         canonicalKey: '',
         url,
-        title: 'First physical tab'
+        title: 'First physical tab',
       },
       2: {
         tabId: 2,
@@ -98,9 +98,9 @@ test('Open Surface Inventory storage reindexes identities without collapsing phy
         surfaceKind: 'normal-tab',
         canonicalKey: 'legacy-canonical-two',
         url,
-        title: 'Second physical tab'
-      }
-    }
+        title: 'Second physical tab',
+      },
+    },
   }
   let writes = 0
   let hashCalls = 0
@@ -111,14 +111,14 @@ test('Open Surface Inventory storage reindexes identities without collapsing phy
       sessionStored = value
     },
     readDurable: async () => undefined,
-    writeDurable: async () => {}
+    writeDurable: async () => {},
   }, {
     reindexIdentities: true,
     runtimeId: 'tab-out-id',
     sha256: (input) => {
       hashCalls += 1
       return globalThis.crypto.subtle.digest('SHA-256', input)
-    }
+    },
   }))
   t.after(() => runtime.dispose())
 
@@ -126,7 +126,7 @@ test('Open Surface Inventory storage reindexes identities without collapsing phy
   const repeated = await runtime.runPromise(runtime.runSync(OpenSurfaceInventoryStorage).readSession())
   const identity = await createRetainedPageIdentity({
     surfaceKind: 'normal-tab',
-    url
+    url,
   }, { runtimeId: 'tab-out-id' })
   assert.ok(identity)
 
@@ -135,11 +135,11 @@ test('Open Surface Inventory storage reindexes identities without collapsing phy
   assert.deepEqual(Object.keys(first.inventory.entries), ['1', '2'])
   assert.deepEqual(
     Object.values(first.inventory.entries).map((entry) => entry.identityDigest),
-    [identity.identityDigest, identity.identityDigest]
+    [identity.identityDigest, identity.identityDigest],
   )
   assert.deepEqual(
     Object.values(first.inventory.entries).map((entry) => entry.canonicalKey),
-    [identity.canonicalKey, identity.canonicalKey]
+    [identity.canonicalKey, identity.canonicalKey],
   )
   assert.equal(first.inventory.schemaVersion, OPEN_SURFACE_INVENTORY_SCHEMA_VERSION)
   assert.equal(hashCalls, 1)
@@ -157,18 +157,18 @@ test('Open Surface Inventory storage reindexes identities without collapsing phy
       sessionStored = value
     },
     readDurable: async () => undefined,
-    writeDurable: async () => {}
+    writeDurable: async () => {},
   }, {
     reindexIdentities: true,
     runtimeId: 'tab-out-id',
     sha256: (input) => {
       upgradeHashCalls += 1
       return globalThis.crypto.subtle.digest('SHA-256', input)
-    }
+    },
   }))
   t.after(() => upgradeRuntime.dispose())
   const upgraded = await upgradeRuntime.runPromise(
-    upgradeRuntime.runSync(OpenSurfaceInventoryStorage).readSession()
+    upgradeRuntime.runSync(OpenSurfaceInventoryStorage).readSession(),
   )
   assert.equal(upgraded.status, 'valid')
   assert.equal(upgraded.inventory.schemaVersion, OPEN_SURFACE_INVENTORY_SCHEMA_VERSION)
@@ -183,19 +183,19 @@ test('Open Surface Inventory storage reindexes identities without collapsing phy
       coldWrites += 1
     },
     readDurable: async () => undefined,
-    writeDurable: async () => {}
+    writeDurable: async () => {},
   }, {
     reindexIdentities: true,
     runtimeId: 'tab-out-id',
     sha256: (input) => {
       coldHashCalls += 1
       return globalThis.crypto.subtle.digest('SHA-256', input)
-    }
+    },
   }))
   t.after(() => coldRuntime.dispose())
 
   const cold = await coldRuntime.runPromise(
-    coldRuntime.runSync(OpenSurfaceInventoryStorage).readSession()
+    coldRuntime.runSync(OpenSurfaceInventoryStorage).readSession(),
   )
   assert.equal(cold.status, 'valid')
   assert.equal(cold.inventory.schemaVersion, OPEN_SURFACE_INVENTORY_SCHEMA_VERSION)
@@ -216,7 +216,7 @@ test('Open Surface Inventory decoding salvages valid entries and rejects invalid
         canonicalKey: 'https://example.test/valid',
         url: 'https://example.test/valid',
         title: 'Valid',
-        closedAt: 900
+        closedAt: 900,
       },
       2: {
         tabId: 2,
@@ -226,9 +226,9 @@ test('Open Surface Inventory decoding salvages valid entries and rejects invalid
         canonicalKey: 'https://example.test/future',
         url: 'https://example.test/future',
         title: 'Future',
-        closedAt: 1_001
-      }
-    }
+        closedAt: 1_001,
+      },
+    },
   }, 1_000)
 
   assert.equal(parsed.status, 'malformed')
@@ -248,7 +248,7 @@ test('Open Surface Inventory decoding strips metadata-bearing envelopes and entr
         surfaceKind: 'normal-tab',
         canonicalKey: 'https://example.test/valid',
         url: 'https://example.test/valid',
-        title: 'Valid'
+        title: 'Valid',
       },
       2: {
         tabId: 2,
@@ -258,10 +258,10 @@ test('Open Surface Inventory decoding strips metadata-bearing envelopes and entr
         canonicalKey: 'https://example.test/metadata',
         url: 'https://example.test/metadata',
         title: 'Metadata',
-        privateNote: 'must not persist'
-      }
+        privateNote: 'must not persist',
+      },
     },
-    privateNote: 'must not persist'
+    privateNote: 'must not persist',
   })
 
   assert.equal(parsed.status, 'malformed')
@@ -274,7 +274,7 @@ test('Open Surface Inventory decoding preserves unknown newer envelopes untouche
     schemaVersion: OPEN_SURFACE_INVENTORY_SCHEMA_VERSION + 1,
     identityVersion: 1,
     entries: { future: { privateShape: true } },
-    privateNote: 'future schema owns this'
+    privateNote: 'future schema owns this',
   }
   const parsed = parseOpenSurfaceInventoryValue(stored)
 
@@ -290,7 +290,7 @@ test('Open Surface Inventory restore drops entries with unbounded or unusable me
     surfaceKind: 'normal-tab',
     canonicalKey: 'https://example.test/valid',
     url: 'https://example.test/valid',
-    title: 'Valid'
+    title: 'Valid',
   } as const
   const parsed = parseOpenSurfaceInventoryValue({
     schemaVersion: 1,
@@ -303,16 +303,16 @@ test('Open Surface Inventory restore drops entries with unbounded or unusable me
         tabId: 3,
         closureToken: 'lifetime-long-title',
         identityDigest: 'long-title',
-        title: 'x'.repeat(513)
+        title: 'x'.repeat(513),
       },
       4: {
         ...base,
         tabId: 4,
         closureToken: 'lifetime-blob-favicon',
         identityDigest: 'blob-favicon',
-        favIconUrl: 'blob:https://example.test/private'
-      }
-    }
+        favIconUrl: 'blob:https://example.test/private',
+      },
+    },
   })
 
   assert.equal(parsed.status, 'malformed')
@@ -331,9 +331,9 @@ test('marked Open Surface Inventories keep strict derived-field validation', () 
         surfaceKind: 'normal-tab',
         canonicalKey: '',
         url: 'https://example.test/current-invalid',
-        title: 'Invalid current record'
-      }
-    }
+        title: 'Invalid current record',
+      },
+    },
   })
 
   assert.equal(parsed.status, 'malformed')

@@ -51,7 +51,7 @@ const CHROME_GROUP_COLOR_HEX = {
   pink: '#FF8BCB',
   purple: '#A142F4',
   cyan: '#007B83',
-  orange: '#FA903E'
+  orange: '#FA903E',
 }
 
 /**
@@ -68,7 +68,7 @@ let groupColorCache: Record<number, string> = {} // { groupId: '#hex' } from chr
  * cache so dots use the deterministic palette. A transient rejection keeps
  * the last known colors instead of turning every group into a fallback color.
  */
-export const fetchTabGroupColorsEffect = Effect.fn('groups.fetchColors')(function*() {
+export const fetchTabGroupColorsEffect = Effect.fn('groups.fetchColors')(function* () {
   const browserTabs = yield* BrowserTabs
   const result = yield* browserTabs.queryTabGroupsResult()
   if (!result.ok) return false
@@ -135,7 +135,7 @@ function keepKeys(tab: ScoredTabLike, currentWindowId: number): number[] {
     tab.active ? 1 : 0,
     isSuspended ? 0 : 1,
     tab.windowId === currentWindowId ? 1 : 0,
-    -(tab.index ?? 0)
+    -(tab.index ?? 0),
   ]
 }
 

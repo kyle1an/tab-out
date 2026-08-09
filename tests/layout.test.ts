@@ -17,11 +17,11 @@ test('chooseMasonryLayout delays a new column until the width is near the comfor
 test('chooseMasonryLayout supports wider desktop comfort targets', () => {
   const beforeThreshold = chooseMasonryLayout(1390, {
     minColWidth: 280,
-    idealColWidth: 340
+    idealColWidth: 340,
   })
   const afterThreshold = chooseMasonryLayout(1550, {
     minColWidth: 280,
-    idealColWidth: 340
+    idealColWidth: 340,
   })
 
   assert.equal(beforeThreshold.colCount, 4)
@@ -42,7 +42,7 @@ test('chooseMasonryLayout keeps a single narrow column when the container is too
 
   assert.deepEqual(layout, {
     colCount: 1,
-    colWidth: 220
+    colWidth: 220,
   })
 })
 
@@ -438,7 +438,7 @@ test('masonry resize observer rebinds after conditional mission grids mount', ()
 test('masonry batches card height reads before position writes', () => {
   const source = readFileSync(new URL('../src/extension/layout.ts', import.meta.url), 'utf8')
   const heightRead = source.indexOf('const cardHeights = cards.map')
-  const positionWrite = source.indexOf("card.style.left =")
+  const positionWrite = source.indexOf('card.style.left =')
 
   assert.ok(heightRead > 0)
   assert.ok(positionWrite > heightRead)
@@ -488,7 +488,7 @@ test('dashboard edge gutters are owned by panes instead of the shell', () => {
   // has-history shell is a two-column grid sized off the history edge gutter.
   assert.match(
     shellHistoryClasses,
-    /grid-cols-\[minmax\(calc\(220px\+var\(--dashboard-history-edge-gutter\)\),calc\(260px\+var\(--dashboard-history-edge-gutter\)\)\)_minmax\(0,1fr\)\]/
+    /grid-cols-\[minmax\(calc\(220px\+var\(--dashboard-history-edge-gutter\)\),calc\(260px\+var\(--dashboard-history-edge-gutter\)\)\)_minmax\(0,1fr\)\]/,
   )
 
   // The history panel keeps its own edge gutter, never the page gutter.

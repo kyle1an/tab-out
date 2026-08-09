@@ -5,16 +5,16 @@ import { Effect, Layer, ManagedRuntime } from 'effect'
 import * as TabHistoryService from '../src/extension/background/tab-history-service.js'
 import {
   readChromeStorageValue,
-  writeChromeStorageValue
+  writeChromeStorageValue,
 } from '../src/extension/background/chrome-storage.js'
 import {
   WORKING_SET_ACTIVITY_KEY,
-  WorkingSetActivityStorage
+  WorkingSetActivityStorage,
 } from '../src/extension/background/working-set-activity-storage.js'
 import {
   effectiveUrlForHistoryIdentity,
   historyChanged,
-  historyForBackgroundTabCreation
+  historyForBackgroundTabCreation,
 } from '../src/extension/background/tab-history-state.js'
 import { normalizeTabHistorySnapshot } from '../src/extension/tab-history.js'
 import { emptyWorkingSetActivity, recordWorkingSetActivity } from '../src/extension/working-set.js'
@@ -30,7 +30,7 @@ test.after(async () => {
 function createTabHistoryService(chromeApi: ChromeApi) {
   const storage = chromeApi.storage?.local
   const unavailable = (): Promise<never> => Promise.reject(
-    new Error('Chrome local storage is unavailable for Working Set activity')
+    new Error('Chrome local storage is unavailable for Working Set activity'),
   )
   const activityStorage = WorkingSetActivityStorage.layer({
     read: () => storage
@@ -40,25 +40,25 @@ function createTabHistoryService(chromeApi: ChromeApi) {
       ? writeChromeStorageValue(
           storage,
           WORKING_SET_ACTIVITY_KEY,
-          change.activity
+          change.activity,
         )
       : unavailable(),
     replace: (activity) => storage
       ? writeChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY, activity)
-      : unavailable()
+      : unavailable(),
   })
   const runtime = ManagedRuntime.make(
     TabHistoryService.TabHistory.layer(chromeApi).pipe(
-      Layer.provide(activityStorage)
-    )
+      Layer.provide(activityStorage),
+    ),
   )
   runtime.runSync(Effect.void)
   const service = runtime.runSync(TabHistoryService.TabHistory)
   disposeTabHistoryRuntimes.push(() => runtime.dispose())
   const run = <Value>(
-    effect: Effect.Effect<Value, TabHistoryService.TabHistoryTaskError>
+    effect: Effect.Effect<Value, TabHistoryService.TabHistoryTaskError>,
   ) => runtime.runPromise(effect.pipe(
-    Effect.catchTag('TabHistoryTaskError', (error) => Effect.fail(error.cause))
+    Effect.catchTag('TabHistoryTaskError', (error) => Effect.fail(error.cause)),
   ))
   return {
     getTabHistorySnapshot: (activity?: WorkingSetActivityStore | null) =>
@@ -67,18 +67,18 @@ function createTabHistoryService(chromeApi: ChromeApi) {
       run(service.getTabHistorySnapshotCapture(activity)),
     recordFocusedWindowActiveTab: (
       windowId: number,
-      capturedActiveTab?: Promise<chrome.tabs.Tab | null>
+      capturedActiveTab?: Promise<chrome.tabs.Tab | null>,
     ) => run(service.recordFocusedWindowActiveTab(windowId, capturedActiveTab)),
     recordTabCreation: (tab: chrome.tabs.Tab) => run(service.recordTabCreation(tab)),
     recordTabNavigation: (
       tabId: number,
       changeInfo: { url?: string },
-      tab: chrome.tabs.Tab
+      tab: chrome.tabs.Tab,
     ) => run(service.recordTabNavigation(tabId, changeInfo, tab)),
     recordTabActivation: (
       windowId: number,
       tabId: number,
-      capturedTab?: Promise<chrome.tabs.Tab | null>
+      capturedTab?: Promise<chrome.tabs.Tab | null>,
     ) => run(service.recordTabActivation(windowId, tabId, capturedTab)),
     removeTabFromHistory: (tabId: number) => run(service.removeTabFromHistory(tabId)),
     replaceTabId: (addedTabId: number, removedTabId: number) =>
@@ -86,7 +86,7 @@ function createTabHistoryService(chromeApi: ChromeApi) {
     resetForBrowserStartup: () => run(service.resetForBrowserStartup()),
     restorePreviousTabAfterClose: (tabId: number, removeInfo: chrome.tabs.OnRemovedInfo) =>
       run(service.restorePreviousTabAfterClose(tabId, removeInfo)),
-    switchTabHistory: (direction: number) => run(service.switchTabHistory(direction))
+    switchTabHistory: (direction: number) => run(service.switchTabHistory(direction)),
   }
 }
 
@@ -98,29 +98,29 @@ function valueAt<T>(values: readonly T[], index: number): T {
 
 function makeChromeApi(state: {
   history?: {
-    stack: { windowId: number; tabId: number; url?: string }[]
+    stack: { windowId: number, tabId: number, url?: string }[]
     index: number
-    pending?: { windowId: number; tabId: number; url?: string; createdAt: number }[]
+    pending?: { windowId: number, tabId: number, url?: string, createdAt: number }[]
   }
   tabs?: chrome.tabs.Tab[]
   activity?: WorkingSetActivityStore
 }): ChromeApi {
   const tabs = state.tabs || []
   const rawHistory = state.history || { stack: [], index: -1 }
-  const withIdentity = <Entry extends { tabId: number; url?: string }>(entry: Entry) => ({
+  const withIdentity = <Entry extends { tabId: number, url?: string }>(entry: Entry) => ({
     ...entry,
-    url: entry.url ?? effectiveUrlForHistoryIdentity(tabs.find((tab) => tab.id === entry.tabId))
+    url: entry.url ?? effectiveUrlForHistoryIdentity(tabs.find((tab) => tab.id === entry.tabId)),
   })
   const history = {
     version: 2,
     stack: rawHistory.stack.map(withIdentity),
     index: rawHistory.index,
-    pending: (rawHistory.pending || []).map(withIdentity)
+    pending: (rawHistory.pending || []).map(withIdentity),
   }
   const activity = state.activity || emptyWorkingSetActivity()
   const storage = new Map<string, unknown>([
     ['globalTabHistory', history],
-    ['workingSetActivity', activity]
+    ['workingSetActivity', activity],
   ])
   return {
     tabs: {
@@ -136,20 +136,20 @@ function makeChromeApi(state: {
         return tabs
       },
       update: async () => undefined,
-      remove: async () => undefined
+      remove: async () => undefined,
     } as unknown as ChromeApi['tabs'],
     windows: {
       WINDOW_ID_NONE: -1,
-      getAll: async () => [{ id: 1, focused: true, type: 'normal' } as chrome.windows.Window]
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' } as chrome.windows.Window],
     } as unknown as ChromeApi['windows'],
     storage: {
       local: {
         get: async (key: string) => ({ [key]: storage.get(key) }),
         set: async (entries: Record<string, unknown>) => {
           for (const [k, v] of Object.entries(entries)) storage.set(k, v)
-        }
-      }
-    } as unknown as ChromeApi['storage']
+        },
+      },
+    } as unknown as ChromeApi['storage'],
   } as ChromeApi
 }
 
@@ -162,13 +162,13 @@ test('getTabHistorySnapshot populates lastActivatedAt from the activity log', as
   activity = recordWorkingSetActivity(activity, {
     kind: 'activation',
     at: now - 1000,
-    tab: { url: 'https://example.com/a', rawUrl: 'https://example.com/a', title: 'A' }
+    tab: { url: 'https://example.com/a', rawUrl: 'https://example.com/a', title: 'A' },
   })
 
   const service = createTabHistoryService(makeChromeApi({
     history: { stack: [{ windowId: 1, tabId: 10 }], index: 0 },
     tabs: [{ id: 10, windowId: 1, url: 'https://example.com/a', title: 'A', active: true } as chrome.tabs.Tab],
-    activity
+    activity,
   }))
 
   const snapshot = await service.getTabHistorySnapshot()
@@ -179,7 +179,7 @@ test('getTabHistorySnapshot populates lastActivatedAt from the activity log', as
 test('getTabHistorySnapshot sets lastActivatedAt to null when the URL has no activity record', async () => {
   const service = createTabHistoryService(makeChromeApi({
     history: { stack: [{ windowId: 1, tabId: 10 }], index: 0 },
-    tabs: [{ id: 10, windowId: 1, url: 'https://example.com/a', title: 'A', active: true } as chrome.tabs.Tab]
+    tabs: [{ id: 10, windowId: 1, url: 'https://example.com/a', title: 'A', active: true } as chrome.tabs.Tab],
   }))
 
   const snapshot = await service.getTabHistorySnapshot()
@@ -193,15 +193,15 @@ test('getTabHistorySnapshot marks only live awake loading tabs as loading', asyn
       stack: [
         { windowId: 1, tabId: 10 },
         { windowId: 1, tabId: 11 },
-        { windowId: 1, tabId: 12 }
+        { windowId: 1, tabId: 12 },
       ],
-      index: 0
+      index: 0,
     },
     tabs: [
       { id: 10, windowId: 1, url: 'https://example.test/loading', title: 'Loading', status: 'loading', active: true } as chrome.tabs.Tab,
       { id: 11, windowId: 1, url: 'https://example.test/complete', title: 'Complete', status: 'complete' } as chrome.tabs.Tab,
-      { id: 12, windowId: 1, url: suspendedRawUrl, title: 'Suspended', status: 'loading' } as chrome.tabs.Tab
-    ]
+      { id: 12, windowId: 1, url: suspendedRawUrl, title: 'Suspended', status: 'loading' } as chrome.tabs.Tab,
+    ],
   }))
 
   const snapshot = await service.getTabHistorySnapshot()
@@ -221,12 +221,12 @@ test('getTabHistorySnapshot can use an already-read activity snapshot', async ()
   activity = recordWorkingSetActivity(activity, {
     kind: 'activation',
     at: now - 500,
-    tab: { url: 'https://example.test/b', rawUrl: 'https://example.test/b', title: 'B' }
+    tab: { url: 'https://example.test/b', rawUrl: 'https://example.test/b', title: 'B' },
   })
 
   const service = createTabHistoryService(makeChromeApi({
     history: { stack: [{ windowId: 1, tabId: 11 }], index: 0 },
-    tabs: [{ id: 11, windowId: 1, url: 'https://example.test/b', title: 'B', active: true } as chrome.tabs.Tab]
+    tabs: [{ id: 11, windowId: 1, url: 'https://example.test/b', title: 'B', active: true } as chrome.tabs.Tab],
   }))
 
   const snapshot = await service.getTabHistorySnapshot(activity)
@@ -237,7 +237,7 @@ test('history capture reads all tabs and windows once and returns the exact brow
   const tabs = [{ id: 11, windowId: 1, url: 'https://example.test/current', title: 'Current', active: true } as chrome.tabs.Tab]
   const chromeApi = makeChromeApi({
     history: { stack: [{ windowId: 1, tabId: 11 }], index: 0 },
-    tabs
+    tabs,
   })
   let allTabsReads = 0
   let allWindowsReads = 0
@@ -263,7 +263,7 @@ test('history capture starts required browser reads together before either settl
   const windows = [{ id: 1, focused: true, type: 'normal' } as chrome.windows.Window]
   const chromeApi = makeChromeApi({
     history: { stack: [{ windowId: 1, tabId: 11 }], index: 0 },
-    tabs
+    tabs,
   })
   const started: string[] = []
   const { promise: tabsRead, resolve: resolveTabs } = Promise.withResolvers<chrome.tabs.Tab[]>()
@@ -295,42 +295,42 @@ test('history capture starts required browser reads together before either settl
 test('history snapshot rejects unknown window state instead of returning a partial generation', async () => {
   const chromeApi = makeChromeApi({
     history: { stack: [{ windowId: 1, tabId: 11 }], index: 0 },
-    tabs: [{ id: 11, windowId: 1, url: 'https://example.test/current', title: 'Current', active: true } as chrome.tabs.Tab]
+    tabs: [{ id: 11, windowId: 1, url: 'https://example.test/current', title: 'Current', active: true } as chrome.tabs.Tab],
   })
   chromeApi.windows.getAll = async () => { throw new Error('windows unavailable') }
 
   await assert.rejects(
     createTabHistoryService(chromeApi).getTabHistorySnapshot(emptyWorkingSetActivity()),
-    /windows unavailable/
+    /windows unavailable/,
   )
 })
 
 test('history snapshot rejects a focused window missing from the captured tabs generation', async () => {
   const chromeApi = makeChromeApi({
     history: { stack: [{ windowId: 1, tabId: 11 }], index: 0 },
-    tabs: [{ id: 11, windowId: 1, url: 'https://example.test/current', title: 'Current', active: true } as chrome.tabs.Tab]
+    tabs: [{ id: 11, windowId: 1, url: 'https://example.test/current', title: 'Current', active: true } as chrome.tabs.Tab],
   })
   chromeApi.windows.getAll = async () => [
     { id: 1, focused: false, type: 'normal' } as chrome.windows.Window,
-    { id: 2, focused: true, type: 'normal' } as chrome.windows.Window
+    { id: 2, focused: true, type: 'normal' } as chrome.windows.Window,
   ]
 
   await assert.rejects(
     createTabHistoryService(chromeApi).getTabHistorySnapshot(emptyWorkingSetActivity()),
-    /focus state is unavailable/
+    /focus state is unavailable/,
   )
 })
 
 test('history mutation retries persisted state after a transient initial storage read failure', async () => {
   const tabs = [
     { id: 1, windowId: 1, url: 'https://example.test/one', title: 'One', active: false } as chrome.tabs.Tab,
-    { id: 2, windowId: 1, url: 'https://example.test/two', title: 'Two', active: true } as chrome.tabs.Tab
+    { id: 2, windowId: 1, url: 'https://example.test/two', title: 'Two', active: true } as chrome.tabs.Tab,
   ]
   let persisted: any = {
     version: 2,
     stack: [{ windowId: 1, tabId: 1, url: 'https://example.test/one' }],
     index: 0,
-    pending: []
+    pending: [],
   }
   let readAttempts = 0
   let writeAttempts = 0
@@ -359,13 +359,13 @@ test('history mutation retries persisted state after a transient initial storage
 test('history mutation does not advance its cache until the storage write succeeds', async () => {
   const tabs = [
     { id: 1, windowId: 1, url: 'https://example.test/one', title: 'One', active: false } as chrome.tabs.Tab,
-    { id: 2, windowId: 1, url: 'https://example.test/two', title: 'Two', active: true } as chrome.tabs.Tab
+    { id: 2, windowId: 1, url: 'https://example.test/two', title: 'Two', active: true } as chrome.tabs.Tab,
   ]
   let persisted: any = {
     version: 2,
     stack: [{ windowId: 1, tabId: 1, url: 'https://example.test/one' }],
     index: 0,
-    pending: []
+    pending: [],
   }
   let writeAttempts = 0
   const chromeApi = makeChromeApi({ tabs })
@@ -399,15 +399,15 @@ test('history treats an absent first-run storage key as known empty state', asyn
 test('legacy ID-only persisted history resets once into the identity-bearing schema', async () => {
   const tabs = [
     { id: 10, windowId: 1, url: 'https://current.example.test/', title: 'Current', active: true } as chrome.tabs.Tab,
-    { id: 20, windowId: 1, url: 'https://reused.example.test/', title: 'Reused', active: false } as chrome.tabs.Tab
+    { id: 20, windowId: 1, url: 'https://reused.example.test/', title: 'Reused', active: false } as chrome.tabs.Tab,
   ]
   let persisted: unknown = {
     stack: [
       { windowId: 1, tabId: 10 },
-      { windowId: 1, tabId: 20 }
+      { windowId: 1, tabId: 20 },
     ],
     index: 1,
-    pending: [{ windowId: 1, tabId: 30, createdAt: 123 }]
+    pending: [{ windowId: 1, tabId: 30, createdAt: 123 }],
   }
   let writes = 0
   const chromeApi = makeChromeApi({ tabs })
@@ -424,7 +424,7 @@ test('legacy ID-only persisted history resets once into the identity-bearing sch
     version: 2,
     stack: [{ windowId: 1, tabId: 10, url: 'https://current.example.test/' }],
     index: 0,
-    pending: []
+    pending: [],
   })
   assert.equal(writes, 2)
 
@@ -437,13 +437,13 @@ test('legacy ID-only persisted history resets once into the identity-bearing sch
 test('malformed versioned history resets instead of retaining a partial store', async () => {
   const tabs = [
     { id: 10, windowId: 1, url: 'https://current.example.test/', title: 'Current', active: true } as chrome.tabs.Tab,
-    { id: 20, windowId: 1, url: 'https://previous.example.test/', title: 'Previous', active: false } as chrome.tabs.Tab
+    { id: 20, windowId: 1, url: 'https://previous.example.test/', title: 'Previous', active: false } as chrome.tabs.Tab,
   ]
   let persisted: unknown = {
     version: 2,
     stack: [{ windowId: 1, tabId: 20, url: 'https://previous.example.test/' }],
     index: 0,
-    pending: [{ windowId: 1, tabId: 30, url: 'https://pending.example.test/', createdAt: Number.POSITIVE_INFINITY }]
+    pending: [{ windowId: 1, tabId: 30, url: 'https://pending.example.test/', createdAt: Number.POSITIVE_INFINITY }],
   }
   const chromeApi = makeChromeApi({ tabs })
   chromeApi.storage.local.get = async () => ({ globalTabHistory: persisted })
@@ -458,7 +458,7 @@ test('malformed versioned history resets instead of retaining a partial store', 
     version: 2,
     stack: [{ windowId: 1, tabId: 10, url: 'https://current.example.test/' }],
     index: 0,
-    pending: []
+    pending: [],
   })
 })
 
@@ -467,18 +467,18 @@ test('missed browser startup prunes reused tab IDs whose effective URLs changed'
     history: {
       stack: [
         { windowId: 1, tabId: 10, url: 'https://previous-session.example.test/current' },
-        { windowId: 1, tabId: 20, url: 'https://previous-session.example.test/next' }
+        { windowId: 1, tabId: 20, url: 'https://previous-session.example.test/next' },
       ],
       index: 1,
       pending: [
-        { windowId: 1, tabId: 30, url: 'https://previous-session.example.test/pending', createdAt: 123 }
-      ]
+        { windowId: 1, tabId: 30, url: 'https://previous-session.example.test/pending', createdAt: 123 },
+      ],
     },
     tabs: [
       { id: 10, windowId: 1, url: 'https://new-session.example.test/current', title: 'Current', active: true } as chrome.tabs.Tab,
       { id: 20, windowId: 1, url: 'https://new-session.example.test/unrelated', title: 'Unrelated', active: false } as chrome.tabs.Tab,
-      { id: 30, windowId: 1, url: 'https://new-session.example.test/other', title: 'Other', active: false } as chrome.tabs.Tab
-    ]
+      { id: 30, windowId: 1, url: 'https://new-session.example.test/other', title: 'Other', active: false } as chrome.tabs.Tab,
+    ],
   })
   const service = createTabHistoryService(chromeApi)
 
@@ -495,14 +495,14 @@ test('history switch prunes a reused target before cursor repair can focus it', 
     history: {
       stack: [
         { windowId: 1, tabId: 10, url: 'https://previous-session.example.test/target' },
-        { windowId: 1, tabId: 20, url: 'https://example.test/current' }
+        { windowId: 1, tabId: 20, url: 'https://example.test/current' },
       ],
-      index: 1
+      index: 1,
     },
     tabs: [
       { id: 10, windowId: 1, url: 'https://new-session.example.test/unrelated', title: 'Unrelated', active: false } as chrome.tabs.Tab,
-      { id: 20, windowId: 1, url: 'https://example.test/current', title: 'Current', active: true } as chrome.tabs.Tab
-    ]
+      { id: 20, windowId: 1, url: 'https://example.test/current', title: 'Current', active: true } as chrome.tabs.Tab,
+    ],
   })
   const service = createTabHistoryService(chromeApi)
 
@@ -516,18 +516,18 @@ test('history switch prunes a reused target before cursor repair can focus it', 
 test('history switch does not mutate an opener before fresh target validation', async () => {
   const capturedTabs = [
     { id: 10, windowId: 1, url: 'https://example.test/target', title: 'Target', active: false } as chrome.tabs.Tab,
-    { id: 20, windowId: 1, url: 'https://example.test/current', title: 'Current', active: true } as chrome.tabs.Tab
+    { id: 20, windowId: 1, url: 'https://example.test/current', title: 'Current', active: true } as chrome.tabs.Tab,
   ]
   const liveTabs = capturedTabs.map((tab) => ({ ...tab }))
   const chromeApi = makeChromeApi({
     history: {
       stack: [
         { windowId: 1, tabId: 10, url: 'https://example.test/target' },
-        { windowId: 1, tabId: 20, url: 'https://example.test/current' }
+        { windowId: 1, tabId: 20, url: 'https://example.test/current' },
       ],
-      index: 1
+      index: 1,
     },
-    tabs: capturedTabs
+    tabs: capturedTabs,
   })
   let fullTabReads = 0
   chromeApi.tabs.query = async (queryInfo: chrome.tabs.QueryInfo) => {
@@ -545,11 +545,11 @@ test('history switch does not mutate an opener before fresh target validation', 
     liveTabs[0] = {
       ...firstLiveTab,
       url: 'https://example.test/unrelated',
-      title: 'Unrelated'
+      title: 'Unrelated',
     }
     return [{ id: 1, focused: true, type: 'normal' } as chrome.windows.Window]
   }
-  const openerUpdates: Array<{ tabId: number; openerTabId?: number }> = []
+  const openerUpdates: Array<{ tabId: number, openerTabId?: number }> = []
   chromeApi.tabs.update = (async (tabId: number, updateProperties: chrome.tabs.UpdateProperties) => {
     openerUpdates.push(updateProperties.openerTabId === undefined
       ? { tabId }
@@ -562,7 +562,7 @@ test('history switch does not mutate an opener before fresh target validation', 
   try {
     await assert.rejects(
       createTabHistoryService(chromeApi).switchTabHistory(-1),
-      /Could not activate tab history target/
+      /Could not activate tab history target/,
     )
     assert.deepEqual(openerUpdates, [])
   } finally {
@@ -573,7 +573,7 @@ test('history switch does not mutate an opener before fresh target validation', 
 
 test('history switch fails closed when the last-focused active-tab read is unknown', async () => {
   const tabs = [
-    { id: 20, windowId: 1, url: 'https://example.test/current', title: 'Current', active: true } as chrome.tabs.Tab
+    { id: 20, windowId: 1, url: 'https://example.test/current', title: 'Current', active: true } as chrome.tabs.Tab,
   ]
   const chromeApi = makeChromeApi({ tabs })
   const queryTabs = chromeApi.tabs.query.bind(chromeApi.tabs)
@@ -584,7 +584,7 @@ test('history switch fails closed when the last-focused active-tab read is unkno
     return queryTabs(queryInfo)
   }
   chromeApi.windows.getAll = async () => [
-    { id: 1, focused: false, type: 'normal' } as chrome.windows.Window
+    { id: 1, focused: false, type: 'normal' } as chrome.windows.Window,
   ]
   let updateCalls = 0
   chromeApi.tabs.update = async () => {
@@ -594,7 +594,7 @@ test('history switch fails closed when the last-focused active-tab read is unkno
   chromeApi.windows.update = async () => ({
     id: 1,
     focused: true,
-    type: 'normal'
+    type: 'normal',
   } as chrome.windows.Window)
   const previousChrome = (globalThis as { chrome?: unknown }).chrome
   globalThis.chrome = chromeApi as unknown as typeof globalThis.chrome
@@ -602,7 +602,7 @@ test('history switch fails closed when the last-focused active-tab read is unkno
   try {
     await assert.rejects(
       createTabHistoryService(chromeApi).switchTabHistory(-1),
-      /focus state is unavailable/
+      /focus state is unavailable/,
     )
     assert.equal(updateCalls, 0)
   } finally {
@@ -621,8 +621,8 @@ test('versioned activation and pending history survive an extension reload when 
       url: 'https://example.test/pending',
       title: 'Pending',
       active: false,
-      openerTabId: 20
-    } as chrome.tabs.Tab
+      openerTabId: 20,
+    } as chrome.tabs.Tab,
   ]
   let persisted: unknown = { version: 2, stack: [], index: -1, pending: [] }
   const chromeApi = makeChromeApi({ tabs })
@@ -643,16 +643,16 @@ test('versioned activation and pending history survive an extension reload when 
     [
       { tabId: 10, pending: false },
       { tabId: 20, pending: false },
-      { tabId: 30, pending: true }
-    ]
+      { tabId: 30, pending: true },
+    ],
   )
   assert.deepEqual(
-    (persisted as { stack: Array<{ url: string }>; pending: Array<{ url: string }> }).stack.map((entry) => entry.url),
-    ['https://example.test/first', 'https://example.test/current']
+    (persisted as { stack: Array<{ url: string }>, pending: Array<{ url: string }> }).stack.map((entry) => entry.url),
+    ['https://example.test/first', 'https://example.test/current'],
   )
   assert.deepEqual(
     (persisted as { pending: Array<{ url: string }> }).pending.map((entry) => entry.url),
-    ['https://example.test/pending']
+    ['https://example.test/pending'],
   )
 })
 
@@ -665,15 +665,15 @@ test('a trusted pending tab keeps its FIFO entry when its effective URL redirect
       url: 'about:blank',
       title: '',
       active: false,
-      openerTabId: 10
-    } as chrome.tabs.Tab
+      openerTabId: 10,
+    } as chrome.tabs.Tab,
   ]
   const service = createTabHistoryService(makeChromeApi({
     history: {
       stack: [{ windowId: 1, tabId: 10 }],
-      index: 0
+      index: 0,
     },
-    tabs
+    tabs,
   }))
 
   const pendingTab = valueAt(tabs, 1)
@@ -686,15 +686,15 @@ test('a trusted pending tab keeps its FIFO entry when its effective URL redirect
     snapshot.entries.map((entry) => ({ tabId: entry.tabId, url: entry.url, pending: entry.pending })),
     [
       { tabId: 10, url: 'https://example.test/current', pending: false },
-      { tabId: 30, url: 'https://example.test/final', pending: true }
-    ]
+      { tabId: 30, url: 'https://example.test/final', pending: true },
+    ],
   )
 })
 
 test('a trusted inactive activation-history tab keeps its position when it navigates', async () => {
   const tabs = [
     { id: 10, windowId: 1, url: 'https://example.test/first', title: 'First', active: true } as chrome.tabs.Tab,
-    { id: 20, windowId: 1, url: 'https://example.test/current', title: 'Current', active: false } as chrome.tabs.Tab
+    { id: 20, windowId: 1, url: 'https://example.test/current', title: 'Current', active: false } as chrome.tabs.Tab,
   ]
   const service = createTabHistoryService(makeChromeApi({ tabs }))
   const firstTab = valueAt(tabs, 0)
@@ -712,8 +712,8 @@ test('a trusted inactive activation-history tab keeps its position when it navig
     snapshot.entries.map((entry) => ({ tabId: entry.tabId, url: entry.url })),
     [
       { tabId: 10, url: 'https://example.test/first-after-navigation' },
-      { tabId: 20, url: 'https://example.test/current' }
-    ]
+      { tabId: 20, url: 'https://example.test/current' },
+    ],
   )
   assert.equal(snapshot.currentIndex, 1)
 })
@@ -724,7 +724,7 @@ test('an untrusted navigation cannot rebase a reused id from a previous browser 
     windowId: 1,
     url: 'https://new-session.example.test/unrelated',
     title: 'Unrelated',
-    active: false
+    active: false,
   } as chrome.tabs.Tab
   const service = createTabHistoryService(makeChromeApi({
     history: {
@@ -734,13 +734,13 @@ test('an untrusted navigation cannot rebase a reused id from a previous browser 
         windowId: 1,
         tabId: 30,
         url: 'https://previous-session.example.test/pending',
-        createdAt: 123
-      }]
+        createdAt: 123,
+      }],
     },
     tabs: [
       { id: 10, windowId: 1, url: 'https://example.test/current', title: 'Current', active: true } as chrome.tabs.Tab,
-      reusedTab
-    ]
+      reusedTab,
+    ],
   }))
 
   assert.ok(reusedTab.url)
@@ -755,17 +755,17 @@ test('history comparison treats effective URL identity changes as mutations', ()
   const first = {
     stack: [{ windowId: 1, tabId: 10, url: 'https://example.test/first' }],
     index: 0,
-    pending: [{ windowId: 1, tabId: 20, url: 'https://example.test/pending', createdAt: 1 }]
+    pending: [{ windowId: 1, tabId: 20, url: 'https://example.test/pending', createdAt: 1 }],
   }
 
   assert.equal(historyChanged(first, first), false)
   assert.equal(historyChanged(first, {
     ...first,
-    stack: [{ ...first.stack[0], url: 'https://example.test/reused' }]
+    stack: [{ ...first.stack[0], url: 'https://example.test/reused' }],
   }), true)
   assert.equal(historyChanged(first, {
     ...first,
-    pending: [{ ...first.pending[0], url: 'https://example.test/reused-pending' }]
+    pending: [{ ...first.pending[0], url: 'https://example.test/reused-pending' }],
   }), true)
 })
 
@@ -773,15 +773,15 @@ test('background tab creation replaces a stale same-id history entry with the ne
   const result = historyForBackgroundTabCreation({
     stack: [
       { windowId: 1, tabId: 10, url: 'https://example.test/current' },
-      { windowId: 1, tabId: 30, url: 'https://previous-session.example.test/stale' }
+      { windowId: 1, tabId: 30, url: 'https://previous-session.example.test/stale' },
     ],
     index: 1,
-    pending: []
+    pending: [],
   }, {
     windowId: 2,
     tabId: 30,
     url: 'https://example.test/new-pending',
-    createdAt: 123
+    createdAt: 123,
   })
 
   assert.deepEqual(result.history, {
@@ -791,8 +791,8 @@ test('background tab creation replaces a stale same-id history entry with the ne
       windowId: 2,
       tabId: 30,
       url: 'https://example.test/new-pending',
-      createdAt: 123
-    }]
+      createdAt: 123,
+    }],
   })
   assert.equal(result.changed, true)
 })
@@ -800,23 +800,23 @@ test('background tab creation replaces a stale same-id history entry with the ne
 test('activated history reserves the bounded index budget before pending tabs', async () => {
   const stack = Array.from({ length: 47 }, (_, index) => ({
     windowId: 1,
-    tabId: index + 1
+    tabId: index + 1,
   }))
   const pending = Array.from({ length: 3 }, (_, index) => ({
     windowId: 1,
     tabId: index + 48,
-    createdAt: index + 1
+    createdAt: index + 1,
   }))
   const tabs = Array.from({ length: 50 }, (_, index) => ({
     id: index + 1,
     windowId: 1,
     url: `https://tab-${index + 1}.example/`,
     title: `Tab ${index + 1}`,
-    active: index === 46
+    active: index === 46,
   } as chrome.tabs.Tab))
   const service = createTabHistoryService(makeChromeApi({
     history: { stack, index: 46, pending },
-    tabs
+    tabs,
   }))
 
   const snapshot = await service.getTabHistorySnapshot()
@@ -860,16 +860,16 @@ test('normalizeTabHistorySnapshot preserves lastActivatedAt on entries', () => {
         rawUrl: 'https://example.com/a',
         displayUrl: 'example.com/a',
         favIconUrl: '',
-        lastActivatedAt: 1_700_000_000
-      }
-    ]
+        lastActivatedAt: 1_700_000_000,
+      },
+    ],
   })
   assert.equal(valueAt(result.entries, 0).lastActivatedAt, 1_700_000_000)
 })
 
 test('normalizeTabHistorySnapshot defaults missing lastActivatedAt to null', () => {
   const result = normalizeTabHistorySnapshot({
-    entries: [{ tabId: 10, windowId: 1 } as unknown as never]
+    entries: [{ tabId: 10, windowId: 1 } as unknown as never],
   })
   assert.equal(valueAt(result.entries, 0).lastActivatedAt, null)
 })
@@ -877,7 +877,7 @@ test('normalizeTabHistorySnapshot defaults missing lastActivatedAt to null', () 
 test('focused-window history preserves event order when captured active-tab lookups resolve out of order', async () => {
   const tabs = [
     { id: 10, windowId: 1, url: 'https://one.example.test/', title: 'One', active: true } as chrome.tabs.Tab,
-    { id: 20, windowId: 2, url: 'https://two.example.test/', title: 'Two', active: true } as chrome.tabs.Tab
+    { id: 20, windowId: 2, url: 'https://two.example.test/', title: 'Two', active: true } as chrome.tabs.Tab,
   ]
   const { promise: windowOneLookup, resolve: resolveWindowOne } = Promise.withResolvers<chrome.tabs.Tab[]>()
   const { promise: windowTwoLookup, resolve: resolveWindowTwo } = Promise.withResolvers<chrome.tabs.Tab[]>()
@@ -890,17 +890,17 @@ test('focused-window history preserves event order when captured active-tab look
   }
   chromeApi.windows.getAll = async () => [
     { id: 1, focused: false, type: 'normal' } as chrome.windows.Window,
-    { id: 2, focused: true, type: 'normal' } as chrome.windows.Window
+    { id: 2, focused: true, type: 'normal' } as chrome.windows.Window,
   ]
   const service = createTabHistoryService(chromeApi)
 
   const firstFocus = service.recordFocusedWindowActiveTab(
     1,
-    windowOneLookup.then((resolvedTabs) => resolvedTabs[0] ?? null)
+    windowOneLookup.then((resolvedTabs) => resolvedTabs[0] ?? null),
   )
   const secondFocus = service.recordFocusedWindowActiveTab(
     2,
-    windowTwoLookup.then((resolvedTabs) => resolvedTabs[0] ?? null)
+    windowTwoLookup.then((resolvedTabs) => resolvedTabs[0] ?? null),
   )
   resolveWindowTwo([valueAt(tabs, 1)])
   await setImmediate()
@@ -918,14 +918,14 @@ test('browser startup resets ID-only history before Chrome can reuse old tab ids
     history: {
       stack: [
         { windowId: 1, tabId: 10 },
-        { windowId: 1, tabId: 20 }
+        { windowId: 1, tabId: 20 },
       ],
-      index: 0
+      index: 0,
     },
     tabs: [
       { id: 10, windowId: 1, url: 'https://new-session.example.test/current', title: 'Current', active: true } as chrome.tabs.Tab,
-      { id: 20, windowId: 1, url: 'https://new-session.example.test/unrelated', title: 'Unrelated', active: false } as chrome.tabs.Tab
-    ]
+      { id: 20, windowId: 1, url: 'https://new-session.example.test/unrelated', title: 'Unrelated', active: false } as chrome.tabs.Tab,
+    ],
   }))
 
   await service.resetForBrowserStartup()
@@ -941,12 +941,12 @@ test('browser startup reset clears stale IDs before activation without depending
   let persisted: unknown = {
     stack: [{ windowId: 1, tabId: 10 }],
     index: 0,
-    pending: []
+    pending: [],
   }
   const chromeApi = makeChromeApi({
     tabs: [
-      { id: 20, windowId: 1, url: 'https://new-session.example.test/active', title: 'Active', active: true } as chrome.tabs.Tab
-    ]
+      { id: 20, windowId: 1, url: 'https://new-session.example.test/active', title: 'Active', active: true } as chrome.tabs.Tab,
+    ],
   })
   chromeApi.storage.local.get = async () => {
     readAttempts += 1
@@ -965,7 +965,7 @@ test('browser startup reset clears stale IDs before activation without depending
     version: 2,
     stack: [{ windowId: 1, tabId: 20, url: 'https://new-session.example.test/active' }],
     index: 0,
-    pending: []
+    pending: [],
   })
 })
 
@@ -973,13 +973,13 @@ test('failed browser startup reset remains a barrier before the next activation'
   let persisted: unknown = {
     stack: [{ windowId: 1, tabId: 10 }],
     index: 0,
-    pending: []
+    pending: [],
   }
   let writeAttempts = 0
   const chromeApi = makeChromeApi({
     tabs: [
-      { id: 20, windowId: 1, url: 'https://new-session.example.test/active', title: 'Active', active: true } as chrome.tabs.Tab
-    ]
+      { id: 20, windowId: 1, url: 'https://new-session.example.test/active', title: 'Active', active: true } as chrome.tabs.Tab,
+    ],
   })
   chromeApi.storage.local.get = async () => ({ globalTabHistory: persisted })
   chromeApi.storage.local.set = async (entries: Record<string, unknown>) => {
@@ -997,7 +997,7 @@ test('failed browser startup reset remains a barrier before the next activation'
     version: 2,
     stack: [{ windowId: 1, tabId: 20, url: 'https://new-session.example.test/active' }],
     index: 0,
-    pending: []
+    pending: [],
   })
 })
 
@@ -1006,18 +1006,18 @@ test('tab replacement preserves activated history position under the new tab id'
     history: {
       stack: [
         { windowId: 1, tabId: 10 },
-        { windowId: 1, tabId: 20 }
+        { windowId: 1, tabId: 20 },
       ],
-      index: 0
+      index: 0,
     },
     tabs: [
       { id: 30, windowId: 2, url: 'https://replacement.example.test/', title: 'Replacement', active: true } as chrome.tabs.Tab,
-      { id: 20, windowId: 1, url: 'https://other.example.test/', title: 'Other', active: false } as chrome.tabs.Tab
-    ]
+      { id: 20, windowId: 1, url: 'https://other.example.test/', title: 'Other', active: false } as chrome.tabs.Tab,
+    ],
   })
   chromeApi.windows.getAll = async () => [
     { id: 1, focused: false, type: 'normal' } as chrome.windows.Window,
-    { id: 2, focused: true, type: 'normal' } as chrome.windows.Window
+    { id: 2, focused: true, type: 'normal' } as chrome.windows.Window,
   ]
   const service = createTabHistoryService(chromeApi)
 
@@ -1035,12 +1035,12 @@ test('tab replacement preserves a pending target under the new tab id', async ()
     history: {
       stack: [{ windowId: 1, tabId: 20 }],
       index: 0,
-      pending: [{ windowId: 1, tabId: 10, createdAt: 123 }]
+      pending: [{ windowId: 1, tabId: 10, createdAt: 123 }],
     },
     tabs: [
       { id: 20, windowId: 1, url: 'https://current.example.test/', title: 'Current', active: true } as chrome.tabs.Tab,
-      { id: 30, windowId: 1, url: 'https://pending.example.test/', title: 'Pending', active: false } as chrome.tabs.Tab
-    ]
+      { id: 30, windowId: 1, url: 'https://pending.example.test/', title: 'Pending', active: false } as chrome.tabs.Tab,
+    ],
   }))
 
   await service.replaceTabId(30, 10)

@@ -10,7 +10,7 @@ import { createMoveAnimator } from './move-animation.js'
 import type { MovePositionMap } from './move-animation.js'
 
 export type MissionContainer = HTMLDivElement | null
-export type CardPosition = { left: number; top: number }
+export type CardPosition = { left: number, top: number }
 export type CardPositionMap = MovePositionMap
 export type CardMoveAnimationOptions = {
   allowBleed?: boolean
@@ -26,7 +26,7 @@ const cardMoveAnimator = createMoveAnimator({
   duration: CARD_MOVE_MS,
   movingClass: 'layout-moving',
   activeClass: 'layout-moving-active',
-  coordinateSpace: 'viewport'
+  coordinateSpace: 'viewport',
 })
 
 function enableCardMoveBleed(containers: ReadonlyArray<HTMLElement | null>) {
@@ -66,6 +66,6 @@ export function animateDomainCardMoves(containers: MissionContainer[], previousR
   cardMoveAnimator.animate(containers, previousRects, {
     beforePlay: () => {
       if (allowBleed) enableCardMoveBleed(containers)
-    }
+    },
   })
 }

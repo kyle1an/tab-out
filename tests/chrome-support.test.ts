@@ -6,7 +6,7 @@ import {
   assertBrowserTestFloorMatchesPolicy,
   assertGeneratedManifestMatchesPolicy,
   chromeVersionHistoryUrl,
-  parsePlaywrightChromiumVersion
+  parsePlaywrightChromiumVersion,
 } from '../scripts/chrome-support.js'
 import {
   assessChromeSupport,
@@ -16,13 +16,13 @@ import {
   isChromeStableVersions,
   parseLatestStableVersion,
   type ChromeStableVersions,
-  type ChromeSupportPolicy
+  type ChromeSupportPolicy,
 } from '../src/extension/chrome-support.js'
 import playwrightConfig from './playwright.config.js'
 
 const validPolicy: ChromeSupportPolicy = {
   minimumMajor: 149,
-  lastBumpedAt: '2026-07-23'
+  lastBumpedAt: '2026-07-23',
 }
 
 const stableVersions: ChromeStableVersions = {
@@ -31,13 +31,13 @@ const stableVersions: ChromeStableVersions = {
   win_arm64: '151.0.7922.47',
   mac: '151.0.7922.47',
   mac_arm64: '151.0.7922.47',
-  linux: '150.0.7871.181'
+  linux: '150.0.7871.181',
 }
 
 test('requests one explicitly newest Stable version per supported platform', () => {
   assert.equal(
     chromeVersionHistoryUrl('linux'),
-    'https://versionhistory.googleapis.com/v1/chrome/platforms/linux/channels/stable/versions?page_size=1&order_by=version%20desc'
+    'https://versionhistory.googleapis.com/v1/chrome/platforms/linux/channels/stable/versions?page_size=1&order_by=version%20desc',
   )
 })
 
@@ -45,13 +45,13 @@ test('check CLI runs the deterministic offline consistency check', () => {
   const result = spawnSync(
     process.execPath,
     ['--import', 'tsx', 'scripts/chrome-support.ts', 'check'],
-    { encoding: 'utf8' }
+    { encoding: 'utf8' },
   )
 
   assert.equal(result.status, 0, result.stderr)
   assert.match(
     result.stdout,
-    new RegExp(`internally consistent at Chrome ${chromeSupportPolicy.minimumMajor}`)
+    new RegExp(`internally consistent at Chrome ${chromeSupportPolicy.minimumMajor}`),
   )
 })
 
@@ -59,7 +59,7 @@ test('CLI rejects an unknown command with the usage exit code', () => {
   const result = spawnSync(
     process.execPath,
     ['--import', 'tsx', 'scripts/chrome-support.ts', 'unknown'],
-    { encoding: 'utf8' }
+    { encoding: 'utf8' },
   )
 
   assert.equal(result.status, 2)
@@ -69,14 +69,14 @@ test('CLI rejects an unknown command with the usage exit code', () => {
 test('offline verification rejects generated manifest drift', () => {
   assert.doesNotThrow(() => assertGeneratedManifestMatchesPolicy(
     { minimum_chrome_version: '149' },
-    validPolicy
+    validPolicy,
   ))
   assert.throws(
     () => assertGeneratedManifestMatchesPolicy(
       { minimum_chrome_version: '148' },
-      validPolicy
+      validPolicy,
     ),
-    /pnpm build/
+    /pnpm build/,
   )
 })
 
@@ -84,11 +84,11 @@ test('offline verification pins browser tests to the minimum supported Chrome ma
   assert.doesNotThrow(() => assertBrowserTestFloorMatchesPolicy('149.0.7827.55', validPolicy))
   assert.throws(
     () => assertBrowserTestFloorMatchesPolicy('150.0.7871.0', validPolicy),
-    /bundle Chromium 149\.x/
+    /bundle Chromium 149\.x/,
   )
   assert.throws(
     () => assertBrowserTestFloorMatchesPolicy(null, validPolicy),
-    /Update @playwright\/test/
+    /Update @playwright\/test/,
   )
 })
 
@@ -96,8 +96,8 @@ test('Playwright metadata selects only the default bundled Chromium', () => {
   assert.equal(parsePlaywrightChromiumVersion({
     browsers: [
       { name: 'chromium', installByDefault: false, browserVersion: '148.0.0.0' },
-      { name: 'chromium', installByDefault: true, browserVersion: '149.0.7827.55' }
-    ]
+      { name: 'chromium', installByDefault: true, browserVersion: '149.0.7827.55' },
+    ],
   }), '149.0.7827.55')
   assert.equal(parsePlaywrightChromiumVersion({ browsers: 'malformed' }), null)
 })
@@ -114,41 +114,41 @@ test('browser harness owns its server and uses the bundled full Chromium', () =>
 
 test('creates an auditable bump only when the common floor advances', () => {
   const advancedVersions = Object.fromEntries(
-    Object.keys(stableVersions).map((platform) => [platform, '151.0.7922.47'])
+    Object.keys(stableVersions).map((platform) => [platform, '151.0.7922.47']),
   ) as ChromeStableVersions
   assert.deepEqual(
     createBumpedChromeSupportPolicy(
       validPolicy,
       advancedVersions,
-      new Date('2026-07-24T15:30:00Z')
+      new Date('2026-07-24T15:30:00Z'),
     ),
-    { minimumMajor: 150, lastBumpedAt: '2026-07-24' }
+    { minimumMajor: 150, lastBumpedAt: '2026-07-24' },
   )
   assert.equal(createBumpedChromeSupportPolicy(validPolicy, stableVersions, new Date()), null)
   assert.throws(
     () => createBumpedChromeSupportPolicy(
       validPolicy,
       { ...stableVersions, linux: '149.0.7800.1' },
-      new Date()
+      new Date(),
     ),
-    /refusing to lower/
+    /refusing to lower/,
   )
 })
 
 test('distinguishes a current, stale, and unsupported committed floor', () => {
   assert.deepEqual(
     assessChromeSupport(validPolicy, stableVersions),
-    { status: 'current', committedMinimumMajor: 149, desiredMinimumMajor: 149 }
+    { status: 'current', committedMinimumMajor: 149, desiredMinimumMajor: 149 },
   )
   assert.deepEqual(
     assessChromeSupport(validPolicy, Object.fromEntries(
-      Object.keys(stableVersions).map((platform) => [platform, '152.0.8000.1'])
+      Object.keys(stableVersions).map((platform) => [platform, '152.0.8000.1']),
     ) as ChromeStableVersions),
-    { status: 'behind', committedMinimumMajor: 149, desiredMinimumMajor: 151 }
+    { status: 'behind', committedMinimumMajor: 149, desiredMinimumMajor: 151 },
   )
   assert.deepEqual(
     assessChromeSupport(validPolicy, { ...stableVersions, linux: '149.0.7800.1' }),
-    { status: 'unsupported', committedMinimumMajor: 149, desiredMinimumMajor: 148 }
+    { status: 'unsupported', committedMinimumMajor: 149, desiredMinimumMajor: 148 },
   )
 })
 
@@ -157,14 +157,14 @@ test('uses the first Stable version from the descending VersionHistory response'
     parseLatestStableVersion({
       versions: [
         { version: '151.0.7922.47' },
-        { version: '150.0.7871.181' }
-      ]
+        { version: '150.0.7871.181' },
+      ],
     }, 'win'),
-    '151.0.7922.47'
+    '151.0.7922.47',
   )
   assert.throws(
     () => parseLatestStableVersion({ versions: [] }, 'win'),
-    /no Stable version for win/
+    /no Stable version for win/,
   )
 })
 

@@ -6,19 +6,19 @@ import {
   Queue,
   Ref,
   Result,
-  Schema
+  Schema,
 } from 'effect'
 
 import {
   pageIdentityForWorkingSet,
-  recordWorkingSetActivityMutation
+  recordWorkingSetActivityMutation,
 } from '../working-set.js'
 import { normalizeChromeTabToDashboardItem } from '../dashboard-tab-normalization.js'
 import type { ChromeApi } from './chrome-api.js'
 import type { DashboardTab, WorkingSetActivityKind, WorkingSetActivityStore } from '../types'
 import {
   WorkingSetActivityStorage,
-  type WorkingSetActivityWrite
+  type WorkingSetActivityWrite,
 } from './working-set-activity-storage.js'
 
 export { WORKING_SET_ACTIVITY_KEY } from './working-set-activity-storage.js'
@@ -37,7 +37,7 @@ type ActivityMutation = {
   readonly commit?: Effect.Effect<void>
 }
 type ActivityMutator = (
-  activity: WorkingSetActivityStore
+  activity: WorkingSetActivityStore,
 ) => Effect.Effect<ActivityMutation>
 type CapturedTab = Promise<chrome.tabs.Tab | null>
 
@@ -45,47 +45,47 @@ export class WorkingSetStorageError extends Schema.TaggedErrorClass<WorkingSetSt
   'WorkingSetStorageError',
   {
     operation: Schema.Literals(['read', 'write']),
-    cause: Schema.Defect()
-  }
+    cause: Schema.Defect(),
+  },
 ) {}
 
 class WorkingSetTabLookupError extends Schema.TaggedErrorClass<WorkingSetTabLookupError>()(
   'WorkingSetTabLookupError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 export class WorkingSet extends Context.Service<WorkingSet, {
   readonly getWorkingSetActivity: () => Effect.Effect<WorkingSetActivityStore, WorkingSetStorageError>
   readonly recordFocusedWindowActiveTab: (
     windowId: number,
-    capturedActiveTab?: CapturedTab
+    capturedActiveTab?: CapturedTab,
   ) => Effect.Effect<void, WorkingSetStorageError>
   readonly replaceTabId: (
     addedTabId: number,
-    removedTabId: number
+    removedTabId: number,
   ) => Effect.Effect<void, WorkingSetStorageError>
   readonly recordTabActivation: (
     windowId: number,
     tabId: number,
-    capturedTab?: CapturedTab
+    capturedTab?: CapturedTab,
   ) => Effect.Effect<void, WorkingSetStorageError>
   readonly recordTabNavigation: (
     tabId: number,
-    changeInfo: { url?: string; title?: string },
-    tab: chrome.tabs.Tab
+    changeInfo: { url?: string, title?: string },
+    tab: chrome.tabs.Tab,
   ) => Effect.Effect<void, WorkingSetStorageError>
 }>()('@tab-out/background/WorkingSet') {
   static layer(
-    chromeApi: ChromeApi
+    chromeApi: ChromeApi,
   ): Layer.Layer<WorkingSet, never, WorkingSetActivityStorage> {
     return makeWorkingSetLayer(chromeApi)
   }
 }
 
 function makeWorkingSetLayer(
-  chromeApi: ChromeApi
+  chromeApi: ChromeApi,
 ): Layer.Layer<WorkingSet, never, WorkingSetActivityStorage> {
-  return Layer.effect(WorkingSet, Effect.gen(function*() {
+  return Layer.effect(WorkingSet, Effect.gen(function* () {
     const activityStorage = yield* WorkingSetActivityStorage
     const scope = yield* Effect.scope
     const activityCache = yield* Ref.make<WorkingSetActivityStore | null>(null)
@@ -94,33 +94,33 @@ function makeWorkingSetLayer(
     const lastPageIdentityByTabId = yield* Ref.make(new Map<number, string>())
     const lastActivationSignal = yield* Ref.make<ActivationSignal | null>(null)
 
-    const readActivity = Effect.fn('WorkingSet.readActivity')(function*() {
+    const readActivity = Effect.fn('WorkingSet.readActivity')(function* () {
       const cached = yield* Ref.get(activityCache)
       if (cached) return cached
       const activity = yield* activityStorage.read().pipe(
         Effect.mapError((error) => WorkingSetStorageError.make({
           operation: 'read',
-          cause: error.cause
-        }))
+          cause: error.cause,
+        })),
       )
       yield* Ref.set(activityCache, activity)
       return activity
     })
 
-    const writeActivity = Effect.fn('WorkingSet.writeActivity')(function*(
-      change: WorkingSetActivityWrite
+    const writeActivity = Effect.fn('WorkingSet.writeActivity')(function* (
+      change: WorkingSetActivityWrite,
     ) {
       yield* activityStorage.write(change).pipe(
         Effect.mapError((error) => WorkingSetStorageError.make({
           operation: 'write',
-          cause: error.cause
-        }))
+          cause: error.cause,
+        })),
       )
       yield* Ref.set(activityCache, change.activity)
     })
 
-    const runActivityMutation = Effect.fn('WorkingSet.mutateActivity')(function*(
-      mutator: ActivityMutator
+    const runActivityMutation = Effect.fn('WorkingSet.mutateActivity')(function* (
+      mutator: ActivityMutator,
     ) {
       const before = yield* readActivity()
       const mutation = yield* mutator(before)
@@ -131,7 +131,7 @@ function makeWorkingSetLayer(
       if (mutation.commit) yield* mutation.commit
     })
 
-    const drainActivityTasks = Effect.fn('WorkingSet.drainActivityTasks')(function*() {
+    const drainActivityTasks = Effect.fn('WorkingSet.drainActivityTasks')(function* () {
       while (true) {
         const task = yield* Queue.take(activityTasks)
         yield* task
@@ -139,11 +139,11 @@ function makeWorkingSetLayer(
     })
 
     yield* drainActivityTasks().pipe(
-      Effect.forkIn(scope, { startImmediately: true })
+      Effect.forkIn(scope, { startImmediately: true }),
     )
 
     function serialize<Value, Failure>(
-      effect: Effect.Effect<Value, Failure>
+      effect: Effect.Effect<Value, Failure>,
     ): Effect.Effect<Value, Failure> {
       const completion = Deferred.makeUnsafe<Value, Failure>()
       const task = Deferred.complete(completion, effect).pipe(Effect.asVoid)
@@ -153,10 +153,10 @@ function makeWorkingSetLayer(
       return Deferred.await(completion)
     }
 
-    const activityAfterTabEvent = Effect.fn('WorkingSet.activityAfterTabEvent')(function*(
+    const activityAfterTabEvent = Effect.fn('WorkingSet.activityAfterTabEvent')(function* (
       activity: WorkingSetActivityStore,
       kind: WorkingSetActivityKind,
-      tab: chrome.tabs.Tab | DashboardTab
+      tab: chrome.tabs.Tab | DashboardTab,
     ) {
       const dashboardTab = isDashboardTab(tab)
         ? tab
@@ -165,13 +165,13 @@ function makeWorkingSetLayer(
       const write = recordWorkingSetActivityMutation(activity, {
         kind,
         at,
-        tab: dashboardTab
+        tab: dashboardTab,
       })
       const hasDurableChange = write.upsert !== null || write.deleteKeys.length > 0
       return {
         activity: hasDurableChange ? write.activity : activity,
         ...(hasDurableChange ? { write } : {}),
-        commit: Ref.set(lastActivityAt, at)
+        commit: Ref.set(lastActivityAt, at),
       } satisfies ActivityMutation
     })
 
@@ -183,11 +183,11 @@ function makeWorkingSetLayer(
     }
 
     const activityAfterActivationSignal = Effect.fn('WorkingSet.activityAfterActivationSignal')(
-      function*(
+      function* (
         activity: WorkingSetActivityStore,
         tab: chrome.tabs.Tab,
         source: ActivationSignalSource,
-        observedAt: number
+        observedAt: number,
       ) {
         if (typeof tab.id !== 'number') return { activity } satisfies ActivityMutation
         const tabId = tab.id
@@ -196,7 +196,7 @@ function makeWorkingSetLayer(
           source,
           tabId,
           windowId: tab.windowId,
-          observedAt
+          observedAt,
         } satisfies ActivationSignal
         const pageIdentity = pageIdentityForTab(tab)
         const commitSignal = Ref.set(lastActivationSignal, nextSignal).pipe(
@@ -204,7 +204,7 @@ function makeWorkingSetLayer(
             const next = new Map(current)
             next.set(tabId, pageIdentity)
             return next
-          }))
+          })),
         )
         if (
           previousSignal &&
@@ -219,20 +219,20 @@ function makeWorkingSetLayer(
         return {
           activity: mutation.activity,
           ...(mutation.write ? { write: mutation.write } : {}),
-          commit: mutation.commit.pipe(Effect.andThen(commitSignal))
+          commit: mutation.commit.pipe(Effect.andThen(commitSignal)),
         } satisfies ActivityMutation
-      }
+      },
     )
 
     const getActivity = () => serialize(readActivity())
 
-    const runRecordActivation = Effect.fn('WorkingSet.recordTabActivation')(function*(
+    const runRecordActivation = Effect.fn('WorkingSet.recordTabActivation')(function* (
       windowId: number,
       tabId: number,
       capturedTab: CapturedTab | undefined,
-      observedAt: number
+      observedAt: number,
     ) {
-      yield* runActivityMutation((activity) => Effect.gen(function*() {
+      yield* runActivityMutation((activity) => Effect.gen(function* () {
         const lookup = yield* Effect.result(Effect.tryPromise({
           try: async () => {
             let tab = capturedTab ? await capturedTab : null
@@ -240,7 +240,7 @@ function makeWorkingSetLayer(
               .find((candidate) => candidate.id === tabId) ?? null
             return tab
           },
-          catch: (cause) => WorkingSetTabLookupError.make({ cause })
+          catch: (cause) => WorkingSetTabLookupError.make({ cause }),
         }))
         if (Result.isFailure(lookup)) return { activity }
         const tab = lookup.success
@@ -249,7 +249,7 @@ function makeWorkingSetLayer(
           activity,
           tab,
           'tab-activated',
-          observedAt
+          observedAt,
         )
       }))
     })
@@ -257,25 +257,25 @@ function makeWorkingSetLayer(
     function recordActivation(
       windowId: number,
       tabId: number,
-      capturedTab?: CapturedTab
+      capturedTab?: CapturedTab,
     ): Effect.Effect<void, WorkingSetStorageError> {
       if (typeof windowId !== 'number' || typeof tabId !== 'number') return Effect.void
       return serialize(runRecordActivation(windowId, tabId, capturedTab, Date.now()))
     }
 
-    const runRecordFocused = Effect.fn('WorkingSet.recordFocusedWindowActiveTab')(function*(
+    const runRecordFocused = Effect.fn('WorkingSet.recordFocusedWindowActiveTab')(function* (
       windowId: number,
       capturedActiveTab: CapturedTab | undefined,
-      observedAt: number
+      observedAt: number,
     ) {
-      yield* runActivityMutation((activity) => Effect.gen(function*() {
+      yield* runActivityMutation((activity) => Effect.gen(function* () {
         const lookup = yield* Effect.result(Effect.tryPromise({
           try: async () => {
             let activeTab = capturedActiveTab ? await capturedActiveTab : null
             activeTab ??= (await chromeApi.tabs.query({ windowId, active: true }))[0] ?? null
             return activeTab
           },
-          catch: (cause) => WorkingSetTabLookupError.make({ cause })
+          catch: (cause) => WorkingSetTabLookupError.make({ cause }),
         }))
         if (Result.isFailure(lookup)) return { activity }
         const activeTab = lookup.success
@@ -284,24 +284,24 @@ function makeWorkingSetLayer(
           activity,
           activeTab,
           'window-focused',
-          observedAt
+          observedAt,
         )
       }))
     })
 
     function recordFocused(
       windowId: number,
-      capturedActiveTab?: CapturedTab
+      capturedActiveTab?: CapturedTab,
     ): Effect.Effect<void, WorkingSetStorageError> {
       if (windowId == null || windowId === chromeApi.windows.WINDOW_ID_NONE) return Effect.void
       return serialize(runRecordFocused(windowId, capturedActiveTab, Date.now()))
     }
 
-    const runReplaceTabId = Effect.fn('WorkingSet.replaceTabId')(function*(
+    const runReplaceTabId = Effect.fn('WorkingSet.replaceTabId')(function* (
       addedTabId: number,
-      removedTabId: number
+      removedTabId: number,
     ) {
-      yield* runActivityMutation((activity) => Effect.gen(function*() {
+      yield* runActivityMutation((activity) => Effect.gen(function* () {
         const signal = yield* Ref.get(lastActivationSignal)
         const nextSignal = signal?.tabId === removedTabId
           ? { ...signal, tabId: addedTabId }
@@ -318,15 +318,15 @@ function makeWorkingSetLayer(
                 next.set(addedTabId, replacedPageIdentity)
               }
               return next
-            }))
-          )
+            })),
+          ),
         }
       }))
     })
 
     function replaceTabId(
       addedTabId: number,
-      removedTabId: number
+      removedTabId: number,
     ): Effect.Effect<void, WorkingSetStorageError> {
       if (
         typeof addedTabId !== 'number' ||
@@ -338,13 +338,13 @@ function makeWorkingSetLayer(
       return serialize(runReplaceTabId(addedTabId, removedTabId))
     }
 
-    const runRecordNavigation = Effect.fn('WorkingSet.recordTabNavigation')(function*(
+    const runRecordNavigation = Effect.fn('WorkingSet.recordTabNavigation')(function* (
       tabId: number,
-      changeInfo: { url?: string; title?: string },
-      tab: chrome.tabs.Tab
+      changeInfo: { url?: string, title?: string },
+      tab: chrome.tabs.Tab,
     ) {
       const nextPageIdentity = pageIdentityForTab(tab)
-      yield* runActivityMutation((activity) => Effect.gen(function*() {
+      yield* runActivityMutation((activity) => Effect.gen(function* () {
         const pageIdentities = yield* Ref.get(lastPageIdentityByTabId)
         const commitPageIdentity = Ref.update(lastPageIdentityByTabId, (current) => {
           const next = new Map(current)
@@ -360,15 +360,15 @@ function makeWorkingSetLayer(
         return {
           activity: mutation.activity,
           ...(mutation.write ? { write: mutation.write } : {}),
-          commit: mutation.commit.pipe(Effect.andThen(commitPageIdentity))
+          commit: mutation.commit.pipe(Effect.andThen(commitPageIdentity)),
         }
       }))
     })
 
     function recordNavigation(
       tabId: number,
-      changeInfo: { url?: string; title?: string },
-      tab: chrome.tabs.Tab
+      changeInfo: { url?: string, title?: string },
+      tab: chrome.tabs.Tab,
     ): Effect.Effect<void, WorkingSetStorageError> {
       if (!tab?.active || !changeInfo?.url || typeof tabId !== 'number' || tab.id !== tabId) {
         return Effect.void
@@ -381,7 +381,7 @@ function makeWorkingSetLayer(
       recordFocusedWindowActiveTab: recordFocused,
       replaceTabId,
       recordTabActivation: recordActivation,
-      recordTabNavigation: recordNavigation
+      recordTabNavigation: recordNavigation,
     })
   }))
 }

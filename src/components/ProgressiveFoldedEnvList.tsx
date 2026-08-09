@@ -33,11 +33,11 @@ export function ProgressiveFoldedEnvList({ envs, renderEnv }: ProgressiveFoldedE
       observer.disconnect()
       setMountedCount((currentCount) => Math.min(
         envs.length,
-        Math.max(currentCount, visibleCount) + PROGRESSIVE_FOLDED_ENV_CHUNK_SIZE
+        Math.max(currentCount, visibleCount) + PROGRESSIVE_FOLDED_ENV_CHUNK_SIZE,
       ))
     }, {
       root,
-      rootMargin: '0px 0px 480px 0px'
+      rootMargin: '0px 0px 480px 0px',
     })
     observer.observe(sentinel)
     return () => observer.disconnect()

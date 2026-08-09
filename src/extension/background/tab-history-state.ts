@@ -61,7 +61,7 @@ function normalizedHistoryEntry(item: GlobalTabHistoryEntryInput): GlobalTabHist
   return {
     windowId: item.windowId,
     tabId: item.tabId,
-    url: unwrapSuspenderUrl(typeof item.url === 'string' ? item.url : '')
+    url: unwrapSuspenderUrl(typeof item.url === 'string' ? item.url : ''),
   }
 }
 
@@ -81,7 +81,7 @@ export function normalizeGlobalHistory(entry: GlobalTabHistoryInput): GlobalTabH
           if (!normalized) return null
           return {
             ...normalized,
-            createdAt: typeof item?.createdAt === 'number' && Number.isFinite(item.createdAt) ? item.createdAt : 0
+            createdAt: typeof item?.createdAt === 'number' && Number.isFinite(item.createdAt) ? item.createdAt : 0,
           }
         })
         .filter((item): item is PendingTabHistoryEntry => item !== null)
@@ -151,7 +151,7 @@ function dedupeHistoryByLatestTab(history: GlobalTabHistoryInput): GlobalTabHist
   return {
     stack: nextStack,
     index: nextStack.length === 0 ? -1 : nextIndex,
-    pending: nextPending
+    pending: nextPending,
   }
 }
 
@@ -163,7 +163,7 @@ function trimHistoryToMax(history: GlobalTabHistoryInput): GlobalTabHistory {
   return {
     stack: nextStack,
     index: current.index === -1 ? -1 : Math.max(0, current.index - dropCount),
-    pending: current.pending.slice(0, pendingCapacity)
+    pending: current.pending.slice(0, pendingCapacity),
   }
 }
 
@@ -173,7 +173,7 @@ export function canonicalizeGlobalHistory(history: GlobalTabHistoryInput): Histo
   const trimmed = trimHistoryToMax(deduped)
   return {
     history: trimmed,
-    changed: historyChanged(current, trimmed)
+    changed: historyChanged(current, trimmed),
   }
 }
 
@@ -202,7 +202,7 @@ export function removeTabEntriesFromHistory(history: GlobalTabHistoryInput, tabI
   return {
     stack: nextStack,
     index: nextStack.length === 0 ? -1 : Math.max(0, nextIndex),
-    pending: nextPending
+    pending: nextPending,
   }
 }
 
@@ -211,7 +211,7 @@ export function replaceTabIdInHistory(
   addedTabId: number,
   removedTabId: number,
   replacementWindowId?: number,
-  replacementUrl?: string
+  replacementUrl?: string,
 ): GlobalTabHistory {
   const current = normalizeGlobalHistory(history)
   if (
@@ -229,7 +229,7 @@ export function replaceTabIdInHistory(
             ...entry,
             tabId: addedTabId,
             ...(typeof replacementWindowId === 'number' ? { windowId: replacementWindowId } : {}),
-            ...(typeof replacementUrl === 'string' ? { url: unwrapSuspenderUrl(replacementUrl) } : {})
+            ...(typeof replacementUrl === 'string' ? { url: unwrapSuspenderUrl(replacementUrl) } : {}),
           }
         : entry
     )),
@@ -240,16 +240,16 @@ export function replaceTabIdInHistory(
             ...entry,
             tabId: addedTabId,
             ...(typeof replacementWindowId === 'number' ? { windowId: replacementWindowId } : {}),
-            ...(typeof replacementUrl === 'string' ? { url: unwrapSuspenderUrl(replacementUrl) } : {})
+            ...(typeof replacementUrl === 'string' ? { url: unwrapSuspenderUrl(replacementUrl) } : {}),
           }
         : entry
-    ))
+    )),
   }).history
 }
 
 export function historyForBackgroundTabCreation(
   history: GlobalTabHistoryInput,
-  pendingEntry: PendingTabHistoryEntry | null | undefined
+  pendingEntry: PendingTabHistoryEntry | null | undefined,
 ): HistoryChangeResult {
   const current = canonicalizeGlobalHistory(history).history
   if (
@@ -273,16 +273,16 @@ export function historyForBackgroundTabCreation(
         windowId: pendingEntry.windowId,
         tabId: pendingEntry.tabId,
         url: unwrapSuspenderUrl(pendingEntry.url),
-        createdAt: Number.isFinite(pendingEntry.createdAt) ? pendingEntry.createdAt : 0
-      }
-    ]
+        createdAt: Number.isFinite(pendingEntry.createdAt) ? pendingEntry.createdAt : 0,
+      },
+    ],
   }).history
   return { history: nextHistory, changed: historyChanged(current, nextHistory) }
 }
 
 export function historyForTabNavigation(
   history: GlobalTabHistoryInput,
-  navigatedEntry: GlobalTabHistoryEntry | null | undefined
+  navigatedEntry: GlobalTabHistoryEntry | null | undefined,
 ): HistoryChangeResult {
   const current = canonicalizeGlobalHistory(history).history
   if (
@@ -296,7 +296,7 @@ export function historyForTabNavigation(
   const normalizedEntry: GlobalTabHistoryEntry = {
     windowId: navigatedEntry.windowId,
     tabId: navigatedEntry.tabId,
-    url: unwrapSuspenderUrl(navigatedEntry.url)
+    url: unwrapSuspenderUrl(navigatedEntry.url),
   }
   const nextHistory = canonicalizeGlobalHistory({
     stack: current.stack.map((entry) => (
@@ -307,7 +307,7 @@ export function historyForTabNavigation(
       entry.tabId === normalizedEntry.tabId
         ? { ...entry, ...normalizedEntry }
         : entry
-    ))
+    )),
   }).history
 
   return { history: nextHistory, changed: historyChanged(current, nextHistory) }
@@ -322,7 +322,7 @@ export function historyForUserActivation(history: GlobalTabHistoryInput, activeE
   const normalizedActiveEntry: GlobalTabHistoryEntry = {
     windowId: activeEntry.windowId,
     tabId: activeEntry.tabId,
-    url: unwrapSuspenderUrl(activeEntry.url)
+    url: unwrapSuspenderUrl(activeEntry.url),
   }
 
   if (current.stack[current.index]?.tabId === activeEntry.tabId) {
@@ -334,7 +334,7 @@ export function historyForUserActivation(history: GlobalTabHistoryInput, activeE
   const nextStack = current.stack.toSpliced(
     current.index + 1,
     current.stack.length,
-    normalizedActiveEntry
+    normalizedActiveEntry,
   )
   const nextHistory = canonicalizeGlobalHistory({ ...current, stack: nextStack, index: nextStack.length - 1 }).history
 
@@ -351,7 +351,7 @@ export function repairHistoryCursorForActiveTab(history: GlobalTabHistoryInput, 
   const normalizedActiveEntry: GlobalTabHistoryEntry = {
     windowId: activeTab.windowId,
     tabId: activeTab.id,
-    url: activeUrl
+    url: activeUrl,
   }
 
   if (
@@ -375,7 +375,7 @@ export function repairHistoryCursorForActiveTab(history: GlobalTabHistoryInput, 
   const nextStack = current.stack.toSpliced(
     current.index + 1,
     current.stack.length,
-    normalizedActiveEntry
+    normalizedActiveEntry,
   )
   const nextHistory = canonicalizeGlobalHistory({ ...current, stack: nextStack, index: nextStack.length - 1 }).history
 
@@ -412,7 +412,7 @@ export function pruneMissingHistoryEntries(history: GlobalTabHistoryInput, exist
 
   return {
     ...nextHistory,
-    changed: historyChanged(current, nextHistory)
+    changed: historyChanged(current, nextHistory),
   }
 }
 

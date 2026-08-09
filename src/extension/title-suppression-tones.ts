@@ -33,7 +33,7 @@ const EMPTY_TITLE_SUPPRESSION_TONE_SCOPE: TitleSuppressionToneScope = {
   useSuppressionTokenTones: false,
   suppressedTitleToneIndexByText: {},
   suppressedTitleToneByText: {},
-  usedToneCount: 0
+  usedToneCount: 0,
 }
 
 /** Neutral scope for VMs that skipped the compute walk (hand-built test data). */
@@ -61,7 +61,7 @@ export function titleSuppressionToneForIndex(index: number): TitleSuppressionTon
 
 export function titleSuppressionToneForText(
   text: string,
-  toneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
+  toneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>,
 ): TitleSuppressionTone | '' {
   // typeof guards against inherited keys ('constructor') on storage-revived records.
   const tone = toneByText?.[titleSuppressionKey(text)]
@@ -70,30 +70,30 @@ export function titleSuppressionToneForText(
 
 export function createTitleSuppressionToneScope(
   parts: readonly TitleSuppressionTonePart[],
-  { startToneIndex = 0 }: TitleSuppressionToneScopeOptions = {}
+  { startToneIndex = 0 }: TitleSuppressionToneScopeOptions = {},
 ): TitleSuppressionToneScope {
   const useSuppressionTokenTones = parts.length > 1 || parts.some((part) => !!part.spansRenderedChildGroups)
   const toneOrderedParts = [...parts]
     .map((part, displayIndex) => ({ part, displayIndex }))
     .sort((a, b) => (b.part.count ?? 0) - (a.part.count ?? 0) || a.displayIndex - b.displayIndex || compareNumericText(a.part.text, b.part.text))
   const toneIndexByText = new Map<string, number>(
-    toneOrderedParts.map(({ part }, toneOffset) => [titleSuppressionKey(part.text), startToneIndex + toneOffset])
+    toneOrderedParts.map(({ part }, toneOffset) => [titleSuppressionKey(part.text), startToneIndex + toneOffset]),
   )
   const suppressedTitleToneIndexByText = Object.fromEntries(
-    parts.map((part, index) => [titleSuppressionKey(part.text), toneIndexByText.get(titleSuppressionKey(part.text)) ?? startToneIndex + index])
+    parts.map((part, index) => [titleSuppressionKey(part.text), toneIndexByText.get(titleSuppressionKey(part.text)) ?? startToneIndex + index]),
   ) as Record<string, number>
   const suppressedTitleToneByText = Object.fromEntries(
     parts.map((part) => [
       titleSuppressionKey(part.text),
-      useSuppressionTokenTones ? titleSuppressionToneForIndex(toneIndexByText.get(titleSuppressionKey(part.text)) ?? startToneIndex) : ''
-    ])
+      useSuppressionTokenTones ? titleSuppressionToneForIndex(toneIndexByText.get(titleSuppressionKey(part.text)) ?? startToneIndex) : '',
+    ]),
   ) as Record<string, TitleSuppressionTone | ''>
 
   return {
     useSuppressionTokenTones,
     suppressedTitleToneIndexByText,
     suppressedTitleToneByText,
-    usedToneCount: useSuppressionTokenTones ? parts.length : 0
+    usedToneCount: useSuppressionTokenTones ? parts.length : 0,
   }
 }
 
@@ -121,7 +121,7 @@ export type CardSuppressionTones = {
  */
 export function allocateCardSuppressionTones(
   suppressedTitleParts: readonly DashboardTitleSuppression[],
-  sections: readonly DashboardSectionVM[]
+  sections: readonly DashboardSectionVM[],
 ): CardSuppressionTones {
   let nextTitleSuppressionToneIndex = 0
 
@@ -136,13 +136,13 @@ export function allocateCardSuppressionTones(
     const sectionSuppressionToneScope = allocateTitleSuppressionToneScope(section.suppressedTitleParts ?? [])
     const sectionSuppressedTitleToneByText = mergeTitleSuppressionToneMaps(
       cardSuppressionToneScope.suppressedTitleToneByText,
-      sectionSuppressionToneScope.suppressedTitleToneByText
+      sectionSuppressionToneScope.suppressedTitleToneByText,
     )
     const tonedWebsitePathSections: DashboardWebsitePathSectionVM[] = (section.websitePathSections ?? []).map((websitePathSection) => {
       const websitePathSectionSuppressionToneScope = allocateTitleSuppressionToneScope(websitePathSection.suppressedTitleParts ?? [])
       const websitePathSectionSuppressedTitleToneByText = mergeTitleSuppressionToneMaps(
         sectionSuppressedTitleToneByText,
-        websitePathSectionSuppressionToneScope.suppressedTitleToneByText
+        websitePathSectionSuppressionToneScope.suppressedTitleToneByText,
       )
 
       return {
@@ -156,10 +156,10 @@ export function allocateCardSuppressionTones(
             titleSuppressionToneScope: clusterSuppressionToneScope,
             suppressedTitleToneByText: mergeTitleSuppressionToneMaps(
               websitePathSectionSuppressedTitleToneByText,
-              clusterSuppressionToneScope.suppressedTitleToneByText
-            )
+              clusterSuppressionToneScope.suppressedTitleToneByText,
+            ),
           }
-        })
+        }),
       }
     })
 
@@ -175,10 +175,10 @@ export function allocateCardSuppressionTones(
           titleSuppressionToneScope: clusterSuppressionToneScope,
           suppressedTitleToneByText: mergeTitleSuppressionToneMaps(
             sectionSuppressedTitleToneByText,
-            clusterSuppressionToneScope.suppressedTitleToneByText
-          )
+            clusterSuppressionToneScope.suppressedTitleToneByText,
+          ),
         }
-      })
+      }),
     }
   })
 

@@ -5,7 +5,7 @@ import { ManagedRuntime, type Layer } from 'effect'
 import { WorkingSetActivityStorage } from '../src/extension/background/working-set-activity-storage.js'
 import type {
   WorkingSetActivityRecord,
-  WorkingSetActivityStore
+  WorkingSetActivityStore,
 } from '../src/extension/types'
 import { makeWorkingSetStorageProfile } from './helpers/working-set-storage-profile.js'
 import {
@@ -14,23 +14,23 @@ import {
   encodeCompactActivityRecord,
   makeMutationDiagnostics,
   type BenchmarkChromeStorageArea,
-  type WorkingSetBenchmarkBackend
+  type WorkingSetBenchmarkBackend,
 } from './extension/working-set-backends/benchmark-backend.js'
 import {
   benchmarkBackend as compactBenchmarkBackend,
   COMPACT_ENVELOPE_STORAGE_KEY,
-  makeCompactEnvelopeStorageLayer
+  makeCompactEnvelopeStorageLayer,
 } from './extension/working-set-backends/compact-envelope-layer.js'
 import {
   benchmarkBackend as shardsBenchmarkBackend,
   CHROME_SHARD_STORAGE_KEYS,
   corruptShardedRow,
   makeChromeShardsStorageLayer,
-  shardForWorkingSetKey
+  shardForWorkingSetKey,
 } from './extension/working-set-backends/chrome-shards-layer.js'
 import {
   decodeIndexedDbEntry,
-  encodeIndexedDbEntry
+  encodeIndexedDbEntry,
 } from './extension/working-set-backends/indexed-db-layer.js'
 
 const NOW = Date.UTC(2026, 7, 8, 12)
@@ -48,7 +48,7 @@ class MemoryStorageArea implements BenchmarkChromeStorageArea {
     const requested = typeof keys === 'string' ? [keys] : keys
     return Object.fromEntries(requested.map((key) => [
       key,
-      structuredClone(this.values.get(key))
+      structuredClone(this.values.get(key)),
     ]))
   }
 
@@ -74,7 +74,7 @@ interface ChromeCandidate {
   readonly name: string
   readonly diagnostics: WorkingSetBenchmarkBackend
   readonly makeLayer: (
-    storage: BenchmarkChromeStorageArea
+    storage: BenchmarkChromeStorageArea,
   ) => Layer.Layer<WorkingSetActivityStorage>
 }
 
@@ -82,13 +82,13 @@ const chromeCandidates: readonly ChromeCandidate[] = [
   {
     name: 'compact envelope',
     diagnostics: compactBenchmarkBackend,
-    makeLayer: makeCompactEnvelopeStorageLayer
+    makeLayer: makeCompactEnvelopeStorageLayer,
   },
   {
     name: '32 Chrome shards',
     diagnostics: shardsBenchmarkBackend,
-    makeLayer: makeChromeShardsStorageLayer
-  }
+    makeLayer: makeChromeShardsStorageLayer,
+  },
 ]
 
 function activityRecord(index: number, at = NOW - index * 1000): WorkingSetActivityRecord {
@@ -100,16 +100,16 @@ function activityRecord(index: number, at = NOW - index * 1000): WorkingSetActiv
     domain: 'example.test',
     lastSeenAt: at,
     lastActivatedAt: at,
-    events: [{ kind: 'activation', at }]
+    events: [{ kind: 'activation', at }],
   }
 }
 
 function activityStore(
-  records: readonly WorkingSetActivityRecord[]
+  records: readonly WorkingSetActivityRecord[],
 ): WorkingSetActivityStore {
   return {
     version: 1,
-    records: Object.fromEntries(records.map((record) => [record.key, record]))
+    records: Object.fromEntries(records.map((record) => [record.key, record])),
   }
 }
 
@@ -120,7 +120,7 @@ test('mutation diagnostics defer payload serialization until metrics are read', 
     toJSON() {
       serializationCount += 1
       return { value: 'benchmark-payload' }
-    }
+    },
   }
   const values: unknown[] = [payload]
 
@@ -139,7 +139,7 @@ test('compact Working Set tuples round-trip exact semantic records and isolate m
     {
       ...activityRecord(0),
       dismissedAt: NOW + 100,
-      dismissedUntil: NOW + 60_000
+      dismissedUntil: NOW + 60_000,
     },
     {
       ...activityRecord(1),
@@ -147,9 +147,9 @@ test('compact Working Set tuples round-trip exact semantic records and isolate m
       lastNavigatedAt: NOW,
       events: [
         ...activityRecord(1).events,
-        { kind: 'navigation', at: NOW }
-      ]
-    }
+        { kind: 'navigation', at: NOW },
+      ],
+    },
   ])
   const encoded = encodeCompactActivityEnvelope(expected)
 
@@ -157,9 +157,9 @@ test('compact Working Set tuples round-trip exact semantic records and isolate m
   assert.deepEqual(
     await decodeCompactActivityEnvelope([
       encoded[0],
-      [encodeCompactActivityRecord(activityRecord(0)), ['malformed-row']]
+      [encodeCompactActivityRecord(activityRecord(0)), ['malformed-row']],
     ]),
-    activityStore([activityRecord(0)])
+    activityStore([activityRecord(0)]),
   )
   const validRow = encodeCompactActivityRecord(activityRecord(0))
   assert.deepEqual(
@@ -170,10 +170,10 @@ test('compact Working Set tuples round-trip exact semantic records and isolate m
         validRow[1],
         validRow[2],
         validRow[3],
-        [...validRow[4], ['malformed-event']]
-      ]]
+        [...validRow[4], ['malformed-event']],
+      ]],
     ]),
-    activityStore([activityRecord(0)])
+    activityStore([activityRecord(0)]),
   )
   await assert.rejects(() => decodeCompactActivityEnvelope([2, []]))
 })
@@ -186,8 +186,8 @@ test('IndexedDB projection isolates malformed events and rejects invalid project
     lastNavigatedAt: navigatedAt,
     events: [
       { kind: 'activation', at: activatedAt },
-      { kind: 'navigation', at: navigatedAt }
-    ]
+      { kind: 'navigation', at: navigatedAt },
+    ],
   }
   const [key, value] = encodeIndexedDbEntry(record)
 
@@ -195,7 +195,7 @@ test('IndexedDB projection isolates malformed events and rejects invalid project
   assert.deepEqual(Object.keys(value).sort(), [
     'events',
     'lastEventAt',
-    'title'
+    'title',
   ])
   assert.equal(value.lastEventAt, activatedAt)
   assert.deepEqual(await decodeIndexedDbEntry(key, value), record)
@@ -208,8 +208,8 @@ test('IndexedDB projection isolates malformed events and rejects invalid project
       [0, Number.POSITIVE_INFINITY],
       [1],
       { kind: 'navigation', at: navigatedAt },
-      value.events[1]
-    ]
+      value.events[1],
+    ],
   }), record)
   await assert.rejects(() => decodeIndexedDbEntry(key, {
     ...value,
@@ -218,12 +218,12 @@ test('IndexedDB projection isolates malformed events and rejects invalid project
       [2, activatedAt],
       [0, Number.POSITIVE_INFINITY],
       [1],
-      { kind: 'activation', at: activatedAt }
-    ]
+      { kind: 'activation', at: activatedAt },
+    ],
   }))
   await assert.rejects(() => decodeIndexedDbEntry(key, {
     ...value,
-    lastEventAt: value.lastEventAt + 1
+    lastEventAt: value.lastEventAt + 1,
   }))
 })
 
@@ -240,17 +240,17 @@ for (const candidate of chromeCandidates) {
       assert.equal(storageArea.getInvocationCount, 0)
       assert.deepEqual(
         await runtime.runPromise(storage.read()),
-        activityStore([fresh])
+        activityStore([fresh]),
       )
       assert.equal(storageArea.setInvocationCount, 2)
       const physicallyRetained = await Promise.all(
-        [...storageArea.values.values()].map(decodeCompactActivityEnvelope)
+        [...storageArea.values.values()].map(decodeCompactActivityEnvelope),
       )
       assert.deepEqual(
         physicallyRetained.flatMap((activity) =>
-          Object.keys(activity.records).filter((key) => key === expired.key)
+          Object.keys(activity.records).filter((key) => key === expired.key),
         ),
-        []
+        [],
       )
 
       const writesBeforeBurst = candidate.diagnostics.writeInvocationCount()
@@ -261,24 +261,24 @@ for (const candidate of chromeCandidates) {
         return {
           activity: activityStore([...cumulative]),
           upsert,
-          deleteKeys: []
+          deleteKeys: [],
         }
       })
       await Promise.all(burst.map((change) =>
-        runtime.runPromise(storage.write(change))
+        runtime.runPromise(storage.write(change)),
       ))
       assert.deepEqual(
         Object.keys((await runtime.runPromise(storage.read())).records).sort(),
-        Object.keys(burst.at(-1)?.activity.records ?? {}).sort()
+        Object.keys(burst.at(-1)?.activity.records ?? {}).sort(),
       )
       assert.equal(
         candidate.diagnostics.writeInvocationCount() - writesBeforeBurst,
-        burst.length
+        burst.length,
       )
 
       storageArea.failNextSet = true
       await assert.rejects(() => runtime.runPromise(storage.replace(
-        activityStore([activityRecord(99, Date.now())])
+        activityStore([activityRecord(99, Date.now())]),
       )))
     } finally {
       await runtime.dispose()
@@ -297,7 +297,7 @@ for (const candidate of chromeCandidates) {
       ...original,
       lastSeenAt: updatedAt,
       lastNavigatedAt: updatedAt,
-      events: [...original.events, { kind: 'navigation', at: updatedAt }]
+      events: [...original.events, { kind: 'navigation', at: updatedAt }],
     }
 
     try {
@@ -309,25 +309,25 @@ for (const candidate of chromeCandidates) {
       await assert.rejects(() => runtime.runPromise(storage.write({
         activity: activityStore([updated]),
         upsert: updated,
-        deleteKeys: []
+        deleteKeys: [],
       })))
       assert.deepEqual(
         await runtime.runPromise(storage.read()),
-        activityStore([original])
+        activityStore([original]),
       )
       assert.equal(
         candidate.diagnostics.writeInvocationCount(),
-        writesBeforeFailure + 1
+        writesBeforeFailure + 1,
       )
 
       await runtime.runPromise(storage.write({
         activity: activityStore([updated]),
         upsert: updated,
-        deleteKeys: []
+        deleteKeys: [],
       }))
       assert.deepEqual(
         await runtime.runPromise(storage.read()),
-        activityStore([updated])
+        activityStore([updated]),
       )
     } finally {
       await runtime.dispose()
@@ -338,12 +338,12 @@ for (const candidate of chromeCandidates) {
 for (const candidate of [
   {
     name: 'compact envelope',
-    makeLayer: () => makeCompactEnvelopeStorageLayer(undefined)
+    makeLayer: () => makeCompactEnvelopeStorageLayer(undefined),
   },
   {
     name: '32 Chrome shards',
-    makeLayer: () => makeChromeShardsStorageLayer(undefined)
-  }
+    makeLayer: () => makeChromeShardsStorageLayer(undefined),
+  },
 ]) {
   test(`${candidate.name} fails closed when Chrome local storage is unavailable`, async () => {
     const runtime = ManagedRuntime.make(candidate.makeLayer())
@@ -355,10 +355,10 @@ for (const candidate of [
       await assert.rejects(() => runtime.runPromise(storage.write({
         activity: activityStore([record]),
         upsert: record,
-        deleteKeys: []
+        deleteKeys: [],
       })))
       await assert.rejects(() => runtime.runPromise(
-        storage.replace(activityStore([record]))
+        storage.replace(activityStore([record])),
       ))
     } finally {
       await runtime.dispose()
@@ -375,7 +375,7 @@ test('a sharded record mutation writes exactly its deterministic shard', async (
     ...original,
     lastSeenAt: NOW + 1000,
     lastNavigatedAt: NOW + 1000,
-    events: [...original.events, { kind: 'navigation', at: NOW + 1000 }]
+    events: [...original.events, { kind: 'navigation', at: NOW + 1000 }],
   }
 
   try {
@@ -383,17 +383,17 @@ test('a sharded record mutation writes exactly its deterministic shard', async (
     await runtime.runPromise(storage.write({
       activity: activityStore([updated]),
       upsert: updated,
-      deleteKeys: []
+      deleteKeys: [],
     }))
 
     assert.equal(storageArea.latestSetKeys.length, 1)
     assert.deepEqual(
       storageArea.latestSetKeys,
-      shardsBenchmarkBackend.lastMutationPhysicalWrites()
+      shardsBenchmarkBackend.lastMutationPhysicalWrites(),
     )
     assert.match(
       storageArea.latestSetKeys[0] ?? '',
-      new RegExp(`:${shardForWorkingSetKey(updated.key).toString().padStart(2, '0')}$`)
+      new RegExp(`:${shardForWorkingSetKey(updated.key).toString().padStart(2, '0')}$`),
     )
   } finally {
     await runtime.dispose()
@@ -409,22 +409,22 @@ test('an empty shard set initializes all 32 keys on its first record write', asy
   try {
     assert.deepEqual(
       await runtime.runPromise(storage.read()),
-      activityStore([])
+      activityStore([]),
     )
     await runtime.runPromise(storage.write({
       activity: activityStore([record]),
       upsert: record,
-      deleteKeys: []
+      deleteKeys: [],
     }))
 
     assert.deepEqual(
       storageArea.latestSetKeys.toSorted(),
-      [...CHROME_SHARD_STORAGE_KEYS].toSorted()
+      [...CHROME_SHARD_STORAGE_KEYS].toSorted(),
     )
     assert.equal(storageArea.values.size, CHROME_SHARD_STORAGE_KEYS.length)
     assert.deepEqual(
       await runtime.runPromise(storage.read()),
-      activityStore([record])
+      activityStore([record]),
     )
   } finally {
     await runtime.dispose()
@@ -456,7 +456,7 @@ test('a record stored outside its deterministic shard is isolated and repaired',
   const wrongShardKey = CHROME_SHARD_STORAGE_KEYS[wrongShard]
   const sibling = Array.from(
     { length: 1000 },
-    (_, index) => activityRecord(index + 100, Date.now() - index)
+    (_, index) => activityRecord(index + 100, Date.now() - index),
   ).find((record) => shardForWorkingSetKey(record.key) === wrongShard)
 
   try {
@@ -466,18 +466,18 @@ test('a record stored outside its deterministic shard is isolated and repaired',
     }
     await storageArea.set({
       [wrongShardKey]: encodeCompactActivityEnvelope(
-        activityStore([misplaced, sibling])
-      )
+        activityStore([misplaced, sibling]),
+      ),
     })
 
     assert.deepEqual(
       await runtime.runPromise(storage.read()),
-      activityStore([sibling])
+      activityStore([sibling]),
     )
     assert.deepEqual(storageArea.latestSetKeys, [wrongShardKey])
     assert.deepEqual(
       await decodeCompactActivityEnvelope(storageArea.values.get(wrongShardKey)),
-      activityStore([sibling])
+      activityStore([sibling]),
     )
   } finally {
     await runtime.dispose()
@@ -491,7 +491,7 @@ test('shard row corruption preserves every record in the 500x20 profile', async 
   const profile = makeWorkingSetStorageProfile('500x20', Date.now())
   const expectedKeys = Object.keys(profile.activity.records).toSorted()
   const record0039 = Object.values(profile.activity.records).find(
-    (record) => record.domain === 'working-set-0039.example.test'
+    (record) => record.domain === 'working-set-0039.example.test',
   )
 
   try {
@@ -517,12 +517,12 @@ test('a compact record mutation rewrites its one whole-envelope key', async () =
     await runtime.runPromise(storage.write({
       activity: activityStore([record]),
       upsert: record,
-      deleteKeys: []
+      deleteKeys: [],
     }))
     assert.deepEqual(storageArea.latestSetKeys, [COMPACT_ENVELOPE_STORAGE_KEY])
     assert.deepEqual(
       compactBenchmarkBackend.lastMutationPhysicalWrites(),
-      [COMPACT_ENVELOPE_STORAGE_KEY]
+      [COMPACT_ENVELOPE_STORAGE_KEY],
     )
   } finally {
     await runtime.dispose()
@@ -543,12 +543,12 @@ test('compact cleanup failure preserves the semantic read and is attempted once'
 
     assert.deepEqual(
       await runtime.runPromise(storage.read()),
-      activityStore([fresh])
+      activityStore([fresh]),
     )
     assert.equal(storageArea.setInvocationCount, setsBeforeCleanup + 1)
     assert.deepEqual(
       await runtime.runPromise(storage.read()),
-      activityStore([fresh])
+      activityStore([fresh]),
     )
     assert.equal(storageArea.setInvocationCount, setsBeforeCleanup + 1)
   } finally {

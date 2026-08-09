@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 
 export type InlineTextRenderer = (text: string, keyPrefix: string, textOffset: number) => ReactNode
 
-type TextRange = { start: number; end: number }
+type TextRange = { start: number, end: number }
 
 const BIONIC_TITLE_WORD_PATTERN = /(?:\p{Script=Latin}|\p{N})(?:[\p{Script=Latin}\p{M}\p{N}\u200B]|['’](?=[\p{Script=Latin}\p{N}]))*/gu
 const JIRA_TICKET_REFERENCE_PATTERN = /\b[A-Z][A-Z0-9_]+-\d+\b/g
@@ -40,7 +40,7 @@ function findJiraTicketReferenceRanges(text: string): TextRange[] {
     const end = start + match[0].length
     ranges.push({
       start: originalIndexes[start] ?? 0,
-      end: originalIndexes[end] ?? text.length
+      end: originalIndexes[end] ?? text.length,
     })
   }
   return ranges
@@ -108,7 +108,7 @@ function bionicTitleTextNodes(
   text: string,
   keyPrefix: string,
   textOffset: number,
-  fixationRanges: readonly TextRange[]
+  fixationRanges: readonly TextRange[],
 ): ReactNode {
   if (!text) return text
 
@@ -126,7 +126,7 @@ function bionicTitleTextNodes(
     nodes.push(
       <span key={`${keyPrefix}:${rangeStart}:fixation`} className="chip-title-fixation font-semibold">
         {text.slice(localStart, localEnd)}
-      </span>
+      </span>,
     )
     cursor = localEnd
   }

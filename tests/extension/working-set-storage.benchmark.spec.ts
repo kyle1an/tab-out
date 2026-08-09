@@ -6,7 +6,7 @@ import { test, type Page, type TestInfo } from '@playwright/test'
 
 import {
   buildWorkingSetStorageBenchmarkArtifacts,
-  type WorkingSetBenchmarkArtifactSidecar
+  type WorkingSetBenchmarkArtifactSidecar,
 } from '../../scripts/build-working-set-storage-benchmark.js'
 import type { WorkingSetBenchmarkVariant } from '../../scripts/working-set-benchmark-build-config.js'
 import { chromeSupportPolicy } from '../../src/extension/chrome-support.js'
@@ -14,20 +14,20 @@ import { DASHBOARD_SERVICE_STATE_GET_MESSAGE } from '../../src/extension/runtime
 import type {
   WorkingSetActivityEvent,
   WorkingSetActivityRecord,
-  WorkingSetActivityStore
+  WorkingSetActivityStore,
 } from '../../src/extension/types'
 import { normalizeWorkingSetActivity } from '../../src/extension/working-set.js'
 import {
   makeWorkingSetStorageProfile,
   makeWorkingSetStorageProfiles,
-  type WorkingSetStorageProfileName
+  type WorkingSetStorageProfileName,
 } from '../helpers/working-set-storage-profile.js'
 import {
   launchInstalledExtensionFromArtifact,
-  type InstalledExtension
+  type InstalledExtension,
 } from './installed-extension.js'
 import {
-  terminateServiceWorkerAndProveAbsent as terminateServiceWorkerTargetAndProveAbsent
+  terminateServiceWorkerAndProveAbsent as terminateServiceWorkerTargetAndProveAbsent,
 } from './service-worker-cdp.js'
 import {
   parseWorkingSetStorageBenchmarkMessage,
@@ -37,7 +37,7 @@ import {
   type WorkingSetStorageBenchmarkEvent,
   type WorkingSetStorageBenchmarkMessage,
   type WorkingSetStorageBenchmarkOwnedStorage,
-  type WorkingSetStorageBenchmarkSuccessResponse
+  type WorkingSetStorageBenchmarkSuccessResponse,
 } from './working-set-storage-benchmark-protocol.js'
 
 const BENCHMARK_TIMEOUT_MS = 30 * 60_000
@@ -47,12 +47,12 @@ const SUPPORTED_PROFILE_NAMES: readonly WorkingSetStorageProfileName[] = [
   'empty',
   '500x20',
   '500x80',
-  '250-live-250-expired'
+  '250-live-250-expired',
 ]
 const CANDIDATE_COMPLEXITY_ORDER: readonly WorkingSetBenchmarkVariant[] = [
   'compact',
   'shards-32',
-  'idb'
+  'idb',
 ]
 
 function benchmarkCount(name: string, fallback: number): number {
@@ -67,30 +67,30 @@ function benchmarkCount(name: string, fallback: number): number {
 
 const WARMUP_PAIR_COUNT = benchmarkCount(
   'TAB_OUT_WORKING_SET_BENCHMARK_WARMUPS',
-  5
+  5,
 )
 const MEASURED_PAIR_COUNT = benchmarkCount(
   'TAB_OUT_WORKING_SET_BENCHMARK_RUNS',
-  30
+  30,
 )
 const CANONICAL_RUN = WARMUP_PAIR_COUNT === 5 && MEASURED_PAIR_COUNT === 30
 
 type StorageFootprint =
   | {
-      readonly kind: 'chrome-storage'
-      readonly keys: readonly string[]
-      readonly bytesInUse: number
-      readonly authority: 'chrome.storage.local.getBytesInUse(ownedKeys)'
-    }
+    readonly kind: 'chrome-storage'
+    readonly keys: readonly string[]
+    readonly bytesInUse: number
+    readonly authority: 'chrome.storage.local.getBytesInUse(ownedKeys)'
+  }
   | {
-      readonly kind: 'indexed-db'
-      readonly database: string
-      readonly objectStores: readonly string[]
-      readonly originUsageBytes: number | null
-      readonly originQuotaBytes: number | null
-      readonly comparableToChromeOwnedKeyBytes: false
-      readonly authority: 'navigator.storage.estimate() extension-origin allocation'
-    }
+    readonly kind: 'indexed-db'
+    readonly database: string
+    readonly objectStores: readonly string[]
+    readonly originUsageBytes: number | null
+    readonly originQuotaBytes: number | null
+    readonly comparableToChromeOwnedKeyBytes: false
+    readonly authority: 'navigator.storage.estimate() extension-origin allocation'
+  }
 
 interface StartupFrameMeasurement {
   readonly serviceStateRequestMs: number
@@ -193,12 +193,12 @@ function invariant(condition: unknown, message: string): asserts condition {
 }
 
 function requireSuccess(
-  response: ReturnType<typeof parseWorkingSetStorageBenchmarkResponse>
+  response: ReturnType<typeof parseWorkingSetStorageBenchmarkResponse>,
 ): WorkingSetStorageBenchmarkSuccessResponse {
   if (response === null) throw new Error('Benchmark controller returned an invalid response')
   if (!response.ok) {
     throw new Error(
-      `${response.operation} failed: ${response.error.name}: ${response.error.message}`
+      `${response.operation} failed: ${response.error.name}: ${response.error.message}`,
     )
   }
   return response
@@ -206,7 +206,7 @@ function requireSuccess(
 
 async function sendMessage(
   controller: Page,
-  message: WorkingSetStorageBenchmarkMessage
+  message: WorkingSetStorageBenchmarkMessage,
 ) {
   const raw: unknown = await controller.evaluate(async (request) =>
     chrome.runtime.sendMessage(request), message)
@@ -215,19 +215,19 @@ async function sendMessage(
 
 async function sendSuccessfulMessage(
   controller: Page,
-  message: WorkingSetStorageBenchmarkMessage
+  message: WorkingSetStorageBenchmarkMessage,
 ): Promise<WorkingSetStorageBenchmarkSuccessResponse> {
   return requireSuccess(await sendMessage(controller, message))
 }
 
 async function openController(
   installed: InstalledExtension,
-  artifact: WorkingSetBenchmarkArtifactSidecar
+  artifact: WorkingSetBenchmarkArtifactSidecar,
 ): Promise<Page> {
   const controller = await installed.context.newPage()
   await controller.goto(
     `chrome-extension://${installed.extensionId}/${artifact.controllerPage}`,
-    { waitUntil: 'domcontentloaded' }
+    { waitUntil: 'domcontentloaded' },
   )
   return controller
 }
@@ -239,11 +239,11 @@ type BenchmarkMessageBody = WorkingSetStorageBenchmarkMessage extends infer Mess
   : never
 
 function benchmarkMessage(
-  message: BenchmarkMessageBody
+  message: BenchmarkMessageBody,
 ): WorkingSetStorageBenchmarkMessage {
   const parsed = parseWorkingSetStorageBenchmarkMessage({
     type: WORKING_SET_STORAGE_BENCHMARK_MESSAGE,
-    ...message
+    ...message,
   })
   invariant(parsed !== null, `Invalid benchmark message: ${message.operation}`)
   return parsed
@@ -253,7 +253,7 @@ function makeEvent(
   url: string,
   tabId: number,
   at: number,
-  title = 'Example Working Set Page'
+  title = 'Example Working Set Page',
 ): WorkingSetStorageBenchmarkEvent {
   return {
     kind: 'navigation',
@@ -261,7 +261,7 @@ function makeEvent(
     tabId,
     windowId: 1,
     url,
-    title
+    title,
   }
 }
 
@@ -283,37 +283,37 @@ function canonicalActivitySha256(activity: WorkingSetActivityStore): string {
       record.lastNavigatedAt ?? null,
       record.dismissedAt ?? null,
       record.dismissedUntil ?? null,
-      record.events.map((event) => [event.kind, event.at])
+      record.events.map((event) => [event.kind, event.at]),
     ]
   })
   return createHash('sha256').update(JSON.stringify([
     activity.version,
-    records
+    records,
   ])).digest('hex')
 }
 
 function assertEventsEqual(
   actual: readonly WorkingSetActivityEvent[],
   expected: readonly WorkingSetActivityEvent[],
-  key: string
+  key: string,
 ): void {
   invariant(
     actual.length === expected.length,
-    `${key} event count was ${String(actual.length)}, expected ${String(expected.length)}`
+    `${key} event count was ${String(actual.length)}, expected ${String(expected.length)}`,
   )
   for (const [index, expectedEvent] of expected.entries()) {
     const actualEvent = actual[index]
     invariant(actualEvent !== undefined, `${key} event ${String(index)} was absent`)
     invariant(
       actualEvent.kind === expectedEvent.kind && actualEvent.at === expectedEvent.at,
-      `${key} event ${String(index)} did not round-trip exactly`
+      `${key} event ${String(index)} did not round-trip exactly`,
     )
   }
 }
 
 function assertRecordEqual(
   actual: WorkingSetActivityRecord,
-  expected: WorkingSetActivityRecord
+  expected: WorkingSetActivityRecord,
 ): void {
   const scalarFields: readonly (keyof WorkingSetActivityRecord)[] = [
     'key',
@@ -324,12 +324,12 @@ function assertRecordEqual(
     'lastActivatedAt',
     'lastNavigatedAt',
     'dismissedAt',
-    'dismissedUntil'
+    'dismissedUntil',
   ]
   for (const field of scalarFields) {
     invariant(
       actual[field] === expected[field],
-      `${expected.key} field ${field} did not round-trip exactly`
+      `${expected.key} field ${field} did not round-trip exactly`,
     )
   }
   assertEventsEqual(actual.events, expected.events, expected.key)
@@ -337,14 +337,14 @@ function assertRecordEqual(
 
 function assertActivityEqual(
   actual: WorkingSetActivityStore,
-  expected: WorkingSetActivityStore
+  expected: WorkingSetActivityStore,
 ): void {
   invariant(actual.version === expected.version, 'Working Set version changed')
   const expectedKeys = sortedRecordKeys(expected)
   const actualKeys = sortedRecordKeys(actual)
   invariant(
     JSON.stringify(actualKeys) === JSON.stringify(expectedKeys),
-    `Working Set keys differed: actual=${String(actualKeys.length)}, expected=${String(expectedKeys.length)}`
+    `Working Set keys differed: actual=${String(actualKeys.length)}, expected=${String(expectedKeys.length)}`,
   )
   for (const key of expectedKeys) {
     const actualRecord = actual.records[key]
@@ -356,7 +356,7 @@ function assertActivityEqual(
 }
 
 function requireActivity(
-  response: WorkingSetStorageBenchmarkSuccessResponse
+  response: WorkingSetStorageBenchmarkSuccessResponse,
 ): WorkingSetActivityStore {
   invariant(response.activity !== undefined, `${response.operation} omitted activity`)
   return response.activity
@@ -364,7 +364,7 @@ function requireActivity(
 
 async function captureStorageFootprint(
   controller: Page,
-  ownedStorage: WorkingSetStorageBenchmarkOwnedStorage
+  ownedStorage: WorkingSetStorageBenchmarkOwnedStorage,
 ): Promise<StorageFootprint> {
   if (ownedStorage.kind === 'chrome-storage') {
     const keys = [...ownedStorage.keys]
@@ -374,14 +374,14 @@ async function captureStorageFootprint(
       kind: 'chrome-storage',
       keys,
       bytesInUse,
-      authority: 'chrome.storage.local.getBytesInUse(ownedKeys)'
+      authority: 'chrome.storage.local.getBytesInUse(ownedKeys)',
     }
   }
   const estimate = await controller.evaluate(async () => {
     const value = await navigator.storage.estimate()
     return {
       usage: value.usage ?? null,
-      quota: value.quota ?? null
+      quota: value.quota ?? null,
     }
   })
   return {
@@ -391,13 +391,13 @@ async function captureStorageFootprint(
     originUsageBytes: estimate.usage,
     originQuotaBytes: estimate.quota,
     comparableToChromeOwnedKeyBytes: false,
-    authority: 'navigator.storage.estimate() extension-origin allocation'
+    authority: 'navigator.storage.estimate() extension-origin allocation',
   }
 }
 
 async function countIndexedDbPhysicalRows(
   controller: Page,
-  ownedStorage: WorkingSetStorageBenchmarkOwnedStorage
+  ownedStorage: WorkingSetStorageBenchmarkOwnedStorage,
 ): Promise<number | null> {
   if (ownedStorage.kind !== 'indexed-db') return null
   const objectStore = ownedStorage.objectStores[0]
@@ -427,18 +427,18 @@ async function countIndexedDbPhysicalRows(
       }
     }), {
     databaseName: ownedStorage.database,
-    objectStoreName: objectStore
+    objectStoreName: objectStore,
   })
 }
 
 function terminateServiceWorkerAndProveAbsent(
   installed: InstalledExtension,
-  controller: Page
+  controller: Page,
 ): Promise<void> {
   return terminateServiceWorkerTargetAndProveAbsent(
     installed.context,
     controller,
-    installed.serviceWorker.url()
+    installed.serviceWorker.url(),
   )
 }
 
@@ -473,7 +473,7 @@ function parseStartupTrace(value: unknown): StartupTrace | null {
   if (typeof value !== 'object' || value === null) return null
   const headerReadyAt = Reflect.get(value, 'headerReadyAt')
   const latestPreHeaderRequest = parseRequestTiming(
-    Reflect.get(value, 'latestPreHeaderRequest')
+    Reflect.get(value, 'latestPreHeaderRequest'),
   )
   const preHeaderRequestCount = Reflect.get(value, 'preHeaderRequestCount')
   if (
@@ -504,7 +504,7 @@ async function installStartupFrameInstrumentation(page: Page): Promise<void> {
     const trace: MutableTrace = {
       headerReadyAt: null,
       latestPreHeaderRequest: null,
-      preHeaderRequestCount: 0
+      preHeaderRequestCount: 0,
     }
     Reflect.set(globalThis, traceKey, trace)
 
@@ -531,10 +531,10 @@ async function installStartupFrameInstrumentation(page: Page): Promise<void> {
               durationMs: finishedAt - startedAt,
               finishedAt,
               responseOk: typeof response === 'object' && response !== null &&
-                  typeof Reflect.get(response, 'ok') === 'boolean'
+                typeof Reflect.get(response, 'ok') === 'boolean'
                 ? Reflect.get(response, 'ok')
                 : null,
-              startedAt
+              startedAt,
             }
           }
           return response
@@ -553,27 +553,27 @@ async function installStartupFrameInstrumentation(page: Page): Promise<void> {
       attributes: true,
       attributeFilter: ['aria-hidden'],
       childList: true,
-      subtree: true
+      subtree: true,
     })
     recordHeaderReady(observer)
   }, {
     messageType: DASHBOARD_SERVICE_STATE_GET_MESSAGE,
-    traceKey: STARTUP_TRACE_KEY
+    traceKey: STARTUP_TRACE_KEY,
   })
 }
 
 async function measureColdStartupFrame(
   installed: InstalledExtension,
-  dashboard: Page
+  dashboard: Page,
 ): Promise<StartupFrameMeasurement> {
   const wallStartedAt = performance.now()
   await dashboard.goto(
     `chrome-extension://${installed.extensionId}/index.html`,
-    { waitUntil: 'domcontentloaded' }
+    { waitUntil: 'domcontentloaded' },
   )
   await dashboard.locator('[data-tabout="header-stats"]').waitFor({
     state: 'attached',
-    timeout: 30_000
+    timeout: 30_000,
   })
   await dashboard.waitForFunction(() => {
     const header = document.querySelector('[data-tabout="header-stats"]')
@@ -587,15 +587,15 @@ async function measureColdStartupFrame(
   invariant(trace.headerReadyAt !== null, 'Startup Frame header publication was not observed')
   invariant(
     trace.latestPreHeaderRequest !== null,
-    'Startup Frame dashboard-service-state request was not observed'
+    'Startup Frame dashboard-service-state request was not observed',
   )
   invariant(
     trace.preHeaderRequestCount === 1,
-    `Expected one pre-header dashboard-service-state request, observed ${String(trace.preHeaderRequestCount)}`
+    `Expected one pre-header dashboard-service-state request, observed ${String(trace.preHeaderRequestCount)}`,
   )
   invariant(
     trace.latestPreHeaderRequest.responseOk === true,
-    'Cold Startup Frame dashboard-service-state request did not return explicit success'
+    'Cold Startup Frame dashboard-service-state request did not return explicit success',
   )
   return {
     serviceStateRequestMs: trace.latestPreHeaderRequest.durationMs,
@@ -606,18 +606,18 @@ async function measureColdStartupFrame(
     preHeaderServiceStateRequestCount: trace.preHeaderRequestCount,
     visiblePageChips: await dashboard.locator('[data-tabout="page-chip"]').count(),
     wallToHeaderObservationMs,
-    workerAbsentBeforeNavigation: true
+    workerAbsentBeforeNavigation: true,
   }
 }
 
 async function measureColdStartupFailure(
   installed: InstalledExtension,
-  dashboard: Page
+  dashboard: Page,
 ) {
   const headerNonPublicationWindowMs = 500
   await dashboard.goto(
     `chrome-extension://${installed.extensionId}/index.html`,
-    { waitUntil: 'domcontentloaded' }
+    { waitUntil: 'domcontentloaded' },
   )
   const header = dashboard.locator('[data-tabout="header-stats"]')
   await header.waitFor({ state: 'attached', timeout: 30_000 })
@@ -632,11 +632,11 @@ async function measureColdStartupFailure(
   invariant(trace !== null, 'Failed Startup Frame instrumentation returned invalid data')
   invariant(
     trace.preHeaderRequestCount === 1,
-    `Expected one failed pre-header dashboard-service-state request, observed ${String(trace.preHeaderRequestCount)}`
+    `Expected one failed pre-header dashboard-service-state request, observed ${String(trace.preHeaderRequestCount)}`,
   )
   invariant(
     trace.latestPreHeaderRequest?.responseOk === false,
-    'Corrupt authority did not produce an explicit failed dashboard-service-state response'
+    'Corrupt authority did not produce an explicit failed dashboard-service-state response',
   )
 
   const headerPublished = await dashboard.waitForFunction(() => {
@@ -648,7 +648,7 @@ async function measureColdStartupFailure(
       const message = describeError(cause)
       if (!message.includes('Timeout')) throw cause
       return false
-    }
+    },
   )
   invariant(!headerPublished, 'Corrupt authority published a false known-empty Startup Frame')
   invariant(trace.headerReadyAt === null, 'Startup trace recorded header publication after failure')
@@ -658,13 +658,13 @@ async function measureColdStartupFailure(
     preHeaderServiceStateRequestCount: trace.preHeaderRequestCount,
     headerPublished,
     headerNonPublicationWindowMs,
-    workerAbsentBeforeNavigation: true
+    workerAbsentBeforeNavigation: true,
   }
 }
 
 async function assertColdStartupRejectsCorruptAuthority(
   installed: InstalledExtension,
-  controller: Page
+  controller: Page,
 ) {
   const dashboard = await installed.context.newPage()
   try {
@@ -678,7 +678,7 @@ async function assertColdStartupRejectsCorruptAuthority(
 
 async function runCheck(
   name: string,
-  check: () => Promise<unknown>
+  check: () => Promise<unknown>,
 ): Promise<CorrectnessCheck> {
   try {
     return { name, passed: true, detail: await check() }
@@ -690,31 +690,31 @@ async function runCheck(
 async function resetAndSeed(
   controller: Page,
   profile: WorkingSetStorageProfileName,
-  now: number
+  now: number,
 ): Promise<void> {
   await sendSuccessfulMessage(controller, benchmarkMessage({ operation: 'reset' }))
   await sendSuccessfulMessage(controller, benchmarkMessage({
     operation: 'seed-profile',
     profile,
-    now
+    now,
   }))
 }
 
 async function readStoredActivity(controller: Page): Promise<WorkingSetActivityStore> {
   return requireActivity(await sendSuccessfulMessage(
     controller,
-    benchmarkMessage({ operation: 'storage-read' })
+    benchmarkMessage({ operation: 'storage-read' }),
   ))
 }
 
 async function runCorrectnessMatrix(
   installed: InstalledExtension,
-  artifact: WorkingSetBenchmarkArtifactSidecar
+  artifact: WorkingSetBenchmarkArtifactSidecar,
 ): Promise<VariantCorrectnessReport> {
   const controller = await openController(installed, artifact)
   const diagnostic = await sendSuccessfulMessage(
     controller,
-    benchmarkMessage({ operation: 'diagnostics' })
+    benchmarkMessage({ operation: 'diagnostics' }),
   )
   const selectedVariant = diagnostic.diagnostics.variant
   const selectedVariantMatchesBuild =
@@ -725,7 +725,7 @@ async function runCorrectnessMatrix(
     userAgent,
     actualChromeMajor,
     declaredMinimumChromeMajor: chromeSupportPolicy.minimumMajor,
-    matchesDeclaredMinimum: actualChromeMajor === chromeSupportPolicy.minimumMajor
+    matchesDeclaredMinimum: actualChromeMajor === chromeSupportPolicy.minimumMajor,
   }
   const profiles: ProfileCheck[] = []
 
@@ -738,14 +738,14 @@ async function runCorrectnessMatrix(
       }
       const read = await sendSuccessfulMessage(
         controller,
-        benchmarkMessage({ operation: 'storage-read' })
+        benchmarkMessage({ operation: 'storage-read' }),
       )
       const actual = requireActivity(read)
       const expected = normalizeWorkingSetActivity(profile.activity, profile.now)
       assertActivityEqual(actual, expected)
       const physicalRowCount = await countIndexedDbPhysicalRows(
         controller,
-        read.diagnostics.ownedStorage
+        read.diagnostics.ownedStorage,
       )
       if (
         profile.name === '250-live-250-expired' &&
@@ -753,7 +753,7 @@ async function runCorrectnessMatrix(
       ) {
         invariant(
           physicalRowCount === 250,
-          `IndexedDB cold-open expiry sweep retained ${String(physicalRowCount)} physical rows`
+          `IndexedDB cold-open expiry sweep retained ${String(physicalRowCount)} physical rows`,
         )
       }
       profiles.push({
@@ -771,16 +771,16 @@ async function runCorrectnessMatrix(
           diagnostics: read.diagnostics,
           footprint: await captureStorageFootprint(
             controller,
-            read.diagnostics.ownedStorage
-          )
-        }
+            read.diagnostics.ownedStorage,
+          ),
+        },
       })
     } catch (cause) {
       profiles.push({
         name: profile.name,
         supportedGate,
         passed: false,
-        error: describeError(cause)
+        error: describeError(cause),
       })
     }
   }
@@ -794,7 +794,7 @@ async function runCorrectnessMatrix(
     await resetAndSeed(controller, profile.name, now)
     const response = await sendSuccessfulMessage(controller, benchmarkMessage({
       operation: 'storage-mutation',
-      event: makeEvent(key, 10_001, now + 1, 'Updated Existing Page')
+      event: makeEvent(key, 10_001, now + 1, 'Updated Existing Page'),
     }))
     const activity = await readStoredActivity(controller)
     const record = activity.records[key]
@@ -816,7 +816,7 @@ async function runCorrectnessMatrix(
     await resetAndSeed(controller, profile.name, now)
     await sendSuccessfulMessage(controller, benchmarkMessage({
       operation: 'storage-mutation',
-      event: makeEvent(key, 10_002, now + 1)
+      event: makeEvent(key, 10_002, now + 1),
     }))
     const record = (await readStoredActivity(controller)).records[key]
     invariant(record !== undefined, 'Capped record disappeared')
@@ -831,7 +831,7 @@ async function runCorrectnessMatrix(
     await resetAndSeed(controller, 'empty', now)
     const response = await sendSuccessfulMessage(controller, benchmarkMessage({
       operation: 'storage-mutation',
-      event: makeEvent(url, 10_003, now + 1, 'New Example Page')
+      event: makeEvent(url, 10_003, now + 1, 'New Example Page'),
     }))
     const activity = await readStoredActivity(controller)
     invariant(sortedRecordKeys(activity).length === 1, 'New record mutation did not create one record')
@@ -844,12 +844,12 @@ async function runCorrectnessMatrix(
     await resetAndSeed(controller, '500x20', now)
     await sendSuccessfulMessage(controller, benchmarkMessage({
       operation: 'storage-mutation',
-      event: makeEvent(url, 10_004, now + ACTIVITY_RETENTION_MS + 1_000)
+      event: makeEvent(url, 10_004, now + ACTIVITY_RETENTION_MS + 1_000),
     }))
     const activity = await readStoredActivity(controller)
     invariant(
       JSON.stringify(sortedRecordKeys(activity)) === JSON.stringify([url]),
-      'Future mutation did not expire all old records atomically'
+      'Future mutation did not expire all old records atomically',
     )
     return { records: 1 }
   }))
@@ -860,22 +860,22 @@ async function runCorrectnessMatrix(
     await terminateServiceWorkerAndProveAbsent(installed, controller)
     const first = await sendSuccessfulMessage(controller, benchmarkMessage({
       operation: 'navigation',
-      event
+      event,
     }))
     const afterFirst = await readStoredActivity(controller)
     const second = await sendSuccessfulMessage(controller, benchmarkMessage({
       operation: 'navigation',
-      event: { ...event, at: now + 1 }
+      event: { ...event, at: now + 1 },
     }))
     const afterSecond = await readStoredActivity(controller)
     assertActivityEqual(afterSecond, afterFirst)
     invariant(
       second.diagnostics.writeInvocationCount === first.diagnostics.writeInvocationCount,
-      'Same-navigation no-op reached the persistence backend'
+      'Same-navigation no-op reached the persistence backend',
     )
     return {
       writesAfterFirst: first.diagnostics.writeInvocationCount,
-      writesAfterSecond: second.diagnostics.writeInvocationCount
+      writesAfterSecond: second.diagnostics.writeInvocationCount,
     }
   }))
   checks.push(await runCheck('failed mutation preserves truth and identical retry commits once', async () => {
@@ -891,31 +891,31 @@ async function runCorrectnessMatrix(
           domain: 'retry-after-failure.example.test',
           lastSeenAt: now,
           lastActivatedAt: now,
-          events: [{ kind: 'activation', at: now }]
-        }
-      }
+          events: [{ kind: 'activation', at: now }],
+        },
+      },
     }
     await sendSuccessfulMessage(controller, benchmarkMessage({ operation: 'reset' }))
     await sendSuccessfulMessage(controller, benchmarkMessage({
       operation: 'replace',
-      activity: before
+      activity: before,
     }))
     await terminateServiceWorkerAndProveAbsent(installed, controller)
 
     const coldServiceBefore = requireActivity(await sendSuccessfulMessage(
       controller,
-      benchmarkMessage({ operation: 'service-read' })
+      benchmarkMessage({ operation: 'service-read' }),
     ))
     const durableBefore = await readStoredActivity(controller)
     assertActivityEqual(coldServiceBefore, before)
     assertActivityEqual(durableBefore, before)
 
     await sendSuccessfulMessage(controller, benchmarkMessage({
-      operation: 'fail-next-mutation'
+      operation: 'fail-next-mutation',
     }))
     const navigationMessage = benchmarkMessage({
       operation: 'navigation',
-      event: makeEvent(key, 10_006, now + 1, 'Retry Fixture After')
+      event: makeEvent(key, 10_006, now + 1, 'Retry Fixture After'),
     })
     const failed = await sendMessage(controller, navigationMessage)
     invariant(failed !== null, 'Injected-failure response was invalid')
@@ -924,7 +924,7 @@ async function runCorrectnessMatrix(
     const durableAfterFailure = await readStoredActivity(controller)
     const serviceAfterFailure = requireActivity(await sendSuccessfulMessage(
       controller,
-      benchmarkMessage({ operation: 'service-read' })
+      benchmarkMessage({ operation: 'service-read' }),
     ))
     assertActivityEqual(durableAfterFailure, before)
     assertActivityEqual(serviceAfterFailure, before)
@@ -933,7 +933,7 @@ async function runCorrectnessMatrix(
     const durableAfterRetry = await readStoredActivity(controller)
     const serviceAfterRetry = requireActivity(await sendSuccessfulMessage(
       controller,
-      benchmarkMessage({ operation: 'service-read' })
+      benchmarkMessage({ operation: 'service-read' }),
     ))
     assertActivityEqual(serviceAfterRetry, durableAfterRetry)
     const retriedRecord = durableAfterRetry.records[key]
@@ -941,11 +941,11 @@ async function runCorrectnessMatrix(
     invariant(retriedRecord.events.length === 2, 'Retry did not add exactly one event')
     invariant(
       retriedRecord.events.filter((event) => event.kind === 'navigation').length === 1,
-      'Failed attempt leaked or retry duplicated the navigation event'
+      'Failed attempt leaked or retry duplicated the navigation event',
     )
     invariant(
       retriedRecord.events.at(-1)?.kind === 'navigation',
-      'Retry did not durably append its navigation'
+      'Retry did not durably append its navigation',
     )
     return {
       injectedFailure: failed.error,
@@ -955,7 +955,7 @@ async function runCorrectnessMatrix(
       serviceAfterFailureCanonicalActivitySha256:
         canonicalActivitySha256(serviceAfterFailure),
       finalCanonicalActivitySha256: canonicalActivitySha256(durableAfterRetry),
-      retryDiagnostics: retry.diagnostics
+      retryDiagnostics: retry.diagnostics,
     }
   }))
 
@@ -965,28 +965,28 @@ async function runCorrectnessMatrix(
       const events = Array.from({ length: burstSize }, (_, index) => makeEvent(
         `https://burst-${String(index).padStart(4, '0')}.example.test/page`,
         20_000 + index,
-        now + index
+        now + index,
       ))
       await resetAndSeed(controller, 'empty', now)
       await terminateServiceWorkerAndProveAbsent(installed, controller)
       const response = await sendSuccessfulMessage(controller, benchmarkMessage({
         operation: 'burst',
-        events
+        events,
       }))
       const activity = await readStoredActivity(controller)
       invariant(
         sortedRecordKeys(activity).length === burstSize,
-        `${String(burstSize)}-event burst lost records`
+        `${String(burstSize)}-event burst lost records`,
       )
       for (const event of events) {
         invariant(
           activity.records[event.url]?.events.length === 1,
-          `${event.url} was lost or duplicated during the burst`
+          `${event.url} was lost or duplicated during the burst`,
         )
       }
       invariant(
         response.diagnostics.writeInvocationCount === burstSize,
-        `${String(burstSize)}-event burst did not settle every queued write`
+        `${String(burstSize)}-event burst did not settle every queued write`,
       )
       return response.diagnostics
     }))
@@ -999,7 +999,7 @@ async function runCorrectnessMatrix(
     await resetAndSeed(controller, '500x20', now)
     await sendSuccessfulMessage(controller, benchmarkMessage({
       operation: 'corrupt',
-      corruption: 'row'
+      corruption: 'row',
     }))
     const activity = await readStoredActivity(controller)
     for (const key of sortedRecordKeys(expected)) {
@@ -1011,7 +1011,7 @@ async function runCorrectnessMatrix(
     }
     return {
       seededRecordsSurvived: sortedRecordKeys(expected).length,
-      totalValidRecordsAfterIsolation: sortedRecordKeys(activity).length
+      totalValidRecordsAfterIsolation: sortedRecordKeys(activity).length,
     }
   }))
   checks.push(await runCheck('unsupported outer version is unknown', async () => {
@@ -1019,11 +1019,11 @@ async function runCorrectnessMatrix(
     await resetAndSeed(controller, '500x20', now)
     await sendSuccessfulMessage(controller, benchmarkMessage({
       operation: 'corrupt',
-      corruption: 'outer-version'
+      corruption: 'outer-version',
     }))
     const response = await sendMessage(
       controller,
-      benchmarkMessage({ operation: 'storage-read' })
+      benchmarkMessage({ operation: 'storage-read' }),
     )
     invariant(response !== null, 'Unsupported-version response was invalid')
     invariant(!response.ok, 'Unsupported outer version was treated as known activity')
@@ -1031,8 +1031,8 @@ async function runCorrectnessMatrix(
       directStorageRead: response,
       coldStartup: await assertColdStartupRejectsCorruptAuthority(
         installed,
-        controller
-      )
+        controller,
+      ),
     }
   }))
   if (artifact.variant === 'idb' || artifact.variant === 'shards-32') {
@@ -1042,15 +1042,15 @@ async function runCorrectnessMatrix(
       await sendSuccessfulMessage(controller, benchmarkMessage({
         operation: 'seed-profile',
         profile: '500x20',
-        now
+        now,
       }))
       await sendSuccessfulMessage(controller, benchmarkMessage({
         operation: 'corrupt',
-        corruption: 'missing-required-store'
+        corruption: 'missing-required-store',
       }))
       const response = await sendMessage(
         controller,
-        benchmarkMessage({ operation: 'storage-read' })
+        benchmarkMessage({ operation: 'storage-read' }),
       )
       invariant(response !== null, 'Missing-store response was invalid')
       invariant(!response.ok, 'Missing required physical authority was treated as known activity')
@@ -1058,8 +1058,8 @@ async function runCorrectnessMatrix(
         directStorageRead: response,
         coldStartup: await assertColdStartupRejectsCorruptAuthority(
           installed,
-          controller
-        )
+          controller,
+        ),
       }
     }))
   } else {
@@ -1068,12 +1068,12 @@ async function runCorrectnessMatrix(
       await resetAndSeed(controller, '500x20', now)
       await sendSuccessfulMessage(controller, benchmarkMessage({
         operation: 'corrupt',
-        corruption: 'missing-required-store'
+        corruption: 'missing-required-store',
       }))
       const activity = await readStoredActivity(controller)
       invariant(
         sortedRecordKeys(activity).length === 0,
-        'Absent whole-envelope key was not interpreted as complete empty activity'
+        'Absent whole-envelope key was not interpreted as complete empty activity',
       )
       return { records: 0 }
     }))
@@ -1091,19 +1091,19 @@ async function runCorrectnessMatrix(
     browser,
     profiles,
     checks,
-    supportedGatePassed
+    supportedGatePassed,
   }
 }
 
 function measurementOrder(
   artifacts: readonly WorkingSetBenchmarkArtifactSidecar[],
-  iteration: number
+  iteration: number,
 ): readonly WorkingSetBenchmarkArtifactSidecar[] {
   if (artifacts.length === 0) return []
   const offset = iteration % artifacts.length
   const rotated = [
     ...artifacts.slice(offset),
-    ...artifacts.slice(0, offset)
+    ...artifacts.slice(0, offset),
   ]
   return Math.floor(iteration / artifacts.length) % 2 === 0
     ? rotated
@@ -1114,20 +1114,20 @@ async function measureVariant(
   artifact: WorkingSetBenchmarkArtifactSidecar,
   phase: SuccessfulTimedSample['phase'],
   iteration: number,
-  order: number
+  order: number,
 ): Promise<SuccessfulTimedSample> {
   const installed = await launchInstalledExtensionFromArtifact(
-    artifact.extensionDirectory
+    artifact.extensionDirectory,
   )
   try {
     const controller = await openController(installed, artifact)
     const diagnostics = await sendSuccessfulMessage(
       controller,
-      benchmarkMessage({ operation: 'diagnostics' })
+      benchmarkMessage({ operation: 'diagnostics' }),
     )
     invariant(
       diagnostics.diagnostics.variant === artifact.variant,
-      `${artifact.variant} artifact selected ${diagnostics.diagnostics.variant}`
+      `${artifact.variant} artifact selected ${diagnostics.diagnostics.variant}`,
     )
     const now = Date.now()
     const profile = makeWorkingSetStorageProfile('500x20', now)
@@ -1147,8 +1147,8 @@ async function measureVariant(
         existingKey,
         30_000 + iteration,
         Date.now(),
-        'Measured Existing Page'
-      )
+        'Measured Existing Page',
+      ),
     }))
     const controllerRoundTripMs = performance.now() - navigationStartedAt
     const fullAppMutationMs = navigation.timings.fullAppMutationMs
@@ -1158,43 +1158,43 @@ async function measureVariant(
     // response followed a durable commit rather than a cache-only update.
     const persistedResponse = await sendSuccessfulMessage(
       controller,
-      benchmarkMessage({ operation: 'storage-read' })
+      benchmarkMessage({ operation: 'storage-read' }),
     )
     const persisted = requireActivity(persistedResponse)
     const warmUncachedStorageReadMs = persistedResponse.timings.storageReadMs
     invariant(
       warmUncachedStorageReadMs !== undefined,
-      'Untimed semantic storage read omitted its backend timing'
+      'Untimed semantic storage read omitted its backend timing',
     )
     const persistedRecord = persisted.records[existingKey]
     invariant(persistedRecord !== undefined, 'Timed mutation lost the existing record')
     invariant(persistedRecord.events.length === 21, 'Timed mutation did not append exactly once')
     invariant(
       persistedRecord.events.at(-1)?.kind === 'navigation',
-      'Timed mutation did not durably append a navigation'
+      'Timed mutation did not durably append a navigation',
     )
     const cachedResponse = await sendSuccessfulMessage(
       controller,
-      benchmarkMessage({ operation: 'service-read' })
+      benchmarkMessage({ operation: 'service-read' }),
     )
     const warmCachedServiceReadMs = cachedResponse.timings.serviceReadMs
     invariant(
       warmCachedServiceReadMs !== undefined,
-      'Warm WorkingSet service read omitted its cache timing'
+      'Warm WorkingSet service read omitted its cache timing',
     )
     assertActivityEqual(requireActivity(cachedResponse), persisted)
     const footprint = await captureStorageFootprint(
       controller,
-      navigation.diagnostics.ownedStorage
+      navigation.diagnostics.ownedStorage,
     )
 
     const domainOnly = await sendSuccessfulMessage(controller, benchmarkMessage({
       operation: 'domain-mutation',
-      event: makeEvent(existingKey, 40_000 + iteration, Date.now() + 1)
+      event: makeEvent(existingKey, 40_000 + iteration, Date.now() + 1),
     }))
     const storagePath = await sendSuccessfulMessage(controller, benchmarkMessage({
       operation: 'storage-mutation',
-      event: makeEvent(existingKey, 50_000 + iteration, Date.now() + 2)
+      event: makeEvent(existingKey, 50_000 + iteration, Date.now() + 2),
     }))
     const domainOnlyMutationMs = domainOnly.timings.domainMutationMs
     const storagePathDomainMutationMs = storagePath.timings.domainMutationMs
@@ -1202,7 +1202,7 @@ async function measureVariant(
     invariant(domainOnlyMutationMs !== undefined, 'Domain-only command omitted domain timing')
     invariant(
       storagePathDomainMutationMs !== undefined,
-      'Storage-path command omitted domain timing'
+      'Storage-path command omitted domain timing',
     )
     invariant(storageCommitMs !== undefined, 'Storage-path command omitted commit timing')
 
@@ -1223,11 +1223,11 @@ async function measureVariant(
         storageCommitMs,
         storagePathListenerToCommitMs: storagePath.timings.listenerToCommitMs,
         warmUncachedStorageReadMs,
-        warmCachedServiceReadMs
+        warmCachedServiceReadMs,
       },
       navigationDiagnostics: navigation.diagnostics,
       storageMutationDiagnostics: storagePath.diagnostics,
-      footprint
+      footprint,
     }
   } finally {
     await installed.dispose()
@@ -1247,13 +1247,13 @@ function distribution(values: readonly number[]): Distribution | null {
     min: Math.min(...values),
     p50: percentile(values, 0.5),
     p95: percentile(values, 0.95),
-    max: Math.max(...values)
+    max: Math.max(...values),
   }
 }
 
 function successfulMeasuredSamples(
   samples: readonly TimedSample[],
-  variant: WorkingSetBenchmarkVariant
+  variant: WorkingSetBenchmarkVariant,
 ): readonly SuccessfulTimedSample[] {
   return samples.filter((sample): sample is SuccessfulTimedSample =>
     sample.status === 'ok' &&
@@ -1274,10 +1274,10 @@ function makeRandom(seed: number): () => number {
 function pairedColdBootstrap(
   currentSamples: readonly SuccessfulTimedSample[],
   candidateSamples: readonly SuccessfulTimedSample[],
-  seed: number
+  seed: number,
 ) {
   const currentByIteration = new Map(
-    currentSamples.map((sample) => [sample.iteration, sample])
+    currentSamples.map((sample) => [sample.iteration, sample]),
   )
   const pairs = candidateSamples.flatMap((candidate) => {
     const current = currentByIteration.get(candidate.iteration)
@@ -1296,7 +1296,7 @@ function pairedColdBootstrap(
       sampledCandidate.push(pair.candidate.cold.serviceStateRequestMs)
     }
     p95Deltas.push(
-      percentile(sampledCandidate, 0.95) - percentile(sampledCurrent, 0.95)
+      percentile(sampledCandidate, 0.95) - percentile(sampledCurrent, 0.95),
     )
   }
   return {
@@ -1304,7 +1304,7 @@ function pairedColdBootstrap(
     repetitions: BOOTSTRAP_REPETITIONS,
     seed,
     lower95Ms: percentile(p95Deltas, 0.025),
-    upper95Ms: percentile(p95Deltas, 0.975)
+    upper95Ms: percentile(p95Deltas, 0.975),
   }
 }
 
@@ -1345,13 +1345,13 @@ function measurementSummary(samples: readonly SuccessfulTimedSample[]) {
       sample.footprint.kind === 'indexed-db' &&
       sample.footprint.originUsageBytes !== null
         ? [sample.footprint.originUsageBytes]
-        : []))
+        : [])),
   }
 }
 
 function evaluateGates(
   samples: readonly TimedSample[],
-  correctness: readonly VariantCorrectnessReport[]
+  correctness: readonly VariantCorrectnessReport[],
 ) {
   const currentSamples = successfulMeasuredSamples(samples, 'current')
   const currentSummary = measurementSummary(currentSamples)
@@ -1384,7 +1384,7 @@ function evaluateGates(
     const bootstrap = pairedColdBootstrap(
       currentSamples,
       candidateSamples,
-      0x51f15e + index
+      0x51f15e + index,
     )
     const allowedReadRegressionMs = currentReadP95 === null
       ? null
@@ -1400,7 +1400,7 @@ function evaluateGates(
       bootstrap.pairCount !== MEASURED_PAIR_COUNT
         ? 'insufficient-data'
         : pointReadRegressionMs <= allowedReadRegressionMs &&
-            bootstrap.upper95Ms <= allowedReadRegressionMs
+          bootstrap.upper95Ms <= allowedReadRegressionMs
           ? 'pass'
           : bootstrap.lower95Ms > allowedReadRegressionMs
             ? 'fail'
@@ -1420,7 +1420,7 @@ function evaluateGates(
         baselineP95Bytes: currentPayloadP95,
         candidateP95Bytes: payloadP95,
         reductionMultiple: payloadReduction,
-        requiredReductionMultiple: 10
+        requiredReductionMultiple: 10,
       },
       mutationCompletion: {
         passed: mutationPassed,
@@ -1428,7 +1428,7 @@ function evaluateGates(
         baselineP95Ms: currentMutationP95,
         candidateP95Ms: mutationP95,
         improvementFraction: mutationImprovement,
-        requiredImprovementFraction: 0.25
+        requiredImprovementFraction: 0.25,
       },
       coldFullRead: {
         status: coldReadStatus,
@@ -1438,9 +1438,9 @@ function evaluateGates(
         pointRegressionMs: pointReadRegressionMs,
         allowedRegressionMs: allowedReadRegressionMs,
         allowedRule: 'max(10% of current p95, 5ms)',
-        pairedBootstrapP95Delta: bootstrap
+        pairedBootstrapP95Delta: bootstrap,
       },
-      overallPassed
+      overallPassed,
     }
   })
   const selected = candidates.find((candidate) => candidate.overallPassed)?.variant ?? null
@@ -1455,23 +1455,23 @@ function evaluateGates(
       reason: !CANONICAL_RUN
         ? 'Smoke-count run is non-canonical; candidate selection is intentionally disabled.'
         : !validBaseline
-        ? 'Benchmark baseline is incomplete or incorrect; no candidate can win.'
-        : selected === null
-          ? 'No candidate passed every correctness, payload, latency, and cold-read gate.'
-          : `${selected} is the least-complex candidate that passed every gate.`
-    }
+            ? 'Benchmark baseline is incomplete or incorrect; no candidate can win.'
+            : selected === null
+              ? 'No candidate passed every correctness, payload, latency, and cold-read gate.'
+              : `${selected} is the least-complex candidate that passed every gate.`,
+    },
   }
 }
 
 async function writeAndAttachReport(
   testInfo: TestInfo,
-  report: unknown
+  report: unknown,
 ): Promise<void> {
   const path = testInfo.outputPath('working-set-storage-benchmark.json')
   await writeFile(path, `${JSON.stringify(report, null, 2)}\n`)
   await testInfo.attach('working-set-storage-benchmark.json', {
     path,
-    contentType: 'application/json'
+    contentType: 'application/json',
   })
 }
 
@@ -1481,7 +1481,7 @@ test('compares installed-extension Working Set storage candidates', async ({}, t
   const correctness: VariantCorrectnessReport[] = []
   for (const artifact of build.sidecar.variants) {
     const installed = await launchInstalledExtensionFromArtifact(
-      artifact.extensionDirectory
+      artifact.extensionDirectory,
     )
     try {
       correctness.push(await runCorrectnessMatrix(installed, artifact))
@@ -1495,9 +1495,9 @@ test('compares installed-extension Working Set storage candidates', async ({}, t
         checks: [{
           name: 'correctness harness completed',
           passed: false,
-          error: describeError(cause)
+          error: describeError(cause),
         }],
-        supportedGatePassed: false
+        supportedGatePassed: false,
       })
     } finally {
       await installed.dispose()
@@ -1516,7 +1516,7 @@ test('compares installed-extension Working Set storage candidates', async ({}, t
           artifact,
           phase,
           iteration,
-          orderIndex
+          orderIndex,
         ))
       } catch (cause) {
         samples.push({
@@ -1525,7 +1525,7 @@ test('compares installed-extension Working Set storage candidates', async ({}, t
           iteration,
           order: orderIndex,
           buildVariant: artifact.variant,
-          error: describeError(cause)
+          error: describeError(cause),
         })
       }
     }
@@ -1555,12 +1555,12 @@ test('compares installed-extension Working Set storage candidates', async ({}, t
       idbAllocationCaveat: 'navigator.storage.estimate reports extension-origin allocation and is not comparable to Chrome owned-key bytes',
       bootstrap: {
         repetitions: BOOTSTRAP_REPETITIONS,
-        method: 'deterministic paired resampling by measured iteration, recomputing candidate-current cold request p95 delta'
+        method: 'deterministic paired resampling by measured iteration, recomputing candidate-current cold request p95 delta',
       },
       browserEvidence: correctness.map(({ buildVariant, browser }) => ({
         buildVariant,
-        browser
-      }))
+        browser,
+      })),
     },
     artifacts: build.sidecar,
     correctness,
@@ -1569,13 +1569,13 @@ test('compares installed-extension Working Set storage candidates', async ({}, t
     gates: {
       canonical: gates.canonical,
       validBaseline: gates.validBaseline,
-      candidates: gates.candidates
+      candidates: gates.candidates,
     },
-    verdict: gates.verdict
+    verdict: gates.verdict,
   }
   await writeAndAttachReport(testInfo, report)
   console.log(JSON.stringify({
     benchmark: 'working-set-storage',
-    verdict: report.verdict
+    verdict: report.verdict,
   }))
 })

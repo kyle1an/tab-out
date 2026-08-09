@@ -25,7 +25,7 @@ export function buildFilterSearchRequest({
   source,
   filter,
   historyRange = DEFAULT_HISTORY_RANGE,
-  historyFilterEnabled
+  historyFilterEnabled,
 }: FilterSearchOptions): FilterSearchRequest {
   const includeSideSearches = isTabFilterSearch({ source, filter })
   const includeHistoryMatches = includeSideSearches && historyFilterEnabled
@@ -35,7 +35,7 @@ export function buildFilterSearchRequest({
     historyQuery: includeHistoryMatches ? filter.trim() : '',
     historyRange,
     includeBookmarkMatches: includeSideSearches,
-    includeHistoryMatches
+    includeHistoryMatches,
   }
 }
 

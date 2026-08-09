@@ -9,15 +9,15 @@ test('live tab targets expose saved-page, Chrome tab, and close actions', () => 
       sourceType: 'tab',
       saved: false,
       closedSaved: false,
-      isApp: false
+      isApp: false,
     }),
     {
       canClose: true,
       canRemoveRetained: false,
       canToggleSaved: true,
       canUseChromeTabActions: true,
-      showSavedHint: false
-    }
+      showSavedHint: false,
+    },
   )
 })
 
@@ -27,15 +27,15 @@ test('closed saved-page targets can be removed but cannot use live-tab or close 
       sourceType: 'saved-page',
       saved: true,
       closedSaved: true,
-      isApp: false
+      isApp: false,
     }),
     {
       canClose: false,
       canRemoveRetained: false,
       canToggleSaved: true,
       canUseChromeTabActions: false,
-      showSavedHint: false
-    }
+      showSavedHint: false,
+    },
   )
 })
 
@@ -45,15 +45,15 @@ test('read-only saved targets show the saved hint without mutation actions', () 
       sourceType: 'bookmark',
       saved: true,
       closedSaved: false,
-      isApp: false
+      isApp: false,
     }),
     {
       canClose: false,
       canRemoveRetained: false,
       canToggleSaved: false,
       canUseChromeTabActions: false,
-      showSavedHint: true
-    }
+      showSavedHint: true,
+    },
   )
 })
 
@@ -63,15 +63,15 @@ test('history targets expose delete through the shared close capability', () => 
       sourceType: 'history',
       saved: false,
       closedSaved: false,
-      isApp: false
+      isApp: false,
     }),
     {
       canClose: true,
       canRemoveRetained: false,
       canToggleSaved: false,
       canUseChromeTabActions: false,
-      showSavedHint: false
-    }
+      showSavedHint: false,
+    },
   )
 })
 
@@ -82,17 +82,17 @@ test('non-interactive aggregate targets suppress target-level actions', () => {
         sourceType: 'tab',
         saved: true,
         closedSaved: false,
-        isApp: false
+        isApp: false,
       },
-      { interactive: false }
+      { interactive: false },
     ),
     {
       canClose: false,
       canRemoveRetained: false,
       canToggleSaved: false,
       canUseChromeTabActions: false,
-      showSavedHint: false
-    }
+      showSavedHint: false,
+    },
   )
 })
 
@@ -102,14 +102,14 @@ test('retained app targets can be saved or removed from Tabs without live-tab ac
       sourceType: 'retained-page',
       saved: false,
       closedSaved: true,
-      isApp: true
+      isApp: true,
     }),
     {
       canClose: false,
       canRemoveRetained: true,
       canToggleSaved: true,
       canUseChromeTabActions: false,
-      showSavedHint: false
-    }
+      showSavedHint: false,
+    },
   )
 })

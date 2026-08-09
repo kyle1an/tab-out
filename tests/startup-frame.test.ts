@@ -26,7 +26,7 @@ function installChrome(options: {
           ok: true,
           openTabsSnapshot: {
             tabs: [],
-            windows: [{ id: 1, focused: true, type: 'normal' }]
+            windows: [{ id: 1, focused: true, type: 'normal' }],
           },
           tabHistory: {
             stackSize: 0,
@@ -38,18 +38,18 @@ function installChrome(options: {
             activeTabId: null,
             activeWindowId: null,
             activeWasInserted: false,
-            entries: []
+            entries: [],
           },
           workingSetActivity: { version: 1, records: {} },
           retainedPages: await encodeDashboardRetainedPagesWire([]),
-          retentionHealth: null
+          retentionHealth: null,
         }
-      }
+      },
     },
     tabs: { query: async () => [] },
     windows: {
       getAll: async () => [{ id: 1, focused: true, type: 'normal' }],
-      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' })
+      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' }),
     },
     tabGroups: { query: async () => [] },
     sessions: { getRecentlyClosed: async () => [] },
@@ -58,7 +58,7 @@ function installChrome(options: {
       search: async () => {
         historySearchCount += 1
         throw new Error('History unavailable')
-      }
+      },
     },
     storage: {
       session: { get: async () => ({}) },
@@ -70,9 +70,9 @@ function installChrome(options: {
           }
           return {}
         },
-        set: async () => {}
-      }
-    }
+        set: async () => {},
+      },
+    },
   }
   return { historySearchCount: () => historySearchCount }
 }
@@ -101,7 +101,7 @@ test('startup frame rejects an unknown semantic authority instead of admitting e
   await assert.rejects(
     getAppRuntime().runPromise(captureAppStartupFrameEffect()),
     (error: any) => error?._tag === 'StartupFrameAuthorityError' &&
-      error.authority === 'closed-row dismissals'
+      error.authority === 'closed-row dismissals',
   )
 })
 
@@ -110,7 +110,7 @@ test('startup frame begins its service-state request while local authorities are
   const serviceRequest = Promise.withResolvers<void>()
   installChrome({
     localReadBarrier: localReads.promise,
-    onServiceStateRequest: () => serviceRequest.resolve()
+    onServiceStateRequest: () => serviceRequest.resolve(),
   })
   appDashboardStore.selectStartupSource('tabs')
   setAppStartupFilterIntent('')
@@ -118,7 +118,7 @@ test('startup frame begins its service-state request while local authorities are
   const frame = getAppRuntime().runPromise(captureAppStartupFrameEffect())
   const requestStartedBeforeRelease = await Promise.race([
     serviceRequest.promise.then(() => true),
-    delay(50, false)
+    delay(50, false),
   ])
   localReads.resolve()
   await frame
@@ -136,9 +136,9 @@ test('Bookmarks startup follows the latest source without requiring hidden Tabs 
         id: 'bookmark-1',
         title: 'Example Needle',
         syncing: false,
-        url: 'https://example.test/needle'
-      }]
-    }]
+        url: 'https://example.test/needle',
+      }],
+    }],
   })
   appDashboardStore.selectStartupSource('bookmarks')
   setAppStartupFilterIntent('needle')
@@ -147,7 +147,7 @@ test('Bookmarks startup follows the latest source without requiring hidden Tabs 
 
   assert.equal(frame.source, 'bookmarks')
   assert.deepEqual(frame.snapshot.dashboard.realTabs.map((tab) => tab.url), [
-    'https://example.test/needle'
+    'https://example.test/needle',
   ])
   assert.equal(chromeState.historySearchCount(), 0)
 

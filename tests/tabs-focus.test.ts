@@ -12,11 +12,11 @@ import { focusWorkingSetItemResult } from '../src/extension/working-set-client.j
 type ChromeMockCalls = {
   create: chrome.tabs.CreateProperties[]
   remove: number[]
-  runtimeMessages: Array<{ extensionId: string; message: Record<string, unknown> }>
+  runtimeMessages: Array<{ extensionId: string, message: Record<string, unknown> }>
   tabsQuery: number
-  tabsUpdate: Array<{ tabId: number; updateProperties: chrome.tabs.UpdateProperties }>
+  tabsUpdate: Array<{ tabId: number, updateProperties: chrome.tabs.UpdateProperties }>
   windowsCreate: chrome.windows.CreateData[]
-  windowsUpdate: Array<{ windowId: number; updateProperties: chrome.windows.UpdateInfo }>
+  windowsUpdate: Array<{ windowId: number, updateProperties: chrome.windows.UpdateInfo }>
 }
 
 function createChromeMock(initialTabs: any[], currentWindowId = 1) {
@@ -28,7 +28,7 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
     tabsQuery: 0,
     tabsUpdate: [],
     windowsCreate: [],
-    windowsUpdate: []
+    windowsUpdate: [],
   }
 
   ;(globalThis as any).chrome = {
@@ -39,7 +39,7 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
         if (extensionId === 'blocked') throw new Error('Cannot message extension')
         if (extensionId === 'rejects') return 'Error: tab is not suspended'
         return undefined
-      }
+      },
     },
     tabs: {
       async get(tabId: number) {
@@ -88,7 +88,7 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
           active: !!createProperties.active,
           pinned: !!createProperties.pinned,
           groupId: -1,
-          index: insertionIndex
+          index: insertionIndex,
         }
         tabs.push(tab)
         return { ...tab }
@@ -100,7 +100,7 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
           const index = tabs.findIndex((tab) => tab.id === id)
           if (index !== -1) tabs.splice(index, 1)
         }
-      }
+      },
     },
     windows: {
       async getCurrent() {
@@ -121,7 +121,7 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
           active: true,
           pinned: false,
           groupId: -1,
-          index: 0
+          index: 0,
         }
         tabs.push(tab)
         return { id: windowId, type: createProperties.type || 'normal', focused: !!createProperties.focused, tabs: [{ ...tab }] }
@@ -129,8 +129,8 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
       async update(windowId: number, updateProperties: chrome.windows.UpdateInfo) {
         calls.windowsUpdate.push({ windowId, updateProperties: { ...updateProperties } })
         return { id: windowId, type: 'normal', focused: !!updateProperties.focused }
-      }
-    }
+      },
+    },
   }
 
   return { calls, tabs }
@@ -141,7 +141,7 @@ test('focusTab does not pin an existing Tab Out tab when focusing a chip target'
   const { calls, tabs } = createChromeMock([
     { id: 1, windowId: 1, url: tabOutUrl, title: 'Tab Out', active: true, pinned: false, groupId: -1 },
     { id: 2, windowId: 2, url: tabOutUrl, title: 'Tab Out', active: false, pinned: false, groupId: -1 },
-    { id: 3, windowId: 2, url: 'https://example.com/docs', title: 'Docs', active: false, pinned: false, groupId: -1 }
+    { id: 3, windowId: 2, url: 'https://example.com/docs', title: 'Docs', active: false, pinned: false, groupId: -1 },
   ])
 
   const focused = await focusTab('https://example.com/docs')
@@ -157,7 +157,7 @@ test('focusTab does not create a pinned Tab Out tab when focusing a chip target 
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: tabOutUrl, title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-    { id: 2, windowId: 2, url: 'https://example.com/docs', title: 'Docs', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 2, url: 'https://example.com/docs', title: 'Docs', active: false, pinned: false, groupId: -1 },
   ])
 
   const focused = await focusTab('https://example.com/docs')
@@ -171,7 +171,7 @@ test('focusTab does not create a pinned Tab Out tab when focusing a chip target 
 test('focusTab reports failure when Chrome rejects tab activation', async () => {
   createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-    { id: 2, windowId: 2, url: 'https://example.test/docs', title: 'Docs', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 2, url: 'https://example.test/docs', title: 'Docs', active: false, pinned: false, groupId: -1 },
   ])
   ;(globalThis as any).chrome.tabs.update = async () => {
     throw new Error('Tab disappeared')
@@ -183,7 +183,7 @@ test('focusTab reports failure when Chrome rejects tab activation', async () => 
 test('focusTab reports failure when Chrome rejects window focus', async () => {
   createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-    { id: 2, windowId: 2, url: 'https://example.test/docs', title: 'Docs', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 2, url: 'https://example.test/docs', title: 'Docs', active: false, pinned: false, groupId: -1 },
   ])
   ;(globalThis as any).chrome.windows.update = async () => {
     throw new Error('Window disappeared')
@@ -196,7 +196,7 @@ test('exact live-tab focus reports activation separately from failed window focu
   const url = 'https://example.test/docs'
   createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-    { id: 2, windowId: 2, url, title: 'Docs', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 2, url, title: 'Docs', active: false, pinned: false, groupId: -1 },
   ])
   ;(globalThis as any).chrome.windows.update = async () => {
     throw new Error('Window focus unavailable')
@@ -211,12 +211,12 @@ test('exact live-tab focus follows a tab that moves windows during activation', 
   const url = 'https://example.test/docs'
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-    { id: 2, windowId: 2, url, title: 'Docs', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 2, url, title: 'Docs', active: false, pinned: false, groupId: -1 },
   ])
   const updateTab = (globalThis as any).chrome.tabs.update.bind((globalThis as any).chrome.tabs)
   ;(globalThis as any).chrome.tabs.update = async (tabId: number, properties: chrome.tabs.UpdateProperties) => ({
     ...await updateTab(tabId, properties),
-    windowId: 3
+    windowId: 3,
   })
 
   const result = await focusExistingTabTargetResult({ tabId: 2, url })
@@ -230,12 +230,12 @@ test('exact focus follows pending navigation identity instead of the stale commi
   const pendingUrl = 'https://example.test/pending'
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-    { id: 2, windowId: 2, url: oldUrl, pendingUrl, title: 'Navigating', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 2, url: oldUrl, pendingUrl, title: 'Navigating', active: false, pinned: false, groupId: -1 },
   ])
 
   assert.deepEqual(
     await focusExistingTabTargetResult({ tabId: 2, url: oldUrl }),
-    { status: 'not-found' }
+    { status: 'not-found' },
   )
   assert.deepEqual(await focusExactTabTargetResult(oldUrl), { status: 'not-found' })
   assert.deepEqual(await focusExistingTabTargetResult({ tabId: 2, url: pendingUrl }), { status: 'focused' })
@@ -247,7 +247,7 @@ test('exact focus reads tabs after current-window state settles', async () => {
   const pendingUrl = 'https://example.test/other'
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-    { id: 2, windowId: 2, url: targetUrl, title: 'Leaving', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 2, url: targetUrl, title: 'Leaving', active: false, pinned: false, groupId: -1 },
   ])
   const { promise: currentWindowGate, resolve: releaseCurrentWindow } = Promise.withResolvers<void>()
   let navigationStarted = false
@@ -266,7 +266,7 @@ test('exact focus reads tabs after current-window state settles', async () => {
       title: 'Leaving',
       active: false,
       pinned: false,
-      groupId: -1
+      groupId: -1,
     }]
   }
 
@@ -286,7 +286,7 @@ test('legacy focus reads tabs after current-window state settles', async () => {
   const targetUrl = 'https://example.test/docs'
   const pendingUrl = 'https://other.example.test/'
   const { calls } = createChromeMock([
-    { id: 2, windowId: 2, url: targetUrl, title: 'Leaving', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 2, url: targetUrl, title: 'Leaving', active: false, pinned: false, groupId: -1 },
   ])
   const { promise: currentWindowGate, resolve: releaseCurrentWindow } = Promise.withResolvers<void>()
   let navigationStarted = false
@@ -305,7 +305,7 @@ test('legacy focus reads tabs after current-window state settles', async () => {
       title: 'Leaving',
       active: false,
       pinned: false,
-      groupId: -1
+      groupId: -1,
     }]
   }
 
@@ -323,7 +323,7 @@ test('exact live-tab focus reports a rejected activation without opening a dupli
   const url = 'https://example.test/docs'
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-    { id: 2, windowId: 2, url, title: 'Docs', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 2, url, title: 'Docs', active: false, pinned: false, groupId: -1 },
   ])
   ;(globalThis as any).chrome.tabs.update = async () => {
     throw new Error('Tab activation unavailable')
@@ -342,7 +342,7 @@ test('exact live-tab focus reports a rejected activation without opening a dupli
 test('read-only activation preserves partial success without opening a duplicate', async () => {
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-    { id: 2, windowId: 2, url: 'https://example.test/docs', title: 'Docs', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 2, url: 'https://example.test/docs', title: 'Docs', active: false, pinned: false, groupId: -1 },
   ])
   ;(globalThis as any).chrome.windows.update = async () => {
     throw new Error('Window disappeared')
@@ -365,7 +365,7 @@ test('tab focus feedback distinguishes partial activation, failure, stale identi
 
 test('read-only activation reports failure without opening when the tab inventory is unknown', async () => {
   const { calls } = createChromeMock([
-    { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 }
+    { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
   ])
   ;(globalThis as any).chrome.tabs.query = async () => {
     throw new Error('tabs unavailable')
@@ -383,7 +383,7 @@ test('closeChipTarget closes and can undo the exact represented Tab Out sibling 
     const tabOutUrl = 'chrome-extension://tab-out/index.html'
     const { calls, tabs } = createChromeMock([
       { id: 1, windowId: 1, url: tabOutUrl, title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-      { id: 2, windowId: 1, url: tabOutUrl, title: 'Tab Out', active: false, pinned: true, groupId: -1 }
+      { id: 2, windowId: 1, url: tabOutUrl, title: 'Tab Out', active: false, pinned: true, groupId: -1 },
     ])
 
     const result = await closeChipTarget({ tabUrl: tabOutUrl, tabId: 2 })
@@ -397,7 +397,7 @@ test('closeChipTarget closes and can undo the exact represented Tab Out sibling 
     assert.equal(result.removedCount, 1)
     assert.equal(result.failedCount, 0)
     assert.deepEqual(result.snapshot.map((tab) => ({ url: tab.url, title: tab.title })), [
-      { url: tabOutUrl, title: 'Tab Out' }
+      { url: tabOutUrl, title: 'Tab Out' },
     ])
     assert.equal(result.shouldAnimateRemoval, false)
 
@@ -416,7 +416,7 @@ test('closeChipTarget does not close a same-URL sibling when its exact tab id is
     const tabOutUrl = 'chrome-extension://tab-out/index.html'
     const { calls, tabs } = createChromeMock([
       { id: 1, windowId: 1, url: tabOutUrl, title: 'Current Tab Out', active: true, pinned: false, groupId: -1 },
-      { id: 3, windowId: 1, url: tabOutUrl, title: 'Pinned Tab Out', active: false, pinned: true, groupId: -1 }
+      { id: 3, windowId: 1, url: tabOutUrl, title: 'Pinned Tab Out', active: false, pinned: true, groupId: -1 },
     ])
 
     const result = await closeChipTarget({ tabUrl: tabOutUrl, tabId: 2 })
@@ -434,14 +434,14 @@ test('closeChipTarget rejects a reused same-URL id whose physical Tab Out state 
   try {
     const tabOutUrl = 'chrome-extension://tab-out/index.html'
     const { calls, tabs } = createChromeMock([
-      { id: 2, windowId: 1, url: tabOutUrl, title: 'Ordinary Tab Out', active: false, pinned: false, groupId: -1 }
+      { id: 2, windowId: 1, url: tabOutUrl, title: 'Ordinary Tab Out', active: false, pinned: false, groupId: -1 },
     ])
 
     const result = await closeChipTarget({
       tabUrl: tabOutUrl,
       tabId: 2,
       expectedPinned: true,
-      expectedGroupId: -1
+      expectedGroupId: -1,
     })
 
     assert.deepEqual(calls.remove, [])
@@ -460,7 +460,7 @@ test('close actions report unknown and preserve tabs when the live inventory can
   try {
     const url = 'https://example.test/docs'
     const { calls, tabs } = createChromeMock([
-      { id: 2, windowId: 1, url, title: 'Docs', active: false, pinned: false, groupId: -1 }
+      { id: 2, windowId: 1, url, title: 'Docs', active: false, pinned: false, groupId: -1 },
     ])
     ;(globalThis as any).chrome.tabs.query = async () => {
       throw new Error('Tab inventory unavailable')
@@ -472,7 +472,7 @@ test('close actions report unknown and preserve tabs when the live inventory can
       suspended: false,
       favIconUrl: '',
       isTabOut: false,
-      isApp: false
+      isApp: false,
     }
     let afterCloseCount = 0
     const onAfterClose = () => {
@@ -485,12 +485,12 @@ test('close actions report unknown and preserve tabs when the live inventory can
         group: { domain: 'example.test', tabs: [dashboardTab] },
         filter: '',
         displayName: 'example.test',
-        onAfterClose
+        onAfterClose,
       }),
       await closeExactTabSection({ urls: [url] }),
       await closeExactTabTargets({ targets: [target] }),
       await dedupeTabs({ urls: [url], onAfterClose }),
-      await closeChipTarget({ tabUrl: url, tabId: 2, onAfterClose })
+      await closeChipTarget({ tabUrl: url, tabId: 2, onAfterClose }),
     ]
 
     assert.ok(results.every((result) => result.ok === false))
@@ -512,7 +512,7 @@ test('confirmed close keeps a working Undo when the follow-up dashboard refresh 
     const url = 'https://example.test/docs'
     const { calls, tabs } = createChromeMock([
       { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-      { id: 2, windowId: 1, url, title: 'Docs', active: false, pinned: false, groupId: -1 }
+      { id: 2, windowId: 1, url, title: 'Docs', active: false, pinned: false, groupId: -1 },
     ])
 
     const result = await closeChipTarget({ tabUrl: url, tabId: 2 })
@@ -539,7 +539,7 @@ test('closeChipTarget preserves a confirmed partial close without animating surv
     const { tabs } = createChromeMock([
       { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
       { id: 2, windowId: 1, url: keptUrl, title: 'Docs', active: false, pinned: false, groupId: -1 },
-      { id: 3, windowId: 1, url: closedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 }
+      { id: 3, windowId: 1, url: closedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 },
     ])
     const removeTab = (globalThis as any).chrome.tabs.remove.bind((globalThis as any).chrome.tabs)
     ;(globalThis as any).chrome.tabs.remove = async (tabIds: number | number[]) => {
@@ -550,7 +550,7 @@ test('closeChipTarget preserves a confirmed partial close without animating surv
 
     const result = await closeChipTarget({
       tabUrl: keptUrl,
-      envs: [{ tabUrl: keptUrl }, { tabUrl: closedUrl }] as any
+      envs: [{ tabUrl: keptUrl }, { tabUrl: closedUrl }] as any,
     })
 
     assert.equal(result.ok, false)
@@ -576,7 +576,7 @@ test('closeChipTarget reports total write failure without refresh or removal ani
     const url = 'https://example.test/docs'
     const { tabs } = createChromeMock([
       { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-      { id: 2, windowId: 1, url, title: 'Docs', active: false, pinned: false, groupId: -1 }
+      { id: 2, windowId: 1, url, title: 'Docs', active: false, pinned: false, groupId: -1 },
     ])
     ;(globalThis as any).chrome.tabs.remove = async () => {
       throw new Error('Tab is managed')
@@ -588,7 +588,7 @@ test('closeChipTarget reports total write failure without refresh or removal ani
       tabId: 2,
       onAfterClose: (callbackResult) => {
         callbackResults.push(callbackResult)
-      }
+      },
     })
 
     assert.equal(result.ok, false)
@@ -610,7 +610,7 @@ test('bulk close returns undo snapshots only for tabs Chrome actually removed', 
   const { tabs } = createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
     { id: 2, windowId: 1, url: 'https://kept.example.test/', title: 'Kept', active: false, pinned: false, groupId: -1 },
-    { id: 3, windowId: 1, url: 'https://closed.example.test/', title: 'Closed', active: false, pinned: false, groupId: -1 }
+    { id: 3, windowId: 1, url: 'https://closed.example.test/', title: 'Closed', active: false, pinned: false, groupId: -1 },
   ])
   const removeTab = (globalThis as any).chrome.tabs.remove.bind((globalThis as any).chrome.tabs)
   ;(globalThis as any).chrome.tabs.remove = async (tabIds: number | number[]) => {
@@ -621,7 +621,7 @@ test('bulk close returns undo snapshots only for tabs Chrome actually removed', 
 
   const { value: snapshot } = await closeTabsExactResult([
     'https://kept.example.test/',
-    'https://closed.example.test/'
+    'https://closed.example.test/',
   ])
 
   assert.deepEqual(snapshot.map((tab) => tab.url), ['https://closed.example.test/'])
@@ -632,7 +632,7 @@ test('closeTabsExactResult reports a rejected removal as a failed mutation', asy
   const url = 'https://example.test/docs'
   const { tabs } = createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-    { id: 2, windowId: 1, url, title: 'Docs', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 1, url, title: 'Docs', active: false, pinned: false, groupId: -1 },
   ])
   ;(globalThis as any).chrome.tabs.remove = async () => {
     throw new Error('Tab is managed')
@@ -646,7 +646,7 @@ test('closeTabsExactResult reports a rejected removal as a failed mutation', asy
     value: [],
     attemptedCount: 1,
     removedCount: 0,
-    failedCount: 1
+    failedCount: 1,
   })
   assert.deepEqual(tabs.map((tab) => tab.id), [1, 2])
 })
@@ -657,7 +657,7 @@ test('closeTabsByTargetsResult preserves confirmed snapshots and reports a parti
   const { tabs } = createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
     { id: 2, windowId: 1, url: keptUrl, title: 'Kept', active: false, pinned: false, groupId: -1 },
-    { id: 3, windowId: 1, url: closedUrl, title: 'Closed', active: false, pinned: false, groupId: -1 }
+    { id: 3, windowId: 1, url: closedUrl, title: 'Closed', active: false, pinned: false, groupId: -1 },
   ])
   const removeTab = (globalThis as any).chrome.tabs.remove.bind((globalThis as any).chrome.tabs)
   ;(globalThis as any).chrome.tabs.remove = async (tabIds: number | number[]) => {
@@ -668,7 +668,7 @@ test('closeTabsByTargetsResult preserves confirmed snapshots and reports a parti
 
   const result = await closeTabsByTargetsResult([
     { tabId: 2, tabUrl: keptUrl },
-    { tabId: 3, tabUrl: closedUrl }
+    { tabId: 3, tabUrl: closedUrl },
   ])
 
   assert.equal(result.ok, false)
@@ -687,7 +687,7 @@ test('batch-close fallback revalidates remaining tab identities before retrying'
   const { tabs } = createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
     { id: 2, windowId: 1, url: keptUrl, title: 'Kept', active: false, pinned: false, groupId: -1 },
-    { id: 3, windowId: 1, url: staleTargetUrl, title: 'Stale target', active: false, pinned: false, groupId: -1 }
+    { id: 3, windowId: 1, url: staleTargetUrl, title: 'Stale target', active: false, pinned: false, groupId: -1 },
   ])
   const removeTab = (globalThis as any).chrome.tabs.remove.bind((globalThis as any).chrome.tabs)
   ;(globalThis as any).chrome.tabs.remove = async (tabIds: number | number[]) => {
@@ -703,7 +703,7 @@ test('batch-close fallback revalidates remaining tab identities before retrying'
 
   const result = await closeTabsByTargetsResult([
     { tabId: 2, tabUrl: keptUrl },
-    { tabId: 3, tabUrl: staleTargetUrl }
+    { tabId: 3, tabUrl: staleTargetUrl },
   ])
 
   assert.equal(result.status, 'failed')
@@ -712,7 +712,7 @@ test('batch-close fallback revalidates remaining tab identities before retrying'
   assert.deepEqual(tabs.map((tab) => ({ id: tab.id, url: tab.url })), [
     { id: 1, url: 'chrome-extension://tab-out/index.html' },
     { id: 2, url: keptUrl },
-    { id: 3, url: unrelatedUrl }
+    { id: 3, url: unrelatedUrl },
   ])
 })
 
@@ -722,7 +722,7 @@ test('close paths prefer a pending navigation over the stale committed URL', asy
   const { calls, tabs } = createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
     { id: 2, windowId: 1, url: targetUrl, pendingUrl: otherUrl, title: 'Leaving target', active: false, pinned: false, groupId: -1 },
-    { id: 3, windowId: 1, url: otherUrl, pendingUrl: targetUrl, title: 'Entering target', active: false, pinned: false, groupId: -1 }
+    { id: 3, windowId: 1, url: otherUrl, pendingUrl: targetUrl, title: 'Entering target', active: false, pinned: false, groupId: -1 },
   ])
 
   const exactResult = await closeTabsExactResult([targetUrl])
@@ -749,7 +749,7 @@ test('closeExactTabSection keeps partial Undo and delegates removal refresh to t
     const { calls, tabs } = createChromeMock([
       { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
       { id: 2, windowId: 1, url: keptUrl, title: 'Kept', active: false, pinned: false, groupId: -1 },
-      { id: 3, windowId: 1, url: closedUrl, title: 'Closed', active: false, pinned: false, groupId: -1 }
+      { id: 3, windowId: 1, url: closedUrl, title: 'Closed', active: false, pinned: false, groupId: -1 },
     ])
     const removeTab = (globalThis as any).chrome.tabs.remove.bind((globalThis as any).chrome.tabs)
     ;(globalThis as any).chrome.tabs.remove = async (tabIds: number | number[]) => {
@@ -787,7 +787,7 @@ test('closeExactTabTargets reports total write failure without refreshing', asyn
     const url = 'https://example.test/docs'
     const { tabs } = createChromeMock([
       { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-      { id: 2, windowId: 1, url, title: 'Docs', active: false, pinned: false, groupId: -1 }
+      { id: 2, windowId: 1, url, title: 'Docs', active: false, pinned: false, groupId: -1 },
     ])
     ;(globalThis as any).chrome.tabs.remove = async () => {
       throw new Error('Tab is managed')
@@ -831,7 +831,7 @@ test('dedupeTabs reports a partial close, keeps Undo, and delegates removal refr
     const { calls, tabs } = createChromeMock([
       { id: 1, windowId: 1, url, title: 'Oldest', active: false, pinned: false, groupId: -1, index: 0, lastAccessed: 100 },
       { id: 2, windowId: 1, url, title: 'Middle', active: false, pinned: false, groupId: -1, index: 1, lastAccessed: 200 },
-      { id: 3, windowId: 1, url, title: 'Newest', active: true, pinned: false, groupId: -1, index: 2, lastAccessed: 300 }
+      { id: 3, windowId: 1, url, title: 'Newest', active: true, pinned: false, groupId: -1, index: 2, lastAccessed: 300 },
     ])
     const removeTab = (globalThis as any).chrome.tabs.remove.bind((globalThis as any).chrome.tabs)
     ;(globalThis as any).chrome.tabs.remove = async (tabIds: number | number[]) => {
@@ -845,7 +845,7 @@ test('dedupeTabs reports a partial close, keeps Undo, and delegates removal refr
       urls: [url],
       onAfterClose: (callbackResult) => {
         callbackResults.push(callbackResult)
-      }
+      },
     })
 
     assert.equal(result.ok, false)
@@ -871,7 +871,7 @@ test('bulk close preserves a pinned Tab Out copy and snapshots the ordinary copy
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
   const { calls, tabs } = createChromeMock([
     { id: 1, windowId: 1, url: tabOutUrl, title: 'Pinned Tab Out', active: false, pinned: true, groupId: -1 },
-    { id: 2, windowId: 1, url: tabOutUrl, title: 'Ordinary Tab Out', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 1, url: tabOutUrl, title: 'Ordinary Tab Out', active: false, pinned: false, groupId: -1 },
   ])
 
   const { value: snapshot } = await closeTabsExactResult([tabOutUrl], { preserveGroups: true })
@@ -879,7 +879,7 @@ test('bulk close preserves a pinned Tab Out copy and snapshots the ordinary copy
   assert.deepEqual(calls.remove, [2])
   assert.deepEqual(tabs.map((tab) => tab.id), [1])
   assert.deepEqual(snapshot.map((tab) => ({ url: tab.url, title: tab.title })), [
-    { url: tabOutUrl, title: 'Ordinary Tab Out' }
+    { url: tabOutUrl, title: 'Ordinary Tab Out' },
   ])
 })
 
@@ -887,7 +887,7 @@ test('targeted bulk close does not expand one matching duplicate into every same
   const url = 'https://example.test/shared'
   const { calls, tabs } = createChromeMock([
     { id: 1, windowId: 1, url, title: 'Alpha match', active: false, pinned: false, groupId: -1 },
-    { id: 2, windowId: 1, url, title: 'Beta non-match', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 1, url, title: 'Beta non-match', active: false, pinned: false, groupId: -1 },
   ])
 
   const { value: snapshot } = await closeTabsByTargetsResult([{ tabId: 1, tabUrl: url }], { preserveGroups: true })
@@ -905,7 +905,7 @@ test('filtered domain close keeps a same-URL tab whose title does not match', as
     const url = 'https://example.test/shared'
     const { calls, tabs } = createChromeMock([
       { id: 1, windowId: 1, url, title: 'Alpha match', active: false, pinned: false, groupId: -1 },
-      { id: 2, windowId: 1, url, title: 'Beta non-match', active: false, pinned: false, groupId: -1 }
+      { id: 2, windowId: 1, url, title: 'Beta non-match', active: false, pinned: false, groupId: -1 },
     ])
     const result = await closeDomainTabs({
       group: {
@@ -916,11 +916,11 @@ test('filtered domain close keeps a same-URL tab whose title does not match', as
           suspended: false,
           favIconUrl: '',
           isTabOut: false,
-          isApp: false
-        }))
+          isApp: false,
+        })),
       },
       filter: 'alpha',
-      displayName: 'example.test'
+      displayName: 'example.test',
     })
 
     assert.deepEqual(calls.remove, [1])
@@ -945,18 +945,18 @@ test('close suspended domain tabs closes only live suspended tabs in the bulk-ac
     const { calls, tabs } = createChromeMock([
       { id: 1, windowId: 1, url: activeUrl, title: 'Active', active: false, pinned: false, groupId: -1 },
       { id: 2, windowId: 1, url: suspendedRawUrl, title: 'Suspended', active: false, pinned: false, groupId: -1 },
-      { id: 3, windowId: 1, url: groupedRawUrl, title: 'Grouped', active: false, pinned: false, groupId: 7 }
+      { id: 3, windowId: 1, url: groupedRawUrl, title: 'Grouped', active: false, pinned: false, groupId: 7 },
     ])
     const dashboardTabs = [
       { id: 1, url: activeUrl, rawUrl: activeUrl, suspended: false, title: 'Active', favIconUrl: '', windowId: 1, active: false, pinned: false, groupId: -1, isTabOut: false, isApp: false },
       { id: 2, url: suspendedUrl, rawUrl: suspendedRawUrl, suspended: true, title: 'Suspended', favIconUrl: '', windowId: 1, active: false, pinned: false, groupId: -1, isTabOut: false, isApp: false },
-      { id: 3, url: groupedUrl, rawUrl: groupedRawUrl, suspended: true, title: 'Grouped', favIconUrl: '', windowId: 1, active: false, pinned: false, groupId: 7, isTabOut: false, isApp: false }
+      { id: 3, url: groupedUrl, rawUrl: groupedRawUrl, suspended: true, title: 'Grouped', favIconUrl: '', windowId: 1, active: false, pinned: false, groupId: 7, isTabOut: false, isApp: false },
     ]
 
     const result = await closeSuspendedDomainTabs({
       group: { domain: 'example.test', tabs: dashboardTabs },
       filter: '',
-      displayName: 'example.test'
+      displayName: 'example.test',
     })
 
     assert.deepEqual(calls.remove, [2])
@@ -976,7 +976,7 @@ test('close suspended domain tabs preserves a target that woke before the action
     const url = 'https://example.test/docs'
     const suspendedRawUrl = `chrome-extension://suspender/suspended.html#uri=${encodeURIComponent(url)}`
     const { calls, tabs } = createChromeMock([
-      { id: 2, windowId: 1, url, title: 'Docs', active: false, pinned: false, groupId: -1 }
+      { id: 2, windowId: 1, url, title: 'Docs', active: false, pinned: false, groupId: -1 },
     ])
 
     const result = await closeSuspendedDomainTabs({
@@ -994,11 +994,11 @@ test('close suspended domain tabs preserves a target that woke before the action
           pinned: false,
           groupId: -1,
           isTabOut: false,
-          isApp: false
-        }]
+          isApp: false,
+        }],
       },
       filter: '',
-      displayName: 'example.test'
+      displayName: 'example.test',
     })
 
     assert.deepEqual(calls.remove, [])
@@ -1014,7 +1014,7 @@ test('focusTab asks the owning suspender extension to unsuspend an exact suspend
   const suspendedUrl = 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-    { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 },
   ])
 
   const focused = await focusTab('https://example.com/docs')
@@ -1023,8 +1023,8 @@ test('focusTab asks the owning suspender extension to unsuspend an exact suspend
   assert.deepEqual(calls.runtimeMessages, [
     {
       extensionId: 'marvellous',
-      message: { action: 'unsuspend', tabId: 2 }
-    }
+      message: { action: 'unsuspend', tabId: 2 },
+    },
   ])
   assert.deepEqual(calls.tabsUpdate, [{ tabId: 2, updateProperties: { active: true } }])
   assert.deepEqual(calls.windowsUpdate, [{ windowId: 2, updateProperties: { focused: true } }])
@@ -1037,7 +1037,7 @@ test('suspended-tab focus revalidates identity after external unsuspend messagin
   for (const messageOutcome of ['success', 'failure'] as const) {
     const { calls, tabs } = createChromeMock([
       { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-      { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 }
+      { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 },
     ])
     const { promise: messageBlocked, resolve: releaseMessage } = Promise.withResolvers<void>()
     const { promise: messageStarted, resolve: markMessageStarted } = Promise.withResolvers<void>()
@@ -1051,7 +1051,7 @@ test('suspended-tab focus revalidates identity after external unsuspend messagin
     const focusPromise = focusExistingTabTargetResult({
       tabId: 2,
       url: targetUrl,
-      rawUrl: suspendedUrl
+      rawUrl: suspendedUrl,
     })
     await messageStarted
     const target = tabs.find((tab) => tab.id === 2)
@@ -1070,7 +1070,7 @@ test('focusTab unsuspends directly when the owning suspender extension cannot be
   const suspendedUrl = 'chrome-extension://blocked/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'
   const { calls, tabs } = createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-    { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 },
   ])
 
   const focused = await focusTab('https://example.com/docs')
@@ -1079,8 +1079,8 @@ test('focusTab unsuspends directly when the owning suspender extension cannot be
   assert.deepEqual(calls.runtimeMessages, [
     {
       extensionId: 'blocked',
-      message: { action: 'unsuspend', tabId: 2 }
-    }
+      message: { action: 'unsuspend', tabId: 2 },
+    },
   ])
   assert.deepEqual(calls.tabsUpdate, [{ tabId: 2, updateProperties: { active: true, url: 'https://example.com/docs' } }])
   assert.deepEqual(calls.windowsUpdate, [{ windowId: 2, updateProperties: { focused: true } }])
@@ -1091,7 +1091,7 @@ test('focusTab unsuspends directly when the owning suspender extension rejects t
   const suspendedUrl = 'chrome-extension://rejects/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'
   const { calls, tabs } = createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-    { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 },
   ])
 
   const focused = await focusTab('https://example.com/docs')
@@ -1100,8 +1100,8 @@ test('focusTab unsuspends directly when the owning suspender extension rejects t
   assert.deepEqual(calls.runtimeMessages, [
     {
       extensionId: 'rejects',
-      message: { action: 'unsuspend', tabId: 2 }
-    }
+      message: { action: 'unsuspend', tabId: 2 },
+    },
   ])
   assert.deepEqual(calls.tabsUpdate, [{ tabId: 2, updateProperties: { active: true, url: 'https://example.com/docs' } }])
   assert.deepEqual(calls.windowsUpdate, [{ windowId: 2, updateProperties: { focused: true } }])
@@ -1112,7 +1112,7 @@ test('focusHistoryEntry uses the same suspended-tab activation path as page chip
   const suspendedUrl = 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-    { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 },
   ])
 
   const result = await focusHistoryEntryResult({
@@ -1120,15 +1120,15 @@ test('focusHistoryEntry uses the same suspended-tab activation path as page chip
     tabId: 2,
     windowId: 2,
     url: 'https://example.com/docs',
-    rawUrl: suspendedUrl
+    rawUrl: suspendedUrl,
   } as any)
 
   assert.deepEqual(result, { status: 'focused' })
   assert.deepEqual(calls.runtimeMessages, [
     {
       extensionId: 'marvellous',
-      message: { action: 'unsuspend', tabId: 2 }
-    }
+      message: { action: 'unsuspend', tabId: 2 },
+    },
   ])
   assert.deepEqual(calls.tabsUpdate, [{ tabId: 2, updateProperties: { active: true } }])
   assert.deepEqual(calls.windowsUpdate, [{ windowId: 2, updateProperties: { focused: true } }])
@@ -1138,7 +1138,7 @@ test('focusHistoryEntryResult exposes a rejected activation to the history UI', 
   const url = 'https://example.test/docs'
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-    { id: 2, windowId: 2, url, title: 'Docs', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 2, url, title: 'Docs', active: false, pinned: false, groupId: -1 },
   ])
   ;(globalThis as any).chrome.tabs.update = async () => {
     throw new Error('Tab activation unavailable')
@@ -1149,7 +1149,7 @@ test('focusHistoryEntryResult exposes a rejected activation to the history UI', 
     tabId: 2,
     windowId: 2,
     url,
-    rawUrl: url
+    rawUrl: url,
   } as any)
 
   assert.deepEqual(result, { status: 'failed' })
@@ -1160,22 +1160,22 @@ test('focusWorkingSetItem falls back to the effective URL for blocked suspended 
   const suspendedUrl = 'chrome-extension://blocked/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'
   const { calls, tabs } = createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-    { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 },
   ])
 
   const result = await focusWorkingSetItemResult({
     tabId: 2,
     windowId: 2,
     tabUrl: 'https://example.com/docs',
-    rawUrl: suspendedUrl
+    rawUrl: suspendedUrl,
   })
 
   assert.deepEqual(result, { status: 'focused' })
   assert.deepEqual(calls.runtimeMessages, [
     {
       extensionId: 'blocked',
-      message: { action: 'unsuspend', tabId: 2 }
-    }
+      message: { action: 'unsuspend', tabId: 2 },
+    },
   ])
   assert.deepEqual(calls.tabsUpdate, [{ tabId: 2, updateProperties: { active: true, url: 'https://example.com/docs' } }])
   assert.deepEqual(calls.windowsUpdate, [{ windowId: 2, updateProperties: { focused: true } }])
@@ -1186,7 +1186,7 @@ test('focusWorkingSetItemResult preserves activation when window focus fails', a
   const url = 'https://example.test/docs'
   createChromeMock([
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
-    { id: 2, windowId: 2, url, title: 'Docs', active: false, pinned: false, groupId: -1 }
+    { id: 2, windowId: 2, url, title: 'Docs', active: false, pinned: false, groupId: -1 },
   ])
   ;(globalThis as any).chrome.windows.update = async () => {
     throw new Error('Window focus unavailable')
@@ -1196,7 +1196,7 @@ test('focusWorkingSetItemResult preserves activation when window focus fails', a
     tabId: 2,
     windowId: 2,
     tabUrl: url,
-    rawUrl: url
+    rawUrl: url,
   })
 
   assert.deepEqual(result, { status: 'activated' })
@@ -1205,14 +1205,14 @@ test('focusWorkingSetItemResult preserves activation when window focus fails', a
 test('closeHistoryEntry removes the exact history tab and returns an undo snapshot', async () => {
   const { calls, tabs } = createChromeMock([
     { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 },
-    { id: 2, windowId: 2, url: 'https://example.com/docs', title: 'Docs', active: false, pinned: true, groupId: 4, index: 3 }
+    { id: 2, windowId: 2, url: 'https://example.com/docs', title: 'Docs', active: false, pinned: true, groupId: 4, index: 3 },
   ])
 
   const result = await closeHistoryEntry({
     exists: true,
     tabId: 2,
     url: 'https://example.com/docs',
-    rawUrl: 'https://example.com/docs'
+    rawUrl: 'https://example.com/docs',
   } as any)
 
   assert.equal(result.status, 'closed')
@@ -1227,14 +1227,14 @@ test('closeHistoryEntry removes the exact history tab and returns an undo snapsh
       pinned: true,
       groupId: 4,
       windowId: 2,
-      index: 3
-    }
+      index: 3,
+    },
   ])
 })
 
 test('closeHistoryEntry reports unknown and keeps the tab when inventory cannot be read', async () => {
   const { calls, tabs } = createChromeMock([
-    { id: 2, windowId: 2, url: 'https://example.test/docs', title: 'Docs', active: false, pinned: false, groupId: -1, index: 0 }
+    { id: 2, windowId: 2, url: 'https://example.test/docs', title: 'Docs', active: false, pinned: false, groupId: -1, index: 0 },
   ])
   ;(globalThis as any).chrome.tabs.query = async () => {
     throw new Error('Tab inventory unavailable')
@@ -1244,7 +1244,7 @@ test('closeHistoryEntry reports unknown and keeps the tab when inventory cannot 
     exists: true,
     tabId: 2,
     url: 'https://example.test/docs',
-    rawUrl: 'https://example.test/docs'
+    rawUrl: 'https://example.test/docs',
   } as any)
 
   assert.deepEqual(result, { status: 'unknown', closed: false, snapshot: [] })
@@ -1254,7 +1254,7 @@ test('closeHistoryEntry reports unknown and keeps the tab when inventory cannot 
 
 test('undoLastClose restores tabs and requests animated dashboard refresh', async () => {
   const { calls, tabs } = createChromeMock([
-    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 }
+    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 },
   ])
   let refreshOptions = null
   const unregister = replaceDashboardRefreshForTesting((options) => {
@@ -1268,8 +1268,8 @@ test('undoLastClose restores tabs and requests animated dashboard refresh', asyn
       pinned: true,
       groupId: -1,
       windowId: 1,
-      index: 1
-    }
+      index: 1,
+    },
   ])
   await undoLastClose()
   unregister()
@@ -1280,8 +1280,8 @@ test('undoLastClose restores tabs and requests animated dashboard refresh', asyn
       windowId: 1,
       index: 1,
       pinned: true,
-      active: false
-    }
+      active: false,
+    },
   ])
   assert.equal(tabs.some((tab) => tab.url === 'https://example.com/docs'), true)
   assert.deepEqual(refreshOptions, { animateCards: true })
@@ -1297,8 +1297,8 @@ test('delayed Undo Switch ignores a restored tab id that now belongs to another 
       active: false,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
 
   await switchToRestoredTab({
@@ -1309,8 +1309,8 @@ test('delayed Undo Switch ignores a restored tab id that now belongs to another 
       pinned: false,
       groupId: -1,
       windowId: 3,
-      index: 0
-    }
+      index: 0,
+    },
   })
 
   assert.deepEqual(calls.tabsUpdate, [])
@@ -1328,7 +1328,7 @@ test('Undo Switch accepts matching ordinary and suspended restored targets', asy
       active: false,
       pinned: false,
       groupId: -1,
-      index: 0
+      index: 0,
     },
     {
       id: 3,
@@ -1338,8 +1338,8 @@ test('Undo Switch accepts matching ordinary and suspended restored targets', asy
       active: false,
       pinned: false,
       groupId: -1,
-      index: 0
-    }
+      index: 0,
+    },
   ])
 
   await switchToRestoredTab({
@@ -1350,8 +1350,8 @@ test('Undo Switch accepts matching ordinary and suspended restored targets', asy
       pinned: false,
       groupId: -1,
       windowId: 2,
-      index: 0
-    }
+      index: 0,
+    },
   })
   await switchToRestoredTab({
     tabId: 3,
@@ -1362,17 +1362,17 @@ test('Undo Switch accepts matching ordinary and suspended restored targets', asy
       pinned: false,
       groupId: -1,
       windowId: 3,
-      index: 0
-    }
+      index: 0,
+    },
   })
 
   assert.deepEqual(calls.tabsUpdate, [
     { tabId: 2, updateProperties: { active: true } },
-    { tabId: 3, updateProperties: { active: true } }
+    { tabId: 3, updateProperties: { active: true } },
   ])
   assert.deepEqual(calls.windowsUpdate, [
     { windowId: 2, updateProperties: { focused: true } },
-    { windowId: 3, updateProperties: { focused: true } }
+    { windowId: 3, updateProperties: { focused: true } },
   ])
 })
 
@@ -1386,8 +1386,8 @@ test('snapshotChromeTabs stores raw suspended URL for undo and effective URL for
       pinned: false,
       groupId: -1,
       windowId: 1,
-      index: 2
-    }
+      index: 2,
+    },
   ])
 
   assert.deepEqual(snapshot, [
@@ -1398,14 +1398,14 @@ test('snapshotChromeTabs stores raw suspended URL for undo and effective URL for
       pinned: false,
       groupId: -1,
       windowId: 1,
-      index: 2
-    }
+      index: 2,
+    },
   ])
 })
 
 test('undoLastClose restores raw suspended URL before falling back to effective URL', async () => {
   const { calls, tabs } = createChromeMock([
-    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 }
+    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 },
   ])
 
   markClosure([
@@ -1416,8 +1416,8 @@ test('undoLastClose restores raw suspended URL before falling back to effective 
       pinned: false,
       groupId: -1,
       windowId: 1,
-      index: 1
-    }
+      index: 1,
+    },
   ])
   await undoLastClose()
 
@@ -1434,14 +1434,14 @@ test('undoLastClose restores raw suspended URL before falling back to effective 
       pinned: false,
       groupId: -1,
       windowId: 1,
-      index: 2
-    }
+      index: 2,
+    },
   ])
   await undoLastClose()
 
   assert.deepEqual(calls.create.slice(-2).map((call) => call.url), [
     'chrome-extension://blocked/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs',
-    'https://example.com/docs'
+    'https://example.com/docs',
   ])
   assert.equal(tabs.some((tab) => tab.url === 'https://example.com/docs'), true)
 })
@@ -1450,7 +1450,7 @@ test('undoLastClose restores same-window tabs in their original tab-strip order'
   const { calls, tabs } = createChromeMock([
     { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 },
     { id: 2, windowId: 1, url: 'https://charlie.example/', title: 'Charlie', active: false, pinned: false, groupId: -1, index: 1 },
-    { id: 3, windowId: 1, url: 'https://echo.example/', title: 'Echo', active: false, pinned: false, groupId: -1, index: 2 }
+    { id: 3, windowId: 1, url: 'https://echo.example/', title: 'Echo', active: false, pinned: false, groupId: -1, index: 2 },
   ])
 
   markClosure([
@@ -1460,7 +1460,7 @@ test('undoLastClose restores same-window tabs in their original tab-strip order'
       pinned: false,
       groupId: -1,
       windowId: 1,
-      index: 3
+      index: 3,
     },
     {
       url: 'https://bravo.example/',
@@ -1468,14 +1468,14 @@ test('undoLastClose restores same-window tabs in their original tab-strip order'
       pinned: false,
       groupId: -1,
       windowId: 1,
-      index: 1
-    }
+      index: 1,
+    },
   ])
   await undoLastClose()
 
   assert.deepEqual(calls.create.map(({ url, windowId, index, active }) => ({ url, windowId, index, active })), [
     { url: 'https://bravo.example/', windowId: 1, index: 1, active: false },
-    { url: 'https://delta.example/', windowId: 1, index: 3, active: false }
+    { url: 'https://delta.example/', windowId: 1, index: 3, active: false },
   ])
   assert.equal(tabs.find((tab) => tab.url === 'https://bravo.example/')?.index, 1)
   assert.equal(tabs.find((tab) => tab.url === 'https://delta.example/')?.index, 3)
@@ -1483,7 +1483,7 @@ test('undoLastClose restores same-window tabs in their original tab-strip order'
 
 test('undoLastClose ignores a second request while the same closure is restoring', async () => {
   const { calls } = createChromeMock([
-    { id: 1, windowId: 1, url: 'https://current.example.test/', title: 'Current', active: true, pinned: false, groupId: -1, index: 0 }
+    { id: 1, windowId: 1, url: 'https://current.example.test/', title: 'Current', active: true, pinned: false, groupId: -1, index: 0 },
   ])
   const createTab = (globalThis as any).chrome.tabs.create.bind((globalThis as any).chrome.tabs)
   const { promise: restoreBlocked, resolve: releaseRestore } = Promise.withResolvers<void>()
@@ -1499,7 +1499,7 @@ test('undoLastClose ignores a second request while the same closure is restoring
     pinned: false,
     groupId: -1,
     windowId: 1,
-    index: 1
+    index: 1,
   }])
 
   const firstUndo = undoLastClose()
@@ -1513,7 +1513,7 @@ test('undoLastClose ignores a second request while the same closure is restoring
 
 test('undoLastClose retries without a stale window id when the original window is gone', async () => {
   const { calls, tabs } = createChromeMock([
-    { id: 1, windowId: 1, url: 'https://current.example.test/', title: 'Current', active: true, pinned: false, groupId: -1, index: 0 }
+    { id: 1, windowId: 1, url: 'https://current.example.test/', title: 'Current', active: true, pinned: false, groupId: -1, index: 0 },
   ])
   const createTab = (globalThis as any).chrome.tabs.create.bind((globalThis as any).chrome.tabs)
   ;(globalThis as any).chrome.tabs.create = async (createProperties: chrome.tabs.CreateProperties) => {
@@ -1529,21 +1529,21 @@ test('undoLastClose retries without a stale window id when the original window i
     pinned: false,
     groupId: -1,
     windowId: 99,
-    index: 0
+    index: 0,
   }])
 
   await undoLastClose()
 
   assert.deepEqual(calls.create, [
     { url: 'https://restored.example.test/', windowId: 99, index: 0, pinned: false, active: false },
-    { url: 'https://restored.example.test/', index: 0, pinned: false, active: false }
+    { url: 'https://restored.example.test/', index: 0, pinned: false, active: false },
   ])
   assert.equal(tabs.some((tab) => tab.url === 'https://restored.example.test/'), true)
 })
 
 test('undoLastClose retries only failed tabs after a partial restore', async () => {
   const { calls, tabs } = createChromeMock([
-    { id: 1, windowId: 1, url: 'https://current.example.test/', title: 'Current', active: true, pinned: false, groupId: -1, index: 0 }
+    { id: 1, windowId: 1, url: 'https://current.example.test/', title: 'Current', active: true, pinned: false, groupId: -1, index: 0 },
   ])
   const createTab = (globalThis as any).chrome.tabs.create.bind((globalThis as any).chrome.tabs)
   let rejectRetryTab = true
@@ -1561,7 +1561,7 @@ test('undoLastClose retries only failed tabs after a partial restore', async () 
       pinned: false,
       groupId: -1,
       windowId: 1,
-      index: 1
+      index: 1,
     },
     {
       url: 'https://retry.example.test/',
@@ -1569,8 +1569,8 @@ test('undoLastClose retries only failed tabs after a partial restore', async () 
       pinned: false,
       groupId: -1,
       windowId: 1,
-      index: 2
-    }
+      index: 2,
+    },
   ])
 
   await undoLastClose()
@@ -1587,7 +1587,7 @@ test('undoLastClose retries only failed tabs after a partial restore', async () 
 
 test('each closure Undo action restores the tabs represented by its own toast', async () => {
   const { tabs } = createChromeMock([
-    { id: 1, windowId: 1, url: 'https://current.example.test/', title: 'Current', active: true, pinned: false, groupId: -1, index: 0 }
+    { id: 1, windowId: 1, url: 'https://current.example.test/', title: 'Current', active: true, pinned: false, groupId: -1, index: 0 },
   ])
   const undoFirst = markClosure([{
     url: 'https://first.example.test/',
@@ -1595,7 +1595,7 @@ test('each closure Undo action restores the tabs represented by its own toast', 
     pinned: false,
     groupId: -1,
     windowId: 1,
-    index: 1
+    index: 1,
   }])
   const undoSecond = markClosure([{
     url: 'https://second.example.test/',
@@ -1603,7 +1603,7 @@ test('each closure Undo action restores the tabs represented by its own toast', 
     pinned: false,
     groupId: -1,
     windowId: 1,
-    index: 1
+    index: 1,
   }])
 
   await undoFirst?.()
@@ -1615,7 +1615,7 @@ test('each closure Undo action restores the tabs represented by its own toast', 
 
 test('openTabUrl opens an active (foreground) tab by default', async () => {
   const { calls } = createChromeMock([
-    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 }
+    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 },
   ])
 
   const opened = await openTabUrl('https://example.com/new')
@@ -1626,7 +1626,7 @@ test('openTabUrl opens an active (foreground) tab by default', async () => {
 
 test('openTabUrl opens a background tab when active is false', async () => {
   const { calls } = createChromeMock([
-    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 }
+    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 },
   ])
 
   const opened = await openTabUrl('https://example.com/new', { active: false })
@@ -1637,7 +1637,7 @@ test('openTabUrl opens a background tab when active is false', async () => {
 
 test('openTabUrl creates no tab for an empty URL', async () => {
   const { calls } = createChromeMock([
-    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 }
+    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 },
   ])
 
   const opened = await openTabUrl('')
@@ -1648,7 +1648,7 @@ test('openTabUrl creates no tab for an empty URL', async () => {
 
 test('openTabUrlInNewWindow opens a focused normal window', async () => {
   const { calls } = createChromeMock([
-    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 }
+    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 },
   ])
 
   const opened = await openTabUrlInNewWindow('https://example.com/new')
@@ -1660,7 +1660,7 @@ test('openTabUrlInNewWindow opens a focused normal window', async () => {
 
 test('openTabUrlInNewWindow creates no window for an empty URL', async () => {
   const { calls } = createChromeMock([
-    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 }
+    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 },
   ])
 
   const opened = await openTabUrlInNewWindow('')

@@ -54,7 +54,7 @@ export function PageChipContextMenu({
   const trigger = visualOpen
     ? cloneElement(children, {
         className: cn(children.props.className, 'page-chip-context-menu-open'),
-        'data-context-menu-open': ''
+        'data-context-menu-open': '',
       })
     : children
 

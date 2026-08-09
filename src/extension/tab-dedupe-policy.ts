@@ -36,14 +36,14 @@ function isCurrentTabOutPage(tab: DedupeTabCandidate, currentWindowId: number, i
 
 export function countClosableDuplicateExtras(
   tabs: readonly DedupeTabCandidate[],
-  { isTabOutGroup = false, currentWindowId = -1, isTabOutUrl = () => isTabOutGroup }: DuplicateCountOptions = {}
+  { isTabOutGroup = false, currentWindowId = -1, isTabOutUrl = () => isTabOutGroup }: DuplicateCountOptions = {},
 ): number {
   if (tabs.length < 2) return 0
 
   return pickDuplicateTabsToClose(tabs, {
     currentWindowId: typeof currentWindowId === 'number' ? currentWindowId : -1,
     preservePinnedTabOut: isTabOutGroup,
-    isTabOutUrl
+    isTabOutUrl,
   }).length
 }
 
@@ -54,8 +54,8 @@ export function pickDuplicateTabsToClose<Tab extends DedupeTabCandidate>(
     currentWindowId = -1,
     preservePinned = false,
     preservePinnedTabOut = false,
-    isTabOutUrl = () => false
-  }: DuplicateCloseOptions = {}
+    isTabOutUrl = () => false,
+  }: DuplicateCloseOptions = {},
 ): Tab[] {
   if (matching.length === 0) return []
   const protectedCurrentTabOutTabs = preservePinnedTabOut

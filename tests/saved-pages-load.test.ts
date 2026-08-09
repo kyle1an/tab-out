@@ -10,9 +10,9 @@ test('Saved Pages loading distinguishes a rejected read from a valid empty first
       local: {
         get: async () => {
           throw new Error('Storage unavailable')
-        }
-      }
-    }
+        },
+      },
+    },
   } as unknown as typeof globalThis.chrome
 
   const failed = await loadSavedPagesStoreResult()
@@ -22,9 +22,9 @@ test('Saved Pages loading distinguishes a rejected read from a valid empty first
   globalThis.chrome = {
     storage: {
       local: {
-        get: async () => ({ [SAVED_PAGES_STORAGE_KEY]: undefined })
-      }
-    }
+        get: async () => ({ [SAVED_PAGES_STORAGE_KEY]: undefined }),
+      },
+    },
   } as unknown as typeof globalThis.chrome
 
   const firstRun = await loadSavedPagesStoreResult()
@@ -36,9 +36,9 @@ test('Saved Pages loading rejects malformed stored state instead of treating it 
   globalThis.chrome = {
     storage: {
       local: {
-        get: async () => ({ [SAVED_PAGES_STORAGE_KEY]: { version: 1, pages: [] } })
-      }
-    }
+        get: async () => ({ [SAVED_PAGES_STORAGE_KEY]: { version: 1, pages: [] } }),
+      },
+    },
   } as unknown as typeof globalThis.chrome
 
   const result = await loadSavedPagesStoreResult()

@@ -19,7 +19,7 @@ function dashboardTab(id: number, url: string): DashboardTab {
     groupId: -1,
     isTabOut: false,
     isApp: false,
-    suspended: false
+    suspended: false,
   }
 }
 
@@ -49,7 +49,7 @@ test('domain grouping never merges unrelated sites under an unlisted multi-label
   const groups = buildDomainGroups([
     dashboardTab(1, 'https://docs.alpha.org.uk/report'),
     dashboardTab(2, 'https://app.beta.org.uk/settings'),
-    dashboardTab(3, 'https://shop.alpha.org.uk/cart')
+    dashboardTab(3, 'https://shop.alpha.org.uk/cart'),
   ])
 
   assert.deepEqual(groups.map((group) => group.domain).sort(), ['alpha.org.uk', 'beta.org.uk'])
@@ -59,7 +59,7 @@ test('domain grouping never merges unrelated sites under an unlisted multi-label
 test('domain grouping uses exact suffix data for every sibling host', () => {
   const groups = buildDomainGroups([
     dashboardTab(1, 'https://alpha.bxpkteb.test/report'),
-    dashboardTab(2, 'https://beta.bxpkteb.test/settings')
+    dashboardTab(2, 'https://beta.bxpkteb.test/settings'),
   ])
 
   assert.deepEqual(groups.map((group) => group.domain), ['bxpkteb.test'])
@@ -70,7 +70,7 @@ test('domain grouping preserves hostnames that match Object prototype properties
   const groups = buildDomainGroups([
     dashboardTab(1, 'http://constructor/report'),
     dashboardTab(2, 'http://__proto__/settings'),
-    dashboardTab(3, 'https://example.test/guide')
+    dashboardTab(3, 'https://example.test/guide'),
   ])
 
   assert.deepEqual(groups.map((group) => group.domain).sort(), ['__proto__', 'constructor', 'example.test'])
@@ -82,7 +82,7 @@ test('domain card ids preserve distinct domain identities', () => {
     'foo_bar.test',
     'foo.bar.test',
     'foo-bar-test',
-    '__tab-out__'
+    '__tab-out__',
   ]
 
   assert.equal(new Set(domains.map(domainCardId)).size, domains.length)

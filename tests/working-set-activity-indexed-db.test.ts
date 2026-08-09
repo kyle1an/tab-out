@@ -12,11 +12,11 @@ import {
   WORKING_SET_ACTIVITY_INDEXED_DB_VERSION,
   WORKING_SET_ACTIVITY_LAST_EVENT_INDEX,
   WORKING_SET_ACTIVITY_MANIFEST_STORE,
-  WORKING_SET_ACTIVITY_RECORDS_STORE
+  WORKING_SET_ACTIVITY_RECORDS_STORE,
 } from '../src/extension/background/working-set-activity-indexed-db.js'
 import type {
   WorkingSetActivityRecord,
-  WorkingSetActivityStore
+  WorkingSetActivityStore,
 } from '../src/extension/types'
 
 const NOW = Date.UTC(2026, 7, 9, 12)
@@ -27,7 +27,7 @@ test.beforeEach(() => {
 
 function record(
   key: string,
-  events: WorkingSetActivityRecord['events']
+  events: WorkingSetActivityRecord['events'],
 ): WorkingSetActivityRecord {
   const lastSeenAt = Math.max(...events.map((event) => event.at))
   const activations = events.filter((event) => event.kind === 'activation')
@@ -44,7 +44,7 @@ function record(
     ...(navigations.length === 0
       ? {}
       : { lastNavigatedAt: Math.max(...navigations.map((event) => event.at)) }),
-    events
+    events,
   }
 }
 
@@ -52,10 +52,10 @@ test('IndexedDB Working Set rows round-trip compact semantic records', () => {
   const expected: WorkingSetActivityRecord = {
     ...record('https://example.test/docs', [
       { kind: 'activation', at: NOW - 1_000 },
-      { kind: 'navigation', at: NOW }
+      { kind: 'navigation', at: NOW },
     ]),
     dismissedAt: NOW + 1_000,
-    dismissedUntil: NOW + 60_000
+    dismissedUntil: NOW + 60_000,
   }
 
   const [key, value] = encodeWorkingSetActivityIndexedDbEntry(expected)
@@ -66,32 +66,32 @@ test('IndexedDB Working Set rows round-trip compact semantic records', () => {
     dismissedAt: expected.dismissedAt,
     dismissedUntil: expected.dismissedUntil,
     events: [[0, NOW - 1_000], [1, NOW]],
-    lastEventAt: NOW
+    lastEventAt: NOW,
   })
   assert.deepEqual(
     decodeWorkingSetActivityIndexedDbEntry(key, value),
-    expected
+    expected,
   )
 })
 
 test('IndexedDB Working Set decoding isolates malformed events but rejects an inconsistent projection', () => {
   const expected = record('https://example.test/guide', [
     { kind: 'activation', at: NOW - 1_000 },
-    { kind: 'navigation', at: NOW }
+    { kind: 'navigation', at: NOW },
   ])
   const [key, value] = encodeWorkingSetActivityIndexedDbEntry(expected)
 
   assert.deepEqual(decodeWorkingSetActivityIndexedDbEntry(key, {
     ...value,
-    events: [value.events[0], ['malformed'], value.events[1]]
+    events: [value.events[0], ['malformed'], value.events[1]],
   }), expected)
   assert.throws(() => decodeWorkingSetActivityIndexedDbEntry(key, {
     ...value,
-    lastEventAt: NOW + 1
+    lastEventAt: NOW + 1,
   }))
   assert.throws(() => decodeWorkingSetActivityIndexedDbEntry(key, {
     ...value,
-    events: [['malformed']]
+    events: [['malformed']],
   }))
 })
 
@@ -101,7 +101,7 @@ test('Working Set generation database names are deterministic and reject malform
 
   assert.equal(
     databaseNameForGeneration(generation),
-    `tab-out:working-set-activity:${generation}`
+    `tab-out:working-set-activity:${generation}`,
   )
   assert.throws(() => databaseNameForGeneration('v1:not-a-digest'))
 })
@@ -112,14 +112,14 @@ test('IndexedDB Working Set codec rejects non-canonical keys and empty records',
     {
       title: 'Docs',
       events: [[0, NOW]],
-      lastEventAt: NOW
-    }
+      lastEventAt: NOW,
+    },
   ))
   assert.throws(() => encodeWorkingSetActivityIndexedDbEntry({
     ...record('https://example.test/docs', [
-      { kind: 'activation', at: NOW }
+      { kind: 'activation', at: NOW },
     ]),
-    key: 'https://example.test/docs#fragment'
+    key: 'https://example.test/docs#fragment',
   }))
   assert.throws(() => encodeWorkingSetActivityIndexedDbEntry({
     key: 'https://example.test/empty',
@@ -127,18 +127,18 @@ test('IndexedDB Working Set codec rejects non-canonical keys and empty records',
     title: 'Empty',
     domain: 'example.test',
     lastSeenAt: 0,
-    events: []
+    events: [],
   }))
 })
 
 test('a failed upsert cannot commit deletes from the same mutation', async () => {
   const at = Date.now()
   const original = record('https://example.test/original', [
-    { kind: 'activation', at }
+    { kind: 'activation', at },
   ])
   const activity: WorkingSetActivityStore = {
     version: 1,
-    records: { [original.key]: original }
+    records: { [original.key]: original },
   }
   const digest = 'b'.repeat(64)
   const manifest = {
@@ -147,7 +147,7 @@ test('a failed upsert cannot commit deletes from the same mutation', async () =>
     sourceDigest: digest,
     recordCount: 1,
     eventCount: 1,
-    retainedAfter: at - 30 * 24 * 60 * 60 * 1000
+    retainedAfter: at - 30 * 24 * 60 * 60 * 1000,
   }
   const indexedDb = makeWorkingSetActivityIndexedDb()
 
@@ -158,8 +158,8 @@ test('a failed upsert cannot commit deletes from the same mutation', async () =>
       deleteKeys: [original.key],
       upsert: {
         ...original,
-        key: `${original.key}#fragment`
-      }
+        key: `${original.key}#fragment`,
+      },
     })
   })
   assert.deepEqual(await indexedDb.read(manifest), activity)
@@ -174,11 +174,11 @@ test('staging repairs an unmarked same-version database with the wrong physical 
 
   const at = Date.now()
   const expected = record('https://example.test/repaired', [
-    { kind: 'navigation', at }
+    { kind: 'navigation', at },
   ])
   const activity: WorkingSetActivityStore = {
     version: 1,
-    records: { [expected.key]: expected }
+    records: { [expected.key]: expected },
   }
   const manifest = {
     schemaVersion: 1 as const,
@@ -186,7 +186,7 @@ test('staging repairs an unmarked same-version database with the wrong physical 
     sourceDigest: digest,
     recordCount: 1,
     eventCount: 1,
-    retainedAfter: at - 30 * 24 * 60 * 60 * 1000
+    retainedAfter: at - 30 * 24 * 60 * 60 * 1000,
   }
   const indexedDb = makeWorkingSetActivityIndexedDb()
 
@@ -209,7 +209,7 @@ test('an authoritative database with the wrong physical layout fails closed with
       sourceDigest: digest,
       recordCount: 1,
       eventCount: 1,
-      retainedAfter: Date.now() - 30 * 24 * 60 * 60 * 1000
+      retainedAfter: Date.now() - 30 * 24 * 60 * 60 * 1000,
     })
   }, /incompatible physical layout/)
   assert.equal(await readRecordsKeyPath(name), 'wrongKey')
@@ -219,11 +219,11 @@ test('an authoritative database with the wrong physical layout fails closed with
 test('staging removes stale v1 candidates but preserves unknown generations', async () => {
   const at = Date.now()
   const expected = record('https://example.test/orphan-cleanup', [
-    { kind: 'activation', at }
+    { kind: 'activation', at },
   ])
   const activity: WorkingSetActivityStore = {
     version: 1,
-    records: { [expected.key]: expected }
+    records: { [expected.key]: expected },
   }
   const firstDigest = 'e'.repeat(64)
   const secondDigest = 'f'.repeat(64)
@@ -234,7 +234,7 @@ test('staging removes stale v1 candidates but preserves unknown generations', as
   await createEmptyDatabase(unknownDatabase)
   await createEmptyDatabase(
     futureDatabase,
-    WORKING_SET_ACTIVITY_INDEXED_DB_VERSION + 1
+    WORKING_SET_ACTIVITY_INDEXED_DB_VERSION + 1,
   )
   const indexedDb = makeWorkingSetActivityIndexedDb()
 
@@ -244,7 +244,7 @@ test('staging removes stale v1 candidates but preserves unknown generations', as
     sourceDigest: firstDigest,
     recordCount: 1,
     eventCount: 1,
-    retainedAfter: at - 30 * 24 * 60 * 60 * 1000
+    retainedAfter: at - 30 * 24 * 60 * 60 * 1000,
   }, activity)
   await indexedDb.stage({
     schemaVersion: 1,
@@ -252,7 +252,7 @@ test('staging removes stale v1 candidates but preserves unknown generations', as
     sourceDigest: secondDigest,
     recordCount: 1,
     eventCount: 1,
-    retainedAfter: at - 30 * 24 * 60 * 60 * 1000
+    retainedAfter: at - 30 * 24 * 60 * 60 * 1000,
   }, activity)
 
   const names = (await indexedDB.databases()).map(({ name }) => name)
@@ -269,16 +269,16 @@ async function createMalformedDatabase(name: string): Promise<void> {
     request.onupgradeneeded = () => {
       const records = request.result.createObjectStore(
         WORKING_SET_ACTIVITY_RECORDS_STORE,
-        { keyPath: 'wrongKey', autoIncrement: true }
+        { keyPath: 'wrongKey', autoIncrement: true },
       )
       records.createIndex(
         WORKING_SET_ACTIVITY_LAST_EVENT_INDEX,
         'wrongLastEventAt',
-        { unique: true, multiEntry: true }
+        { unique: true, multiEntry: true },
       )
       request.result.createObjectStore(
         WORKING_SET_ACTIVITY_MANIFEST_STORE,
-        { keyPath: 'wrongManifestKey' }
+        { keyPath: 'wrongManifestKey' },
       )
     }
     request.onerror = () => reject(request.error)
@@ -308,10 +308,10 @@ async function readRecordsKeyPath(name: string): Promise<IDBObjectStore['keyPath
       const database = request.result
       const transaction = database.transaction(
         WORKING_SET_ACTIVITY_RECORDS_STORE,
-        'readonly'
+        'readonly',
       )
       const keyPath = transaction.objectStore(
-        WORKING_SET_ACTIVITY_RECORDS_STORE
+        WORKING_SET_ACTIVITY_RECORDS_STORE,
       ).keyPath
       transaction.oncomplete = () => {
         database.close()

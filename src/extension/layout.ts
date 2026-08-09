@@ -58,7 +58,7 @@ function masonryOptionsFor(container: HTMLElement): Required<MasonryOptions> {
   return {
     minColWidth: readCssPx(style, '--masonry-min-col-width', MIN_COL_WIDTH),
     idealColWidth: readCssPx(style, '--masonry-ideal-col-width', IDEAL_COL_WIDTH),
-    gap: readCssPx(style, '--masonry-gap', GAP)
+    gap: readCssPx(style, '--masonry-gap', GAP),
   }
 }
 
@@ -68,7 +68,7 @@ export function chooseMasonryLayout(containerWidth: number, { minColWidth = MIN_
   }
 
   const maxColCount = Math.max(1, Math.floor((containerWidth + gap) / (minColWidth + gap)))
-  let best: { colCount: number; colWidth: number; score: number } | null = null
+  let best: { colCount: number, colWidth: number, score: number } | null = null
 
   for (let colCount = 1; colCount <= maxColCount; colCount++) {
     const colWidth = (containerWidth - gap * (colCount - 1)) / colCount
@@ -102,7 +102,7 @@ function shouldAnimateAnyMasonryResize(containers: Array<HTMLElement | null>, la
 
 export function packMissionsMasonry(
   containers: HTMLElement | null | Array<HTMLElement | null>,
-  { unpin = false, lastColCounts = null }: { unpin?: boolean; lastColCounts?: WeakMap<HTMLElement, number> | null } = {}
+  { unpin = false, lastColCounts = null }: { unpin?: boolean, lastColCounts?: WeakMap<HTMLElement, number> | null } = {},
 ): void {
   const targets = Array.isArray(containers) ? containers : [containers]
   for (const container of targets) {
@@ -181,7 +181,7 @@ export function useMissionsMasonry(...args: unknown[]) {
   containerRefsRef.current = containerRefs
   optionsRef.current = { onAfterLayout, onBeforePack, onAfterPack }
 
-  const packMissionsMasonryNow = useCallback(function packMissionsMasonryNow({ unpin = false, animate = false }: { unpin?: boolean; animate?: boolean } = {}) {
+  const packMissionsMasonryNow = useCallback(function packMissionsMasonryNow({ unpin = false, animate = false }: { unpin?: boolean, animate?: boolean } = {}) {
     const containers = currentContainersFromRefs(containerRefsRef)
     const { onAfterLayout, onBeforePack, onAfterPack } = optionsRef.current
     const animationState = animate && onBeforePack ? onBeforePack(containers) : null
@@ -192,14 +192,14 @@ export function useMissionsMasonry(...args: unknown[]) {
       containers,
       {
         unpin,
-        lastColCounts: lastColCountsRef.current
-      }
+        lastColCounts: lastColCountsRef.current,
+      },
     )
     onAfterLayout?.(containers)
     if (animate && onAfterPack) onAfterPack(containers, animationState)
   }, [])
 
-  const scheduleMissionsMasonry = useCallback(function scheduleMissionsMasonry({ unpin = false, animate = true }: { unpin?: boolean; animate?: boolean } = {}) {
+  const scheduleMissionsMasonry = useCallback(function scheduleMissionsMasonry({ unpin = false, animate = true }: { unpin?: boolean, animate?: boolean } = {}) {
     cancelAnimationFrame(rafIdRef.current)
     rafIdRef.current = requestAnimationFrame(() => packMissionsMasonryNow({ unpin, animate }))
   }, [packMissionsMasonryNow])
@@ -262,7 +262,7 @@ export function useMissionsMasonry(...args: unknown[]) {
       mutationObserverRef.current?.disconnect()
       observedContainersRef.current.clear()
     },
-    []
+    [],
   )
 
   return { packMissionsMasonryNow, scheduleMissionsMasonry }

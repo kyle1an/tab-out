@@ -9,11 +9,11 @@ import {
   pageIdentityForWorkingSet,
   parseWorkingSetActivityStorageValue,
   recordWorkingSetActivityMutation,
-  recordWorkingSetActivity
+  recordWorkingSetActivity,
 } from '../src/extension/working-set.js'
 import type { DashboardTab, WorkingSetActivityStore, WorkingSetItem } from '../src/extension/types'
 
-function makeTab(overrides: Partial<DashboardTab> & { id: number; url: string; title: string }): DashboardTab {
+function makeTab(overrides: Partial<DashboardTab> & { id: number, url: string, title: string }): DashboardTab {
   return {
     rawUrl: overrides.rawUrl || overrides.url,
     suspended: false,
@@ -24,7 +24,7 @@ function makeTab(overrides: Partial<DashboardTab> & { id: number; url: string; t
     groupId: -1,
     isTabOut: false,
     isApp: false,
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -32,7 +32,7 @@ function record(store: WorkingSetActivityStore, tab: DashboardTab, kind: 'activa
   return recordWorkingSetActivity(store, {
     kind,
     at,
-    tab
+    tab,
   })
 }
 
@@ -51,7 +51,7 @@ function makeWorkingSetItem(index: number, overrides: Partial<WorkingSetItem> = 
     activeInOtherWindow: false,
     score: 100 - index,
     lastActivatedAt: 0,
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -64,11 +64,11 @@ function valueAt<T>(values: readonly T[], index: number): T {
 test('pageIdentityForWorkingSet distinguishes meaningful paths and ignores noisy fragments', () => {
   assert.equal(
     pageIdentityForWorkingSet('https://example.com/issues/123?utm_source=mail#comments'),
-    'https://example.com/issues/123'
+    'https://example.com/issues/123',
   )
   assert.equal(
     pageIdentityForWorkingSet('https://example.com/issues/456'),
-    'https://example.com/issues/456'
+    'https://example.com/issues/456',
   )
   assert.equal(pageIdentityForWorkingSet('chrome-extension://tab-out/index.html'), '')
   assert.equal(pageIdentityForWorkingSet('chrome-search://local-ntp/local-ntp.html'), '')
@@ -88,15 +88,15 @@ test('Working Set schema repairs valid records independently from malformed even
         events: [
           { kind: 'activation', at: now - 1000 },
           { kind: 'navigation', at: 'invalid' },
-          null
-        ]
+          null,
+        ],
       },
-      malformed: 'not-a-record'
-    }
+      malformed: 'not-a-record',
+    },
   }, now)
 
   assert.deepEqual(normalized.records[key]?.events, [
-    { kind: 'activation', at: now - 1000 }
+    { kind: 'activation', at: now - 1000 },
   ])
   assert.deepEqual(normalizeWorkingSetActivity({ version: 1, records: [] }, now), emptyWorkingSetActivity())
 })
@@ -105,11 +105,11 @@ test('Working Set storage parsing distinguishes missing, malformed, and unsuppor
   assert.equal(parseWorkingSetActivityStorageValue(undefined).status, 'missing')
   assert.equal(
     parseWorkingSetActivityStorageValue({ version: 1, records: [] }).status,
-    'malformed'
+    'malformed',
   )
   assert.deepEqual(
     parseWorkingSetActivityStorageValue({ version: 2, records: {} }),
-    { status: 'unsupported-version', version: 2 }
+    { status: 'unsupported-version', version: 2 },
   )
 })
 
@@ -130,7 +130,7 @@ test('Working Set activity mutations expose one upsert and independently pruned 
         domain: 'example.test',
         lastSeenAt: expiredAt,
         lastActivatedAt: expiredAt,
-        events: [{ kind: 'activation', at: expiredAt }]
+        events: [{ kind: 'activation', at: expiredAt }],
       },
       [currentKey]: {
         key: currentKey,
@@ -139,15 +139,15 @@ test('Working Set activity mutations expose one upsert and independently pruned 
         domain: 'example.test',
         lastSeenAt: currentAt,
         lastActivatedAt: currentAt,
-        events: [{ kind: 'activation', at: currentAt }]
-      }
-    }
+        events: [{ kind: 'activation', at: currentAt }],
+      },
+    },
   }
 
   const mutation = recordWorkingSetActivityMutation(store, {
     kind: 'navigation',
     at: now,
-    tab: { url: nextKey, rawUrl: nextKey, title: 'Next' }
+    tab: { url: nextKey, rawUrl: nextKey, title: 'Next' },
   })
 
   assert.equal(mutation.upsert?.key, nextKey)
@@ -155,7 +155,7 @@ test('Working Set activity mutations expose one upsert and independently pruned 
   assert.equal(mutation.activity.records[expiredKey], undefined)
   assert.ok(mutation.activity.records[currentKey])
   assert.deepEqual(mutation.activity.records[nextKey]?.events, [
-    { kind: 'navigation', at: now }
+    { kind: 'navigation', at: now },
   ])
 })
 
@@ -168,7 +168,7 @@ test('buildWorkingSetSnapshot ranks open tabs by recency-dominant activity and f
     makeTab({ id: 4, url: 'https://example.com/issues/bravo?utm_source=mail', title: 'Bravo duplicate' }),
     makeTab({ id: 5, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', isTabOut: true }),
     makeTab({ id: 6, url: 'https://mail.example.com/', title: 'Mail app', isApp: true }),
-    makeTab({ id: 7, url: 'chrome-search://local-ntp/local-ntp.html', title: 'Chrome New Tab Frame' })
+    makeTab({ id: 7, url: 'chrome-search://local-ntp/local-ntp.html', title: 'Chrome New Tab Frame' }),
   ]
 
   let store = emptyWorkingSetActivity()
@@ -185,12 +185,12 @@ test('buildWorkingSetSnapshot ranks open tabs by recency-dominant activity and f
     now,
     defaultLimit: 8,
     expandedLimit: 16,
-    minItems: 1
+    minItems: 1,
   })
 
   assert.deepEqual(
     snapshot.items.map((item) => item.tabId),
-    [1, 2, 3]
+    [1, 2, 3],
   )
   assert.equal(valueAt(snapshot.items, 1).dupeCount, 2)
   assert.equal(snapshot.items.some((item) => item.title === 'Tab Out'), false)
@@ -202,7 +202,7 @@ test('buildWorkingSetSnapshot keeps numeric URL ordering when scores tie', () =>
   const now = Date.UTC(2026, 4, 17, 12)
   const tabs = [
     makeTab({ id: 10, url: 'https://example.test/item-10', title: 'Item 10' }),
-    makeTab({ id: 2, url: 'https://example.test/item-2', title: 'Item 2' })
+    makeTab({ id: 2, url: 'https://example.test/item-2', title: 'Item 2' }),
   ]
   let store = emptyWorkingSetActivity()
   for (const tab of tabs) store = record(store, tab, 'activation', now - 60_000)
@@ -217,7 +217,7 @@ test('buildWorkingSetSnapshot carries each tab audible and muted state independe
   const tabs = [
     makeTab({ id: 1, url: 'https://example.com/playing', title: 'Playing', audible: true }),
     makeTab({ id: 2, url: 'https://example.com/muted', title: 'Muted', muted: true }),
-    makeTab({ id: 3, url: 'https://example.com/silent', title: 'Silent' })
+    makeTab({ id: 3, url: 'https://example.com/silent', title: 'Silent' }),
   ]
 
   let store = emptyWorkingSetActivity()
@@ -244,7 +244,7 @@ test('buildWorkingSetSnapshot keeps tab favicons aligned with Chrome tab state',
       id: 2,
       url: 'https://example.com/issues/bravo',
       title: 'Bravo issue',
-      favIconUrl: 'data:image/png;base64,abc'
+      favIconUrl: 'data:image/png;base64,abc',
     }),
     makeTab({
       id: 3,
@@ -252,8 +252,8 @@ test('buildWorkingSetSnapshot keeps tab favicons aligned with Chrome tab state',
       rawUrl: 'chrome-extension://suspender/suspended.html#ttl=Charlie&uri=https%3A%2F%2Fexample.com%2Fissues%2Fcharlie',
       suspended: true,
       title: 'Charlie issue',
-      favIconUrl: 'data:image/png;base64,suspended'
-    })
+      favIconUrl: 'data:image/png;base64,suspended',
+    }),
   ]
 
   let store = emptyWorkingSetActivity()
@@ -265,7 +265,7 @@ test('buildWorkingSetSnapshot keeps tab favicons aligned with Chrome tab state',
     tabs,
     activity: store,
     now,
-    minItems: 1
+    minItems: 1,
   })
   const byTabId = new Map(snapshot.items.map((item) => [item.tabId, item]))
 
@@ -285,8 +285,8 @@ test('buildWorkingSetSnapshot marks a grouped item loading when any awake duplic
       rawUrl: 'chrome-extension://suspender/suspended.html#ttl=Suspended&uri=https%3A%2F%2Fexample.test%2Fsuspended',
       suspended: true,
       title: 'Suspended',
-      status: 'loading'
-    })
+      status: 'loading',
+    }),
   ]
 
   let store = emptyWorkingSetActivity()
@@ -303,7 +303,7 @@ test('buildWorkingSetSnapshot clears grouped loading after every awake duplicate
   const now = Date.UTC(2026, 4, 17, 12)
   const loadingTabs = [
     makeTab({ id: 1, url: 'https://example.test/docs', title: 'Example Docs', status: 'complete' }),
-    makeTab({ id: 2, url: 'https://example.test/docs?utm_source=mail', title: 'Example Docs', status: 'loading' })
+    makeTab({ id: 2, url: 'https://example.test/docs?utm_source=mail', title: 'Example Docs', status: 'loading' }),
   ]
   let store = emptyWorkingSetActivity()
   for (const tab of loadingTabs) store = record(store, tab, 'activation', now - 60_000)
@@ -313,7 +313,7 @@ test('buildWorkingSetSnapshot clears grouped loading after every awake duplicate
     tabs: loadingTabs.map((tab) => ({ ...tab, status: 'complete' })),
     activity: store,
     now,
-    minItems: 1
+    minItems: 1,
   })
 
   assert.equal(loading.items[0]?.loading, true)
@@ -325,7 +325,7 @@ test('normalizeWorkingSetSnapshot preserves loading state from the background sn
   const snapshot = normalizeWorkingSetSnapshot({
     defaultLimit: 8,
     expandedLimit: 16,
-    items: [item]
+    items: [item],
   })
 
   assert.equal(snapshot.items[0]?.loading, true)
@@ -336,7 +336,7 @@ test('normalizeWorkingSetSnapshot rejects malformed containers and drops invalid
 
   const validItem = makeWorkingSetItem(1)
   const snapshot = normalizeWorkingSetSnapshot({
-    items: [validItem, null, { ...validItem, tabId: 1.5 }, { ...validItem, windowId: '1' }]
+    items: [validItem, null, { ...validItem, tabId: 1.5 }, { ...validItem, windowId: '1' }],
   })
   assert.deepEqual(snapshot.items.map((item) => item.tabId), [1])
 })
@@ -345,7 +345,7 @@ test('buildWorkingSetSnapshot excludes Google Search result pages from working s
   const now = Date.UTC(2026, 4, 17, 12)
   const tabs = [
     makeTab({ id: 1, url: 'https://www.google.com/search?q=example', title: 'example - Google Search' }),
-    makeTab({ id: 2, url: 'https://example.com/issues/alpha', title: 'Alpha issue' })
+    makeTab({ id: 2, url: 'https://example.com/issues/alpha', title: 'Alpha issue' }),
   ]
 
   let store = emptyWorkingSetActivity()
@@ -356,12 +356,12 @@ test('buildWorkingSetSnapshot excludes Google Search result pages from working s
     tabs,
     activity: store,
     now,
-    minItems: 1
+    minItems: 1,
   })
 
   assert.deepEqual(
     snapshot.items.map((item) => item.tabId),
-    [2]
+    [2],
   )
 })
 
@@ -369,7 +369,7 @@ test('buildWorkingSetSnapshot hides below the minimum meaningful candidate count
   const now = Date.UTC(2026, 4, 17, 12)
   const tabs = [
     makeTab({ id: 1, url: 'https://example.com/issues/alpha', title: 'Alpha issue' }),
-    makeTab({ id: 2, url: 'https://example.com/issues/bravo', title: 'Bravo issue' })
+    makeTab({ id: 2, url: 'https://example.com/issues/bravo', title: 'Bravo issue' }),
   ]
   let store = emptyWorkingSetActivity()
   store = record(store, valueAt(tabs, 0), 'activation', now - 60_000)
@@ -379,7 +379,7 @@ test('buildWorkingSetSnapshot hides below the minimum meaningful candidate count
     tabs,
     activity: store,
     now,
-    minItems: 3
+    minItems: 3,
   })
 
   assert.deepEqual(snapshot.items, [])

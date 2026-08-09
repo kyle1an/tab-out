@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import {
   createAdjacentOpenSurfaceBatcher,
-  type GuardedOpenSurfaceCapture
+  type GuardedOpenSurfaceCapture,
 } from '../src/extension/background/adjacent-open-surface-batcher.js'
 
 test('adjacent observation batching keeps the newest checkpoint per tab', async () => {
@@ -11,7 +11,7 @@ test('adjacent observation batching keeps the newest checkpoint per tab', async 
   const batches: Array<PromiseLike<readonly GuardedOpenSurfaceCapture[]>> = []
   const batcher = createAdjacentOpenSurfaceBatcher(
     (observations) => { batches.push(observations) },
-    { schedule: (drain) => scheduled.push(drain) }
+    { schedule: (drain) => scheduled.push(drain) },
   )
 
   batcher.enqueue(1, Promise.resolve({
@@ -20,8 +20,8 @@ test('adjacent observation batching keeps the newest checkpoint per tab', async 
       tabId: 1,
       surfaceKind: 'normal-tab',
       url: 'https://one.example.test/',
-      title: 'Old title'
-    }
+      title: 'Old title',
+    },
   }))
   batcher.enqueue(2, Promise.resolve({
     status: 'captured',
@@ -29,8 +29,8 @@ test('adjacent observation batching keeps the newest checkpoint per tab', async 
       tabId: 2,
       surfaceKind: 'normal-tab',
       url: 'https://two.example.test/',
-      title: 'Two'
-    }
+      title: 'Two',
+    },
   }))
   batcher.enqueue(1, Promise.resolve({
     status: 'captured',
@@ -38,8 +38,8 @@ test('adjacent observation batching keeps the newest checkpoint per tab', async 
       tabId: 1,
       surfaceKind: 'normal-tab',
       url: 'https://one.example.test/',
-      title: 'Newest title'
-    }
+      title: 'Newest title',
+    },
   }))
 
   assert.equal(scheduled.length, 1)
@@ -54,8 +54,8 @@ test('adjacent observation batching keeps the newest checkpoint per tab', async 
         tabId: 1,
         surfaceKind: 'normal-tab',
         url: 'https://one.example.test/',
-        title: 'Newest title'
-      }
+        title: 'Newest title',
+      },
     },
     {
       status: 'captured',
@@ -63,9 +63,9 @@ test('adjacent observation batching keeps the newest checkpoint per tab', async 
         tabId: 2,
         surfaceKind: 'normal-tab',
         url: 'https://two.example.test/',
-        title: 'Two'
-      }
-    }
+        title: 'Two',
+      },
+    },
   ])
   assert.deepEqual(captured.map(({ isCurrent }) => isCurrent()), [true, true])
 })
@@ -77,7 +77,7 @@ test('ineligible captures are retained so stale inventory can be invalidated', a
     (observations) => {
       batch = observations
     },
-    { schedule: (drain) => scheduled.push(drain) }
+    { schedule: (drain) => scheduled.push(drain) },
   )
 
   batcher.enqueue(1, Promise.resolve({ status: 'ineligible' }))
@@ -110,7 +110,7 @@ test('invalidating a tab cancels an observation that is already draining', async
   let batch: PromiseLike<readonly GuardedOpenSurfaceCapture[]> | undefined
   const batcher = createAdjacentOpenSurfaceBatcher(
     (captures) => { batch = captures },
-    { schedule: (drain) => scheduled.push(drain) }
+    { schedule: (drain) => scheduled.push(drain) },
   )
 
   batcher.enqueue(9, observation)
@@ -121,8 +121,8 @@ test('invalidating a tab cancels an observation that is already draining', async
     observation: {
       tabId: 9,
       surfaceKind: 'normal-tab',
-      url: 'https://example.test/late'
-    }
+      url: 'https://example.test/late',
+    },
   })
 
   const captured = await batch
@@ -137,7 +137,7 @@ test('settlement waits for the current checkpoint drain', async () => {
       await captures
       await new Promise<void>((resolve) => { releaseDrain = resolve })
     },
-    { schedule: (drain) => scheduled.push(drain) }
+    { schedule: (drain) => scheduled.push(drain) },
   )
 
   batcher.enqueue(10, Promise.resolve({
@@ -145,8 +145,8 @@ test('settlement waits for the current checkpoint drain', async () => {
     observation: {
       tabId: 10,
       surfaceKind: 'normal-tab',
-      url: 'https://example.test/newest'
-    }
+      url: 'https://example.test/newest',
+    },
   }))
   const settlement = batcher.whenSettled(10)
   let settled = false

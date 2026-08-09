@@ -7,7 +7,7 @@ import { AppErrorBoundary, DashboardErrorFallback } from '../src/components/AppE
 
 test('AppErrorBoundary renders its children when nothing throws', () => {
   const html = renderToStaticMarkup(
-    React.createElement(AppErrorBoundary, null, React.createElement('main', null, 'dashboard'))
+    React.createElement(AppErrorBoundary, null, React.createElement('main', null, 'dashboard')),
   )
 
   assert.ok(html.includes('<main>dashboard</main>'))
@@ -18,8 +18,8 @@ test('DashboardErrorFallback shows the failure, the message, and a reload action
   const html = renderToStaticMarkup(
     React.createElement(DashboardErrorFallback, {
       error: new Error('suppressedTitleToneIndexByText.get is not a function'),
-      resetErrorBoundary: () => {}
-    })
+      resetErrorBoundary: () => {},
+    }),
   )
 
   assert.ok(html.includes('Tab Out hit an error'))
@@ -31,8 +31,8 @@ test('DashboardErrorFallback renders non-Error throwables without crashing itsel
   const html = renderToStaticMarkup(
     React.createElement(DashboardErrorFallback, {
       error: 'plain string throw',
-      resetErrorBoundary: () => {}
-    })
+      resetErrorBoundary: () => {},
+    }),
   )
 
   assert.ok(html.includes('plain string throw'))

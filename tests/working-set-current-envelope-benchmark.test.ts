@@ -6,16 +6,16 @@ import { Effect, ManagedRuntime, Result } from 'effect'
 import type { ChromeApi } from '../src/extension/background/chrome-api.js'
 import {
   WORKING_SET_ACTIVITY_KEY,
-  WorkingSetActivityStorage
+  WorkingSetActivityStorage,
 } from '../src/extension/background/working-set-activity-storage.js'
 import {
   emptyWorkingSetActivity,
-  recordWorkingSetActivityMutation
+  recordWorkingSetActivityMutation,
 } from '../src/extension/working-set.js'
 import { createFakeChromeApi } from './helpers/fake-chrome.mjs'
 import {
   benchmarkBackend,
-  makeWorkingSetActivityStorageLayer
+  makeWorkingSetActivityStorageLayer,
 } from './extension/working-set-backends/current-envelope-layer.js'
 import { jsonUtf8ByteLength } from './extension/working-set-backends/benchmark-backend.js'
 
@@ -25,7 +25,7 @@ test('current benchmark adapter preserves whole-envelope writes and reports diag
   assert.equal(benchmarkBackend.variant, 'current')
   await benchmarkBackend.reset(chromeApi)
   const runtime = ManagedRuntime.make(
-    makeWorkingSetActivityStorageLayer(chromeApi)
+    makeWorkingSetActivityStorageLayer(chromeApi),
   )
   runtime.runSync(Effect.void)
   t.after(async () => {
@@ -39,31 +39,31 @@ test('current benchmark adapter preserves whole-envelope writes and reports diag
     tab: {
       url: 'https://example.test/docs',
       rawUrl: 'https://example.test/docs',
-      title: 'Example Docs'
-    }
+      title: 'Example Docs',
+    },
   })
 
   await runtime.runPromise(storage.write(change))
 
   assert.deepEqual(
     await fakeChromeApi.storage.local.get(WORKING_SET_ACTIVITY_KEY),
-    { [WORKING_SET_ACTIVITY_KEY]: change.activity }
+    { [WORKING_SET_ACTIVITY_KEY]: change.activity },
   )
   assert.equal(benchmarkBackend.writeInvocationCount(), 1)
   assert.equal(
     benchmarkBackend.lastMutationLogicalBytes(),
-    jsonUtf8ByteLength(change.activity)
+    jsonUtf8ByteLength(change.activity),
   )
   assert.deepEqual(
     benchmarkBackend.lastMutationPhysicalWrites(),
-    [WORKING_SET_ACTIVITY_KEY]
+    [WORKING_SET_ACTIVITY_KEY],
   )
 
   await runtime.runPromise(storage.replace(emptyWorkingSetActivity()))
   assert.equal(
     benchmarkBackend.writeInvocationCount(),
     1,
-    'benchmark seeding must not count as a domain mutation'
+    'benchmark seeding must not count as a domain mutation',
   )
 
   const retryChange = recordWorkingSetActivityMutation(change.activity, {
@@ -72,27 +72,27 @@ test('current benchmark adapter preserves whole-envelope writes and reports diag
     tab: {
       url: 'https://example.test/docs',
       rawUrl: 'https://example.test/docs',
-      title: 'Example Docs'
-    }
+      title: 'Example Docs',
+    },
   })
   await runtime.runPromise(storage.replace(change.activity))
   benchmarkBackend.failNextMutation()
   await runtime.runPromise(storage.replace(change.activity))
   const syntheticFailure = await runtime.runPromise(Effect.result(
-    storage.write(retryChange)
+    storage.write(retryChange),
   ))
   assert.ok(Result.isFailure(syntheticFailure))
   assert.equal(syntheticFailure.failure.reason, 'backend')
   assert.deepEqual(
     await fakeChromeApi.storage.local.get(WORKING_SET_ACTIVITY_KEY),
     { [WORKING_SET_ACTIVITY_KEY]: change.activity },
-    'synthetic failure must happen before persistence'
+    'synthetic failure must happen before persistence',
   )
   await runtime.runPromise(storage.write(retryChange))
   assert.deepEqual(
     await fakeChromeApi.storage.local.get(WORKING_SET_ACTIVITY_KEY),
     { [WORKING_SET_ACTIVITY_KEY]: retryChange.activity },
-    'the one-shot failure must not affect the following write'
+    'the one-shot failure must not affect the following write',
   )
 
   await benchmarkBackend.corrupt('row', chromeApi)
@@ -100,13 +100,13 @@ test('current benchmark adapter preserves whole-envelope writes and reports diag
   assert.deepEqual(
     Object.keys(repaired.records),
     ['https://example.test/benchmark-valid'],
-    'invalid rows are isolated while a valid row survives'
+    'invalid rows are isolated while a valid row survives',
   )
   await benchmarkBackend.corrupt('missing-required-store', chromeApi)
   assert.deepEqual(
     await runtime.runPromise(storage.read()),
     emptyWorkingSetActivity(),
-    'removing the envelope is the known-empty equivalent for key storage'
+    'removing the envelope is the known-empty equivalent for key storage',
   )
   await benchmarkBackend.corrupt('outer-version', chromeApi)
   const unsupported = await runtime.runPromise(Effect.result(storage.read()))
@@ -116,7 +116,7 @@ test('current benchmark adapter preserves whole-envelope writes and reports diag
   await benchmarkBackend.reset(chromeApi)
   assert.deepEqual(
     await fakeChromeApi.storage.local.get(WORKING_SET_ACTIVITY_KEY),
-    {}
+    {},
   )
   assert.equal(benchmarkBackend.writeInvocationCount(), 0)
   assert.equal(benchmarkBackend.lastMutationLogicalBytes(), 0)

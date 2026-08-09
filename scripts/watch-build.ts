@@ -18,7 +18,7 @@ const WATCH_TARGETS: WatchTarget[] = [
   { path: 'src', recursive: true },
   { path: '.', filenames: new Set(['chrome-support.json', 'package.json', 'vite.config.ts']) },
   { path: 'extension', filenames: new Set(['base.css']) },
-  { path: 'scripts', filenames: new Set(['build-extension.ts']) }
+  { path: 'scripts', filenames: new Set(['build-extension.ts']) },
 ]
 const DEBOUNCE_MS = 120
 
@@ -26,17 +26,17 @@ class WatchRegistrationError extends Schema.TaggedErrorClass<WatchRegistrationEr
   'WatchRegistrationError',
   {
     path: Schema.String,
-    cause: Schema.Defect()
-  }
+    cause: Schema.Defect(),
+  },
 ) {}
 
 class BuildProcessError extends Schema.TaggedErrorClass<BuildProcessError>()(
   'BuildProcessError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
-const subscribeToChanges = Effect.fn('watchBuild.subscribe')(function*(
-  onChange: (reason: string) => void
+const subscribeToChanges = Effect.fn('watchBuild.subscribe')(function* (
+  onChange: (reason: string) => void,
 ) {
   yield* Effect.forEach(
     WATCH_TARGETS,
@@ -47,11 +47,11 @@ const subscribeToChanges = Effect.fn('watchBuild.subscribe')(function*(
           if (filenames && (!changedPath || !filenames.has(changedPath))) return
           onChange(changedPath ? `${path}/${changedPath}` : path)
         }),
-        catch: (cause) => WatchRegistrationError.make({ path, cause })
+        catch: (cause) => WatchRegistrationError.make({ path, cause }),
       }),
-      (watcher) => Effect.sync(() => watcher.close())
+      (watcher) => Effect.sync(() => watcher.close()),
     ),
-    { discard: true }
+    { discard: true },
   )
 })
 
@@ -60,19 +60,19 @@ function errorMessage(error: unknown): string {
 }
 
 function watchBuildProgram(): Effect.Effect<number> {
-  return Effect.gen(function*() {
+  return Effect.gen(function* () {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-    const runBuildProcess = Effect.fn('watchBuild.runBuildProcess')(function*() {
+    const runBuildProcess = Effect.fn('watchBuild.runBuildProcess')(function* () {
       const handle = yield* spawner.spawn(ChildProcess.make('pnpm', ['build'], {
         stdin: 'inherit',
         stdout: 'inherit',
         stderr: 'inherit',
-        env: process.env
+        env: process.env,
       })).pipe(
-        Effect.mapError((cause) => BuildProcessError.make({ cause }))
+        Effect.mapError((cause) => BuildProcessError.make({ cause })),
       )
       const code = yield* handle.exitCode.pipe(
-        Effect.mapError((cause) => BuildProcessError.make({ cause }))
+        Effect.mapError((cause) => BuildProcessError.make({ cause })),
       )
       return code
     })
@@ -94,7 +94,7 @@ function watchBuildProgram(): Effect.Effect<number> {
       },
       onBuildFailure: (error) => {
         console.error(`[watch] build process failed: ${errorMessage(error.cause)}`)
-      }
+      },
     })
   }).pipe(
     Effect.as(0),
@@ -102,7 +102,7 @@ function watchBuildProgram(): Effect.Effect<number> {
       console.error(`[watch] failed to watch ${error.path}: ${errorMessage(error.cause)}`)
       return 1
     })),
-    Effect.provide(NodeServices.layer)
+    Effect.provide(NodeServices.layer),
   )
 }
 
@@ -111,6 +111,6 @@ if (import.meta.main) {
     Effect.tap((exitCode) => Effect.sync(() => {
       process.exitCode = exitCode
     })),
-    NodeRuntime.runMain
+    NodeRuntime.runMain,
   )
 }

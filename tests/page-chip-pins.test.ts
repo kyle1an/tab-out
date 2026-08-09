@@ -9,7 +9,7 @@ import {
   pageChipPinKeyForFoldUrls,
   pageChipPinKeyForUrl,
   pageChipPinScopeId,
-  pinnedPageChipOrder
+  pinnedPageChipOrder,
 } from '../src/extension/page-chip-pins.js'
 
 test('pageChipPinId produces a source-scoped encoded page chip identity', () => {
@@ -18,7 +18,7 @@ test('pageChipPinId produces a source-scoped encoded page chip identity', () => 
 
   assert.equal(
     pageChipPinId('tabs', scopeId, chipKey),
-    'page-chip|tabs|scope%7Cexample.com%7Cdocs%7C%2Fguide%7Calpha%2Frepo|url%3Ahttps%3A%2F%2Fdocs.example.com%2Fguide%2Fa%3Fx%3D1%7C2'
+    'page-chip|tabs|scope%7Cexample.com%7Cdocs%7C%2Fguide%7Calpha%2Frepo|url%3Ahttps%3A%2F%2Fdocs.example.com%2Fguide%2Fa%3Fx%3D1%7C2',
   )
 })
 
@@ -29,21 +29,21 @@ test('folded page chip keys use one deterministic representative URL', () => {
 
   assert.equal(
     pageChipPinKeyForFoldUrls([charlie, alpha, bravo]),
-    `fold:${alpha}`
+    `fold:${alpha}`,
   )
   assert.equal(
     pageChipPinKeyForFoldUrls([bravo, charlie, alpha]),
-    `fold:${alpha}`
+    `fold:${alpha}`,
   )
   assert.equal(
     pageChipPinKeyForFoldUrls([alpha, charlie]),
     `fold:${alpha}`,
-    'non-representative membership changes keep the fold identity stable'
+    'non-representative membership changes keep the fold identity stable',
   )
   assert.equal(
     pageChipPinKeyForFoldUrls([charlie, bravo]),
     `fold:${bravo}`,
-    'removing the representative advances the fold identity'
+    'removing the representative advances the fold identity',
   )
 })
 
@@ -54,7 +54,7 @@ test('normalizePinnedPageChips preserves valid ids in pin order and dedupes by i
 
   assert.deepEqual(
     normalizePinnedPageChips([first, 'bogus', first, '', null, second]),
-    [first, second]
+    [first, second],
   )
 })
 
@@ -70,7 +70,7 @@ test('normalizePinnedPageChips compacts legacy folded ids and preserves first pi
 
   assert.deepEqual(
     normalizePinnedPageChips([legacyAlpha, compactAlpha, legacyCharlie]),
-    [compactAlpha, compactCharlie]
+    [compactAlpha, compactCharlie],
   )
 })
 
@@ -92,15 +92,15 @@ test('applyPinnedPageChipMutation unpins a compact folded id stored in legacy fo
 
   assert.deepEqual(
     applyPinnedPageChipMutation([legacy], { type: 'set-pinned', id: compact, pinned: false }),
-    []
+    [],
   )
   assert.deepEqual(
     applyPinnedPageChipMutation([compact], { type: 'set-pinned', id: legacy, pinned: false }),
-    []
+    [],
   )
   assert.deepEqual(
     applyPinnedPageChipMutation([compact], { type: 'set-pinned', id: legacy, pinned: true }),
-    [compact]
+    [compact],
   )
 })
 

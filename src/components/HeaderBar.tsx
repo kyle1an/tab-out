@@ -14,7 +14,7 @@ import {
   selectHorizontalFilterResult,
   type FilterResultCandidate,
   type FilterResultMoveDirection,
-  type FilterResultSelection
+  type FilterResultSelection,
 } from '../extension/filter-result-navigation.js'
 import { cn } from '@/lib/utils'
 import type { DashboardSource, DashboardStats } from './types'
@@ -26,7 +26,7 @@ interface SourceSwitchProps {
 
 const SOURCE_SWITCH_OPTIONS = [
   { value: 'tabs', label: 'Tabs' },
-  { value: 'bookmarks', label: 'Bookmarks' }
+  { value: 'bookmarks', label: 'Bookmarks' },
 ] as const
 
 function isSourceSwitchValue(value: unknown): value is DashboardSource {
@@ -52,26 +52,26 @@ const EMPTY_FILTER_RESULT_CANDIDATES: readonly FilterResultCandidate[] = []
 
 type PendingFilterResultAction =
   | {
-      kind: 'move'
-      direction: FilterResultMoveDirection
-      query: string
-      source: DashboardSource
-    }
+    kind: 'move'
+    direction: FilterResultMoveDirection
+    query: string
+    source: DashboardSource
+  }
   | {
-      kind: 'activate'
-      modifiers: {
-        altKey: boolean
-        ctrlKey: boolean
-        metaKey: boolean
-        shiftKey: boolean
-      }
-      query: string
-      source: DashboardSource
+    kind: 'activate'
+    modifiers: {
+      altKey: boolean
+      ctrlKey: boolean
+      metaKey: boolean
+      shiftKey: boolean
     }
+    query: string
+    source: DashboardSource
+  }
 
 function filterResultCandidateForSelection(
   selection: FilterResultSelection,
-  candidates: readonly FilterResultCandidate[]
+  candidates: readonly FilterResultCandidate[],
 ) {
   return candidates.find((candidate) => candidate.key === selection.candidateKey)
 }
@@ -90,7 +90,7 @@ function applyFilterResultSelection(
   candidates: readonly FilterResultCandidate[],
   input: HTMLInputElement | null,
   previousElement: HTMLElement | null,
-  scroll: boolean
+  scroll: boolean,
 ): HTMLElement | null {
   const candidate = filterResultCandidateForSelection(selection, candidates)
   const nextElement = candidate ? document.getElementById(candidate.domId) : null
@@ -110,7 +110,7 @@ function applyFilterResultSelection(
 
 function dispatchFilterResultActivation(
   candidate: FilterResultCandidate,
-  modifiers: Extract<PendingFilterResultAction, { kind: 'activate' }>['modifiers']
+  modifiers: Extract<PendingFilterResultAction, { kind: 'activate' }>['modifiers'],
 ) {
   const target = document.getElementById(candidate.domId)
   if (!(target instanceof HTMLElement)) return
@@ -120,7 +120,7 @@ function dispatchFilterResultActivation(
     button: 0,
     detail: 1,
     view: window,
-    ...modifiers
+    ...modifiers,
   }))
 }
 
@@ -128,7 +128,7 @@ function moveFilterResultSelection(
   current: FilterResultSelection,
   query: string,
   candidates: readonly FilterResultCandidate[],
-  direction: FilterResultMoveDirection
+  direction: FilterResultMoveDirection,
 ) {
   if (direction === 'next' || direction === 'previous') {
     return selectAdjacentFilterResult(current, query, candidates, direction)
@@ -146,8 +146,8 @@ function moveFilterResultSelection(
         left: rect.left,
         right: rect.right,
         top: rect.top,
-        bottom: rect.bottom
-      }
+        bottom: rect.bottom,
+      },
     }]
   })
 
@@ -202,7 +202,7 @@ export function HeaderBar({
   source = 'tabs',
   sourceSelection = source,
   ready = true,
-  stats
+  stats,
 }: HeaderBarProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const pendingFilterResultActionRef = useRef<PendingFilterResultAction | null>(null)
@@ -234,7 +234,7 @@ export function HeaderBar({
       EMPTY_FILTER_RESULT_CANDIDATES,
       inputRef.current,
       selectedFilterResultElementRef.current,
-      false
+      false,
     )
   }, [source, sourceSelection])
 
@@ -252,7 +252,7 @@ export function HeaderBar({
       nextSelection = reconcileFilterResultSelection(
         filterResultSelectionRef.current,
         filter,
-        mountedCandidates
+        mountedCandidates,
       )
       nextCandidate = filterResultCandidateForSelection(nextSelection, mountedCandidates)
     } else {
@@ -260,7 +260,7 @@ export function HeaderBar({
         filterResultSelectionRef.current,
         filter,
         availableCandidates,
-        isMountedFilterResultCandidate
+        isMountedFilterResultCandidate,
       )
       nextSelection = reconciledResult.selection
       nextCandidate = reconciledResult.candidate
@@ -286,11 +286,11 @@ export function HeaderBar({
           nextSelection,
           filter,
           mountedCandidates ?? EMPTY_FILTER_RESULT_CANDIDATES,
-          pendingAction.direction
+          pendingAction.direction,
         )
         nextCandidate = filterResultCandidateForSelection(
           nextSelection,
-          mountedCandidates ?? EMPTY_FILTER_RESULT_CANDIDATES
+          mountedCandidates ?? EMPTY_FILTER_RESULT_CANDIDATES,
         )
         scrollSelection = true
       } else {
@@ -303,7 +303,7 @@ export function HeaderBar({
       mountedCandidates ?? availableCandidates,
       inputRef.current,
       selectedFilterResultElementRef.current,
-      scrollSelection
+      scrollSelection,
     )
     filterResultSelectionRef.current = nextSelection
 
@@ -339,7 +339,7 @@ export function HeaderBar({
       ctrlKey: e.ctrlKey,
       isComposing: e.nativeEvent.isComposing,
       metaKey: e.metaKey,
-      shiftKey: e.shiftKey
+      shiftKey: e.shiftKey,
     })
     if (!intent || !filter.trim()) return
     if (!filterResultNavigationEnabled) return
@@ -356,23 +356,23 @@ export function HeaderBar({
             altKey: e.altKey,
             ctrlKey: e.ctrlKey,
             metaKey: e.metaKey,
-            shiftKey: e.shiftKey
+            shiftKey: e.shiftKey,
           },
           query: filter,
-          source
+          source,
         }
       : {
           kind: 'move',
           direction: intent,
           query: filter,
-          source
+          source,
         }
 
     const mountedCandidates = mountedFilterResultCandidates(availableCandidates)
     const currentSelection = reconcileFilterResultSelection(
       filterResultSelectionRef.current,
       filter,
-      mountedCandidates
+      mountedCandidates,
     )
 
     if (mountedCandidates.length === 0 && !filterResultSearchSettled) {
@@ -385,7 +385,7 @@ export function HeaderBar({
         currentSelection,
         filter,
         mountedCandidates,
-        action.direction
+        action.direction,
       )
       filterResultSelectionRef.current = nextSelection
       selectedFilterResultElementRef.current = applyFilterResultSelection(
@@ -393,7 +393,7 @@ export function HeaderBar({
         mountedCandidates,
         inputRef.current,
         selectedFilterResultElementRef.current,
-        true
+        true,
       )
       return
     }
@@ -404,11 +404,11 @@ export function HeaderBar({
       mountedCandidates,
       inputRef.current,
       selectedFilterResultElementRef.current,
-      false
+      false,
     )
     const selectedFilterResultCandidate = filterResultCandidateForSelection(
       currentSelection,
-      mountedCandidates
+      mountedCandidates,
     ) ?? mountedCandidates[0]
     if (selectedFilterResultCandidate) {
       dispatchFilterResultActivation(selectedFilterResultCandidate, action.modifiers)
@@ -428,7 +428,7 @@ export function HeaderBar({
             data-tabout="filter-query"
             className={cn(
               "tab-filter-wrap relative isolate inline-flex items-center before:pointer-events-none before:absolute before:inset-0 before:z-0 before:rounded-(--header-control-radius) before:border before:border-input before:drop-shadow-xs before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:inset-0 after:z-0 after:rounded-(--header-control-radius) after:border after:border-blue-500 after:opacity-0 after:drop-shadow-md after:drop-shadow-blue-500/50 after:transition-opacity after:duration-150 after:ease-out after:[corner-shape:squircle] after:content-[''] motion-reduce:after:transition-none [&:has(input:focus-visible)::after]:opacity-100",
-              filter && 'has-value [&_.tab-filter]:pr-7.5 [&_.tab-filter-clear]:inline-flex'
+              filter && 'has-value [&_.tab-filter]:pr-7.5 [&_.tab-filter-clear]:inline-flex',
             )}
           >
             <input

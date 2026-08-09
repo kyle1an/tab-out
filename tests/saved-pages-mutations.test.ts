@@ -10,7 +10,7 @@ import {
   removeSavedPageFromStore,
   savedPageKeyForUrl,
   type SavedPageCandidate,
-  type SavedPagesStore
+  type SavedPagesStore,
 } from '../src/extension/saved-pages.js'
 import { createSavedPagesMutationStore } from '../src/extension/saved-pages-mutations.js'
 import type { DashboardTab } from '../src/extension/types'
@@ -26,7 +26,7 @@ function savedPage(url: string, title: string): SavedPageCandidate {
     title,
     favIconUrl: '',
     isTabOut: false,
-    isApp: false
+    isApp: false,
   }
 }
 
@@ -43,7 +43,7 @@ function openTab(url: string, title: string): DashboardTab {
     pinned: false,
     groupId: -1,
     isTabOut: false,
-    isApp: false
+    isApp: false,
   }
 }
 
@@ -54,7 +54,7 @@ test('serialized Saved Pages mutations preserve a concurrent save after remove a
   const staleMetadataStore = mergeSavedPagesWithTabs(
     [openTab(removedUrl, 'Render title')],
     baseStore,
-    200
+    200,
   ).store
   let stored = cloneStore(baseStore)
   let writes = 0
@@ -65,7 +65,7 @@ test('serialized Saved Pages mutations preserve a concurrent save after remove a
     const result = exclusiveQueue.then(task)
     exclusiveQueue = result.then(
       () => undefined,
-      () => undefined
+      () => undefined,
     )
     return result
   }
@@ -79,7 +79,7 @@ test('serialized Saved Pages mutations preserve a concurrent save after remove a
       }
       stored = cloneStore(nextStore)
     },
-    runExclusive
+    runExclusive,
   }
   // Separate mutation-store instances model separate Tab Out pages. Their
   // shared adapter lock is what serializes the cross-context read/write pair.
@@ -95,7 +95,7 @@ test('serialized Saved Pages mutations preserve a concurrent save after remove a
 
   const savePromise = saveMutations.mutate((store) => ({
     store: addSavedPageToStore(store, savedPage(savedUrl, 'New saved page'), 300),
-    value: undefined
+    value: undefined,
   }))
   const staleMetadataPromise = metadataMutations.persistMetadataUpdates(baseStore, staleMetadataStore)
   releaseFirstWrite.resolve()
@@ -114,7 +114,7 @@ test('stale render metadata cannot overwrite a newer save of the same page', asy
   const staleMetadataStore = mergeSavedPagesWithTabs(
     [openTab(url, 'Stale render title')],
     baseStore,
-    200
+    200,
   ).store
   let stored = cloneStore(baseStore)
   let writes = 0
@@ -129,12 +129,12 @@ test('stale render metadata cannot overwrite a newer save of the same page', asy
         await releaseFirstWrite.promise
       }
       stored = cloneStore(nextStore)
-    }
+    },
   })
 
   const savePromise = mutations.mutate((store) => ({
     store: addSavedPageToStore(store, savedPage(url, 'Newest user title'), 300),
-    value: undefined
+    value: undefined,
   }))
   await firstWriteStarted.promise
   const staleMetadataPromise = mutations.persistMetadataUpdates(baseStore, staleMetadataStore)
@@ -161,15 +161,15 @@ test('a Saved Pages storage read failure aborts before write and does not poison
     write: async (nextStore) => {
       writes += 1
       stored = cloneStore(nextStore)
-    }
+    },
   })
 
   await assert.rejects(
     mutations.mutate((store) => ({
       store: addSavedPageToStore(store, savedPage(nextUrl, 'Next'), 200),
-      value: undefined
+      value: undefined,
     })),
-    /storage read failed/
+    /storage read failed/,
   )
 
   assert.equal(writes, 0)
@@ -177,7 +177,7 @@ test('a Saved Pages storage read failure aborts before write and does not poison
 
   await mutations.mutate((store) => ({
     store: addSavedPageToStore(store, savedPage(nextUrl, 'Next'), 200),
-    value: undefined
+    value: undefined,
   }))
 
   assert.equal(writes, 1)
@@ -198,11 +198,11 @@ test('a rejected Saved Pages lock preserves the failure and releases local seria
       lockAttempts += 1
       if (lockAttempts === 1) throw lockFailure
       return task()
-    }
+    },
   })
   const save = (store: SavedPagesStore) => ({
     store: addSavedPageToStore(store, savedPage(url, 'Article'), 100),
-    value: undefined
+    value: undefined,
   })
 
   await assert.rejects(mutations.mutate(save), (error) => error === lockFailure)
@@ -218,12 +218,12 @@ test('the Saved Pages Effect API composes the complete mutation transaction', as
     read: async () => cloneStore(stored),
     write: async (nextStore) => {
       stored = cloneStore(nextStore)
-    }
+    },
   })
 
   await Effect.runPromise(mutations.mutateEffect((store) => ({
     store: addSavedPageToStore(store, savedPage(url, 'Article'), 100),
-    value: undefined
+    value: undefined,
   })))
 
   assert.equal(stored.pages[url]?.title, 'Article')
@@ -239,24 +239,24 @@ test('a mutation writes v1 records as v2 normal-tab records without losing an ap
         url,
         title: 'Inbox tab',
         savedAt: 100,
-        updatedAt: 100
-      }
-    }
+        updatedAt: 100,
+      },
+    },
   }
   let written: SavedPagesStore | undefined
   const mutations = createSavedPagesMutationStore({
     read: async () => structuredClone(legacyStore),
     write: async (nextStore) => {
       written = structuredClone(nextStore)
-    }
+    },
   })
 
   await mutations.mutate((store) => ({
     store: addSavedPageToStore(store, {
       ...savedPage(url, 'Inbox app'),
-      isApp: true
+      isApp: true,
     }, 200),
-    value: undefined
+    value: undefined,
   }))
 
   assert.equal(written?.version, 2)
@@ -275,7 +275,7 @@ test('persistMetadataUpdates with an unchanged merged store performs no reads or
       reads += 1
       return cloneStore(baseStore)
     },
-    write: async () => { writes += 1 }
+    write: async () => { writes += 1 },
   })
 
   await mutations.persistMetadataUpdates(baseStore, mergedStore)
@@ -299,7 +299,7 @@ test('persistMetadataUpdates applies changed metadata in a single write', async 
     write: async (nextStore) => {
       writes += 1
       stored = cloneStore(nextStore)
-    }
+    },
   })
 
   await mutations.persistMetadataUpdates(baseStore, mergedStore)
@@ -314,15 +314,15 @@ test('a malformed Saved Pages store aborts mutation instead of erasing it', asyn
   let writes = 0
   const mutations = createSavedPagesMutationStore({
     read: async () => ({ version: 1, pages: [] }),
-    write: async () => { writes += 1 }
+    write: async () => { writes += 1 },
   })
 
   await assert.rejects(
     mutations.mutate((store) => ({
       store: addSavedPageToStore(store, savedPage('https://example.test/next', 'Next'), 200),
-      value: undefined
+      value: undefined,
     })),
-    /malformed/
+    /malformed/,
   )
 
   assert.equal(writes, 0)

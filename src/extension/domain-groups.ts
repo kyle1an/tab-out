@@ -23,7 +23,7 @@ function presentationHostname(url: string): string | null {
  */
 export function buildDomainGroups(
   realTabs: DashboardTab[],
-  { previousOrder = new Map(), pinnedDomains = [] }: DomainGroupBuildOptions = {}
+  { previousOrder = new Map(), pinnedDomains = [] }: DomainGroupBuildOptions = {},
 ): DomainGroup[] {
   // Group tabs by domain. Utility cards (apps / new tabs) still split out,
   // but homepage-like routes stay in their native domain cards.
@@ -73,9 +73,9 @@ export function buildDomainGroups(
       group,
       group.tabs.reduce(
         (count, tab) => count + (isClosedSavedDashboardTab(tab) ? 0 : 1),
-        0
-      )
-    ])
+        0,
+      ),
+    ]),
   )
 
   function orderCount(group: DomainGroup): number {

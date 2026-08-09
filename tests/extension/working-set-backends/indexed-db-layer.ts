@@ -4,19 +4,19 @@ import {
   deleteDB,
   openDB,
   type DBSchema,
-  type IDBPDatabase
+  type IDBPDatabase,
 } from 'idb'
 
 import type { ChromeApi } from '../../../src/extension/background/chrome-api.js'
 import {
   WorkingSetActivityStorage,
   type WorkingSetActivityStorageBackend,
-  type WorkingSetActivityWrite
+  type WorkingSetActivityWrite,
 } from '../../../src/extension/background/working-set-activity-storage.js'
 import type {
   WorkingSetActivityEvent,
   WorkingSetActivityRecord,
-  WorkingSetActivityStore
+  WorkingSetActivityStore,
 } from '../../../src/extension/types'
 import {
   compactActivityEventSchema,
@@ -24,7 +24,7 @@ import {
   encodeCompactActivityRecord,
   makeMutationDiagnostics,
   makePromiseSerializer,
-  type WorkingSetBenchmarkBackend
+  type WorkingSetBenchmarkBackend,
 } from './benchmark-backend.js'
 
 export const DISPOSABLE_INDEXED_DB_NAME =
@@ -40,7 +40,7 @@ export const indexedDbActivityValueSchema = Schema.Struct({
   dismissedAt: Schema.optionalKey(Schema.Finite),
   dismissedUntil: Schema.optionalKey(Schema.Finite),
   events: Schema.Array(compactActivityEventSchema),
-  lastEventAt: Schema.Finite
+  lastEventAt: Schema.Finite,
 })
 
 const indexedDbStoredActivityValueSchema = Schema.Struct({
@@ -48,7 +48,7 @@ const indexedDbStoredActivityValueSchema = Schema.Struct({
   dismissedAt: Schema.optionalKey(Schema.Finite),
   dismissedUntil: Schema.optionalKey(Schema.Finite),
   events: Schema.Array(Schema.Unknown),
-  lastEventAt: Schema.Finite
+  lastEventAt: Schema.Finite,
 })
 
 export type IndexedDbActivityValue =
@@ -58,7 +58,7 @@ type IndexedDbStoredActivityValue =
 
 const isIndexedDbActivityValue = Schema.is(indexedDbActivityValueSchema)
 const isIndexedDbStoredActivityValue = Schema.is(
-  indexedDbStoredActivityValueSchema
+  indexedDbStoredActivityValueSchema,
 )
 const isCompactActivityEvent = Schema.is(compactActivityEventSchema)
 
@@ -81,19 +81,19 @@ const closeConnections = new Set<() => Promise<void>>()
 let failNextWrite = false
 
 export function makeWorkingSetActivityStorageLayer(
-  _chromeApi: ChromeApi
+  _chromeApi: ChromeApi,
 ): Layer.Layer<WorkingSetActivityStorage> {
   return makeIndexedDbStorageLayer()
 }
 
 export function makeIndexedDbStorageLayer(
-  options: IndexedDbBenchmarkTestOptions = {}
+  options: IndexedDbBenchmarkTestOptions = {},
 ): Layer.Layer<WorkingSetActivityStorage> {
   return WorkingSetActivityStorage.layer(makeIndexedDbBackend(options))
 }
 
 function makeIndexedDbBackend(
-  options: IndexedDbBenchmarkTestOptions
+  options: IndexedDbBenchmarkTestOptions,
 ): WorkingSetActivityStorageBackend {
   const serialize = makePromiseSerializer()
   let databasePromise:
@@ -122,8 +122,8 @@ function makeIndexedDbBackend(
         },
         terminated() {
           databasePromise = undefined
-        }
-      }
+        },
+      },
     ).then(async (db) => {
       try {
         await sweepExpiredRows(db)
@@ -141,13 +141,13 @@ function makeIndexedDbBackend(
   }
 
   const commit = async (
-    change: WorkingSetActivityWrite
+    change: WorkingSetActivityWrite,
   ): Promise<void> => {
     const physicalWrites = [
       ...change.deleteKeys.map((key) => `${INDEXED_DB_RECORDS_STORE}:delete:${key}`),
       ...(change.upsert === null
         ? []
-        : [`${INDEXED_DB_RECORDS_STORE}:put:${change.upsert.key}`])
+        : [`${INDEXED_DB_RECORDS_STORE}:put:${change.upsert.key}`]),
     ]
     if (physicalWrites.length === 0) {
       diagnostics.commitMutation([], [])
@@ -158,10 +158,10 @@ function makeIndexedDbBackend(
     const transaction = db.transaction(
       INDEXED_DB_RECORDS_STORE,
       'readwrite',
-      { durability: 'relaxed' }
+      { durability: 'relaxed' },
     )
     const operations: Array<Promise<unknown>> = change.deleteKeys.map((key) =>
-      transaction.store.delete(key)
+      transaction.store.delete(key),
     )
     const entries: Array<readonly [string, IndexedDbActivityValue]> = []
     if (change.upsert !== null) {
@@ -187,26 +187,26 @@ function makeIndexedDbBackend(
   }
 
   const replace = async (
-    activity: WorkingSetActivityStore
+    activity: WorkingSetActivityStore,
   ): Promise<void> => {
     const db = await database()
     const transaction = db.transaction(
       INDEXED_DB_RECORDS_STORE,
       'readwrite',
-      { durability: 'strict' }
+      { durability: 'strict' },
     )
     const entries = Object.values(activity.records)
       .toSorted((left, right) => left.key.localeCompare(right.key))
       .map(encodeIndexedDbEntry)
     const operations: Array<Promise<unknown>> = [transaction.store.clear()]
     operations.push(...entries.map(([key, value]) =>
-      transaction.store.put(value, key)
+      transaction.store.put(value, key),
     ))
     if (options.shouldAbortTransaction?.() === true) transaction.abort()
     await Promise.all([...operations, transaction.done])
     diagnostics.commitMutation(entries, [
       `${INDEXED_DB_RECORDS_STORE}:clear`,
-      ...entries.map(([key]) => `${INDEXED_DB_RECORDS_STORE}:put:${key}`)
+      ...entries.map(([key]) => `${INDEXED_DB_RECORDS_STORE}:put:${key}`),
     ])
   }
 
@@ -214,17 +214,17 @@ function makeIndexedDbBackend(
     read: () => serialize(async () => {
       const db = await database()
       const retainedRange = IDBKeyRange.lowerBound(
-        Date.now() - ACTIVITY_RETENTION_MS
+        Date.now() - ACTIVITY_RETENTION_MS,
       )
       const transaction = db.transaction(
         INDEXED_DB_RECORDS_STORE,
-        'readonly'
+        'readonly',
       )
       const retained = transaction.store.index(INDEXED_DB_LAST_EVENT_INDEX)
       const [storedKeys, storedValues] = await Promise.all([
         retained.getAllKeys(retainedRange),
         retained.getAll(retainedRange),
-        transaction.done
+        transaction.done,
       ])
       const recordsByKey = new Map<string, WorkingSetActivityRecord>()
       for (const [index, key] of storedKeys.entries()) {
@@ -237,7 +237,7 @@ function makeIndexedDbBackend(
       }
       return {
         version: 1,
-        records: Object.fromEntries(recordsByKey)
+        records: Object.fromEntries(recordsByKey),
       }
     }),
     write: (change: WorkingSetActivityWrite) => {
@@ -245,12 +245,12 @@ function makeIndexedDbBackend(
       return serialize(() => commit(change))
     },
     replace: (activity: WorkingSetActivityStore) =>
-      serialize(() => replace(activity))
+      serialize(() => replace(activity)),
   }
 }
 
 export function encodeIndexedDbEntry(
-  record: WorkingSetActivityRecord
+  record: WorkingSetActivityRecord,
 ): readonly [string, IndexedDbActivityValue] {
   const compactEvents = encodeCompactActivityRecord(record)[4]
   return [record.key, {
@@ -262,13 +262,13 @@ export function encodeIndexedDbEntry(
       ? {}
       : { dismissedUntil: record.dismissedUntil }),
     events: compactEvents,
-    lastEventAt: latestEventAt(record.events)
+    lastEventAt: latestEventAt(record.events),
   }]
 }
 
 export async function decodeIndexedDbEntry(
   key: unknown,
-  value: unknown
+  value: unknown,
 ): Promise<WorkingSetActivityRecord> {
   return decodeIndexedDbEntrySync(key, value)
 }
@@ -283,7 +283,7 @@ interface MutableIndexedDbProjection {
 
 function decodeIndexedDbEntrySync(
   key: unknown,
-  value: unknown
+  value: unknown,
 ): WorkingSetActivityRecord {
   if (typeof key !== 'string') {
     throw new Error('IndexedDB Working Set key must be a string')
@@ -294,7 +294,7 @@ function decodeIndexedDbEntrySync(
     latestStoredEventAt: undefined,
     lastSeenAt: 0,
     lastActivatedAt: 0,
-    lastNavigatedAt: 0
+    lastNavigatedAt: 0,
   }
   let storedValue: IndexedDbStoredActivityValue
 
@@ -336,13 +336,13 @@ function decodeIndexedDbEntrySync(
     ...(storedValue.dismissedUntil === undefined
       ? {}
       : { dismissedUntil: storedValue.dismissedUntil }),
-    events: projection.events
+    events: projection.events,
   }
 }
 
 function appendCompactEvent(
   projection: MutableIndexedDbProjection,
-  event: IndexedDbActivityValue['events'][number]
+  event: IndexedDbActivityValue['events'][number],
 ): void {
   const kind = event[0] === 0 ? 'activation' : 'navigation'
   const at = event[1]
@@ -363,7 +363,7 @@ function latestEventAt(events: readonly WorkingSetActivityEvent[]): number {
     (maximum, event) => maximum === undefined
       ? event.at
       : Math.max(maximum, event.at),
-    undefined
+    undefined,
   )
   if (latest === undefined) {
     throw new Error('IndexedDB Working Set rows require at least one event')
@@ -380,7 +380,7 @@ function fallbackRecord(): WorkingSetActivityRecord {
     title: 'Valid benchmark sibling',
     domain: URL.parse(key)?.hostname ?? '',
     lastSeenAt,
-    events: [{ kind: 'activation', at: lastSeenAt }]
+    events: [{ kind: 'activation', at: lastSeenAt }],
   }
 }
 
@@ -393,7 +393,7 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
   ownedStorage: {
     kind: 'indexed-db',
     database: DISPOSABLE_INDEXED_DB_NAME,
-    objectStores: [INDEXED_DB_RECORDS_STORE]
+    objectStores: [INDEXED_DB_RECORDS_STORE],
   },
   lastMutationLogicalBytes: diagnostics.lastMutationLogicalBytes,
   lastMutationPhysicalWrites: diagnostics.lastMutationPhysicalWrites,
@@ -415,18 +415,18 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
         const transaction = db.transaction(
           INDEXED_DB_RECORDS_STORE,
           'readwrite',
-          { durability: 'relaxed' }
+          { durability: 'relaxed' },
         )
         const done = nativeTransactionDone(transaction)
         const records = transaction.objectStore(INDEXED_DB_RECORDS_STORE)
         const [fallbackKey, fallbackValue] = encodeIndexedDbEntry(
-          fallbackRecord()
+          fallbackRecord(),
         )
         records.put(fallbackValue, fallbackKey)
         records.put({
           title: 'Malformed benchmark row',
           events: ['malformed-benchmark-event'],
-          lastEventAt: Date.now()
+          lastEventAt: Date.now(),
         }, 'https://example.test/malformed-benchmark-row')
         await done
       } finally {
@@ -443,23 +443,23 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
     failNextWrite = false
     diagnostics.reset()
   },
-  close: closeAllConnections
+  close: closeAllConnections,
 }
 
 function createDatabaseSchema(
-  db: IDBPDatabase<WorkingSetBenchmarkDatabase>
+  db: IDBPDatabase<WorkingSetBenchmarkDatabase>,
 ): void {
   const records = db.createObjectStore(INDEXED_DB_RECORDS_STORE)
   records.createIndex(INDEXED_DB_LAST_EVENT_INDEX, 'lastEventAt')
 }
 
 async function sweepExpiredRows(
-  db: IDBPDatabase<WorkingSetBenchmarkDatabase>
+  db: IDBPDatabase<WorkingSetBenchmarkDatabase>,
 ): Promise<void> {
   const expiredKeys = await db.getAllKeysFromIndex(
     INDEXED_DB_RECORDS_STORE,
     INDEXED_DB_LAST_EVENT_INDEX,
-    IDBKeyRange.upperBound(Date.now() - ACTIVITY_RETENTION_MS, true)
+    IDBKeyRange.upperBound(Date.now() - ACTIVITY_RETENTION_MS, true),
   )
   if (expiredKeys.length === 0) return
 
@@ -467,7 +467,7 @@ async function sweepExpiredRows(
     const transaction = db.transaction(
       INDEXED_DB_RECORDS_STORE,
       'readwrite',
-      { durability: 'relaxed' }
+      { durability: 'relaxed' },
     )
     const deletes = expiredKeys.map((key) => transaction.store.delete(key))
     await Promise.all([...deletes, transaction.done])
@@ -483,8 +483,8 @@ async function ensureDatabaseSchema(): Promise<void> {
     {
       upgrade(database, oldVersion) {
         if (oldVersion < DATABASE_VERSION) createDatabaseSchema(database)
-      }
-    }
+      },
+    },
   )
   db.close()
 }
@@ -499,7 +499,7 @@ function openNativeDatabase(): Promise<IDBDatabase> {
     const request = indexedDB.open(DISPOSABLE_INDEXED_DB_NAME)
     request.onerror = () => reject(request.error)
     request.onblocked = () => reject(new Error(
-      'Disposable Working Set benchmark database open was blocked'
+      'Disposable Working Set benchmark database open was blocked',
     ))
     request.onsuccess = () => resolve(request.result)
   })
@@ -507,13 +507,13 @@ function openNativeDatabase(): Promise<IDBDatabase> {
 
 function openNativeDatabaseVersion(
   version: number,
-  upgrade: (db: IDBDatabase) => void
+  upgrade: (db: IDBDatabase) => void,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DISPOSABLE_INDEXED_DB_NAME, version)
     request.onerror = () => reject(request.error)
     request.onblocked = () => reject(new Error(
-      'Disposable Working Set benchmark database upgrade was blocked'
+      'Disposable Working Set benchmark database upgrade was blocked',
     ))
     request.onupgradeneeded = () => upgrade(request.result)
     request.onsuccess = () => {
@@ -528,7 +528,7 @@ function nativeTransactionDone(transaction: IDBTransaction): Promise<void> {
     transaction.oncomplete = () => resolve()
     transaction.onerror = () => reject(transaction.error)
     transaction.onabort = () => reject(
-      transaction.error ?? new DOMException('Transaction aborted', 'AbortError')
+      transaction.error ?? new DOMException('Transaction aborted', 'AbortError'),
     )
   })
 }

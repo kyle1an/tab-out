@@ -5,15 +5,15 @@ import { runPromiseExclusiveEffect } from './promise-exclusive-effect.js'
 
 export type StorageListMutationAttempt =
   | {
-      ok: true
-      previousValue: string[]
-      value: string[]
-    }
+    ok: true
+    previousValue: string[]
+    value: string[]
+  }
   | {
-      ok: false
-      currentValue: string[] | null
-      error: unknown
-    }
+    ok: false
+    currentValue: string[] | null
+    error: unknown
+  }
 
 export type StorageListMutationAdapter = {
   read: () => Promise<unknown>
@@ -38,19 +38,19 @@ function sameOrder(a: readonly string[], b: readonly string[]): boolean {
 
 class StorageListMutationError extends Schema.TaggedErrorClass<StorageListMutationError>()(
   'StorageListMutationError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 function successfulMutationAttempt(
   previousValue: string[],
-  value: string[]
+  value: string[],
 ): StorageListMutationAttempt {
   return { ok: true, previousValue, value }
 }
 
 function failedMutationAttempt(
   currentValue: string[] | null,
-  error: unknown
+  error: unknown,
 ): StorageListMutationAttempt {
   return { ok: false, currentValue, error }
 }
@@ -64,46 +64,46 @@ export function createStorageListMutationStore<Operation>({
   adapter,
   applyOperation,
   isStoredValue,
-  normalize
+  normalize,
 }: StorageListMutationStoreOptions<Operation>): StorageListMutationStore<Operation> {
   const mutationSemaphore = Semaphore.makeUnsafe(1)
 
-  const runStorageListMutation = Effect.fn('storageListMutation.run')(function*(operation: Operation) {
+  const runStorageListMutation = Effect.fn('storageListMutation.run')(function* (operation: Operation) {
     let currentValue: string[] | null = null
-    const transaction = Effect.gen(function*() {
+    const transaction = Effect.gen(function* () {
       const stored = yield* Effect.tryPromise({
         try: adapter.read,
-        catch: (cause) => StorageListMutationError.make({ cause })
+        catch: (cause) => StorageListMutationError.make({ cause }),
       })
       const storedValueIsValid = yield* Effect.try({
         try: () => isStoredValue(stored),
-        catch: (cause) => StorageListMutationError.make({ cause })
+        catch: (cause) => StorageListMutationError.make({ cause }),
       })
       if (!storedValueIsValid) {
         return yield* Effect.fail(StorageListMutationError.make({
-          cause: new TypeError('Stored list value is malformed')
+          cause: new TypeError('Stored list value is malformed'),
         }))
       }
       const previousValue = yield* Effect.try({
         try: () => normalize(stored),
-        catch: (cause) => StorageListMutationError.make({ cause })
+        catch: (cause) => StorageListMutationError.make({ cause }),
       })
       currentValue = previousValue
       const value = yield* Effect.try({
         try: () => normalize(applyOperation(previousValue, operation)),
-        catch: (cause) => StorageListMutationError.make({ cause })
+        catch: (cause) => StorageListMutationError.make({ cause }),
       })
       if (!sameOrder(previousValue, value)) {
         yield* Effect.tryPromise({
           try: () => adapter.write(value),
-          catch: (cause) => StorageListMutationError.make({ cause })
+          catch: (cause) => StorageListMutationError.make({ cause }),
         })
       }
       return successfulMutationAttempt(previousValue, value)
     }).pipe(
       Effect.catchTag('StorageListMutationError', (error) => (
         Effect.succeed(failedMutationAttempt(currentValue, error.cause))
-      ))
+      )),
     )
 
     const runExclusive = adapter.runExclusive
@@ -111,17 +111,17 @@ export function createStorageListMutationStore<Operation>({
     return yield* runPromiseExclusiveEffect(
       runExclusive,
       transaction,
-      (cause) => StorageListMutationError.make({ cause })
+      (cause) => StorageListMutationError.make({ cause }),
     ).pipe(
       Effect.catchTag('StorageListMutationError', (error) => (
         Effect.succeed(failedMutationAttempt(currentValue, error.cause))
-      ))
+      )),
     )
   })
 
   function mutate(operation: Operation): Promise<StorageListMutationAttempt> {
     return getAppRuntime().runPromise(
-      mutationSemaphore.withPermit(runStorageListMutation(operation))
+      mutationSemaphore.withPermit(runStorageListMutation(operation)),
     )
   }
 
@@ -136,7 +136,7 @@ function localStorageArea(): chrome.storage.StorageArea {
 }
 
 export function createChromeStorageListMutationAdapter(
-  storageKey: string
+  storageKey: string,
 ): StorageListMutationAdapter {
   const lockName = `tab-out:storage-list-mutation:${storageKey}`
   return {
@@ -149,6 +149,6 @@ export function createChromeStorageListMutationAdapter(
     },
     async runExclusive(task) {
       return navigator.locks.request(lockName, task)
-    }
+    },
   }
 }

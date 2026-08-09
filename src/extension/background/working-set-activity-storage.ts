@@ -2,7 +2,7 @@ import { Context, Effect, Layer, Schema } from 'effect'
 
 import {
   parseWorkingSetActivityStorageValue,
-  type WorkingSetActivityRecordMutation
+  type WorkingSetActivityRecordMutation,
 } from '../working-set.js'
 import type { WorkingSetActivityStore } from '../types'
 
@@ -22,30 +22,30 @@ export class WorkingSetActivityStorageError extends Schema.TaggedErrorClass<Work
   {
     operation: Schema.Literals(['read', 'write', 'replace']),
     reason: Schema.Literals(['backend', 'malformed', 'unsupported-version']),
-    cause: Schema.Defect()
-  }
+    cause: Schema.Defect(),
+  },
 ) {}
 
 export class WorkingSetActivityStorage extends Context.Service<WorkingSetActivityStorage, {
   readonly read: () => Effect.Effect<WorkingSetActivityStore, WorkingSetActivityStorageError>
   readonly write: (
-    change: WorkingSetActivityWrite
+    change: WorkingSetActivityWrite,
   ) => Effect.Effect<void, WorkingSetActivityStorageError>
   readonly replace: (
-    activity: WorkingSetActivityStore
+    activity: WorkingSetActivityStore,
   ) => Effect.Effect<void, WorkingSetActivityStorageError>
 }>()('@tab-out/background/WorkingSetActivityStorage') {
   static layer(
-    backend: WorkingSetActivityStorageBackend
+    backend: WorkingSetActivityStorageBackend,
   ): Layer.Layer<WorkingSetActivityStorage> {
-    const read = Effect.fn('WorkingSetActivityStorage.read')(function*() {
+    const read = Effect.fn('WorkingSetActivityStorage.read')(function* () {
       const stored = yield* Effect.tryPromise({
         try: backend.read,
         catch: (cause) => WorkingSetActivityStorageError.make({
           operation: 'read',
           reason: 'backend',
-          cause
-        })
+          cause,
+        }),
       })
       const parsed = parseWorkingSetActivityStorageValue(stored)
       if (parsed.status === 'missing' || parsed.status === 'valid') {
@@ -55,46 +55,46 @@ export class WorkingSetActivityStorage extends Context.Service<WorkingSetActivit
         return yield* Effect.fail(WorkingSetActivityStorageError.make({
           operation: 'read',
           reason: 'unsupported-version',
-          cause: new Error(`Unsupported Working Set activity version ${parsed.version}`)
+          cause: new Error(`Unsupported Working Set activity version ${parsed.version}`),
         }))
       }
       return yield* Effect.fail(WorkingSetActivityStorageError.make({
         operation: 'read',
         reason: 'malformed',
-        cause: new Error('Malformed Working Set activity storage envelope')
+        cause: new Error('Malformed Working Set activity storage envelope'),
       }))
     })
 
-    const write = Effect.fn('WorkingSetActivityStorage.write')(function*(
-      change: WorkingSetActivityWrite
+    const write = Effect.fn('WorkingSetActivityStorage.write')(function* (
+      change: WorkingSetActivityWrite,
     ) {
       yield* Effect.tryPromise({
         try: () => backend.write(change),
         catch: (cause) => WorkingSetActivityStorageError.make({
           operation: 'write',
           reason: 'backend',
-          cause
-        })
+          cause,
+        }),
       })
     })
 
-    const replace = Effect.fn('WorkingSetActivityStorage.replace')(function*(
-      activity: WorkingSetActivityStore
+    const replace = Effect.fn('WorkingSetActivityStorage.replace')(function* (
+      activity: WorkingSetActivityStore,
     ) {
       yield* Effect.tryPromise({
         try: () => backend.replace(activity),
         catch: (cause) => WorkingSetActivityStorageError.make({
           operation: 'replace',
           reason: 'backend',
-          cause
-        })
+          cause,
+        }),
       })
     })
 
     const service = WorkingSetActivityStorage.of({
       read,
       write,
-      replace
+      replace,
     })
     const close = backend.close
     if (close === undefined) {
@@ -104,8 +104,8 @@ export class WorkingSetActivityStorage extends Context.Service<WorkingSetActivit
       WorkingSetActivityStorage,
       Effect.acquireRelease(
         Effect.succeed(service),
-        () => Effect.promise(() => Promise.resolve(close()))
-      )
+        () => Effect.promise(() => Promise.resolve(close())),
+      ),
     )
   }
 }

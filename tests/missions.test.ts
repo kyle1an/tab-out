@@ -8,7 +8,7 @@ import { Missions } from '../src/components/Missions.js'
 test('filtered empty missions announce their result summary', () => {
   const html = renderToStaticMarkup(React.createElement(Missions, {
     cards: [],
-    filter: 'missing page'
+    filter: 'missing page',
   }))
 
   assert.match(html, /<output/)

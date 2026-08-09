@@ -16,7 +16,7 @@ function mountToast() {
 
 export async function showMountedToast(
   title: string,
-  action: ToastAction | null
+  action: ToastAction | null,
 ): Promise<void> {
   if (!mountToast()) return
   await showToastInMountedRoot(title, action)

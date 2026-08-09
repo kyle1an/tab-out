@@ -19,7 +19,7 @@ import {
   fetchClosedTabsResult,
   isClosedTabFetchSuppressed,
   subscribeClosedTabChanges,
-  type ClosedTabEntry
+  type ClosedTabEntry,
 } from './closed-tabs.js'
 import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from './history-range.js'
 import { fetchDashboardServiceStateResultEffect, type DashboardServiceStateResult } from './dashboard-service-state.js'
@@ -43,12 +43,12 @@ export type DashboardRefreshOptions = {
 
 export function mergeDashboardRefreshOptions(
   current: DashboardRefreshOptions | undefined,
-  next: DashboardRefreshOptions
+  next: DashboardRefreshOptions,
 ): DashboardRefreshOptions {
   return {
     ...current,
     ...next,
-    ...((current?.animateCards || next.animateCards) ? { animateCards: true } : {})
+    ...((current?.animateCards || next.animateCards) ? { animateCards: true } : {}),
   }
 }
 
@@ -86,7 +86,7 @@ export type LatestRefreshRunner<T> = {
   request: (run: () => Promise<T>, apply: (value: T) => void) => Promise<void>
   requestEffect: <Failure>(
     run: Effect.Effect<T, Failure, BrowserTabs>,
-    apply: (value: T) => void
+    apply: (value: T) => void,
   ) => Promise<void>
   wait: () => Promise<void>
 }
@@ -101,27 +101,27 @@ export type DashboardRefreshContext = {
 
 class DashboardSourceFetchError extends Schema.TaggedErrorClass<DashboardSourceFetchError>()(
   'DashboardSourceFetchError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 class DashboardRefreshRunError extends Schema.TaggedErrorClass<DashboardRefreshRunError>()(
   'DashboardRefreshRunError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 class DashboardClosedTabsFetchError extends Schema.TaggedErrorClass<DashboardClosedTabsFetchError>()(
   'DashboardClosedTabsFetchError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 class DashboardStartupSnapshotFetchError extends Schema.TaggedErrorClass<DashboardStartupSnapshotFetchError>()(
   'DashboardStartupSnapshotFetchError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 class DashboardSnapshotFetchError extends Schema.TaggedErrorClass<DashboardSnapshotFetchError>()(
   'DashboardSnapshotFetchError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 export function createLatestRefreshRunner<T>(): LatestRefreshRunner<T> {
@@ -129,7 +129,7 @@ export function createLatestRefreshRunner<T>(): LatestRefreshRunner<T> {
   let latestRequest: LatestRefreshRequest<T> | null = null
   let revision = 0
 
-  const runLatestRefreshFlight = Effect.fn('dashboardIntake.runLatestRefreshFlight')(function*() {
+  const runLatestRefreshFlight = Effect.fn('dashboardIntake.runLatestRefreshFlight')(function* () {
     while (latestRequest) {
       const requestRevision = revision
       const currentRequest = latestRequest
@@ -141,7 +141,7 @@ export function createLatestRefreshRunner<T>(): LatestRefreshRunner<T> {
       if (requestRevision !== revision) continue
       const applyResult = yield* Effect.result(Effect.try({
         try: () => currentRequest.apply(runResult.success),
-        catch: (cause) => DashboardRefreshRunError.make({ cause })
+        catch: (cause) => DashboardRefreshRunError.make({ cause }),
       }))
       if (Result.isFailure(applyResult)) {
         if (requestRevision !== revision) continue
@@ -155,14 +155,14 @@ export function createLatestRefreshRunner<T>(): LatestRefreshRunner<T> {
 
   function schedule(
     run: Effect.Effect<T, DashboardRefreshRunError, BrowserTabs>,
-    apply: (value: T) => void
+    apply: (value: T) => void,
   ): Promise<void> {
     latestRequest = { apply, run }
     revision += 1
     if (inFlight) return inFlight
 
     const flight = getAppRuntime().runPromise(runLatestRefreshFlight().pipe(
-      Effect.catchTag('DashboardRefreshRunError', (error) => Effect.fail(error.cause))
+      Effect.catchTag('DashboardRefreshRunError', (error) => Effect.fail(error.cause)),
     ))
     inFlight = flight
     const clearFlight = () => {
@@ -175,16 +175,16 @@ export function createLatestRefreshRunner<T>(): LatestRefreshRunner<T> {
   function request(run: () => Promise<T>, apply: (value: T) => void): Promise<void> {
     return schedule(Effect.tryPromise({
       try: run,
-      catch: (cause) => DashboardRefreshRunError.make({ cause })
+      catch: (cause) => DashboardRefreshRunError.make({ cause }),
     }), apply)
   }
 
   function requestEffect<Failure>(
     run: Effect.Effect<T, Failure, BrowserTabs>,
-    apply: (value: T) => void
+    apply: (value: T) => void,
   ): Promise<void> {
     return schedule(run.pipe(
-      Effect.mapError((cause) => DashboardRefreshRunError.make({ cause }))
+      Effect.mapError((cause) => DashboardRefreshRunError.make({ cause })),
     ), apply)
   }
 
@@ -192,13 +192,13 @@ export function createLatestRefreshRunner<T>(): LatestRefreshRunner<T> {
     active: () => inFlight !== null,
     request,
     requestEffect,
-    wait: () => inFlight ?? Promise.resolve()
+    wait: () => inFlight ?? Promise.resolve(),
   }
 }
 
 export function dashboardRefreshContextMatches(
   request: DashboardRefreshContext,
-  current: DashboardRefreshContext
+  current: DashboardRefreshContext,
 ): boolean {
   const sourceAndPinsMatch = request.source === current.source &&
     request.pinnedDomains.length === current.pinnedDomains.length &&
@@ -211,7 +211,7 @@ export function dashboardRefreshContextMatches(
 
 export function retainHistorySearchResultsOnError(
   nextDashboard: DashboardData,
-  previousDashboard: DashboardData | null
+  previousDashboard: DashboardData | null,
 ): DashboardData {
   if (
     nextDashboard.historySearchStatus !== 'error' ||
@@ -222,7 +222,7 @@ export function retainHistorySearchResultsOnError(
   return {
     ...nextDashboard,
     historyTabs: previousDashboard.historyTabs ?? [],
-    historyDomainGroups: previousDashboard.historyDomainGroups ?? []
+    historyDomainGroups: previousDashboard.historyDomainGroups ?? [],
   }
 }
 
@@ -233,7 +233,7 @@ let bookmarkCompanionSourceItemsFlight: Promise<BrowserReadResult<DashboardTab[]
 
 function fetchBookmarksSourceItemsShared(
   holdForCompanion = false,
-  reuseCompanion = false
+  reuseCompanion = false,
 ): Promise<BrowserReadResult<DashboardTab[]>> {
   if (reuseCompanion && bookmarkCompanionSourceItemsFlight) return bookmarkCompanionSourceItemsFlight
 
@@ -246,35 +246,35 @@ function fetchBookmarksSourceItemsShared(
     }
     void flight.then(
       () => setTimeout(clearFlight, BOOKMARK_COMPANION_FLIGHT_GRACE_MS),
-      clearFlight
+      clearFlight,
     )
   }
   return flight
 }
 
 const fetchBookmarksSourceItemsLazyEffect = Effect.fn(
-  'dashboardIntake.fetchBookmarks'
+  'dashboardIntake.fetchBookmarks',
 )((holdForCompanion = false, reuseCompanion = false) => Effect.tryPromise({
   try: () => fetchBookmarksSourceItemsShared(holdForCompanion, reuseCompanion),
-  catch: (cause) => DashboardSnapshotFetchError.make({ cause })
+  catch: (cause) => DashboardSnapshotFetchError.make({ cause }),
 }))
 
 const fetchHistorySourceItemsLazyEffect = Effect.fn(
-  'dashboardIntake.fetchHistory'
-)(function*(query: string, range: string) {
+  'dashboardIntake.fetchHistory',
+)(function* (query: string, range: string) {
   const history = yield* Effect.tryPromise({
     try: () => import('../extension/history-source.js'),
-    catch: (cause) => DashboardSnapshotFetchError.make({ cause })
+    catch: (cause) => DashboardSnapshotFetchError.make({ cause }),
   })
   return yield* Effect.tryPromise({
     try: () => history.fetchHistorySourceSearch(query, range),
-    catch: (cause) => DashboardSnapshotFetchError.make({ cause })
+    catch: (cause) => DashboardSnapshotFetchError.make({ cause }),
   })
 })
 
 const fetchBookmarkCompanionSnapshotEffect = Effect.fn(
-  'dashboardIntake.fetchBookmarkCompanion'
-)(function*({ pinnedDomains, previousOrder }: Pick<DashboardSnapshotOptions, 'pinnedDomains' | 'previousOrder'>) {
+  'dashboardIntake.fetchBookmarkCompanion',
+)(function* ({ pinnedDomains, previousOrder }: Pick<DashboardSnapshotOptions, 'pinnedDomains' | 'previousOrder'>) {
   const bookmarkTabsResult = yield* fetchBookmarksSourceItemsLazyEffect(true, true)
   if (!bookmarkTabsResult.ok) return yield* Effect.fail(dashboardSnapshotReadError('Could not read bookmarks'))
 
@@ -283,15 +283,15 @@ const fetchBookmarkCompanionSnapshotEffect = Effect.fn(
     'bookmarks',
     {
       pinnedDomains,
-      bookmarkTabs: bookmarkTabsResult.value
-    }
+      bookmarkTabs: bookmarkTabsResult.value,
+    },
   ).pipe(
-    Effect.mapError((error) => DashboardSnapshotFetchError.make({ cause: error.cause }))
+    Effect.mapError((error) => DashboardSnapshotFetchError.make({ cause: error.cause })),
   )
 
   return {
     bookmarkTabs: bookmarkDashboard.realTabs,
-    bookmarkDomainGroups: bookmarkDashboard.domainGroups
+    bookmarkDomainGroups: bookmarkDashboard.domainGroups,
   }
 })
 
@@ -304,8 +304,8 @@ function dashboardStartupSnapshotReadError(message: string): DashboardStartupSna
 }
 
 const fetchTabsDashboardSnapshotEffect = Effect.fn(
-  'dashboardIntake.fetchTabsSnapshot'
-)(function*({ source, filter, historyRange, historyFilterEnabled, pinnedDomains, prefetchedBookmarkTabs, prefetchedServiceStateResult, savedPagesStore, previousOrder }: DashboardSnapshotOptions) {
+  'dashboardIntake.fetchTabsSnapshot',
+)(function* ({ source, filter, historyRange, historyFilterEnabled, pinnedDomains, prefetchedBookmarkTabs, prefetchedServiceStateResult, savedPagesStore, previousOrder }: DashboardSnapshotOptions) {
   const filterSearch = buildFilterSearchRequest({ source, filter, historyRange, historyFilterEnabled })
   const [currentWindowResult, serviceStateResult, savedPagesResult, bookmarkTabsResult, historySearch] = yield* Effect.all([
     getCurrentWindowIdResultEffect(),
@@ -322,7 +322,7 @@ const fetchTabsDashboardSnapshotEffect = Effect.fn(
       : Effect.succeed({ ok: true as const, value: [] }),
     filterSearch.includeHistoryMatches
       ? fetchHistorySourceItemsLazyEffect(filterSearch.query, filterSearch.historyRange)
-      : Effect.succeed({ status: 'ready' as const, tabs: [] })
+      : Effect.succeed({ status: 'ready' as const, tabs: [] }),
   ] as const, { concurrency: 'unbounded' })
   if (!serviceStateResult.ok) return yield* Effect.fail(dashboardSnapshotReadError('Could not read dashboard service state'))
   if (!currentWindowResult.ok) return yield* Effect.fail(dashboardSnapshotReadError('Could not read current browser window'))
@@ -352,31 +352,31 @@ const fetchTabsDashboardSnapshotEffect = Effect.fn(
       historyTabs: historySearch.tabs,
       savedPagesStore: resolvedSavedPagesStore,
       retainedPages: serviceState.retainedPages,
-      retainedLiveTabs: openTabs
-    }
+      retainedLiveTabs: openTabs,
+    },
   ).pipe(
-    Effect.mapError((error) => DashboardSnapshotFetchError.make({ cause: error.cause }))
+    Effect.mapError((error) => DashboardSnapshotFetchError.make({ cause: error.cause })),
   )
   // Page fetchers are the Saved Pages metadata writers; the build stays pure.
   yield* persistSavedPageMetadataUpdatesEffect(
     savedPageUpdates.base,
-    savedPageUpdates.merged
+    savedPageUpdates.merged,
   ).pipe(
     Effect.catchTag('SavedPagesMutationError', () => Effect.void),
-    Effect.forkDetach({ startImmediately: true })
+    Effect.forkDetach({ startImmediately: true }),
   )
   const workingSet = buildWorkingSetSnapshot({
     tabs: dashboardTabs,
     activity: serviceState.workingSetActivity,
-    currentWindowId
+    currentWindowId,
   })
 
   return { dashboard, tabHistory: serviceState.tabHistory, workingSet }
 })
 
 export const fetchDashboardSnapshotEffect = Effect.fn(
-  'dashboardIntake.fetchSnapshot'
-)(function*({ source, filter, historyRange, historyFilterEnabled, pinnedDomains, previousOrder }: DashboardSnapshotOptions) {
+  'dashboardIntake.fetchSnapshot',
+)(function* ({ source, filter, historyRange, historyFilterEnabled, pinnedDomains, previousOrder }: DashboardSnapshotOptions) {
   if (source === 'tabs') {
     return yield* fetchTabsDashboardSnapshotEffect({ source, filter, historyRange, historyFilterEnabled, pinnedDomains, previousOrder })
   }
@@ -386,36 +386,36 @@ export const fetchDashboardSnapshotEffect = Effect.fn(
     source === 'bookmarks'
       ? fetchBookmarksSourceItemsLazyEffect()
       : Effect.succeed({ ok: true as const, value: [] }),
-    loadSavedPagesStoreResultEffect()
+    loadSavedPagesStoreResultEffect(),
   ] as const, { concurrency: 'unbounded' })
   if (!savedPagesResult.ok) return yield* Effect.fail(dashboardSnapshotReadError('Could not read Saved Pages'))
   if (!bookmarkTabsResult.ok) return yield* Effect.fail(dashboardSnapshotReadError('Could not read bookmarks'))
   const dashboard = yield* fetchDashboardDataEffect(previousOrder[source] || new Map(), source, {
-      pinnedDomains,
-      bookmarkPreviousOrder: previousOrder.bookmarks || new Map(),
-      historyPreviousOrder: previousOrder.history || new Map(),
-      includeBookmarkMatches: filterSearch.includeBookmarkMatches,
-      includeHistoryMatches: filterSearch.includeHistoryMatches,
-      searchQuery: filterSearch.query,
-      historyRange: filterSearch.historyRange,
-      bookmarkTabs: bookmarkTabsResult.value,
-      savedPagesStore: savedPagesResult.value
-    }).pipe(
-      Effect.mapError((error) => DashboardSnapshotFetchError.make({ cause: error.cause }))
-    )
+    pinnedDomains,
+    bookmarkPreviousOrder: previousOrder.bookmarks || new Map(),
+    historyPreviousOrder: previousOrder.history || new Map(),
+    includeBookmarkMatches: filterSearch.includeBookmarkMatches,
+    includeHistoryMatches: filterSearch.includeHistoryMatches,
+    searchQuery: filterSearch.query,
+    historyRange: filterSearch.historyRange,
+    bookmarkTabs: bookmarkTabsResult.value,
+    savedPagesStore: savedPagesResult.value,
+  }).pipe(
+    Effect.mapError((error) => DashboardSnapshotFetchError.make({ cause: error.cause })),
+  )
 
   return { dashboard }
 })
 
 export function fetchDashboardSnapshot(options: DashboardSnapshotOptions): Promise<DashboardRefreshSnapshot> {
   return getAppRuntime().runPromise(fetchDashboardSnapshotEffect(options).pipe(
-    Effect.catchTag('DashboardSnapshotFetchError', (error) => Effect.fail(error.cause))
+    Effect.catchTag('DashboardSnapshotFetchError', (error) => Effect.fail(error.cause)),
   ))
 }
 
 const fetchDashboardStartupSnapshotOnceEffect = Effect.fn(
-  'dashboardIntake.fetchStartupSnapshotOnce'
-)(function*(options: DashboardSnapshotOptions) {
+  'dashboardIntake.fetchStartupSnapshotOnce',
+)(function* (options: DashboardSnapshotOptions) {
   if (isClosedTabFetchSuppressed()) {
     return yield* Effect.fail(dashboardStartupSnapshotReadError('Recently closed is settling after restore'))
   }
@@ -426,7 +426,7 @@ const fetchDashboardStartupSnapshotOnceEffect = Effect.fn(
     savedPagesResult,
     closedTabsResult,
     bookmarkTabsResult,
-    historySearch
+    historySearch,
   ] = yield* Effect.all([
     getCurrentWindowIdResultEffect(),
     options.prefetchedServiceStateResult
@@ -441,7 +441,7 @@ const fetchDashboardStartupSnapshotOnceEffect = Effect.fn(
       : Effect.succeed({ ok: true as const, value: [] }),
     filterSearch.includeHistoryMatches
       ? fetchHistorySourceItemsLazyEffect(filterSearch.query, filterSearch.historyRange)
-      : Effect.succeed({ status: 'ready' as const, tabs: [] })
+      : Effect.succeed({ status: 'ready' as const, tabs: [] }),
   ] as const, { concurrency: 'unbounded' })
   if (!serviceStateResult.ok) return yield* Effect.fail(dashboardStartupSnapshotReadError('Could not read dashboard service state'))
   if (!currentWindowResult.ok) return yield* Effect.fail(dashboardStartupSnapshotReadError('Could not read current browser window'))
@@ -469,18 +469,18 @@ const fetchDashboardStartupSnapshotOnceEffect = Effect.fn(
       historyTabs: historySearch.tabs,
       includeBookmarkMatches: filterSearch.includeBookmarkMatches,
       includeHistoryMatches: filterSearch.includeHistoryMatches,
-      query: filterSearch.query
-    }
+      query: filterSearch.query,
+    },
   }).pipe(
-    Effect.mapError((error) => DashboardStartupSnapshotFetchError.make({ cause: error.cause }))
+    Effect.mapError((error) => DashboardStartupSnapshotFetchError.make({ cause: error.cause })),
   )
   // Page fetchers are the Saved Pages metadata writers; the build stays pure.
   yield* persistSavedPageMetadataUpdatesEffect(
     savedPageUpdates.base,
-    savedPageUpdates.merged
+    savedPageUpdates.merged,
   ).pipe(
     Effect.catchTag('SavedPagesMutationError', () => Effect.void),
-    Effect.forkDetach({ startImmediately: true })
+    Effect.forkDetach({ startImmediately: true }),
   )
   return snapshot
 })
@@ -490,7 +490,7 @@ export const fetchDashboardStartupSnapshotEffect = fetchDashboardStartupSnapshot
 
 export function fetchDashboardStartupSnapshot(options: DashboardSnapshotOptions): Promise<DashboardStartupSnapshot> {
   return getAppRuntime().runPromise(fetchDashboardStartupSnapshotEffect(options).pipe(
-    Effect.catchTag('DashboardStartupSnapshotFetchError', (error) => Effect.fail(error.cause))
+    Effect.catchTag('DashboardStartupSnapshotFetchError', (error) => Effect.fail(error.cause)),
   ))
 }
 
@@ -512,36 +512,36 @@ export type AppDashboardState = {
 }
 type AppDashboardSnapshotFields = Pick<AppDashboardState, 'closedTabs' | 'dashboard' | 'tabHistory' | 'workingSet'>
 export type AppDashboardAction =
-  | { type: 'closedTabs'; closedTabs: readonly ClosedTabEntry[] }
-  | { type: 'dashboard'; dashboard: DashboardData | null }
-  | { type: 'historyRange'; historyRange: string }
-  | { type: 'historySearchPending'; historySearchPending: boolean }
-  | { type: 'source'; source: DashboardSource }
-  | { type: 'startupSourceSelection'; source: DashboardSource }
+  | { type: 'closedTabs', closedTabs: readonly ClosedTabEntry[] }
+  | { type: 'dashboard', dashboard: DashboardData | null }
+  | { type: 'historyRange', historyRange: string }
+  | { type: 'historySearchPending', historySearchPending: boolean }
+  | { type: 'source', source: DashboardSource }
+  | { type: 'startupSourceSelection', source: DashboardSource }
   | { type: 'sourceRequestCancelled' }
-  | { type: 'sourceRequest'; requestId: number; source: DashboardSource }
-  | { type: 'sourceRequestFailed'; requestId: number }
+  | { type: 'sourceRequest', requestId: number, source: DashboardSource }
+  | { type: 'sourceRequestFailed', requestId: number }
   | { type: 'startupPriorityCleared' }
-  | { type: 'tabHistory'; tabHistory: TabHistorySnapshot | null }
-  | { type: 'workingSet'; workingSet: WorkingSetSnapshot | null }
+  | { type: 'tabHistory', tabHistory: TabHistorySnapshot | null }
+  | { type: 'workingSet', workingSet: WorkingSetSnapshot | null }
   | {
-      type: 'startup'
-      historyRange: string
-      snapshot: DashboardStartupSnapshot | null
-      source?: DashboardSource
-    }
+    type: 'startup'
+    historyRange: string
+    snapshot: DashboardStartupSnapshot | null
+    source?: DashboardSource
+  }
   | {
-      type: 'sourceSnapshot'
-      dashboard: DashboardData | null
-      requestId: number
-      source: DashboardSource
-      tabHistory?: TabHistorySnapshot
-      workingSet?: WorkingSetSnapshot
-    }
+    type: 'sourceSnapshot'
+    dashboard: DashboardData | null
+    requestId: number
+    source: DashboardSource
+    tabHistory?: TabHistorySnapshot
+    workingSet?: WorkingSetSnapshot
+  }
 
 export function initialAppDashboardState({
   historyRange,
-  snapshot
+  snapshot,
 }: {
   historyRange: string
   snapshot: DashboardStartupSnapshot | null
@@ -557,24 +557,24 @@ export function initialAppDashboardState({
     sourceRequestId: 0,
     sourceSelection: 'tabs',
     startupPriorityWorkingSet: snapshot?.workingSet ?? null,
-    startupStateApplied: snapshot !== null
+    startupStateApplied: snapshot !== null,
   }
 }
 
 function appDashboardSnapshotFields(
-  snapshot: DashboardStartupSnapshot | null
+  snapshot: DashboardStartupSnapshot | null,
 ): AppDashboardSnapshotFields {
   return {
     closedTabs: snapshot?.closedTabs ?? [],
     dashboard: snapshot?.dashboard ?? null,
     tabHistory: snapshot?.tabHistory ?? null,
-    workingSet: snapshot?.workingSet ?? null
+    workingSet: snapshot?.workingSet ?? null,
   }
 }
 
 function startupSnapshotFieldsAfterLiveUpdates(
   state: AppDashboardState,
-  snapshot: DashboardStartupSnapshot | null
+  snapshot: DashboardStartupSnapshot | null,
 ): AppDashboardSnapshotFields {
   const cachedFields = appDashboardSnapshotFields(snapshot)
   return !state.startupStateApplied && state.deferredStartupSourceFields
@@ -590,7 +590,7 @@ function clearDashboardHistorySearch(dashboard: DashboardData | null, historyRan
     historyDomainGroups: [],
     historySearchQuery: '',
     historyRange,
-    historySearchStatus: 'idle'
+    historySearchStatus: 'idle',
   }
 }
 
@@ -608,14 +608,14 @@ function settleSourceRequestWithoutSnapshot(state: AppDashboardState): AppDashbo
       : state.deferredStartupSourceFields,
     sourceRequestId: state.sourceAppliedRequestId,
     sourceSelection: state.source,
-    startupPriorityWorkingSet: state.deferredStartupPriorityWorkingSet ?? state.startupPriorityWorkingSet
+    startupPriorityWorkingSet: state.deferredStartupPriorityWorkingSet ?? state.startupPriorityWorkingSet,
   }
 }
 
 function updateAppDashboardSnapshotField<K extends keyof AppDashboardSnapshotFields>(
   state: AppDashboardState,
   field: K,
-  value: AppDashboardSnapshotFields[K]
+  value: AppDashboardSnapshotFields[K],
 ): AppDashboardState {
   const deferredStartupSourceFields = state.deferredStartupSourceFields
   if (!state.startupStateApplied || deferredStartupSourceFields) {
@@ -626,8 +626,8 @@ function updateAppDashboardSnapshotField<K extends keyof AppDashboardSnapshotFie
       ...state,
       deferredStartupSourceFields: {
         ...deferredStartupSourceFields,
-        [field]: value
-      }
+        [field]: value,
+      },
     }
   }
   if (state[field] === value) return state
@@ -647,7 +647,7 @@ export function appDashboardReducer(state: AppDashboardState, action: AppDashboa
         dashboard: isHistoryFilterEnabled(action.historyRange)
           ? state.dashboard
           : clearDashboardHistorySearch(state.dashboard, action.historyRange),
-        historyRange: action.historyRange
+        historyRange: action.historyRange,
       }
     }
     case 'historySearchPending':
@@ -667,7 +667,7 @@ export function appDashboardReducer(state: AppDashboardState, action: AppDashboa
         ...state,
         sourceRequestId: action.requestId,
         sourceSelection: action.source,
-        startupPriorityWorkingSet: null
+        startupPriorityWorkingSet: null,
       }
     case 'sourceRequestCancelled':
       return settleSourceRequestWithoutSnapshot(state)
@@ -713,9 +713,9 @@ export function appDashboardReducer(state: AppDashboardState, action: AppDashboa
             ? {
                 closedTabs: sourceSnapshotFields.closedTabs,
                 tabHistory: sourceSnapshotFields.tabHistory,
-                workingSet: sourceSnapshotFields.workingSet
+                workingSet: sourceSnapshotFields.workingSet,
               }
-            : {})
+            : {}),
       }
     }
     case 'sourceSnapshot': {
@@ -742,7 +742,7 @@ export function appDashboardReducer(state: AppDashboardState, action: AppDashboa
             ...deferredFields,
             dashboard: action.dashboard,
             ...(action.tabHistory === undefined ? {} : { tabHistory: action.tabHistory }),
-            ...(action.workingSet === undefined ? {} : { workingSet: action.workingSet })
+            ...(action.workingSet === undefined ? {} : { workingSet: action.workingSet }),
           }
       return {
         ...state,
@@ -755,7 +755,7 @@ export function appDashboardReducer(state: AppDashboardState, action: AppDashboa
         sourceSelection: action.source,
         startupPriorityWorkingSet: null,
         ...(action.tabHistory !== undefined ? { tabHistory: action.tabHistory } : {}),
-        ...(action.workingSet !== undefined ? { workingSet: action.workingSet } : {})
+        ...(action.workingSet !== undefined ? { workingSet: action.workingSet } : {}),
       }
     }
   }
@@ -772,7 +772,7 @@ export type DashboardRefreshRequestOptions = DashboardRefreshOptions
 
 export type DashboardBeforeApplyEvent =
   | { reason: 'animated-refresh' }
-  | { reason: 'source-switch'; requestId: number }
+  | { reason: 'source-switch', requestId: number }
 
 export type AppDashboardStoreDependencies = {
   cancelTimeout?: (timer: ReturnType<typeof setTimeout>) => void
@@ -787,7 +787,7 @@ export type AppDashboardStoreDependencies = {
 }
 
 export type AppDashboardStore = {
-  applyStartup: (startup: { historyRange: string; snapshot: DashboardStartupSnapshot | null; source?: DashboardSource }) => void
+  applyStartup: (startup: { historyRange: string, snapshot: DashboardStartupSnapshot | null, source?: DashboardSource }) => void
   clearStartupPriority: () => void
   dispatch: (action: AppDashboardAction) => void
   hydrateBookmarkCompanion: () => Promise<void>
@@ -812,7 +812,7 @@ export type AppDashboardStore = {
  * capture pre-commit DOM geometry; the store itself stays DOM-free.
  */
 export function createAppDashboardStore(
-  dependencies: AppDashboardStoreDependencies = {}
+  dependencies: AppDashboardStoreDependencies = {},
 ): AppDashboardStore {
   const {
     cancelTimeout = (timer: ReturnType<typeof setTimeout>) => clearTimeout(timer),
@@ -821,7 +821,7 @@ export function createAppDashboardStore(
     fetchClosedTabsResult: fetchLatestClosedTabsResult = fetchClosedTabsResult,
     scheduleTimeout = (callback: () => void, delayMs: number) => setTimeout(callback, delayMs),
     showToast: showSourceSwitchToast = showToast,
-    subscribeClosedTabChanges: subscribeToClosedTabChanges = subscribeClosedTabChanges
+    subscribeClosedTabChanges: subscribeToClosedTabChanges = subscribeClosedTabChanges,
   } = dependencies
   const fetchSourceSwitchSnapshotEffect = dependencies.fetchDashboardSnapshotEffect ?? (
     dependencies.fetchDashboardSnapshot ? null : fetchDashboardSnapshotEffect
@@ -831,7 +831,7 @@ export function createAppDashboardStore(
   )
   const buildTimeState = initialAppDashboardState({
     historyRange: DEFAULT_HISTORY_RANGE,
-    snapshot: null
+    snapshot: null,
   })
   let state = buildTimeState
   const listeners = new Set<() => void>()
@@ -863,14 +863,14 @@ export function createAppDashboardStore(
     return Effect.callback((resume) => {
       const timer = scheduleTimeout(
         () => resume(Effect.void),
-        Math.max(1, Math.ceil(delayMs))
+        Math.max(1, Math.ceil(delayMs)),
       )
       return Effect.sync(() => cancelTimeout(timer))
     })
   }
 
-  const refreshClosedTabs = Effect.fn('dashboardIntake.refreshClosedTabs')(function*(
-    settleDelayMs = 0
+  const refreshClosedTabs = Effect.fn('dashboardIntake.refreshClosedTabs')(function* (
+    settleDelayMs = 0,
   ) {
     let minimumDelayMs = settleDelayMs
     while (true) {
@@ -890,7 +890,7 @@ export function createAppDashboardStore(
         ? fetchLatestClosedTabsEffect()
         : Effect.tryPromise({
             try: fetchLatestClosedTabsResult,
-            catch: (cause) => DashboardClosedTabsFetchError.make({ cause })
+            catch: (cause) => DashboardClosedTabsFetchError.make({ cause }),
           }))
       if (result.ok) {
         yield* Effect.sync(() => dispatch({ type: 'closedTabs', closedTabs: result.value }))
@@ -899,15 +899,15 @@ export function createAppDashboardStore(
     }
   })
 
-  const runClosedTabUpdates = Effect.fn('dashboardIntake.runClosedTabUpdates')(function*() {
+  const runClosedTabUpdates = Effect.fn('dashboardIntake.runClosedTabUpdates')(function* () {
     const runRefresh = yield* FiberHandle.makeRuntime<BrowserTabs, never, void>()
     yield* Effect.acquireRelease(
       Effect.sync(() => subscribeToClosedTabChanges((settleDelayMs) => {
         runRefresh(refreshClosedTabs(settleDelayMs).pipe(
-          Effect.catchTag('DashboardClosedTabsFetchError', () => Effect.void)
+          Effect.catchTag('DashboardClosedTabsFetchError', () => Effect.void),
         ))
       })),
-      (unsubscribe) => Effect.sync(() => unsubscribe())
+      (unsubscribe) => Effect.sync(() => unsubscribe()),
     )
     return yield* Effect.never
   })
@@ -926,7 +926,7 @@ export function createAppDashboardStore(
     await bookmarkCompanionRunner.requestEffect(
       fetchBookmarkCompanionSnapshotEffect({
         pinnedDomains,
-        previousOrder: inputs.previousOrder
+        previousOrder: inputs.previousOrder,
       }),
       (bookmarkCompanion) => {
         const dashboard = state.dashboard
@@ -937,23 +937,23 @@ export function createAppDashboardStore(
           dashboard: {
             ...dashboard,
             ...bookmarkCompanion,
-            bookmarkSearchReady: true
-          }
+            bookmarkSearchReady: true,
+          },
         })
-      }
+      },
     )
   }
 
   function refreshContextFromInputs(
     inputs: DashboardRefreshInputs,
-    source: DashboardSource = state.source
+    source: DashboardSource = state.source,
   ): DashboardRefreshContext {
     return {
       filter: inputs.filter,
       historyFilterEnabled: isHistoryFilterEnabled(state.historyRange),
       historyRange: state.historyRange,
       pinnedDomains: inputs.pinnedDomains,
-      source
+      source,
     }
   }
 
@@ -962,9 +962,9 @@ export function createAppDashboardStore(
     showSourceSwitchToast('Could not switch source')
   }
 
-  const runSourceSwitch = Effect.fn('dashboardIntake.runSourceSwitch')(function*(
+  const runSourceSwitch = Effect.fn('dashboardIntake.runSourceSwitch')(function* (
     requestId: number,
-    nextSource: DashboardSource
+    nextSource: DashboardSource,
   ) {
     while (true) {
       const inputs = refreshInputs
@@ -974,7 +974,7 @@ export function createAppDashboardStore(
       }
       const requestContext: DashboardRefreshContext = {
         ...refreshContextFromInputs(inputs, nextSource),
-        pinnedDomains: [...inputs.pinnedDomains]
+        pinnedDomains: [...inputs.pinnedDomains],
       }
       const snapshotOptions: DashboardSnapshotOptions = {
         source: nextSource,
@@ -982,15 +982,15 @@ export function createAppDashboardStore(
         historyRange: requestContext.historyRange,
         historyFilterEnabled: requestContext.historyFilterEnabled,
         pinnedDomains: [...requestContext.pinnedDomains],
-        previousOrder: inputs.previousOrder
+        previousOrder: inputs.previousOrder,
       }
       const sourceSnapshot = fetchSourceSwitchSnapshotEffect
         ? fetchSourceSwitchSnapshotEffect(snapshotOptions).pipe(
-            Effect.mapError((error) => DashboardSourceFetchError.make({ cause: error.cause }))
+            Effect.mapError((error) => DashboardSourceFetchError.make({ cause: error.cause })),
           )
         : Effect.tryPromise({
             try: () => fetchSourceSwitchSnapshot(snapshotOptions),
-            catch: (cause) => DashboardSourceFetchError.make({ cause })
+            catch: (cause) => DashboardSourceFetchError.make({ cause }),
           })
       const result = yield* Effect.result(sourceSnapshot)
       const latestInputs = refreshInputs
@@ -999,7 +999,7 @@ export function createAppDashboardStore(
           latestInputs &&
           !dashboardRefreshContextMatches(
             requestContext,
-            refreshContextFromInputs(latestInputs, nextSource)
+            refreshContextFromInputs(latestInputs, nextSource),
           )
         ) continue
         failSourceSwitch(requestId)
@@ -1009,7 +1009,7 @@ export function createAppDashboardStore(
         !latestInputs ||
         !dashboardRefreshContextMatches(
           requestContext,
-          refreshContextFromInputs(latestInputs, nextSource)
+          refreshContextFromInputs(latestInputs, nextSource),
         )
       ) continue
       const snapshot = result.success
@@ -1020,7 +1020,7 @@ export function createAppDashboardStore(
         requestId,
         source: nextSource,
         ...(snapshot.tabHistory === undefined ? {} : { tabHistory: snapshot.tabHistory }),
-        ...(snapshot.workingSet === undefined ? {} : { workingSet: snapshot.workingSet })
+        ...(snapshot.workingSet === undefined ? {} : { workingSet: snapshot.workingSet }),
       })
       return
     }
@@ -1036,13 +1036,13 @@ export function createAppDashboardStore(
     const id = {}
     const active = {
       id,
-      interrupt: () => {}
+      interrupt: () => {},
     }
     activeSourceSwitch = active
     active.interrupt = getAppRuntime().runCallback(runSourceSwitch(requestId, nextSource), {
       onExit: () => {
         if (activeSourceSwitch?.id === id) activeSourceSwitch = null
-      }
+      },
     })
   }
 
@@ -1068,7 +1068,7 @@ export function createAppDashboardStore(
    */
 
   async function refresh({
-    animateCards = false
+    animateCards = false,
   }: DashboardRefreshRequestOptions = {}): Promise<void> {
     if (animateCards) animatedRefreshPending = true
     if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
@@ -1076,7 +1076,7 @@ export function createAppDashboardStore(
     if (!inputs?.localStateLoaded) return
     const requestContext: DashboardRefreshContext = {
       ...refreshContextFromInputs(inputs),
-      pinnedDomains: [...inputs.pinnedDomains]
+      pinnedDomains: [...inputs.pinnedDomains],
     }
     const { filter, historyFilterEnabled, historyRange, pinnedDomains, source } = requestContext
     const previousOrder = inputs.previousOrder
@@ -1098,14 +1098,14 @@ export function createAppDashboardStore(
       historyFilterEnabled,
       pinnedDomains: [...pinnedDomains],
       ...(reusableBookmarkTabs === null ? {} : { prefetchedBookmarkTabs: reusableBookmarkTabs }),
-      previousOrder
+      previousOrder,
     }
-    const fetchRefreshSnapshot = Effect.gen(function*() {
+    const fetchRefreshSnapshot = Effect.gen(function* () {
       if (animatedRefreshPending) {
         yield* Effect.sync(() => emitBeforeApply({ reason: 'animated-refresh' }))
       }
       return yield* fetchDashboardSnapshotEffect(snapshotOptions).pipe(
-        Effect.catchTag('DashboardSnapshotFetchError', (error) => Effect.fail(error.cause))
+        Effect.catchTag('DashboardSnapshotFetchError', (error) => Effect.fail(error.cause)),
       )
     })
     try {
@@ -1118,16 +1118,16 @@ export function createAppDashboardStore(
             !latestInputs ||
             !dashboardRefreshContextMatches(
               requestContext,
-              refreshContextFromInputs(latestInputs)
+              refreshContextFromInputs(latestInputs),
             )
           ) return
           dispatch({
             type: 'dashboard',
-            dashboard: retainHistorySearchResultsOnError(snapshot.dashboard, state.dashboard)
+            dashboard: retainHistorySearchResultsOnError(snapshot.dashboard, state.dashboard),
           })
           if (snapshot.tabHistory !== undefined) dispatch({ type: 'tabHistory', tabHistory: snapshot.tabHistory })
           if (snapshot.workingSet !== undefined) dispatch({ type: 'workingSet', workingSet: snapshot.workingSet })
-        }
+        },
       )
     } catch (error) {
       animatedRefreshPending = false
@@ -1166,7 +1166,7 @@ export function createAppDashboardStore(
       beforeApplyListeners.add(listener)
       return () => beforeApplyListeners.delete(listener)
     },
-    switchSource
+    switchSource,
   }
 }
 
@@ -1178,7 +1178,7 @@ export function requestDashboardRefresh(options: DashboardRefreshOptions = {}): 
 
 /** Replace the global refresh target for a focused test and restore it afterward. */
 export function replaceDashboardRefreshForTesting(
-  refresh: (options?: DashboardRefreshOptions) => Promise<void> | void
+  refresh: (options?: DashboardRefreshOptions) => Promise<void> | void,
 ): () => void {
   const previousRefresh = appDashboardStore.refresh
   const replacementRefresh: typeof appDashboardStore.refresh = async (options) => {

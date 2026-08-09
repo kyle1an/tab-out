@@ -29,7 +29,7 @@ function createFakeChromeEvent() {
     },
     dispatch(...args) {
       for (const handler of handlers.slice()) handler(...args)
-    }
+    },
   }
 }
 
@@ -50,7 +50,7 @@ export function createFakeChromeApi({
   sendMessage = null,
   getURL = (path) => path,
   runtimeId = 'tab-out-fake-extension',
-  tabCommandLog = { duplicate: [], reload: [] }
+  tabCommandLog = { duplicate: [], reload: [] },
 } = {}) {
   let nextId = tabs.reduce((max, tab) => Math.max(max, tab.id ?? 0), 1000) + 1
   const nextWindowId = () => windows.reduce((max, w) => Math.max(max, w.id ?? 0), 1) + 1
@@ -100,7 +100,7 @@ export function createFakeChromeApi({
           active: createProperties.active ?? true,
           pinned: createProperties.pinned ?? false,
           groupId: -1,
-          index: typeof createProperties.index === 'number' ? createProperties.index : tabs.length
+          index: typeof createProperties.index === 'number' ? createProperties.index : tabs.length,
         }
         tabs.push(tab)
         return tab
@@ -116,7 +116,7 @@ export function createFakeChromeApi({
         const duplicate = {
           ...source,
           id: nextId++,
-          index: source.index + 1
+          index: source.index + 1,
         }
         tabs.push(duplicate)
         return duplicate
@@ -144,7 +144,7 @@ export function createFakeChromeApi({
       onAttached: createFakeChromeEvent(),
       onDetached: createFakeChromeEvent(),
       onReplaced: createFakeChromeEvent(),
-      onUpdated: createFakeChromeEvent()
+      onUpdated: createFakeChromeEvent(),
     },
     windows: {
       getAll: async () => windows.slice(),
@@ -168,14 +168,14 @@ export function createFakeChromeApi({
         }
         return created
       },
-      onFocusChanged: createFakeChromeEvent()
+      onFocusChanged: createFakeChromeEvent(),
     },
     tabGroups: {
       query: async () => tabGroups.slice(),
       onCreated: createFakeChromeEvent(),
       onUpdated: createFakeChromeEvent(),
       onRemoved: createFakeChromeEvent(),
-      onMoved: createFakeChromeEvent()
+      onMoved: createFakeChromeEvent(),
     },
     sessions: {
       getRecentlyClosed: async () => recentlyClosed.slice(),
@@ -185,7 +185,7 @@ export function createFakeChromeApi({
         const [session] = recentlyClosed.splice(index, 1)
         if (session.tab) tabs.push({ ...session.tab, id: nextId++ })
         return session
-      }
+      },
     },
     runtime: {
       id: runtimeId,
@@ -193,7 +193,7 @@ export function createFakeChromeApi({
       sendMessage: async (...args) => {
         if (sendMessage) return sendMessage(...args)
         return undefined
-      }
+      },
     },
     storage: {
       local: {
@@ -210,9 +210,9 @@ export function createFakeChromeApi({
         },
         remove: async (keys) => {
           for (const name of normalizeStorageKeys(keys)) delete storageSeed[name]
-        }
+        },
       },
-      onChanged: createFakeChromeEvent()
+      onChanged: createFakeChromeEvent(),
     },
     bookmarks: {
       getTree: async () => getBookmarkTree(),
@@ -221,14 +221,14 @@ export function createFakeChromeApi({
       onChanged: createFakeChromeEvent(),
       onMoved: createFakeChromeEvent(),
       onChildrenReordered: createFakeChromeEvent(),
-      onImportEnded: createFakeChromeEvent()
+      onImportEnded: createFakeChromeEvent(),
     },
     history: {
       search: async () => historySearch(),
       deleteUrl: async () => {},
       onVisited: createFakeChromeEvent(),
-      onVisitRemoved: createFakeChromeEvent()
-    }
+      onVisitRemoved: createFakeChromeEvent(),
+    },
   }
 
   return api

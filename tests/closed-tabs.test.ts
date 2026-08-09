@@ -20,9 +20,9 @@ function setSessionsApi(sessions: Session[]) {
     sessions: {
       getRecentlyClosed: async (_opts?: { maxResults?: number }) => sessions,
       restore: async (_id?: string) => undefined,
-      onChanged: { addListener: () => {}, removeListener: () => {} }
+      onChanged: { addListener: () => {}, removeListener: () => {} },
     },
-    runtime: { id: 'tab-out-test' }
+    runtime: { id: 'tab-out-test' },
   } as unknown as typeof globalThis.chrome
 }
 
@@ -36,18 +36,18 @@ test('fetchClosedTabs flattens single tab sessions and window sessions to one en
         windowId: 1,
         url: 'https://example.com/a',
         title: 'A',
-        favIconUrl: ''
-      } as SessionTab & { sessionId: string }
+        favIconUrl: '',
+      } as SessionTab & { sessionId: string },
     },
     {
       lastModified: 1_700_000_020,
       window: {
         tabs: [
           { sessionId: 'tab-b', id: 2, windowId: 2, url: 'https://example.com/b', title: 'B', favIconUrl: '' } as SessionTab & { sessionId: string },
-          { sessionId: 'tab-c', id: 3, windowId: 2, url: 'https://example.com/c', title: 'C', favIconUrl: '' } as SessionTab & { sessionId: string }
-        ]
-      } as SessionWindow
-    }
+          { sessionId: 'tab-c', id: 3, windowId: 2, url: 'https://example.com/c', title: 'C', favIconUrl: '' } as SessionTab & { sessionId: string },
+        ],
+      } as SessionWindow,
+    },
   ])
 
   const result = (await fetchClosedTabsResult()).value
@@ -64,20 +64,20 @@ test('fetchClosedTabs drops every browser-internal URL kind', async () => {
   setSessionsApi([
     {
       lastModified: 1,
-      tab: { sessionId: 'a', id: 1, windowId: 1, url: 'chrome://newtab/', title: 'New Tab', favIconUrl: '' } as SessionTab & { sessionId: string }
+      tab: { sessionId: 'a', id: 1, windowId: 1, url: 'chrome://newtab/', title: 'New Tab', favIconUrl: '' } as SessionTab & { sessionId: string },
     },
     {
       lastModified: 2,
-      tab: { sessionId: 'b', id: 2, windowId: 1, url: 'chrome-extension://tab-out-test/index.html', title: 'Tab Out', favIconUrl: '' } as SessionTab & { sessionId: string }
+      tab: { sessionId: 'b', id: 2, windowId: 1, url: 'chrome-extension://tab-out-test/index.html', title: 'Tab Out', favIconUrl: '' } as SessionTab & { sessionId: string },
     },
     {
       lastModified: 3,
-      tab: { sessionId: 'c', id: 3, windowId: 1, url: 'chrome-untrusted://new-tab-page/', title: 'New Tab Frame', favIconUrl: '' } as SessionTab & { sessionId: string }
+      tab: { sessionId: 'c', id: 3, windowId: 1, url: 'chrome-untrusted://new-tab-page/', title: 'New Tab Frame', favIconUrl: '' } as SessionTab & { sessionId: string },
     },
     {
       lastModified: 4,
-      tab: { sessionId: 'd', id: 4, windowId: 1, url: 'https://example.com/keep', title: 'Keep', favIconUrl: '' } as SessionTab & { sessionId: string }
-    }
+      tab: { sessionId: 'd', id: 4, windowId: 1, url: 'https://example.com/keep', title: 'Keep', favIconUrl: '' } as SessionTab & { sessionId: string },
+    },
   ])
 
   const result = (await fetchClosedTabsResult()).value
@@ -88,7 +88,7 @@ test('fetchClosedTabs drops every browser-internal URL kind', async () => {
 test('fetchClosedTabs drops tabs without urls and entries without sessionId', async () => {
   setSessionsApi([
     { lastModified: 1, tab: { id: 1, windowId: 1, url: '', title: 'no url', favIconUrl: '' } as SessionTab },
-    { lastModified: 2, tab: { sessionId: '', id: 2, windowId: 1, url: 'https://example.com/x', title: 'x', favIconUrl: '' } as SessionTab & { sessionId: string } }
+    { lastModified: 2, tab: { sessionId: '', id: 2, windowId: 1, url: 'https://example.com/x', title: 'x', favIconUrl: '' } as SessionTab & { sessionId: string } },
   ])
   const result = (await fetchClosedTabsResult()).value
   assert.equal(result.length, 0)
@@ -103,8 +103,8 @@ test('fetchClosedTabs resolves to empty when chrome.sessions is unavailable', as
 test('fetchClosedTabsResult distinguishes a rejected sessions read from confirmed empty', async () => {
   globalThis.chrome = {
     sessions: {
-      getRecentlyClosed: async () => { throw new Error('sessions database unavailable') }
-    }
+      getRecentlyClosed: async () => { throw new Error('sessions database unavailable') },
+    },
   } as unknown as typeof globalThis.chrome
 
   assert.deepEqual(await fetchClosedTabsResult(), { ok: false, value: [] })
@@ -115,23 +115,23 @@ test('fetchClosedTabsResult distinguishes a rejected sessions read from confirme
 test('restoreClosedTab calls chrome.sessions.restore and resolves true on success', async () => {
   let calledWith: string | undefined
   const restoreEvents: string[] = []
-  const restoreMessages: Array<{ phase: string; restoreId: string; restored?: boolean }> = []
+  const restoreMessages: Array<{ phase: string, restoreId: string, restored?: boolean }> = []
   globalThis.chrome = {
     sessions: {
       restore: async (id?: string) => {
         calledWith = id
         restoreEvents.push('restore')
         return undefined
-      }
+      },
     },
     runtime: {
       id: 'tab-out-test',
       sendMessage: async (message: unknown) => {
-        const restoreMessage = message as { phase: string; restoreId: string; restored?: boolean }
+        const restoreMessage = message as { phase: string, restoreId: string, restored?: boolean }
         restoreEvents.push(restoreMessage.phase)
         restoreMessages.push(restoreMessage)
-      }
-    }
+      },
+    },
   } as unknown as typeof globalThis.chrome
 
   const ok = await restoreClosedTab('session-xyz')
@@ -146,9 +146,9 @@ test('restoreClosedTab calls chrome.sessions.restore and resolves true on succes
 test('restoreClosedTab returns false when chrome.sessions.restore throws', async () => {
   globalThis.chrome = {
     sessions: {
-      restore: async () => { throw new Error('refused') }
+      restore: async () => { throw new Error('refused') },
     },
-    runtime: { id: 'tab-out-test' }
+    runtime: { id: 'tab-out-test' },
   } as unknown as typeof globalThis.chrome
 
   const ok = await restoreClosedTab('session-xyz')
@@ -156,17 +156,17 @@ test('restoreClosedTab returns false when chrome.sessions.restore throws', async
 })
 
 test('restoreClosedTab broadcasts settlement when Chrome rejects the restore', async () => {
-  const restoreMessages: Array<{ phase: string; restored?: boolean }> = []
+  const restoreMessages: Array<{ phase: string, restored?: boolean }> = []
   globalThis.chrome = {
     sessions: {
-      restore: async () => { throw new Error('refused') }
+      restore: async () => { throw new Error('refused') },
     },
     runtime: {
       id: 'tab-out-test',
       sendMessage: async (message: unknown) => {
-        restoreMessages.push(message as { phase: string; restored?: boolean })
-      }
-    }
+        restoreMessages.push(message as { phase: string, restored?: boolean })
+      },
+    },
   } as unknown as typeof globalThis.chrome
 
   const ok = await restoreClosedTab('session-xyz')
@@ -184,7 +184,7 @@ test('restoreClosedTab returns false when chrome.sessions is unavailable', async
 
 test('restoreClosedTab returns false when sessionId is empty', async () => {
   globalThis.chrome = {
-    sessions: { restore: async () => undefined }
+    sessions: { restore: async () => undefined },
   } as unknown as typeof globalThis.chrome
   const ok = await restoreClosedTab('')
   assert.equal(ok, false)
@@ -199,15 +199,15 @@ test('subscribeClosedTabChanges registers and unregisters a listener', async () 
         removeListener: (handler: () => void) => {
           const i = listeners.indexOf(handler)
           if (i >= 0) listeners.splice(i, 1)
-        }
-      }
+        },
+      },
     },
     tabs: {
       onRemoved: {
         addListener: () => {},
-        removeListener: () => {}
-      }
-    }
+        removeListener: () => {},
+      },
+    },
   } as unknown as typeof globalThis.chrome
 
   const settleDelays: number[] = []
@@ -223,9 +223,9 @@ test('restore suppression is armed before Chrome settles the restore promise', a
   const { promise: restoring, resolve: finishRestore } = Promise.withResolvers<void>()
   globalThis.chrome = {
     sessions: {
-      restore: async () => restoring
+      restore: async () => restoring,
     },
-    runtime: { id: 'tab-out-test' }
+    runtime: { id: 'tab-out-test' },
   } as unknown as typeof globalThis.chrome
 
   const restore = restoreClosedTab('session-pending')
@@ -249,13 +249,13 @@ test('a restore gated beyond 150ms stays suppressed and emits a settled trailing
       },
       onChanged: {
         addListener: (handler: () => void) => sessionListeners.push(handler),
-        removeListener: () => {}
-      }
+        removeListener: () => {},
+      },
     },
     tabs: {
-      onRemoved: { addListener: () => {}, removeListener: () => {} }
+      onRemoved: { addListener: () => {}, removeListener: () => {} },
     },
-    runtime: { id: 'tab-out-test' }
+    runtime: { id: 'tab-out-test' },
   } as unknown as typeof globalThis.chrome
   const unsubscribe = subscribeClosedTabChanges((settleDelayMs) => { settleDelays.push(settleDelayMs) })
 
@@ -286,17 +286,17 @@ test('a second page suppresses reads for a restore broadcast by another page', (
   const settleDelays: number[] = []
   globalThis.chrome = {
     sessions: {
-      onChanged: { addListener: () => {}, removeListener: () => {} }
+      onChanged: { addListener: () => {}, removeListener: () => {} },
     },
     tabs: {
-      onRemoved: { addListener: () => {}, removeListener: () => {} }
+      onRemoved: { addListener: () => {}, removeListener: () => {} },
     },
     runtime: {
       onMessage: {
         addListener: (handler: (message: unknown) => void) => runtimeListeners.push(handler),
-        removeListener: () => {}
-      }
-    }
+        removeListener: () => {},
+      },
+    },
   } as unknown as typeof globalThis.chrome
   const unsubscribe = subscribeClosedTabChanges((settleDelayMs) => { settleDelays.push(settleDelayMs) })
 
@@ -304,7 +304,7 @@ test('a second page suppresses reads for a restore broadcast by another page', (
     valueAt(runtimeListeners, 0)({
       type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
       restoreId: 'other-page-restore',
-      phase: 'started'
+      phase: 'started',
     })
     assert.equal(closedTabFetchSuppressionRemainingMs(), Number.POSITIVE_INFINITY)
     assert.deepEqual(settleDelays, [0])
@@ -313,7 +313,7 @@ test('a second page suppresses reads for a restore broadcast by another page', (
       type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
       restoreId: 'other-page-restore',
       phase: 'settled',
-      restored: true
+      restored: true,
     })
     assert.notEqual(closedTabFetchSuppressionRemainingMs(), Number.POSITIVE_INFINITY)
     assert.deepEqual(settleDelays, [0, CLOSED_TAB_SESSION_SETTLE_MS])
@@ -327,17 +327,17 @@ test('a second page ignores malformed restore-state messages', () => {
   const settleDelays: number[] = []
   globalThis.chrome = {
     sessions: {
-      onChanged: { addListener: () => {}, removeListener: () => {} }
+      onChanged: { addListener: () => {}, removeListener: () => {} },
     },
     tabs: {
-      onRemoved: { addListener: () => {}, removeListener: () => {} }
+      onRemoved: { addListener: () => {}, removeListener: () => {} },
     },
     runtime: {
       onMessage: {
         addListener: (handler: (message: unknown) => void) => runtimeListeners.push(handler),
-        removeListener: () => {}
-      }
-    }
+        removeListener: () => {},
+      },
+    },
   } as unknown as typeof globalThis.chrome
   const unsubscribe = subscribeClosedTabChanges((settleDelayMs) => { settleDelays.push(settleDelayMs) })
 
@@ -346,7 +346,7 @@ test('a second page ignores malformed restore-state messages', () => {
       type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
       restoreId: 'malformed-restore',
       phase: 'settled',
-      restored: 'yes'
+      restored: 'yes',
     })
     assert.deepEqual(settleDelays, [])
   } finally {
@@ -360,17 +360,17 @@ test('a second page releases an orphaned restore broadcast through its watchdog'
   const settleDelays: number[] = []
   globalThis.chrome = {
     sessions: {
-      onChanged: { addListener: () => {}, removeListener: () => {} }
+      onChanged: { addListener: () => {}, removeListener: () => {} },
     },
     tabs: {
-      onRemoved: { addListener: () => {}, removeListener: () => {} }
+      onRemoved: { addListener: () => {}, removeListener: () => {} },
     },
     runtime: {
       onMessage: {
         addListener: (handler: (message: unknown) => void) => runtimeListeners.push(handler),
-        removeListener: () => {}
-      }
-    }
+        removeListener: () => {},
+      },
+    },
   } as unknown as typeof globalThis.chrome
   const unsubscribe = subscribeClosedTabChanges((settleDelayMs) => { settleDelays.push(settleDelayMs) })
 
@@ -378,7 +378,7 @@ test('a second page releases an orphaned restore broadcast through its watchdog'
     valueAt(runtimeListeners, 0)({
       type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
       restoreId: 'orphaned-other-page-restore',
-      phase: 'started'
+      phase: 'started',
     })
     assert.equal(closedTabFetchSuppressionRemainingMs(), Number.POSITIVE_INFINITY)
 
@@ -401,9 +401,9 @@ test('subscribeClosedTabChanges no-ops when chrome.sessions.onChanged is unavail
 test('restoreClosedTab sets a 150ms suppression window on success', async () => {
   globalThis.chrome = {
     sessions: {
-      restore: async () => undefined
+      restore: async () => undefined,
     },
-    runtime: { id: 'tab-out-test' }
+    runtime: { id: 'tab-out-test' },
   } as unknown as typeof globalThis.chrome
 
   const start = Date.now()
@@ -417,9 +417,9 @@ test('restoreClosedTab sets a 150ms suppression window on success', async () => 
 test('restoreClosedTab does not set a suppression window on failure', async () => {
   globalThis.chrome = {
     sessions: {
-      restore: async () => { throw new Error('refused') }
+      restore: async () => { throw new Error('refused') },
     },
-    runtime: { id: 'tab-out-test' }
+    runtime: { id: 'tab-out-test' },
   } as unknown as typeof globalThis.chrome
 
   const baseline = Date.now() + 10_000

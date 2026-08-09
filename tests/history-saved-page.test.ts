@@ -5,7 +5,7 @@ import {
   historyEntrySaveTarget,
   historyEntrySaved,
   historyEntrySavedPageKey,
-  isHistoryEntrySaveEligible
+  isHistoryEntrySaveEligible,
 } from '../src/extension/history-saved-page.js'
 import { savedPageKeyForUrl } from '../src/extension/saved-pages.js'
 import type { RetainedPageRecord, RetainedPageSurfaceKind } from '../src/extension/retained-pages-ledger.js'
@@ -17,14 +17,14 @@ function makeEntry(overrides: Partial<TabHistoryEntry> & { url: string }): TabHi
     isApp: false, pinned: false, discarded: false, suspended: false, cursor: false, current: false,
     previousTarget: false, nextTarget: false,
     title: 'Title', rawUrl: overrides.url, displayUrl: overrides.url,
-    favIconUrl: '', lastActivatedAt: null, ...overrides
+    favIconUrl: '', lastActivatedAt: null, ...overrides,
   }
 }
 
 function makeRetainedPage(
   surfaceKind: RetainedPageSurfaceKind,
   url: string,
-  canonicalKey = url
+  canonicalKey = url,
 ): RetainedPageRecord {
   return {
     identityDigest: `${surfaceKind}:${canonicalKey}`,
@@ -33,16 +33,16 @@ function makeRetainedPage(
     url,
     title: 'Retained title',
     closedAt: 1,
-    closureToken: `${surfaceKind}-closure`
+    closureToken: `${surfaceKind}-closure`,
   }
 }
 
 test('historyEntrySaveTarget maps entry fields to the save-page target shape', () => {
   const target = historyEntrySaveTarget(makeEntry({
-    url: 'https://x.test/p', rawUrl: 'https://x.test/raw', title: 'X', favIconUrl: 'https://x.test/i.png', isApp: false
+    url: 'https://x.test/p', rawUrl: 'https://x.test/raw', title: 'X', favIconUrl: 'https://x.test/i.png', isApp: false,
   }))
   assert.deepEqual(target, {
-    url: 'https://x.test/p', rawUrl: 'https://x.test/raw', title: 'X', favIconUrl: 'https://x.test/i.png', isTabOut: false, isApp: false
+    url: 'https://x.test/p', rawUrl: 'https://x.test/raw', title: 'X', favIconUrl: 'https://x.test/i.png', isTabOut: false, isApp: false,
   })
 })
 
@@ -54,7 +54,7 @@ test('historyEntrySaveTarget chooses app only from an unambiguous retained app m
   assert.equal(historyEntrySaveTarget(entry, [makeRetainedPage('normal-tab', url)]).isApp, false)
   assert.equal(historyEntrySaveTarget(entry, [
     makeRetainedPage('app', url),
-    makeRetainedPage('normal-tab', url)
+    makeRetainedPage('normal-tab', url),
   ]).isApp, false)
 })
 
@@ -65,7 +65,7 @@ test('historyEntrySaveTarget falls back to normal-tab without matching retained 
   assert.equal(historyEntrySaveTarget(entry).isApp, false)
   assert.equal(
     historyEntrySaveTarget(entry, [makeRetainedPage('app', 'https://other.test/workspace')]).isApp,
-    false
+    false,
   )
 })
 
@@ -108,10 +108,10 @@ test('historyEntrySavedPageKey returns the exact surface-qualified removal targe
 
   assert.equal(
     historyEntrySavedPageKey(makeEntry({ url })),
-    savedPageKeyForUrl(url, 'normal-tab')
+    savedPageKeyForUrl(url, 'normal-tab'),
   )
   assert.equal(
     historyEntrySavedPageKey(makeEntry({ url, isApp: true }), [makeRetainedPage('app', url)]),
-    savedPageKeyForUrl(url, 'app')
+    savedPageKeyForUrl(url, 'app'),
   )
 })

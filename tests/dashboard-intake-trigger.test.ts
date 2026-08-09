@@ -5,13 +5,13 @@ import {
   mergeDashboardRefreshOptions,
   replaceDashboardRefreshForTesting,
   requestDashboardRefresh,
-  settleDashboardRefresh
+  settleDashboardRefresh,
 } from '../src/extension/dashboard-intake.js'
 import type { DashboardRefreshOptions } from '../src/extension/dashboard-intake.js'
 
 test('dashboard refresh options expose only supported coordination flags', () => {
   const options = {
-    animateCards: true
+    animateCards: true,
   } satisfies DashboardRefreshOptions
 
   assert.deepEqual(options, { animateCards: true })
@@ -35,7 +35,7 @@ test('requestDashboardRefresh forwards refresh options to the intake refresh tar
 test('merged dashboard refreshes preserve animation intent', () => {
   const options = mergeDashboardRefreshOptions(
     { animateCards: true },
-    {}
+    {},
   )
 
   assert.deepEqual(options, { animateCards: true })

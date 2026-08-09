@@ -6,22 +6,22 @@ import {
   RETAINED_PAGE_LIFETIME_MS,
   type RetainedPageRecord,
   type RetainedPageRemovalBoundary,
-  type RetainedPageLedger
+  type RetainedPageLedger,
 } from './retained-pages-ledger.js'
 import {
   OPEN_SURFACE_FAVICON_MAX_LENGTH,
-  OPEN_SURFACE_TITLE_MAX_CODE_POINTS
+  OPEN_SURFACE_TITLE_MAX_CODE_POINTS,
 } from './open-surface-inventory.js'
 import {
   createCachedRetainedPageIdentityResolver,
   isRetainedPageCaptureEligible,
   type ResolveRetainedPageIdentities,
-  type RetainedPageIdentityOptions
+  type RetainedPageIdentityOptions,
 } from './retained-page-identity.js'
 import { canonicalDedupeKey } from './url-canonical.js'
 import {
   decodeGzipBase64Json,
-  encodeGzipBase64Json
+  encodeGzipBase64Json,
 } from './gzip-base64-json.js'
 
 export const RETAINED_PAGES_STORAGE_KEY = 'tabOutRetainedPagesV1'
@@ -48,8 +48,8 @@ export class RetainedPageLedgerStorageError extends Schema.TaggedErrorClass<Reta
   'RetainedPageLedgerStorageError',
   {
     operation: Schema.Literals(['read', 'write']),
-    cause: Schema.Defect()
-  }
+    cause: Schema.Defect(),
+  },
 ) {}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -75,7 +75,7 @@ function hasBoundedTitle(value: unknown): value is string {
 
 function hasCachedBoundedTitle(
   value: unknown,
-  validityByTitle: Map<string, boolean>
+  validityByTitle: Map<string, boolean>,
 ): value is string {
   if (typeof value !== 'string') return false
   return validityByTitle.getOrInsertComputed(value, () => hasBoundedTitle(value))
@@ -94,7 +94,7 @@ const ledgerKeys = new Set([
   'schemaVersion',
   'identityVersion',
   'pages',
-  'removalBoundaries'
+  'removalBoundaries',
 ])
 const pageKeys = new Set([
   'identityDigest',
@@ -104,22 +104,22 @@ const pageKeys = new Set([
   'title',
   'favIconUrl',
   'closedAt',
-  'closureToken'
+  'closureToken',
 ])
 const boundaryKeys = new Set([
   'identityDigest',
   'closureToken',
-  'expiresAt'
+  'expiresAt',
 ])
 const storageEnvelopeKeys = new Set([
   'schemaVersion',
   'identityVersion',
   'encoding',
-  'data'
+  'data',
 ])
 
 function knownStorageEnvelope(
-  stored: unknown
+  stored: unknown,
 ): RetainedPageLedgerStorageEnvelope | null {
   if (
     !isRecord(stored) ||
@@ -133,13 +133,13 @@ function knownStorageEnvelope(
     schemaVersion: 1,
     identityVersion: 1,
     encoding: RETAINED_PAGES_STORAGE_ENCODING,
-    data: stored.data
+    data: stored.data,
   }
 }
 
 function storageEnvelopesEqual(
   left: RetainedPageLedgerStorageEnvelope,
-  right: RetainedPageLedgerStorageEnvelope
+  right: RetainedPageLedgerStorageEnvelope,
 ): boolean {
   return left.schemaVersion === right.schemaVersion &&
     left.identityVersion === right.identityVersion &&
@@ -151,11 +151,11 @@ function isExpandedRetainedPageLedgerValue(stored: unknown): boolean {
   if (!isRecord(stored)) return false
   const hasExpandedPage = isRecord(stored.pages) &&
     Object.values(stored.pages).some((page) =>
-      isRecord(page) && ('identityDigest' in page || 'canonicalKey' in page)
+      isRecord(page) && ('identityDigest' in page || 'canonicalKey' in page),
     )
   const hasExpandedBoundary = isRecord(stored.removalBoundaries) &&
     Object.values(stored.removalBoundaries).some((boundary) =>
-      isRecord(boundary) && 'closureToken' in boundary
+      isRecord(boundary) && 'closureToken' in boundary,
     )
   return hasExpandedPage || hasExpandedBoundary
 }
@@ -183,8 +183,8 @@ function normalizeExpandedRetainedPageLedgerValue(stored: unknown): unknown {
 }
 
 function compareReindexedPageOrder(
-  left: { readonly page: RetainedPageRecord; readonly oldIdentityDigest: string },
-  right: { readonly page: RetainedPageRecord; readonly oldIdentityDigest: string }
+  left: { readonly page: RetainedPageRecord, readonly oldIdentityDigest: string },
+  right: { readonly page: RetainedPageRecord, readonly oldIdentityDigest: string },
 ): number {
   return left.page.closedAt - right.page.closedAt ||
     left.page.closureToken.localeCompare(right.page.closureToken) ||
@@ -193,12 +193,12 @@ function compareReindexedPageOrder(
 
 async function reindexRetainedPageLedger(
   ledger: RetainedPageLedger,
-  resolveIdentities: ResolveRetainedPageIdentities
+  resolveIdentities: ResolveRetainedPageIdentities,
 ): Promise<RetainedPageLedger> {
   const storedPages = Object.entries(ledger.pages)
   const identities = await resolveIdentities(storedPages.map(([, page]) => ({
     surfaceKind: page.surfaceKind,
-    url: page.url
+    url: page.url,
   })))
   const digestByOldDigest = new Map<string, string | null>()
   const winnerByDigest = new Map<string, {
@@ -217,8 +217,8 @@ async function reindexRetainedPageLedger(
         identityDigest: identity.identityDigest,
         surfaceKind: identity.surfaceKind,
         canonicalKey: identity.canonicalKey,
-        url: identity.url
-      }
+        url: identity.url,
+      },
     }
     const existing = winnerByDigest.get(identity.identityDigest)
     if (!existing || compareReindexedPageOrder(candidate, existing) > 0) {
@@ -242,7 +242,7 @@ async function reindexRetainedPageLedger(
     schemaVersion: 1,
     identityVersion: 1,
     pages: enforceRetainedPageCapacity(pages),
-    removalBoundaries
+    removalBoundaries,
   }
 }
 
@@ -250,7 +250,7 @@ function parseRetainedPageRecord(
   stored: unknown,
   identityDigest: string,
   now: number,
-  titleValidityByValue: Map<string, boolean>
+  titleValidityByValue: Map<string, boolean>,
 ): RetainedPageRecord | null {
   if (!isRecord(stored) || !hasOnlyKeys(stored, pageKeys)) return null
   if (
@@ -261,7 +261,7 @@ function parseRetainedPageRecord(
     !isNonEmptyString(stored.url) ||
     !isRetainedPageCaptureEligible({
       surfaceKind: stored.surfaceKind,
-      url: stored.url
+      url: stored.url,
     }) ||
     !hasCachedBoundedTitle(stored.title, titleValidityByValue) ||
     !isReusableFavicon(stored.favIconUrl) ||
@@ -278,14 +278,14 @@ function parseRetainedPageRecord(
     title: stored.title,
     ...(stored.favIconUrl === undefined ? {} : { favIconUrl: stored.favIconUrl }),
     closedAt: stored.closedAt,
-    closureToken: stored.closureToken
+    closureToken: stored.closureToken,
   }
 }
 
 function parseRemovalBoundary(
   stored: unknown,
   closureToken: string,
-  now: number
+  now: number,
 ): RetainedPageRemovalBoundary | null {
   if (!isRecord(stored) || !hasOnlyKeys(stored, boundaryKeys)) return null
   if (
@@ -299,7 +299,7 @@ function parseRemovalBoundary(
   return {
     identityDigest: stored.identityDigest,
     closureToken,
-    expiresAt: stored.expiresAt
+    expiresAt: stored.expiresAt,
   }
 }
 
@@ -309,41 +309,41 @@ function parseRemovalBoundary(
  * URL. The parser remains compatible with the earlier expanded v1 envelope.
  */
 function serializeRetainedPageLedgerValue(
-  ledger: RetainedPageLedger
+  ledger: RetainedPageLedger,
 ): unknown {
   return {
     schemaVersion: ledger.schemaVersion,
     identityVersion: ledger.identityVersion,
     pages: Object.fromEntries(Object.entries(ledger.pages).map(([
       identityDigest,
-      page
+      page,
     ]) => [identityDigest, {
       surfaceKind: page.surfaceKind,
       url: page.url,
       title: page.title,
       ...(page.favIconUrl ? { favIconUrl: page.favIconUrl } : {}),
       closedAt: page.closedAt,
-      closureToken: page.closureToken
+      closureToken: page.closureToken,
     }])),
     removalBoundaries: Object.fromEntries(Object.entries(ledger.removalBoundaries).map(([
       closureToken,
-      boundary
+      boundary,
     ]) => [closureToken, {
       identityDigest: boundary.identityDigest,
-      expiresAt: boundary.expiresAt
-    }]))
+      expiresAt: boundary.expiresAt,
+    }])),
   }
 }
 
 /** Encode the compact v1 ledger for the quota-constrained Chrome local store. */
 export async function encodeRetainedPageLedgerStorageValue(
-  ledger: RetainedPageLedger
+  ledger: RetainedPageLedger,
 ): Promise<unknown> {
   return {
     schemaVersion: ledger.schemaVersion,
     identityVersion: ledger.identityVersion,
     encoding: RETAINED_PAGES_STORAGE_ENCODING,
-    data: await encodeGzipBase64Json(serializeRetainedPageLedgerValue(ledger))
+    data: await encodeGzipBase64Json(serializeRetainedPageLedgerValue(ledger)),
   }
 }
 
@@ -352,7 +352,7 @@ export async function encodeRetainedPageLedgerStorageValue(
  * opaque so an older extension never replaces them with an empty ledger.
  */
 export async function decodeRetainedPageLedgerStorageValue(
-  stored: unknown
+  stored: unknown,
 ): Promise<unknown> {
   const envelope = knownStorageEnvelope(stored)
   if (!envelope) return stored
@@ -387,20 +387,20 @@ export function createRetainedPageLedgerStorageDecodeCache() {
       const decoded = await decodeRetainedPageLedgerStorageValue(stored)
       if (envelope && decoded !== stored) cached = { envelope, decoded }
       return decoded
-    }
+    },
   }
 }
 
 export type RetainedPageLedgerParseResult =
-  | { status: 'missing'; ledger: RetainedPageLedger }
-  | { status: 'valid'; ledger: RetainedPageLedger }
-  | { status: 'malformed'; ledger: RetainedPageLedger }
-  | { status: 'newer'; raw: unknown }
+  | { status: 'missing', ledger: RetainedPageLedger }
+  | { status: 'valid', ledger: RetainedPageLedger }
+  | { status: 'malformed', ledger: RetainedPageLedger }
+  | { status: 'newer', raw: unknown }
 
 function parseRetainedPageLedgerValueInternal(
   stored: unknown,
   now: number,
-  enforceCapacity: boolean
+  enforceCapacity: boolean,
 ): RetainedPageLedgerParseResult {
   if (stored === undefined) {
     return { status: 'missing', ledger: emptyRetainedPageLedger() }
@@ -433,7 +433,7 @@ function parseRetainedPageLedgerValueInternal(
       value,
       identityDigest,
       now,
-      titleValidityByValue
+      titleValidityByValue,
     )
     if (page) pages[identityDigest] = page
     else malformed = true
@@ -452,7 +452,7 @@ function parseRetainedPageLedgerValueInternal(
     schemaVersion: 1,
     identityVersion: 1,
     pages: capacityPages,
-    removalBoundaries
+    removalBoundaries,
   }
   return malformed
     ? { status: 'malformed', ledger }
@@ -461,7 +461,7 @@ function parseRetainedPageLedgerValueInternal(
 
 export function parseRetainedPageLedgerValue(
   stored: unknown,
-  now = Date.now()
+  now = Date.now(),
 ): RetainedPageLedgerParseResult {
   return parseRetainedPageLedgerValueInternal(stored, now, true)
 }
@@ -472,22 +472,22 @@ export class RetainedPageLedgerStorage extends Context.Service<RetainedPageLedge
     RetainedPageLedgerStorageError
   >
   readonly write: (
-    ledger: RetainedPageLedger
+    ledger: RetainedPageLedger,
   ) => Effect.Effect<void, RetainedPageLedgerStorageError>
 }>()('@tab-out/background/RetainedPageLedgerStorage') {
   static layer(
     backend: RetainedPageLedgerStorageBackend,
-    options: RetainedPageLedgerStorageOptions = {}
+    options: RetainedPageLedgerStorageOptions = {},
   ): Layer.Layer<RetainedPageLedgerStorage> {
     let cachedValidParse: {
       readonly source: unknown
       readonly result: Extract<RetainedPageLedgerParseResult, { status: 'valid' }>
     } | null = null
     const resolveIdentities = createCachedRetainedPageIdentityResolver(options)
-    const read = Effect.fn('RetainedPageLedgerStorage.read')(function*() {
+    const read = Effect.fn('RetainedPageLedgerStorage.read')(function* () {
       const stored = yield* Effect.tryPromise({
         try: backend.read,
-        catch: (cause) => RetainedPageLedgerStorageError.make({ operation: 'read', cause })
+        catch: (cause) => RetainedPageLedgerStorageError.make({ operation: 'read', cause }),
       })
       const cached = cachedValidParse
       if (cached !== null && cached.source === stored) return cached.result
@@ -505,7 +505,7 @@ export class RetainedPageLedgerStorage extends Context.Service<RetainedPageLedge
         ? parseRetainedPageLedgerValueInternal(
             normalizeExpandedRetainedPageLedgerValue(stored),
             now,
-            false
+            false,
           )
         : originalParsed
       if (
@@ -514,7 +514,7 @@ export class RetainedPageLedgerStorage extends Context.Service<RetainedPageLedge
       ) {
         const ledger = yield* Effect.tryPromise({
           try: () => reindexRetainedPageLedger(parsed.ledger, resolveIdentities),
-          catch: (cause) => RetainedPageLedgerStorageError.make({ operation: 'read', cause })
+          catch: (cause) => RetainedPageLedgerStorageError.make({ operation: 'read', cause }),
         })
         const reindexed = parsed.status === 'valid'
           ? { status: 'valid' as const, ledger }
@@ -522,7 +522,7 @@ export class RetainedPageLedgerStorage extends Context.Service<RetainedPageLedge
         if (reindexed.status === 'valid') {
           yield* Effect.tryPromise({
             try: () => backend.write(ledger),
-            catch: (cause) => RetainedPageLedgerStorageError.make({ operation: 'write', cause })
+            catch: (cause) => RetainedPageLedgerStorageError.make({ operation: 'write', cause }),
           })
         }
         cachedValidParse = null
@@ -533,12 +533,12 @@ export class RetainedPageLedgerStorage extends Context.Service<RetainedPageLedge
         : null
       return parsed
     })
-    const write = Effect.fn('RetainedPageLedgerStorage.write')(function*(
-      ledger: RetainedPageLedger
+    const write = Effect.fn('RetainedPageLedgerStorage.write')(function* (
+      ledger: RetainedPageLedger,
     ) {
       yield* Effect.tryPromise({
         try: () => backend.write(ledger),
-        catch: (cause) => RetainedPageLedgerStorageError.make({ operation: 'write', cause })
+        catch: (cause) => RetainedPageLedgerStorageError.make({ operation: 'write', cause }),
       })
       cachedValidParse = null
     })

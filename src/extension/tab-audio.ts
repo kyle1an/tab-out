@@ -8,7 +8,7 @@
 
 import type { TabAudioState } from './types'
 
-type AudioFlags = { audible?: boolean; muted?: boolean }
+type AudioFlags = { audible?: boolean, muted?: boolean }
 
 /** Single tab → icon state. Muted wins; else audible → playing; else none. */
 export function audioStateForTab({ audible, muted }: AudioFlags): TabAudioState {

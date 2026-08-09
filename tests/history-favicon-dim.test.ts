@@ -32,7 +32,7 @@ test('a closed history row dims its favicon', () => {
 test('rows dim independently within one panel', () => {
   const html = renderHistoryPanel([
     makeHistoryEntry({ index: 0, tabId: 101, url: 'https://example.com/a', rawUrl: 'https://example.com/a' }),
-    makeHistoryEntry({ index: 1, tabId: 102, cursor: false, url: 'https://example.com/b', rawUrl: 'https://example.com/b', suspended: true })
+    makeHistoryEntry({ index: 1, tabId: 102, cursor: false, url: 'https://example.com/b', rawUrl: 'https://example.com/b', suspended: true }),
   ])
   assert.equal((html.match(/chip-favicon-dimmed/g) || []).length, 1)
 })
@@ -51,7 +51,7 @@ test('an open-ghost entry derives suspension from the suspender url', () => {
     active: false,
     activeInOtherWindow: false,
     score: 10,
-    lastActivatedAt: 0
+    lastActivatedAt: 0,
   }
   const entry = historyEntryFromWorkingSetItem(item)
   assert.equal(entry.exists, true)
@@ -73,7 +73,7 @@ test('an open-ghost entry carries its Working Set loading state into history', (
     activeInOtherWindow: false,
     loading: true,
     score: 10,
-    lastActivatedAt: 0
+    lastActivatedAt: 0,
   }
   const entry = historyEntryFromWorkingSetItem(item)
   assert.equal(entry.loading, true)
@@ -81,7 +81,7 @@ test('an open-ghost entry carries its Working Set loading state into history', (
   const html = renderHistoryPanel([], {}, {
     defaultLimit: 8,
     expandedLimit: 16,
-    items: [item]
+    items: [item],
   })
   assert.match(html, /data-working-set-extra="true"/)
   assert.match(html, /data-tabout-part="loading-indicator"/)

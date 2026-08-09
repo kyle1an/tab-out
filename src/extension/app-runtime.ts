@@ -6,7 +6,7 @@ import { ClosedTabRestoreWatchdogs } from './closed-tab-restore-watchdogs.js'
 function createAppRuntime() {
   const runtime = ManagedRuntime.make(Layer.mergeAll(
     BrowserTabs.layer(),
-    ClosedTabRestoreWatchdogs.layer
+    ClosedTabRestoreWatchdogs.layer,
   ))
   // Construct the page service graph before the startup workflow so every
   // browser operation shares this runtime from the first Chrome read onward.

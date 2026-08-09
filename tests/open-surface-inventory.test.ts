@@ -11,7 +11,7 @@ import {
   removeOpenSurface,
   removeOpenSurfaceLifetimes,
   seedOpenSurfaceInventory,
-  transferOpenSurfaceLifetime
+  transferOpenSurfaceLifetime,
 } from '../src/extension/open-surface-inventory.js'
 
 function sequentialTokens() {
@@ -27,10 +27,10 @@ test('seeding inventories every eligible non-private surface with one stable lif
     { tabId: 4, surfaceKind: 'app', url: 'https://app.example.test/workspace', title: 'Workspace' },
     { tabId: 5, surfaceKind: 'normal-tab', url: 'https://private.example.test/', title: 'Private', incognito: true },
     { tabId: 6, surfaceKind: 'normal-tab', url: 'chrome://newtab/', title: 'New Tab' },
-    { tabId: 7, surfaceKind: 'normal-tab', url: 'chrome-extension://tab-out-id/index.html', title: 'Tab Out' }
+    { tabId: 7, surfaceKind: 'normal-tab', url: 'chrome-extension://tab-out-id/index.html', title: 'Tab Out' },
   ], {
     runtimeId: 'tab-out-id',
-    closureTokenFactory: sequentialTokens()
+    closureTokenFactory: sequentialTokens(),
   })
 
   assert.equal(inventory.schemaVersion, OPEN_SURFACE_INVENTORY_SCHEMA_VERSION)
@@ -40,7 +40,7 @@ test('seeding inventories every eligible non-private surface with one stable lif
     'token-1',
     'token-2',
     'token-3',
-    'token-4'
+    'token-4',
   ])
   assert.equal(inventory.entries['4']?.surfaceKind, 'app')
 })
@@ -55,7 +55,7 @@ test('ineligible and Incognito observations are rejected before lifetime-token a
   await seedOpenSurfaceInventory([
     { tabId: 1, surfaceKind: 'normal-tab', url: 'https://private.example.test/', incognito: true },
     { tabId: 2, surfaceKind: 'normal-tab', url: 'chrome://newtab/' },
-    { tabId: 3, surfaceKind: 'normal-tab', url: 'https://example.test/' }
+    { tabId: 3, surfaceKind: 'normal-tab', url: 'https://example.test/' },
   ], { closureTokenFactory })
 
   assert.equal(tokenAllocations, 1)
@@ -68,28 +68,28 @@ test('observing navigation and metadata changes preserves the physical lifetime 
     surfaceKind: 'normal-tab',
     url: 'https://example.test/old',
     title: 'Old page',
-    favIconUrl: 'https://example.test/old.ico'
+    favIconUrl: 'https://example.test/old.ico',
   }, { closureTokenFactory: tokenFactory })
   const navigated = await observeOpenSurface(first.inventory, {
     tabId: 10,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/new',
     title: '',
-    favIconUrl: ''
+    favIconUrl: '',
   }, { closureTokenFactory: tokenFactory })
   const enriched = await observeOpenSurface(navigated.inventory, {
     tabId: 10,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/new',
     title: 'New page',
-    favIconUrl: 'https://example.test/new.ico'
+    favIconUrl: 'https://example.test/new.ico',
   }, { closureTokenFactory: tokenFactory })
   const transientEmpty = await observeOpenSurface(enriched.inventory, {
     tabId: 10,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/new',
     title: '',
-    favIconUrl: ''
+    favIconUrl: '',
   }, { closureTokenFactory: tokenFactory })
 
   assert.equal(first.entry?.closureToken, 'token-1')
@@ -111,7 +111,7 @@ test('inventory bounds reusable metadata without truncating exact target or iden
     surfaceKind: 'normal-tab',
     url: longUrl,
     title: longTitle,
-    favIconUrl: oversizedFavicon
+    favIconUrl: oversizedFavicon,
   }, { closureTokenFactory: () => 'token-long' })
 
   assert.equal(result.entry?.url, longUrl)
@@ -124,7 +124,7 @@ test('inventory bounds reusable metadata without truncating exact target or iden
     surfaceKind: 'normal-tab',
     url: longUrl,
     title: longTitle,
-    favIconUrl: 'blob:https://example.test/session-only'
+    favIconUrl: 'blob:https://example.test/session-only',
   })
   assert.equal(blobFavicon.entry?.favIconUrl, undefined)
 })
@@ -132,7 +132,7 @@ test('inventory bounds reusable metadata without truncating exact target or iden
 test('removal returns the exact capture candidate and leaves other lifetimes untouched', async () => {
   const inventory = await seedOpenSurfaceInventory([
     { tabId: 1, surfaceKind: 'normal-tab', url: 'https://one.example.test/', title: 'One' },
-    { tabId: 2, surfaceKind: 'normal-tab', url: 'https://two.example.test/', title: 'Two' }
+    { tabId: 2, surfaceKind: 'normal-tab', url: 'https://two.example.test/', title: 'Two' },
   ], { closureTokenFactory: sequentialTokens() })
   const removed = removeOpenSurface(inventory, 1)
 
@@ -148,7 +148,7 @@ test('a physical lifetime keeps the first observed closure time across replay', 
     tabId: 1,
     surfaceKind: 'normal-tab',
     url: 'https://one.example.test/',
-    title: 'One'
+    title: 'One',
   }], { closureTokenFactory: () => 'stable-lifetime' })
 
   const first = markOpenSurfaceClosure(inventory, 1, 1_000, 'stable-lifetime')
@@ -167,7 +167,7 @@ test('bulk closure marking preserves order, token guards, and original inputs', 
   const inventory = await seedOpenSurfaceInventory([
     { tabId: 1, surfaceKind: 'normal-tab', url: 'https://one.example.test/', title: 'One' },
     { tabId: 2, surfaceKind: 'normal-tab', url: 'https://two.example.test/', title: 'Two' },
-    { tabId: 3, surfaceKind: 'normal-tab', url: 'https://three.example.test/', title: 'Three' }
+    { tabId: 3, surfaceKind: 'normal-tab', url: 'https://three.example.test/', title: 'Three' },
   ], { closureTokenFactory: sequentialTokens() })
   const originalEntries = structuredClone(inventory.entries)
 
@@ -175,7 +175,7 @@ test('bulk closure marking preserves order, token guards, and original inputs', 
     { tabId: 1, closedAt: 1_000, closureToken: 'token-1' },
     { tabId: 2, closedAt: 2_000, closureToken: 'wrong-token' },
     { tabId: 3, closedAt: 3_000, closureToken: 'token-3' },
-    { tabId: 99, closedAt: 4_000, closureToken: 'missing-token' }
+    { tabId: 99, closedAt: 4_000, closureToken: 'missing-token' },
   ])
 
   assert.equal(marked.changed, true)
@@ -187,7 +187,7 @@ test('bulk closure marking preserves order, token guards, and original inputs', 
 
   const replay = markOpenSurfaceClosures(marked.inventory, [
     { tabId: 1, closedAt: 9_000, closureToken: 'token-1' },
-    { tabId: 3, closedAt: 9_000, closureToken: 'token-3' }
+    { tabId: 3, closedAt: 9_000, closureToken: 'token-3' },
   ])
   assert.equal(replay.changed, false)
   assert.equal(replay.inventory, marked.inventory)
@@ -198,14 +198,14 @@ test('bulk lifetime cleanup removes only matching tokens without mutating the in
   const inventory = await seedOpenSurfaceInventory([
     { tabId: 1, surfaceKind: 'normal-tab', url: 'https://one.example.test/', title: 'One' },
     { tabId: 2, surfaceKind: 'normal-tab', url: 'https://two.example.test/', title: 'Two' },
-    { tabId: 3, surfaceKind: 'normal-tab', url: 'https://three.example.test/', title: 'Three' }
+    { tabId: 3, surfaceKind: 'normal-tab', url: 'https://three.example.test/', title: 'Three' },
   ], { closureTokenFactory: sequentialTokens() })
   const originalEntries = structuredClone(inventory.entries)
 
   const removed = removeOpenSurfaceLifetimes(inventory, [
     { tabId: 1, closureToken: 'token-1' },
     { tabId: 2, closureToken: 'wrong-token' },
-    { tabId: 99, closureToken: 'missing-token' }
+    { tabId: 99, closureToken: 'missing-token' },
   ])
 
   assert.equal(removed.changed, true)
@@ -214,7 +214,7 @@ test('bulk lifetime cleanup removes only matching tokens without mutating the in
   assert.deepEqual(inventory.entries, originalEntries)
 
   const noOp = removeOpenSurfaceLifetimes(removed.inventory, [
-    { tabId: 2, closureToken: 'wrong-token' }
+    { tabId: 2, closureToken: 'wrong-token' },
   ])
   assert.equal(noOp.changed, false)
   assert.equal(noOp.inventory, removed.inventory)
@@ -225,13 +225,13 @@ test('tabs.onReplaced transfer keeps the old lifetime token while adopting the r
     tabId: 30,
     surfaceKind: 'normal-tab',
     url: 'https://example.atlassian.net/browse/ABC-123?sourceType=before',
-    title: 'Before'
+    title: 'Before',
   }, { closureTokenFactory: () => 'original-token' })
   const replaced = await transferOpenSurfaceLifetime(seeded.inventory, 30, {
     tabId: 31,
     surfaceKind: 'normal-tab',
     url: 'https://example.atlassian.net/browse/ABC-123?sourceType=after',
-    title: ''
+    title: '',
   }, { closureTokenFactory: () => 'must-not-be-used' })
 
   assert.equal(replaced.transferred, true)
@@ -249,13 +249,13 @@ test('replacement into an ineligible surface removes inventory without fabricati
     tabId: 40,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/before-replacement',
-    title: 'Before'
+    title: 'Before',
   }, { closureTokenFactory: () => 'original-token' })
   const replaced = await transferOpenSurfaceLifetime(seeded.inventory, 40, {
     tabId: 41,
     surfaceKind: 'normal-tab',
     url: 'chrome://newtab/',
-    title: 'New Tab'
+    title: 'New Tab',
   })
 
   assert.equal(replaced.transferred, true)

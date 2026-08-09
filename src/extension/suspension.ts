@@ -104,13 +104,13 @@ interface StoredSuspendTarget extends SuspendTarget {
 
 const suspendTargetSchema = Schema.Struct({
   id: Schema.NonEmptyString,
-  template: Schema.NonEmptyString
+  template: Schema.NonEmptyString,
 }) satisfies Schema.Schema<SuspendTarget>
 
 const storedSuspendTargetSchema = Schema.Struct({
   id: Schema.NonEmptyString,
   template: Schema.NonEmptyString,
-  observedAt: Schema.Finite
+  observedAt: Schema.Finite,
 }) satisfies Schema.Schema<StoredSuspendTarget>
 
 const isSuspendTarget = Schema.is(suspendTargetSchema)
@@ -131,15 +131,15 @@ export type SuspendTargetStoreAdapter = {
 export type SuspendTargetStore = {
   get: () => Promise<SuspendTarget | null>
   getEffect: () => Effect.Effect<SuspendTarget | null>
-  rememberFromTabs: (tabs: readonly { suspended?: boolean; rawUrl?: string }[]) => void
+  rememberFromTabs: (tabs: readonly { suspended?: boolean, rawUrl?: string }[]) => void
   rememberFromTabsEffect: (
-    tabs: readonly { suspended?: boolean; rawUrl?: string }[]
+    tabs: readonly { suspended?: boolean, rawUrl?: string }[],
   ) => Effect.Effect<void>
 }
 
 class SuspendTargetStoreError extends Schema.TaggedErrorClass<SuspendTargetStoreError>()(
   'SuspendTargetStoreError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 export function extractSuspenderId(rawUrl: string | undefined): string | null {
@@ -149,7 +149,7 @@ export function extractSuspenderId(rawUrl: string | undefined): string | null {
   return parsed.hostname || null
 }
 
-export function buildSuspendUrl(target: SuspendTarget, opts: { url: string; title: string }): string {
+export function buildSuspendUrl(target: SuspendTarget, opts: { url: string, title: string }): string {
   const { url, title } = opts
   const hashIndex = target.template.indexOf('#')
   const base = hashIndex >= 0 ? target.template.slice(0, hashIndex) : target.template
@@ -192,24 +192,24 @@ export function createSuspendTargetStore(adapter: SuspendTargetStoreAdapter): Su
   let cachedTarget: SuspendTarget | null = null
   let cachedTargetRevision = 0
 
-  const saveEffect = Effect.fn('suspendTarget.save')(function*(
-    saveRequest: PendingSuspendTargetSave
+  const saveEffect = Effect.fn('suspendTarget.save')(function* (
+    saveRequest: PendingSuspendTargetSave,
   ) {
     const storedTarget: StoredSuspendTarget = {
       ...saveRequest.target,
-      observedAt: saveRequest.observedAt
+      observedAt: saveRequest.observedAt,
     }
 
-    const transaction = Effect.gen(function*() {
+    const transaction = Effect.gen(function* () {
       const existingValue = yield* Effect.tryPromise({
         try: adapter.read,
-        catch: (cause) => SuspendTargetStoreError.make({ cause })
+        catch: (cause) => SuspendTargetStoreError.make({ cause }),
       })
       const existingObservedAt = storedSuspendTargetObservedAt(existingValue)
       if (existingObservedAt !== null && existingObservedAt > saveRequest.observedAt) return
       yield* Effect.tryPromise({
         try: () => adapter.write(storedTarget),
-        catch: (cause) => SuspendTargetStoreError.make({ cause })
+        catch: (cause) => SuspendTargetStoreError.make({ cause }),
       })
     })
 
@@ -219,23 +219,23 @@ export function createSuspendTargetStore(adapter: SuspendTargetStoreAdapter): Su
     yield* runPromiseExclusiveEffect(
       adapter.runExclusive,
       transaction,
-      (cause) => SuspendTargetStoreError.make({ cause })
+      (cause) => SuspendTargetStoreError.make({ cause }),
     ).pipe(
       // Target persistence is an advisory cache. A failed read must abort the
       // write, while any transport/lock failure leaves live-tab memory intact.
-      Effect.catchTag('SuspendTargetStoreError', () => Effect.void)
+      Effect.catchTag('SuspendTargetStoreError', () => Effect.void),
     )
   })
 
-  const getEffect = Effect.fn('suspendTarget.get')(function*() {
+  const getEffect = Effect.fn('suspendTarget.get')(function* () {
     if (cachedTarget) return cachedTarget
     const revisionBeforeLoad = cachedTargetRevision
     let storedTarget: SuspendTarget | null = null
     const value = yield* Effect.tryPromise({
       try: adapter.read,
-      catch: (cause) => SuspendTargetStoreError.make({ cause })
+      catch: (cause) => SuspendTargetStoreError.make({ cause }),
     }).pipe(
-      Effect.catchTag('SuspendTargetStoreError', () => Effect.succeed(undefined))
+      Effect.catchTag('SuspendTargetStoreError', () => Effect.succeed(undefined)),
     )
     if (isSuspendTarget(value)) storedTarget = { id: value.id, template: value.template }
     // Live tab collection is synchronous and authoritative. Do not let a
@@ -250,7 +250,7 @@ export function createSuspendTargetStore(adapter: SuspendTargetStoreAdapter): Su
   }
 
   function observeFromTabs(
-    tabs: readonly { suspended?: boolean; rawUrl?: string }[]
+    tabs: readonly { suspended?: boolean, rawUrl?: string }[],
   ): Effect.Effect<void> {
     for (const tab of tabs) {
       if (!tab.suspended || !tab.rawUrl) continue
@@ -262,22 +262,22 @@ export function createSuspendTargetStore(adapter: SuspendTargetStoreAdapter): Su
       cachedTarget = { id, template: tab.rawUrl }
       return idChanged
         ? saveEffect({
-          target: cachedTarget,
-          observedAt: adapter.now()
-        })
+            target: cachedTarget,
+            observedAt: adapter.now(),
+          })
         : Effect.void
     }
     return Effect.void
   }
 
   function rememberFromTabsEffect(
-    tabs: readonly { suspended?: boolean; rawUrl?: string }[]
+    tabs: readonly { suspended?: boolean, rawUrl?: string }[],
   ): Effect.Effect<void> {
     return Effect.suspend(() => observeFromTabs(tabs))
   }
 
   function rememberFromTabs(
-    tabs: readonly { suspended?: boolean; rawUrl?: string }[]
+    tabs: readonly { suspended?: boolean, rawUrl?: string }[],
   ): void {
     // Preserve the original synchronous live-memory update for event callers;
     // only the advisory persistence continues in the shared page runtime.
@@ -309,14 +309,14 @@ const suspendTargetStore = createSuspendTargetStore({
   runExclusive: <Value>(task: () => Promise<Value>) => (
     navigator.locks.request(SUSPEND_TARGET_STORAGE_WRITE_LOCK, task)
   ),
-  write: writeStoredSuspendTarget
+  write: writeStoredSuspendTarget,
 })
 
 export function getSuspendTarget(): Promise<SuspendTarget | null> {
   return suspendTargetStore.get()
 }
 
-export const getSuspendTargetEffect = Effect.fn('suspension.getTarget')(function*() {
+export const getSuspendTargetEffect = Effect.fn('suspension.getTarget')(function* () {
   return yield* suspendTargetStore.getEffect()
 })
 
@@ -326,13 +326,13 @@ export const getSuspendTargetEffect = Effect.fn('suspension.getTarget')(function
  * template refresh updates memory without another storage write.
  */
 export function rememberSuspendTargetFromTabs(
-  tabs: readonly { suspended?: boolean; rawUrl?: string }[]
+  tabs: readonly { suspended?: boolean, rawUrl?: string }[],
 ): void {
   suspendTargetStore.rememberFromTabs(tabs)
 }
 
-export const rememberSuspendTargetFromTabsEffect = Effect.fn('suspension.rememberTarget')(function*(
-  tabs: readonly { suspended?: boolean; rawUrl?: string }[]
+export const rememberSuspendTargetFromTabsEffect = Effect.fn('suspension.rememberTarget')(function* (
+  tabs: readonly { suspended?: boolean, rawUrl?: string }[],
 ) {
   yield* suspendTargetStore.rememberFromTabsEffect(tabs)
 })

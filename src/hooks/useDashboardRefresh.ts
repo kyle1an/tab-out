@@ -34,7 +34,7 @@ export function useDashboardRefresh({
   localStateLoaded,
   initialDashboardIncludesPinnedDomains = false,
   previousOrder,
-  onBeforePinnedRefresh
+  onBeforePinnedRefresh,
 }: UseDashboardRefreshOptions) {
   const callbacksRef = useRef({ onBeforePinnedRefresh })
   const pinnedRefreshInitializedRef = useRef(false)

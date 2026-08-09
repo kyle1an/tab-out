@@ -7,7 +7,7 @@ import { ClosedTabRestoreWatchdogs } from './closed-tab-restore-watchdogs.js'
 import {
   CLOSED_TAB_RESTORE_STATE_MESSAGE,
   parseClosedTabRestoreStateMessage,
-  type ClosedTabRestoreStateMessage
+  type ClosedTabRestoreStateMessage,
 } from './runtime-messages.js'
 import { unwrapSuspenderTitle, unwrapSuspenderUrl } from './suspension.js'
 import { isBrowserInternalUrl } from './browser-url-policy.js'
@@ -24,7 +24,7 @@ export const CLOSED_TAB_RESTORE_WATCHDOG_MS = 30_000
 
 class ClosedTabRestoreError extends Schema.TaggedErrorClass<ClosedTabRestoreError>()(
   'ClosedTabRestoreError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 export function isClosedTabFetchSuppressed(now: number = Date.now()): boolean {
@@ -51,8 +51,8 @@ function notifyClosedTabChangeHandlers(settleDelayMs: number): void {
 }
 
 const applyRemoteRestoreStateEffect = Effect.fn(
-  'closedTabs.applyRemoteRestoreState'
-)(function*(message: ClosedTabRestoreStateMessage) {
+  'closedTabs.applyRemoteRestoreState',
+)(function* (message: ClosedTabRestoreStateMessage) {
   const watchdogs = yield* ClosedTabRestoreWatchdogs
   if (message.phase === 'started') {
     pendingRestoreSuppressions.add(message.restoreId)
@@ -63,7 +63,7 @@ const applyRemoteRestoreStateEffect = Effect.fn(
         if (!pendingRestoreSuppressions.delete(message.restoreId)) return
         recomputeClosedTabFetchSuppression()
         notifyClosedTabChangeHandlers(CLOSED_TAB_SESSION_SETTLE_MS)
-      }
+      },
     )
     return 0
   }
@@ -73,7 +73,7 @@ const applyRemoteRestoreStateEffect = Effect.fn(
   if (message.restored) {
     successfulRestoreSuppressUntilMs = Math.max(
       successfulRestoreSuppressUntilMs,
-      Date.now() + CLOSED_TAB_SESSION_SETTLE_MS
+      Date.now() + CLOSED_TAB_SESSION_SETTLE_MS,
     )
   }
   recomputeClosedTabFetchSuppression()
@@ -84,8 +84,8 @@ function applyRemoteRestoreState(message: ClosedTabRestoreStateMessage): number 
   return getAppRuntime().runSync(applyRemoteRestoreStateEffect(message))
 }
 
-const broadcastClosedTabRestoreState = Effect.fn('closedTabs.broadcastRestoreState')(function*(
-  message: ClosedTabRestoreStateMessage
+const broadcastClosedTabRestoreState = Effect.fn('closedTabs.broadcastRestoreState')(function* (
+  message: ClosedTabRestoreStateMessage,
 ) {
   const runtime = globalThis.chrome?.runtime
   if (!runtime?.sendMessage) return
@@ -94,10 +94,10 @@ const broadcastClosedTabRestoreState = Effect.fn('closedTabs.broadcastRestoreSta
   // restore guard already installed.
   yield* Effect.tryPromise({
     try: () => runtime.sendMessage(message),
-    catch: (cause) => ClosedTabRestoreError.make({ cause })
+    catch: (cause) => ClosedTabRestoreError.make({ cause }),
   }).pipe(
     // The page-local guard remains authoritative when the worker is absent.
-    Effect.catchTag('ClosedTabRestoreError', () => Effect.void)
+    Effect.catchTag('ClosedTabRestoreError', () => Effect.void),
   )
 })
 
@@ -113,7 +113,7 @@ export interface ClosedTabEntry {
 }
 
 const hasClosedTabSessionId = Schema.is(Schema.Struct({
-  sessionId: Schema.NonEmptyString
+  sessionId: Schema.NonEmptyString,
 }))
 
 function displayUrlForClosedTab(url: string): string {
@@ -147,11 +147,11 @@ function normalizeClosedTab(tab: chrome.tabs.Tab | undefined, lastModifiedMs: nu
     displayUrl,
     title: suspendedTitle || cleanTitle || displayUrl,
     favIconUrl: tab.favIconUrl || '',
-    lastClosedAt: lastModifiedMs
+    lastClosedAt: lastModifiedMs,
   }
 }
 
-const acquireClosedTabRestore = Effect.fn('closedTabs.acquireRestoreSuppression')(function*() {
+const acquireClosedTabRestore = Effect.fn('closedTabs.acquireRestoreSuppression')(function* () {
   // Arm before calling Chrome: sessions.onChanged may fire before the restore
   // promise settles. Each in-flight restore owns one marker so a slow, failed,
   // or overlapping restore cannot expire or clear another restore's protection.
@@ -160,20 +160,20 @@ const acquireClosedTabRestore = Effect.fn('closedTabs.acquireRestoreSuppression'
   yield* broadcastClosedTabRestoreState({
     type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
     restoreId,
-    phase: 'started'
+    phase: 'started',
   })
   return restoreId
 })
 
-const releaseClosedTabRestore = Effect.fn('closedTabs.releaseRestoreSuppression')(function*(
+const releaseClosedTabRestore = Effect.fn('closedTabs.releaseRestoreSuppression')(function* (
   restoreId: string,
-  restored: boolean
+  restored: boolean,
 ) {
   pendingRestoreSuppressions.delete(restoreId)
   if (restored) {
     successfulRestoreSuppressUntilMs = Math.max(
       successfulRestoreSuppressUntilMs,
-      Date.now() + CLOSED_TAB_SESSION_SETTLE_MS
+      Date.now() + CLOSED_TAB_SESSION_SETTLE_MS,
     )
   }
   recomputeClosedTabFetchSuppression()
@@ -185,20 +185,20 @@ const releaseClosedTabRestore = Effect.fn('closedTabs.releaseRestoreSuppression'
     type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
     restoreId,
     phase: 'settled',
-    restored
+    restored,
   })
 })
 
 export function restoreClosedTabEffect(
-  restore: Effect.Effect<boolean>
+  restore: Effect.Effect<boolean>,
 ): Effect.Effect<boolean> {
   return Effect.acquireUseRelease(
     acquireClosedTabRestore(),
     () => restore,
     (restoreId, exit) => releaseClosedTabRestore(
       restoreId,
-      Exit.isSuccess(exit) && exit.value
-    )
+      Exit.isSuccess(exit) && exit.value,
+    ),
   )
 }
 
@@ -232,8 +232,8 @@ export function subscribeClosedTabChanges(handler: (settleDelayMs: number) => vo
 }
 
 export const fetchClosedTabsResultEffect = Effect.fn(
-  'closedTabs.fetch'
-)(function*() {
+  'closedTabs.fetch',
+)(function* () {
   const browserTabs = yield* BrowserTabs
   const sessionsResult = yield* browserTabs.getRecentlyClosedResult()
   if (!sessionsResult.ok) return { ok: false, value: [] }

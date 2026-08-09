@@ -42,7 +42,7 @@ function makeChip(overrides: Partial<DashboardChipData> = {}): DashboardChipData
     groupDotColor: null,
     isApp: false,
     envs: null,
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -66,12 +66,12 @@ function renderWithDomainCardContext(element: React.ReactElement, overrides: Ren
     setActiveSuppressedTitle: overrides.setActiveSuppressedTitle ?? (() => {}),
     dedupeBadgesClosing: overrides.dedupeBadgesClosing ?? false,
     suppressionCloseTargetsByText: overrides.suppressionCloseTargetsByText ?? {},
-    suppressionSuspendTargetsByText: overrides.suppressionSuspendTargetsByText ?? {}
+    suppressionSuspendTargetsByText: overrides.suppressionSuspendTargetsByText ?? {},
   }
   const hoverState = {
     url: overrides.activeHoverUrl ?? '',
     urls: overrides.activeHoverUrls ?? [],
-    source: overrides.activeHoverSource ?? null
+    source: overrides.activeHoverSource ?? null,
   }
   const actions = {
     onHoverUrlChange: overrides.onHoverUrlChange ?? (() => {}),
@@ -79,7 +79,7 @@ function renderWithDomainCardContext(element: React.ReactElement, overrides: Ren
     onTogglePinnedDomain: overrides.onTogglePinnedDomain ?? (() => {}),
     onReorderPinnedDomain: overrides.onReorderPinnedDomain ?? (() => {}),
     onTogglePinnedSection: overrides.onTogglePinnedSection ?? (() => {}),
-    onTogglePinnedPageChip: overrides.onTogglePinnedPageChip ?? (() => {})
+    onTogglePinnedPageChip: overrides.onTogglePinnedPageChip ?? (() => {}),
   }
 
   return renderToStaticMarkup(
@@ -89,20 +89,20 @@ function renderWithDomainCardContext(element: React.ReactElement, overrides: Ren
       React.createElement(
         HoverStateProvider,
         { value: hoverState },
-        React.createElement(DomainCardProvider, { value }, element)
-      )
-    )
+        React.createElement(DomainCardProvider, { value }, element),
+      ),
+    ),
   )
 }
 
 function renderTabHistoryPanel(
   props: Record<string, unknown>,
-  hover: { activeHoverUrl?: string; activeHoverUrls?: readonly string[]; activeHoverSource?: HoverUrlSource | null } = {}
+  hover: { activeHoverUrl?: string, activeHoverUrls?: readonly string[], activeHoverSource?: HoverUrlSource | null } = {},
 ): string {
   const hoverState = {
     url: hover.activeHoverUrl ?? '',
     urls: hover.activeHoverUrls ?? [],
-    source: hover.activeHoverSource ?? null
+    source: hover.activeHoverSource ?? null,
   }
   const actions = {
     onHoverUrlChange: () => {},
@@ -110,7 +110,7 @@ function renderTabHistoryPanel(
     onTogglePinnedDomain: () => {},
     onReorderPinnedDomain: () => {},
     onTogglePinnedSection: () => {},
-    onTogglePinnedPageChip: () => {}
+    onTogglePinnedPageChip: () => {},
   }
   return renderToStaticMarkup(
     React.createElement(
@@ -119,9 +119,9 @@ function renderTabHistoryPanel(
       React.createElement(
         HoverStateProvider,
         { value: hoverState },
-        React.createElement(TabHistoryPanel as React.ComponentType<any>, props)
-      )
-    )
+        React.createElement(TabHistoryPanel as React.ComponentType<any>, props),
+      ),
+    ),
   )
 }
 
@@ -138,7 +138,7 @@ function requiredAt<T>(values: readonly T[], index: number): T {
 function historyEntryElements(html: string) {
   return Array.from(
     html.matchAll(/<div\b(?=[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)")[^>]*>/g),
-    (match) => ({ className: requiredAt(match, 1), tag: match[0] })
+    (match) => ({ className: requiredAt(match, 1), tag: match[0] }),
   )
 }
 
@@ -164,7 +164,7 @@ function makeHistoryEntry(overrides: Partial<TabHistoryEntry> = {}): TabHistoryE
     displayUrl: 'example.com/docs',
     favIconUrl: '',
     lastActivatedAt: null,
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -180,7 +180,7 @@ function makeHistorySnapshot(overrides: Partial<TabHistorySnapshot> = {}): TabHi
     activeWindowId: 1,
     activeWasInserted: false,
     entries: [makeHistoryEntry()],
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -199,7 +199,7 @@ function makeWorkingSetItem(overrides: Partial<WorkingSetItem> = {}): WorkingSet
     activeInOtherWindow: false,
     score: 100,
     lastActivatedAt: 0,
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -208,7 +208,7 @@ function makeWorkingSetSnapshot(overrides: Partial<WorkingSetSnapshot> = {}): Wo
     defaultLimit: 8,
     expandedLimit: 16,
     items: [makeWorkingSetItem()],
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -218,9 +218,9 @@ test('PageChip applies bionic reading emphasis to title text only', () => {
       chip: makeChip({
         displaySegments: ['Example Article'],
         pathGroupLabel: 'openai/docs',
-        pathSuffix: '/reference'
-      })
-    })
+        pathSuffix: '/reference',
+      }),
+    }),
   )
 
   assert.match(html, /<span class="chip-title-fixation\b[^"]*\bfont-semibold\b[^"]*">Exam<\/span>ple <span class="chip-title-fixation\b[^"]*\bfont-semibold\b[^"]*">Arti<\/span>cle/)
@@ -240,9 +240,9 @@ test('PageChip does not pre-render hidden tooltip measure nodes before hover', (
       React.createElement(PageChip, {
         chip: makeChip({
           displaySegments: ['Example Article with enough text to need tooltip layout later'],
-          tooltip: 'Example Article with enough text to need tooltip layout later'
-        })
-      })
+          tooltip: 'Example Article with enough text to need tooltip layout later',
+        }),
+      }),
     )
 
     assert.doesNotMatch(html, /page-chip-tooltip-measure/)
@@ -260,26 +260,26 @@ test('PageChip skips bionic reading when title text is a URL', () => {
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['https://example.com/docs/reference'],
-        tooltip: 'https://example.com/docs/reference'
+        tooltip: 'https://example.com/docs/reference',
       }),
-      filter: 'example'
-    })
+      filter: 'example',
+    }),
   )
   const hostUrlHtml = renderToStaticMarkup(
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['example.com/docs/reference'],
-        tooltip: 'example.com/docs/reference'
-      })
-    })
+        tooltip: 'example.com/docs/reference',
+      }),
+    }),
   )
   const unicodeHostUrlHtml = renderToStaticMarkup(
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['münchen.de/docs/reference'],
-        tooltip: 'münchen.de/docs/reference'
-      })
-    })
+        tooltip: 'münchen.de/docs/reference',
+      }),
+    }),
   )
 
   assert.match(protocolUrlHtml, /https:\/\/<mark class="chip-filter-match\b[^"]*">example<\/mark>\.com\/docs\/reference/)
@@ -295,17 +295,17 @@ test('PageChip lets URL titles wrap at path boundaries instead of overflowing', 
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['example.com/resource/contentKeys/master/landing/en-US.json'],
-        tooltip: 'example.com/resource/contentKeys/master/landing/en-US.json'
-      })
-    })
+        tooltip: 'example.com/resource/contentKeys/master/landing/en-US.json',
+      }),
+    }),
   )
   const proseChipHtml = renderToStaticMarkup(
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['Example Article Title'],
-        tooltip: 'Example Article Title'
-      })
-    })
+        tooltip: 'Example Article Title',
+      }),
+    }),
   )
 
   // URL titles carry an overflow-wrap:break-word wrapper so a long path-only URL
@@ -321,26 +321,26 @@ test('PageChip skips bionic reading inside Jira ticket references', () => {
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['ICS2-308'],
-        tooltip: 'ICS2-308'
-      })
-    })
+        tooltip: 'ICS2-308',
+      }),
+    }),
   )
   const ticketTitleHtml = renderToStaticMarkup(
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['CT-1569 Example Article'],
-        tooltip: 'CT-1569 Example Article'
-      })
-    })
+        tooltip: 'CT-1569 Example Article',
+      }),
+    }),
   )
   const filteredTicketTitleHtml = renderToStaticMarkup(
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['CT-1569 Example Article'],
-        tooltip: 'CT-1569 Example Article'
+        tooltip: 'CT-1569 Example Article',
       }),
-      filter: '1569'
-    })
+      filter: '1569',
+    }),
   )
 
   assert.match(ticketOnlyHtml, /ICS2-308/)
@@ -357,14 +357,14 @@ test('PageChip applies bionic reading to short function words and acronyms', () 
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['The API and UX of New Checkout Flow'],
-        tooltip: 'The API and UX of New Checkout Flow'
-      })
-    })
+        tooltip: 'The API and UX of New Checkout Flow',
+      }),
+    }),
   )
 
   assert.match(
     html,
-    /<span class="chip-title-fixation\b[^"]*">T<\/span>he <span class="chip-title-fixation\b[^"]*">A<\/span>PI <span class="chip-title-fixation\b[^"]*">a<\/span>nd <span class="chip-title-fixation\b[^"]*">U<\/span>X <span class="chip-title-fixation\b[^"]*">o<\/span>f <span class="chip-title-fixation\b[^"]*">N<\/span>ew <span class="chip-title-fixation\b[^"]*">Chec<\/span>kout <span class="chip-title-fixation\b[^"]*">Fl<\/span>ow/
+    /<span class="chip-title-fixation\b[^"]*">T<\/span>he <span class="chip-title-fixation\b[^"]*">A<\/span>PI <span class="chip-title-fixation\b[^"]*">a<\/span>nd <span class="chip-title-fixation\b[^"]*">U<\/span>X <span class="chip-title-fixation\b[^"]*">o<\/span>f <span class="chip-title-fixation\b[^"]*">N<\/span>ew <span class="chip-title-fixation\b[^"]*">Chec<\/span>kout <span class="chip-title-fixation\b[^"]*">Fl<\/span>ow/,
   )
 })
 
@@ -373,9 +373,9 @@ test('PageChip emphasizes one-character Latin words but keeps pure numbers plain
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['I 2026'],
-        tooltip: 'I 2026'
-      })
-    })
+        tooltip: 'I 2026',
+      }),
+    }),
   )
 
   assert.match(html, /<span class="chip-title-fixation\b[^"]*">I<\/span> 2026/)
@@ -387,14 +387,14 @@ test('PageChip treats accented Latin graphemes and internal apostrophes as compl
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ["naïve nai\u0308ve café don't can’t München e-mail"],
-        tooltip: "naïve nai\u0308ve café don't can’t München e-mail"
-      })
-    })
+        tooltip: "naïve nai\u0308ve café don't can’t München e-mail",
+      }),
+    }),
   )
 
   assert.match(
     html,
-    /<span class="chip-title-fixation\b[^"]*">naï<\/span>ve <span class="chip-title-fixation\b[^"]*">naï<\/span>ve <span class="chip-title-fixation\b[^"]*">ca<\/span>fé <span class="chip-title-fixation\b[^"]*">don<\/span>&#x27;t <span class="chip-title-fixation\b[^"]*">can<\/span>’t <span class="chip-title-fixation\b[^"]*">Münc<\/span>hen <span class="chip-title-fixation\b[^"]*">e<\/span>-<span class="chip-title-fixation\b[^"]*">ma<\/span>il/
+    /<span class="chip-title-fixation\b[^"]*">naï<\/span>ve <span class="chip-title-fixation\b[^"]*">naï<\/span>ve <span class="chip-title-fixation\b[^"]*">ca<\/span>fé <span class="chip-title-fixation\b[^"]*">don<\/span>&#x27;t <span class="chip-title-fixation\b[^"]*">can<\/span>’t <span class="chip-title-fixation\b[^"]*">Münc<\/span>hen <span class="chip-title-fixation\b[^"]*">e<\/span>-<span class="chip-title-fixation\b[^"]*">ma<\/span>il/,
   )
 })
 
@@ -403,9 +403,9 @@ test('PageChip leaves non-Latin scripts plain while formatting mixed Latin alpha
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['中文 тест Αθήνα α\u0301 · العربية हिन्दी 2026 ٢٠٢٦ R2D2'],
-        tooltip: '中文 тест Αθήνα α\u0301 · العربية हिन्दी 2026 ٢٠٢٦ R2D2'
-      })
-    })
+        tooltip: '中文 тест Αθήνα α\u0301 · العربية हिन्दी 2026 ٢٠٢٦ R2D2',
+      }),
+    }),
   )
 
   assert.match(html, /中文 тест Αθήνα ά · العربية हिन्दी 2026 ٢٠٢٦ <span class="chip-title-fixation\b[^"]*">R2<\/span>D2/)
@@ -417,9 +417,9 @@ test('PageChip rounds odd fixation lengths up without capping long words', () =>
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['abcde\u200Bfghij\u200Bklmno'],
-        tooltip: 'abcdefghijklmno'
-      })
-    })
+        tooltip: 'abcdefghijklmno',
+      }),
+    }),
   )
 
   assert.match(html, /<span class="chip-title-fixation\b[^"]*">abcde​fgh<\/span>ij​klmno/)
@@ -429,8 +429,8 @@ test('PageChip highlights matched filter keywords inside visible chip text', () 
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
       chip: makeChip(),
-      filter: 'openai'
-    })
+      filter: 'openai',
+    }),
   )
 
   assert.match(html, /<mark class="chip-filter-match\b[^"]*"><span class="chip-title-fixation\b[^"]*">Ope<\/span>nAI<\/mark> <span class="chip-title-fixation\b[^"]*">Do<\/span>cs/)
@@ -450,15 +450,15 @@ test('PageChip preserves complete-word fixation across partial filter matches', 
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['Example reading'],
-        tooltip: 'Example reading'
+        tooltip: 'Example reading',
       }),
-      filter: 'amp adi'
-    })
+      filter: 'amp adi',
+    }),
   )
 
   assert.match(
     html,
-    /<span class="chip-title-fixation\b[^"]*">Ex<\/span><mark class="chip-filter-match\b[^"]*"><span class="chip-title-fixation\b[^"]*">am<\/span>p<\/mark>le <span class="chip-title-fixation\b[^"]*">re<\/span><mark class="chip-filter-match\b[^"]*"><span class="chip-title-fixation\b[^"]*">ad<\/span>i<\/mark>ng/
+    /<span class="chip-title-fixation\b[^"]*">Ex<\/span><mark class="chip-filter-match\b[^"]*"><span class="chip-title-fixation\b[^"]*">am<\/span>p<\/mark>le <span class="chip-title-fixation\b[^"]*">re<\/span><mark class="chip-filter-match\b[^"]*"><span class="chip-title-fixation\b[^"]*">ad<\/span>i<\/mark>ng/,
   )
 })
 
@@ -466,8 +466,8 @@ test('PageChip highlights each parsed filter token in visible chip text', () => 
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
       chip: makeChip(),
-      filter: 'docs openai'
-    })
+      filter: 'docs openai',
+    }),
   )
 
   assert.match(html, /<mark class="chip-filter-match\b[^"]*"><span class="chip-title-fixation\b[^"]*">Ope<\/span>nAI<\/mark> <mark class="chip-filter-match\b[^"]*"><span class="chip-title-fixation\b[^"]*">Do<\/span>cs<\/mark>/)
@@ -476,8 +476,8 @@ test('PageChip highlights each parsed filter token in visible chip text', () => 
 test('PageChip renders the current active chip frame without the other-window label', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
-      chip: makeChip({ activeChipFrame: true })
-    })
+      chip: makeChip({ activeChipFrame: true }),
+    }),
   )
   const chipMatch = html.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
   const frameMatch = html.match(/<span class="([^"]*\bactive-chip-frame\b[^"]*)"/)
@@ -499,8 +499,8 @@ test('PageChip renders the current active chip frame without the other-window la
 test('PageChip renders current Tab Out chips with the history-entry frame treatment', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
-      chip: makeChip({ activeChipFrame: true, isCurrentTabOut: true })
-    })
+      chip: makeChip({ activeChipFrame: true, isCurrentTabOut: true }),
+    }),
   )
   const chipMatch = html.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
   const frameMatch = html.match(/<span class="([^"]*\bactive-chip-frame\b[^"]*)"/)
@@ -518,8 +518,8 @@ test('PageChip renders current Tab Out chips with the history-entry frame treatm
 test('PageChip renders Chrome pinned Tab Out state as an icon hint', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
-      chip: makeChip({ chromePinned: true })
-    })
+      chip: makeChip({ chromePinned: true }),
+    }),
   )
 
   assert.match(html, /data-tabout-part="chrome-pin"/)
@@ -535,9 +535,9 @@ test('PageChip renders duplicate pages as a favicon stack and page pins as a fav
         sourceType: 'tab',
         dupeCount: 3,
         pagePinned: true,
-        faviconUrl: 'https://example.com/favicon.ico'
-      })
-    })
+        faviconUrl: 'https://example.com/favicon.ico',
+      }),
+    }),
   )
 
   assert.match(html, /3 open copies/)
@@ -569,7 +569,7 @@ test('PageChip renders exact pin markers inside a unified same-title variant gro
             pathSuffix: '…?search_id=alpha',
             tooltip: '…?search_id=alpha',
             pagePinId: 'pin-alpha',
-            pagePinned: true
+            pagePinned: true,
           }),
           makeChip({
             sourceType: 'tab',
@@ -578,15 +578,15 @@ test('PageChip renders exact pin markers inside a unified same-title variant gro
             pathSuffix: '…?search_id=bravo',
             tooltip: '…?search_id=bravo',
             pagePinId: 'pin-bravo',
-            pagePinned: false
-          })
-        ]
-      })
-    })
+            pagePinned: false,
+          }),
+        ],
+      }),
+    }),
   )
   const markerTags = Array.from(
     html.matchAll(/<span[^>]*class="[^"]*\bchip-title-variant-page-pin(?=\s|")[^"]*"[^>]*>/g),
-    (match) => match[0]
+    (match) => match[0],
   )
 
   assert.equal(markerTags.length, 1)
@@ -604,8 +604,8 @@ test('PageChip renders exact pin markers inside a unified same-title variant gro
 test('PageChip keeps the other-window active chip style separate from the current active style', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
-      chip: makeChip({ activeChipFrame: true, activeInOtherWindow: true })
-    })
+      chip: makeChip({ activeChipFrame: true, activeInOtherWindow: true }),
+    }),
   )
   const chipMatch = html.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
   const frameMatch = html.match(/<span class="([^"]*\bactive-chip-frame\b[^"]*)"/)
@@ -625,8 +625,8 @@ test('PageChip keeps the other-window active chip style separate from the curren
 test('PageChip hover fade appears and clears without its own transition lag', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
-      chip: makeChip({ sourceType: 'bookmark', saved: true })
-    })
+      chip: makeChip({ sourceType: 'bookmark', saved: true }),
+    }),
   )
   const chipMatch = html.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
 
@@ -657,9 +657,9 @@ test('PageChip keeps clickable hover background on expandable chips before expan
       chip: makeChip({
         sourceType: 'bookmark',
         saved: true,
-        suppressedTitleParts: ['Example Workspace']
-      })
-    })
+        suppressedTitleParts: ['Example Workspace'],
+      }),
+    }),
   )
   const chipMatch = html.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
 
@@ -679,8 +679,8 @@ test('PageChip keeps clickable hover background on expandable chips before expan
 test('PageChip renders a default favicon for live tabs without favIconUrl', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
-      chip: makeChip({ sourceType: 'tab', faviconUrl: '' })
-    })
+      chip: makeChip({ sourceType: 'tab', faviconUrl: '' }),
+    }),
   )
 
   assert.match(html, /chip-favicon-frame/)
@@ -696,9 +696,9 @@ test('PageChip keeps app icon-only favicons centered in the app tile', () => {
         sourceType: 'tab',
         iconOnly: true,
         isApp: true,
-        faviconUrl: 'https://example.com/favicon.ico'
-      })
-    })
+        faviconUrl: 'https://example.com/favicon.ico',
+      }),
+    }),
   )
   const chipMatch = html.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
   const faviconFrameMatch = html.match(/<span class="([^"]*\bchip-favicon-frame\b[^"]*)"/)
@@ -718,8 +718,8 @@ test('PageChip keeps app icon-only favicons centered in the app tile', () => {
 test('PageChip does not invent live-tab favicons for read-only chips', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
-      chip: makeChip({ sourceType: 'bookmark', faviconUrl: '' })
-    })
+      chip: makeChip({ sourceType: 'bookmark', faviconUrl: '' }),
+    }),
   )
 
   assert.doesNotMatch(html, /default-favicon-image/)
@@ -728,8 +728,8 @@ test('PageChip does not invent live-tab favicons for read-only chips', () => {
 test('PageChip exposes save action through a context menu for unsaved live tabs', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
-      chip: makeChip({ sourceType: 'tab' })
-    })
+      chip: makeChip({ sourceType: 'tab' }),
+    }),
   )
 
   assert.doesNotMatch(html, /chip-save/)
@@ -744,8 +744,8 @@ test('PageChip exposes save action through a context menu for unsaved live tabs'
 test('PageChip renders the close action in the favicon slot', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
-      chip: makeChip({ sourceType: 'tab', faviconUrl: 'https://example.com/favicon.ico' })
-    })
+      chip: makeChip({ sourceType: 'tab', faviconUrl: 'https://example.com/favicon.ico' }),
+    }),
   )
   const faviconFrameMatch = html.match(/<span class="([^"]*\bchip-favicon-frame\b[^"]*)"/)
   const closeActionMatch = html.match(/<button[^>]*class="([^"]*\bchip-close\b[^"]*)"/)
@@ -773,8 +773,8 @@ test('PageChip renders the close action in the favicon slot', () => {
 test('PageChip renders a favicon-slot close action without right-side actions', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
-      chip: makeChip({ sourceType: 'history', faviconUrl: '' })
-    })
+      chip: makeChip({ sourceType: 'history', faviconUrl: '' }),
+    }),
   )
 
   assert.match(html, /chip-favicon-frame[\s\S]*chip-close-favicon/)
@@ -786,8 +786,8 @@ test('PageChip renders a favicon-slot close action without right-side actions', 
 test('PageChip renders saved open tabs with remove-saved in the context menu and close in the favicon slot', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
-      chip: makeChip({ sourceType: 'tab', saved: true, savedPageKey: 'https://openai.com/docs' })
-    })
+      chip: makeChip({ sourceType: 'tab', saved: true, savedPageKey: 'https://openai.com/docs' }),
+    }),
   )
   const chipMatch = html.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
   const closeActionMatch = html.match(/<button[^>]*class="([^"]*\bchip-close\b[^"]*)"/)
@@ -805,8 +805,8 @@ test('PageChip renders saved open tabs with remove-saved in the context menu and
 test('PageChip renders saved bookmark chips as a read-only saved hint', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
-      chip: makeChip({ sourceType: 'bookmark', saved: true, savedPageKey: 'https://openai.com/docs' })
-    })
+      chip: makeChip({ sourceType: 'bookmark', saved: true, savedPageKey: 'https://openai.com/docs' }),
+    }),
   )
   const chipMatch = html.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
   const savedHintMatch = html.match(/<span[^>]*class="([^"]*\bchip-saved-hint\b[^"]*)"/)
@@ -827,8 +827,8 @@ test('PageChip renders saved bookmark chips as a read-only saved hint', () => {
 test('PageChip renders closed saved pages muted with grouped hover treatment and no close action', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
-      chip: makeChip({ sourceType: 'saved-page', saved: true, closedSaved: true, savedPageKey: 'https://openai.com/docs' })
-    })
+      chip: makeChip({ sourceType: 'saved-page', saved: true, closedSaved: true, savedPageKey: 'https://openai.com/docs' }),
+    }),
   )
   const chipMatch = html.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
 
@@ -868,7 +868,7 @@ test('PageChip close animation removes the real row from flow and leaves a trans
     overflow: '',
     opacity: '',
     transformOrigin: '',
-    transition: ''
+    transition: '',
   }
   let measured = 0
   let ghostMeasured = 0
@@ -876,22 +876,22 @@ test('PageChip close animation removes the real row from flow and leaves a trans
   let scheduledDelay = 0
   const chipEl = {
     classList: {
-      add: (...names: string[]) => names.forEach((name) => classNames.add(name))
+      add: (...names: string[]) => names.forEach((name) => classNames.add(name)),
     },
     style,
     ownerDocument: {
       body: {
         appendChild: (node: CloseAnimationGhostFixture) => {
           appendedNodes.push(node)
-        }
-      }
+        },
+      },
     },
     cloneNode: (): CloseAnimationGhostFixture => ({
       classList: {
         classes: [] as string[],
         add(...names: string[]) {
           this.classes.push(...names)
-        }
+        },
       },
       style: {} as Record<string, string>,
       getBoundingClientRect() {
@@ -902,12 +902,12 @@ test('PageChip close animation removes the real row from flow and leaves a trans
       },
       remove() {
         removedNodes.push(this)
-      }
+      },
     }),
     getBoundingClientRect: () => {
       measured += 1
       return { left: 11.2, top: 22.8, width: 333.3, height: 37.4 }
-    }
+    },
   }
 
   const started = startPageChipCloseAnimation(chipEl, (options) => {
@@ -955,19 +955,19 @@ test('PageChip leaves physical tab closures to refresh into retained resting sta
 test('PageChip outlines matching live chips when an external row owns the match', () => {
   const chip = makeChip({
     tabUrl: 'https://example.com/docs',
-    rawUrl: 'https://example.com/docs'
+    rawUrl: 'https://example.com/docs',
   })
   const historyHoverHtml = renderWithDomainCardContext(
     React.createElement(PageChip, { chip }),
-    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'history' } as RenderContextOverrides
+    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'history' } as RenderContextOverrides,
   )
   const workingSetHoverHtml = renderWithDomainCardContext(
     React.createElement(PageChip, { chip }),
-    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'working-set' } as RenderContextOverrides
+    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'working-set' } as RenderContextOverrides,
   )
   const selfHoverHtml = renderWithDomainCardContext(
     React.createElement(PageChip, { chip }),
-    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'chip' } as RenderContextOverrides
+    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'chip' } as RenderContextOverrides,
   )
   const historyMatch = historyHoverHtml.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
   const workingSetMatch = workingSetHoverHtml.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
@@ -994,16 +994,16 @@ test('PageChip renders same-title URL variants below one visible title', () => {
         tabUrl: 'https://example.com/content/item?search_id=alpha',
         rawUrl: 'https://example.com/content/item?search_id=alpha',
         pathSuffix: '…?search_id=alpha',
-        tooltip: '…?search_id=alpha'
+        tooltip: '…?search_id=alpha',
       }),
       makeChip({
         sourceType: 'tab',
         tabUrl: 'https://example.com/content/item?search_id=bravo',
         rawUrl: 'https://example.com/content/item?search_id=bravo',
         pathSuffix: '…?search_id=bravo',
-        tooltip: '…?search_id=bravo'
-      })
-    ]
+        tooltip: '…?search_id=bravo',
+      }),
+    ],
   })
 
   const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
@@ -1129,9 +1129,9 @@ function makeVariantGroupChip(overrides: Partial<DashboardChipData> = {}): Dashb
     tooltip: 'Commits',
     titleVariantChips: [
       makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/a', rawUrl: 'https://example.com/a', pathSuffix: '…/feature', tooltip: '…/feature' }),
-      makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/b', rawUrl: 'https://example.com/b', pathSuffix: '…/main', tooltip: '…/main' })
+      makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/b', rawUrl: 'https://example.com/b', pathSuffix: '…/main', tooltip: '…/main' }),
     ],
-    ...overrides
+    ...overrides,
   })
 }
 
@@ -1173,8 +1173,8 @@ test('PageChip gives read-only filter results the closed interaction fill withou
     const html = renderWithDomainCardContext(
       React.createElement(PageChip, {
         chip: makeChip({ sourceType }),
-        filter: 'OpenAI'
-      })
+        filter: 'OpenAI',
+      }),
     )
     const cls = pageChipClass(html)
     assert.match(cls, /hover:bg-\(--chip-interaction-bg\)/)
@@ -1196,19 +1196,19 @@ test('PageChip resolves the closed filter fill per target inside an active mixed
             prefix: 'env-alpha',
             tabUrl: 'https://env-alpha.example.test/docs',
             rawUrl: 'https://env-alpha.example.test/docs',
-            sourceType: 'tab'
+            sourceType: 'tab',
           },
           {
             prefix: 'env-bravo',
             tabUrl: 'https://env-bravo.example.test/docs',
             rawUrl: 'https://env-bravo.example.test/docs',
             sourceType: 'tab',
-            closedSaved: true
-          }
-        ]
+            closedSaved: true,
+          },
+        ],
       }),
-      filter: 'docs'
-    })
+      filter: 'docs',
+    }),
   )
   const envButtons = Array.from(html.matchAll(/<button[^>]*>/g), (match) => match[0])
     .filter((tag) => /class="[^"]*\bchip-env\b/.test(tag))
@@ -1240,9 +1240,9 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
     chip: makeVariantGroupChip({
       titleVariantChips: [
         makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/a', rawUrl: 'https://example.com/a', pathSuffix: '…/feature', tooltip: '…/feature' }),
-        makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/b', rawUrl: 'https://example.com/b', pathSuffix: '…/main', tooltip: '…/main', activeChipFrame: true })
-      ]
-    })
+        makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/b', rawUrl: 'https://example.com/b', pathSuffix: '…/main', tooltip: '…/main', activeChipFrame: true }),
+      ],
+    }),
   }))
   const currentActivePills = titleVariantPillTags(currentActiveHtml)
   assert.doesNotMatch(requiredAt(currentActivePills, 0), /data-tabout-default-variant/)
@@ -1252,9 +1252,9 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
     chip: makeVariantGroupChip({
       titleVariantChips: [
         makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/a', rawUrl: 'https://example.com/a', pathSuffix: '…/feature', tooltip: '…/feature', activeChipFrame: true, activeInOtherWindow: true }),
-        makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/b', rawUrl: 'https://example.com/b', pathSuffix: '…/main', tooltip: '…/main', activeChipFrame: true })
-      ]
-    })
+        makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/b', rawUrl: 'https://example.com/b', pathSuffix: '…/main', tooltip: '…/main', activeChipFrame: true }),
+      ],
+    }),
   }))
   const crossWindowPills = titleVariantPillTags(crossWindowHtml)
   assert.doesNotMatch(requiredAt(crossWindowPills, 0), /data-tabout-default-variant/)
@@ -1264,9 +1264,9 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
     chip: makeVariantGroupChip({
       titleVariantChips: [
         makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/a', rawUrl: 'https://example.com/a', pathSuffix: '…/feature', tooltip: '…/feature' }),
-        makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/b', rawUrl: 'https://example.com/b', pathSuffix: '…/main', tooltip: '…/main', activeChipFrame: true, activeInOtherWindow: true })
-      ]
-    })
+        makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/b', rawUrl: 'https://example.com/b', pathSuffix: '…/main', tooltip: '…/main', activeChipFrame: true, activeInOtherWindow: true }),
+      ],
+    }),
   }))
   const otherWindowOnlyPills = titleVariantPillTags(otherWindowOnlyHtml)
   assert.doesNotMatch(requiredAt(otherWindowOnlyPills, 0), /data-tabout-default-variant/)
@@ -1284,7 +1284,7 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
           pathSuffix: '…/retained',
           tooltip: '…/retained',
           retainedPageIdentity: 'identity-retained',
-          retainedPageClosureToken: 'lifetime-retained'
+          retainedPageClosureToken: 'lifetime-retained',
         }),
         makeChip({
           sourceType: 'saved-page',
@@ -1294,10 +1294,10 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
           rawUrl: 'https://example.com/saved',
           pathSuffix: '…/saved',
           tooltip: '…/saved',
-          savedPageKey: 'saved-page-key'
-        })
-      ]
-    })
+          savedPageKey: 'saved-page-key',
+        }),
+      ],
+    }),
   }))
   const savedPriorityPills = titleVariantPillTags(savedPriorityHtml)
   assert.doesNotMatch(requiredAt(savedPriorityPills, 0), /data-tabout-default-variant/)
@@ -1397,16 +1397,16 @@ test('PageChip gives same-title URL variant groups a folded-style expansion trig
         tabUrl: 'https://example.com/content/item?search_id=alpha',
         rawUrl: 'https://example.com/content/item?search_id=alpha',
         pathSuffix: '…?search_id=alpha',
-        tooltip: '…?search_id=alpha'
+        tooltip: '…?search_id=alpha',
       }),
       makeChip({
         sourceType: 'tab',
         tabUrl: 'https://example.com/content/item?search_id=bravo',
         rawUrl: 'https://example.com/content/item?search_id=bravo',
         pathSuffix: '…?search_id=bravo',
-        tooltip: '…?search_id=bravo'
-      })
-    ]
+        tooltip: '…?search_id=bravo',
+      }),
+    ],
   })
 
   const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
@@ -1550,24 +1550,24 @@ test('PageChip outlines same-title variant groups when external hover matches a 
         tabUrl: 'https://example.com/content/item?search_id=alpha',
         rawUrl: 'https://example.com/content/item?search_id=alpha',
         pathSuffix: '…?search_id=alpha',
-        tooltip: '…?search_id=alpha'
+        tooltip: '…?search_id=alpha',
       }),
       makeChip({
         sourceType: 'tab',
         tabUrl: 'https://example.com/content/item?search_id=bravo',
         rawUrl: 'https://example.com/content/item?search_id=bravo',
         pathSuffix: '…?search_id=bravo',
-        tooltip: '…?search_id=bravo'
-      })
-    ]
+        tooltip: '…?search_id=bravo',
+      }),
+    ],
   })
 
   const html = renderWithDomainCardContext(
     React.createElement(PageChip, { chip }),
     {
       activeHoverUrl: 'https://example.com/content/item?search_id=bravo',
-      activeHoverSource: 'history'
-    } as RenderContextOverrides
+      activeHoverSource: 'history',
+    } as RenderContextOverrides,
   )
   const chipMatch = html.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
   assert.ok(chipMatch, 'page chip should render')
@@ -1589,16 +1589,16 @@ test('PageChip keeps same-title URL variant saved-page actions in the context me
         pathSuffix: '…?search_id=alpha',
         tooltip: '…?search_id=alpha',
         saved: true,
-        savedPageKey: 'https://example.com/content/item?search_id=alpha'
+        savedPageKey: 'https://example.com/content/item?search_id=alpha',
       }),
       makeChip({
         sourceType: 'tab',
         tabUrl: 'https://example.com/content/item?search_id=bravo',
         rawUrl: 'https://example.com/content/item?search_id=bravo',
         pathSuffix: '…?search_id=bravo',
-        tooltip: '…?search_id=bravo'
-      })
-    ]
+        tooltip: '…?search_id=bravo',
+      }),
+    ],
   })
 
   const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
@@ -1630,16 +1630,16 @@ test('PageChip renders saved bookmark URL variants as read-only hints', () => {
         pathSuffix: '…?search_id=alpha',
         tooltip: '…?search_id=alpha',
         saved: true,
-        savedPageKey: 'https://example.com/content/item?search_id=alpha'
+        savedPageKey: 'https://example.com/content/item?search_id=alpha',
       }),
       makeChip({
         sourceType: 'bookmark',
         tabUrl: 'https://example.com/content/item?search_id=bravo',
         rawUrl: 'https://example.com/content/item?search_id=bravo',
         pathSuffix: '…?search_id=bravo',
-        tooltip: '…?search_id=bravo'
-      })
-    ]
+        tooltip: '…?search_id=bravo',
+      }),
+    ],
   })
 
   const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
@@ -1669,7 +1669,7 @@ test('PageChip keeps folded env saved-page actions in the context menu', () => {
         saved: true,
         savedPageKey: 'https://env-alpha.example.test/docs',
         title: 'Example Docs',
-        faviconUrl: ''
+        faviconUrl: '',
       },
       {
         prefix: 'env-bravo',
@@ -1677,9 +1677,9 @@ test('PageChip keeps folded env saved-page actions in the context menu', () => {
         rawUrl: 'https://env-bravo.example.test/docs',
         sourceType: 'tab',
         title: 'Example Docs',
-        faviconUrl: ''
-      }
-    ]
+        faviconUrl: '',
+      },
+    ],
   })
 
   const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
@@ -1703,7 +1703,7 @@ test('PageChip progressively mounts oversized folded env groups in 24-target chu
       title: 'Example Docs',
       faviconUrl: '',
       retainedPageIdentity: `identity-${label}`,
-      retainedPageClosureToken: `lifetime-${label}`
+      retainedPageClosureToken: `lifetime-${label}`,
     }
   })
   const chip = makeChip({
@@ -1712,7 +1712,7 @@ test('PageChip progressively mounts oversized folded env groups in 24-target chu
     rawUrl: envs[0]?.rawUrl || '',
     displaySegments: ['Example Docs'],
     tooltip: '100 environments · Example Docs',
-    envs
+    envs,
   })
 
   const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
@@ -1740,7 +1740,7 @@ test('PageChip renders saved bookmark folded env pills as read-only hints', () =
         saved: true,
         savedPageKey: 'https://env-alpha.example.test/docs',
         title: 'Example Docs',
-        faviconUrl: ''
+        faviconUrl: '',
       },
       {
         prefix: 'env-bravo',
@@ -1748,9 +1748,9 @@ test('PageChip renders saved bookmark folded env pills as read-only hints', () =
         rawUrl: 'https://env-bravo.example.test/docs',
         sourceType: 'bookmark',
         title: 'Example Docs',
-        faviconUrl: ''
-      }
-    ]
+        faviconUrl: '',
+      },
+    ],
   })
 
   const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
@@ -1768,15 +1768,15 @@ test('PageChip matches working set hover against raw tab URLs', () => {
   const rawUrl = 'chrome-extension://suspender/suspended.html#uri=https%3A%2F%2Fexample.com%2Fdocs'
   const chip = makeChip({
     tabUrl: 'https://example.com/docs',
-    rawUrl
+    rawUrl,
   })
   const html = renderWithDomainCardContext(
     React.createElement(PageChip, { chip }),
     {
       activeHoverUrl: 'https://example.com/preview',
       activeHoverUrls: [rawUrl],
-      activeHoverSource: 'working-set'
-    } as RenderContextOverrides
+      activeHoverSource: 'working-set',
+    } as RenderContextOverrides,
   )
   const chipMatch = html.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
 
@@ -1788,19 +1788,19 @@ test('Overflow expander outlines when external hover matches a hidden chip', () 
   const rawUrl = 'chrome-extension://suspender/suspended.html#uri=https%3A%2F%2Fexample.com%2Fhidden'
   const hiddenChip = makeChip({
     tabUrl: 'https://example.com/hidden',
-    rawUrl
+    rawUrl,
   })
   const visibleChip = makeChip({
     tabUrl: 'https://example.com/visible',
-    rawUrl: 'https://example.com/visible'
+    rawUrl: 'https://example.com/visible',
   })
   const renderOverflow = (context: RenderContextOverrides) => renderWithDomainCardContext(
     React.createElement(FlatSection, {
       visibleChips: [visibleChip],
       hiddenChips: [hiddenChip],
-      hiddenCount: 1
+      hiddenCount: 1,
     }),
-    context
+    context,
   )
   const overflowClass = (html: string) => {
     const match = html.match(/<button[^>]*class="([^"]*\bpage-chip-overflow\b[^"]*)"/)
@@ -1809,16 +1809,16 @@ test('Overflow expander outlines when external hover matches a hidden chip', () 
   }
   const historyMatch = overflowClass(renderOverflow({
     activeHoverUrl: 'https://example.com/hidden',
-    activeHoverSource: 'history'
+    activeHoverSource: 'history',
   }))
   const workingSetRawMatch = overflowClass(renderOverflow({
     activeHoverUrl: 'https://example.com/preview',
     activeHoverUrls: [rawUrl],
-    activeHoverSource: 'working-set'
+    activeHoverSource: 'working-set',
   }))
   const chipSelfMatch = overflowClass(renderOverflow({
     activeHoverUrl: 'https://example.com/hidden',
-    activeHoverSource: 'chip'
+    activeHoverSource: 'chip',
   }))
 
   assert.match(historyMatch, /\bpage-chip-overflow-hover-match\b/)
@@ -1830,15 +1830,15 @@ test('TabHistoryPanel outlines matching history rows when another source owns th
   const snapshot = makeHistorySnapshot()
   const chipHoverHtml = renderTabHistoryPanel(
     { snapshot },
-    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'chip' }
+    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'chip' },
   )
   const workingSetHoverHtml = renderTabHistoryPanel(
     { snapshot },
-    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'working-set' }
+    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'working-set' },
   )
   const selfHoverHtml = renderTabHistoryPanel(
     { snapshot },
-    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'history' }
+    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'history' },
   )
   const chipHoverMatch = chipHoverHtml.match(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
   const workingSetHoverMatch = workingSetHoverHtml.match(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
@@ -1860,13 +1860,13 @@ test('TabHistoryPanel matches chip hover against raw tab URLs without changing t
         ...makeHistoryEntry(),
         url: 'https://example.com/docs',
         rawUrl,
-        displayUrl: 'example.com/docs'
-      }
-    ]
+        displayUrl: 'example.com/docs',
+      },
+    ],
   })
   const html = renderTabHistoryPanel(
     { snapshot },
-    { activeHoverUrl: 'https://example.com/docs', activeHoverUrls: ['https://example.com/docs', rawUrl], activeHoverSource: 'chip' }
+    { activeHoverUrl: 'https://example.com/docs', activeHoverUrls: ['https://example.com/docs', rawUrl], activeHoverSource: 'chip' },
   )
   const entryMatch = html.match(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
 
@@ -1882,13 +1882,13 @@ test('TabHistoryPanel reuses shared page-target matching for suspended history r
         ...makeHistoryEntry(),
         url: 'https://example.com/docs',
         rawUrl,
-        displayUrl: 'example.com/docs'
-      }
-    ]
+        displayUrl: 'example.com/docs',
+      },
+    ],
   })
   const html = renderTabHistoryPanel(
     { snapshot },
-    { activeHoverUrl: rawUrl, activeHoverUrls: [rawUrl], activeHoverSource: 'chip' }
+    { activeHoverUrl: rawUrl, activeHoverUrls: [rawUrl], activeHoverSource: 'chip' },
   )
   const entryMatch = html.match(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
 
@@ -1899,8 +1899,8 @@ test('TabHistoryPanel reuses shared page-target matching for suspended history r
 test('TabHistoryPanel keeps the history entry surface on the default cursor', () => {
   const html = renderToStaticMarkup(
     React.createElement(TabHistoryPanel as React.ComponentType<any>, {
-      snapshot: makeHistorySnapshot()
-    })
+      snapshot: makeHistorySnapshot(),
+    }),
   )
   const entryButtonMatch = html.match(/<div role="button" tabindex="0"[^>]*aria-disabled="false"[^>]*class="([^"]*\bhistory-entry-main\b[^"]*)"/)
 
@@ -1917,11 +1917,11 @@ test('TabHistoryPanel renders the close action in the favicon slot', () => {
         entries: [
           {
             ...baseEntry,
-            favIconUrl: 'https://example.com/favicon.ico'
-          }
-        ]
-      })
-    })
+            favIconUrl: 'https://example.com/favicon.ico',
+          },
+        ],
+      }),
+    }),
   )
   const faviconFrameMatch = html.match(/<span class="([^"]*\bhistory-entry-favicon-frame\b[^"]*)"/)
   const closeActionMatch = html.match(/<button[^>]*class="([^"]*\bhistory-entry-close\b[^"]*)"/)
@@ -1956,14 +1956,14 @@ test('TabHistoryPanel uses PageChip-style fade truncation and in-place title exp
   assert.doesNotMatch(tabHistoryPanelSource, /history-entry-title line-clamp-2/)
   assert.match(
     tabHistoryPanelSource,
-    /captureVisibleLineHtml\(titleEl, metrics\.visibleLineCount, captureGeometry\)/
+    /captureVisibleLineHtml\(titleEl, metrics\.visibleLineCount, captureGeometry\)/,
   )
   assert.match(tabHistoryPanelSource, /clampedTitleLineNodes\(clampedLineHtml, 'history-entry-title'\)/)
   assert.match(tabHistoryPanelSource, /key=\{titleContentKey\}[\s\S]*className="captured-title-content-root contents"/)
   const pageChipClampSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
   assert.match(
     pageChipClampSource,
-    /getClampedPageChipLineHtml\(textEl, \{\s*lineHeight: getChipTextLineHeight\(textEl\),\s*textRect\s*\}\)/
+    /getClampedPageChipLineHtml\(textEl, \{\s*lineHeight: getChipTextLineHeight\(textEl\),\s*textRect,?\s*\}\)/,
   )
   assert.match(pageChipClampSource, /clampedTitleLineNodes\([\s\S]*chipTextClamp\.lineHtml,[\s\S]*'chip-text',[\s\S]*hasTitleSuppressionMarkers \? rebuildClampedChipMarker : undefined/)
   assert.match(tabHistoryPanelSource, /HISTORY_ENTRY_EXPANDED_VIEWPORT_MARGIN_PX = 12/)
@@ -2050,16 +2050,16 @@ test('TabHistoryPanel applies bionic title emphasis to short words and acronyms'
             ...baseEntry,
             title: 'The API and UX of Checkout Flow',
             url: 'https://example.com/checkout',
-            displayUrl: 'example.com/checkout'
-          }
-        ]
-      })
-    })
+            displayUrl: 'example.com/checkout',
+          },
+        ],
+      }),
+    }),
   )
 
   assert.match(
     html,
-    /history-entry-title[\s\S]*<span class="chip-title-fixation\b[^"]*">T<\/span>he <span class="chip-title-fixation\b[^"]*">A<\/span>PI <span class="chip-title-fixation\b[^"]*">a<\/span>nd <span class="chip-title-fixation\b[^"]*">U<\/span>X <span class="chip-title-fixation\b[^"]*">o<\/span>f <span class="chip-title-fixation\b[^"]*">Chec<\/span>kout <span class="chip-title-fixation\b[^"]*">Fl<\/span>ow/
+    /history-entry-title[\s\S]*<span class="chip-title-fixation\b[^"]*">T<\/span>he <span class="chip-title-fixation\b[^"]*">A<\/span>PI <span class="chip-title-fixation\b[^"]*">a<\/span>nd <span class="chip-title-fixation\b[^"]*">U<\/span>X <span class="chip-title-fixation\b[^"]*">o<\/span>f <span class="chip-title-fixation\b[^"]*">Chec<\/span>kout <span class="chip-title-fixation\b[^"]*">Fl<\/span>ow/,
   )
 })
 
@@ -2081,12 +2081,12 @@ test('TabHistoryPanel omits the extras section when working-set items overlap th
             current: false,
             title: 'Chrome Settings',
             url: 'chrome://settings/',
-            displayUrl: 'chrome://settings/'
-          }
-        ]
+            displayUrl: 'chrome://settings/',
+          },
+        ],
       }),
-      workingSet: makeWorkingSetSnapshot()
-    })
+      workingSet: makeWorkingSetSnapshot(),
+    }),
   )
 
   assert.doesNotMatch(html, /history-working-set-rail/)
@@ -2112,11 +2112,11 @@ test('TabHistoryPanel gives highlighted history indexes stronger contrast', () =
             current: false,
             title: 'Older Entry',
             url: 'https://example.com/older',
-            displayUrl: 'example.com/older'
-          }
-        ]
-      })
-    })
+            displayUrl: 'example.com/older',
+          },
+        ],
+      }),
+    }),
   )
   const indexMatches = Array.from(html.matchAll(/<span data-tabout-part="history-entry-marker" class="([^"]*)"/g))
   const highlighted = indexMatches.filter((match) => /\bfont-semibold\b/.test(requiredAt(match, 1)))
@@ -2136,8 +2136,8 @@ test('TabHistoryPanel keeps FLIP keys stable when stack indexes change', () => {
       snapshot: makeHistorySnapshot({
         cursorIndex: index,
         currentIndex: index,
-        entries: [{ ...baseEntry, index }]
-      })
+        entries: [{ ...baseEntry, index }],
+      }),
     })
   }
   function layoutKeys(html: string) {
@@ -2157,13 +2157,13 @@ test('TabHistoryPanel keeps FLIP keys stable when stack indexes change', () => {
     title: 'Example Settings',
     url: 'https://example.com/settings',
     rawUrl: 'https://example.com/settings',
-    displayUrl: 'example.com/settings'
+    displayUrl: 'example.com/settings',
   }
   const twoRows = renderTabHistoryPanel({
     snapshot: makeHistorySnapshot({
       stackSize: 2,
-      entries: [baseEntry, secondEntry]
-    })
+      entries: [baseEntry, secondEntry],
+    }),
   })
   assert.deepEqual(layoutKeys(twoRows), ['stack:1:101', 'stack:1:202'])
 })
@@ -2176,7 +2176,7 @@ test('TabHistoryPanel open-ghost rows do not receive data-working-set-priority a
       snapshot: makeHistorySnapshot({
         activeTabId: 101,
         currentIndex: 0,
-        entries: [baseEntry]
+        entries: [baseEntry],
       }),
       workingSet: makeWorkingSetSnapshot({
         items: [
@@ -2193,11 +2193,11 @@ test('TabHistoryPanel open-ghost rows do not receive data-working-set-priority a
             active: false,
             activeInOtherWindow: false,
             score: 90,
-            lastActivatedAt: Date.now()
-          }
-        ]
-      })
-    })
+            lastActivatedAt: Date.now(),
+          },
+        ],
+      }),
+    }),
   )
 
   assert.equal(/data-working-set-priority="true"/.test(html), false)
@@ -2216,7 +2216,7 @@ test('TabHistoryPanel renders browser utility history rows at full strength like
             ...baseEntry,
             title: 'Chrome Settings',
             url: 'chrome://settings/',
-            displayUrl: 'chrome://settings/'
+            displayUrl: 'chrome://settings/',
           },
           {
             ...baseEntry,
@@ -2227,7 +2227,7 @@ test('TabHistoryPanel renders browser utility history rows at full strength like
             current: false,
             title: 'New Tab',
             url: 'chrome://newtab/',
-            displayUrl: 'chrome://newtab/'
+            displayUrl: 'chrome://newtab/',
           },
           {
             ...baseEntry,
@@ -2238,7 +2238,7 @@ test('TabHistoryPanel renders browser utility history rows at full strength like
             current: false,
             title: 'Tab Out',
             url: 'chrome-extension://tab-out/index.html?filter=docs',
-            displayUrl: 'Tab Out'
+            displayUrl: 'Tab Out',
           },
           {
             ...baseEntry,
@@ -2249,11 +2249,11 @@ test('TabHistoryPanel renders browser utility history rows at full strength like
             current: false,
             title: 'Chrome New Tab Frame',
             url: 'chrome-search://local-ntp/local-ntp.html',
-            displayUrl: 'chrome-search://local-ntp/local-ntp.html'
-          }
-        ]
-      })
-    })
+            displayUrl: 'chrome-search://local-ntp/local-ntp.html',
+          },
+        ],
+      }),
+    }),
   )
   assert.doesNotMatch(html, /data-low-score/)
   assert.doesNotMatch(html, /history-entry-low-score-content/)
@@ -2270,11 +2270,11 @@ test('TabHistoryPanel renders standalone app history rows at full strength like 
             title: 'Standalone App',
             url: 'https://app.example.com/',
             displayUrl: 'app.example.com',
-            isApp: true
-          }
-        ]
-      })
-    })
+            isApp: true,
+          },
+        ],
+      }),
+    }),
   )
 
   assert.doesNotMatch(html, /data-low-score/)
@@ -2302,11 +2302,11 @@ test('TabHistoryPanel renders non-overlapping working-set items inline without a
             active: false,
             activeInOtherWindow: false,
             score: 80,
-            lastActivatedAt: 0
-          }
-        ]
-      })
-    })
+            lastActivatedAt: 0,
+          },
+        ],
+      }),
+    }),
   )
 
   assert.doesNotMatch(html, /data-tabout-part="working-set-extra-list"/)
@@ -2332,9 +2332,9 @@ test('TabHistoryPanel filters history rows and working-set extras by the active 
         current: false,
         title: 'GitHub Repo',
         url: 'https://github.com/example/repo',
-        displayUrl: 'github.com/example/repo'
-      }
-    ]
+        displayUrl: 'github.com/example/repo',
+      },
+    ],
   })
   const workingSet = makeWorkingSetSnapshot({
     items: [
@@ -2352,7 +2352,7 @@ test('TabHistoryPanel filters history rows and working-set extras by the active 
         active: false,
         activeInOtherWindow: false,
         score: 90,
-        lastActivatedAt: 0
+        lastActivatedAt: 0,
       },
       {
         key: 'https://news.example.com/article',
@@ -2367,17 +2367,17 @@ test('TabHistoryPanel filters history rows and working-set extras by the active 
         active: false,
         activeInOtherWindow: false,
         score: 70,
-        lastActivatedAt: 0
-      }
-    ]
+        lastActivatedAt: 0,
+      },
+    ],
   })
 
   const filteredHtml = renderToStaticMarkup(
     React.createElement(TabHistoryPanel as React.ComponentType<any>, {
       snapshot,
       workingSet,
-      filter: 'github'
-    })
+      filter: 'github',
+    }),
   )
   const filteredRows = historyEntryElements(filteredHtml)
   const filteredExtraRows = Array.from(filteredHtml.matchAll(/data-working-set-extra="true"/g))
@@ -2392,8 +2392,8 @@ test('TabHistoryPanel filters history rows and working-set extras by the active 
     React.createElement(TabHistoryPanel as React.ComponentType<any>, {
       snapshot,
       workingSet,
-      filter: 'news'
-    })
+      filter: 'news',
+    }),
   )
   const newsRows = historyEntryElements(newsHtml)
 
@@ -2423,7 +2423,7 @@ test('TabHistoryPanel borrows current PageChip surface styling for the current e
             current: false,
             title: 'Default Entry',
             url: 'https://example.com/default',
-            displayUrl: 'example.com/default'
+            displayUrl: 'example.com/default',
           },
           {
             ...baseEntry,
@@ -2432,11 +2432,11 @@ test('TabHistoryPanel borrows current PageChip surface styling for the current e
             title: 'Current Entry',
             activeInOtherWindow: false,
             url: 'https://example.com/current',
-            displayUrl: 'example.com/current'
-          }
-        ]
-      })
-    })
+            displayUrl: 'example.com/current',
+          },
+        ],
+      }),
+    }),
   )
   const entries = historyEntryElements(html)
   const currentEntry = entries.find((entry) => entry.tag.includes('data-current="true"'))?.className
@@ -2485,7 +2485,7 @@ test('TabHistoryPanel borrows other-window PageChip surface styling for active n
             activeInOtherWindow: false,
             title: 'Current Entry',
             url: 'https://example.com/current',
-            displayUrl: 'example.com/current'
+            displayUrl: 'example.com/current',
           },
           {
             ...baseEntry,
@@ -2498,18 +2498,18 @@ test('TabHistoryPanel borrows other-window PageChip surface styling for active n
             current: false,
             title: 'Open Elsewhere',
             url: 'https://example.com/elsewhere',
-            displayUrl: 'example.com/elsewhere'
-          }
-        ]
-      })
-    })
+            displayUrl: 'example.com/elsewhere',
+          },
+        ],
+      }),
+    }),
   )
   const entries = historyEntryElements(html)
   const activeOther = entries.find(
     (entry) =>
       entry.tag.includes('data-active="true"') &&
       entry.tag.includes('data-active-in-other-window="true"') &&
-      !entry.tag.includes('data-current="true"')
+      !entry.tag.includes('data-current="true"'),
   )
   const activeOtherEntry = activeOther?.className
 
@@ -2548,7 +2548,7 @@ test('TabHistoryPanel keeps previous and next history targets visually neutral',
             previousTarget: true,
             title: 'Previous Entry',
             url: 'https://example.com/previous',
-            displayUrl: 'example.com/previous'
+            displayUrl: 'example.com/previous',
           },
           {
             ...baseEntry,
@@ -2556,7 +2556,7 @@ test('TabHistoryPanel keeps previous and next history targets visually neutral',
             tabId: 202,
             title: 'Current Entry',
             url: 'https://example.com/current',
-            displayUrl: 'example.com/current'
+            displayUrl: 'example.com/current',
           },
           {
             ...baseEntry,
@@ -2568,11 +2568,11 @@ test('TabHistoryPanel keeps previous and next history targets visually neutral',
             nextTarget: true,
             title: 'Next Entry',
             url: 'https://example.com/next',
-            displayUrl: 'example.com/next'
-          }
-        ]
-      })
-    })
+            displayUrl: 'example.com/next',
+          },
+        ],
+      }),
+    }),
   )
   const entries = historyEntryElements(html)
   const previousEntry = entries.find((entry) => entry.tag.includes('data-previous-target="true"'))?.className
@@ -2592,7 +2592,7 @@ test('cross-surface hover match styling is outline-only', () => {
   const surfaces: Array<[string, RegExp]> = [
     ['../src/components/TabHistoryPanel.tsx', /hoverMatched && 'history-entry-hover-match ([^']*)'/],
     ['../src/components/PageChipOverflow.tsx', /hiddenHoverMatched && 'page-chip-overflow-hover-match ([^']*)'/],
-    ['../src/components/PageChip.tsx', /hoverMatched && `\$\{CHIP_TRIM_TOKENS\.hoverMatch\} ([^`]*)`/]
+    ['../src/components/PageChip.tsx', /hoverMatched && `\$\{CHIP_TRIM_TOKENS\.hoverMatch\} ([^`]*)`/],
   ]
   for (const [path, conditional] of surfaces) {
     const source = readFileSync(new URL(path, import.meta.url), 'utf8')
@@ -2617,8 +2617,8 @@ test('PageChip highlights quoted filter phrases as one contiguous match', () => 
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
       chip: makeChip(),
-      filter: '"OpenAI Docs"'
-    })
+      filter: '"OpenAI Docs"',
+    }),
   )
 
   assert.match(html, /<mark class="chip-filter-match\b[^"]*"><span class="chip-title-fixation\b[^"]*">Ope<\/span>nAI <span class="chip-title-fixation\b[^"]*">Do<\/span>cs<\/mark>/)
@@ -2629,10 +2629,10 @@ test('PageChip highlights token aliases in visible chip text', () => {
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['Pull Request review'],
-        tooltip: 'Pull Request review'
+        tooltip: 'Pull Request review',
       }),
-      filter: 'pr'
-    })
+      filter: 'pr',
+    }),
   )
 
   assert.match(html, /<mark class="chip-filter-match\b[^"]*"><span class="chip-title-fixation\b[^"]*">Pu<\/span>ll <span class="chip-title-fixation\b[^"]*">Requ<\/span>est<\/mark> <span class="chip-title-fixation\b[^"]*">rev<\/span>iew/)
@@ -2642,8 +2642,8 @@ test('PageChip highlights parsed filter terms for history candidates', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
       chip: makeChip({ sourceType: 'history' }),
-      filter: 'docs openai'
-    })
+      filter: 'docs openai',
+    }),
   )
 
   assert.match(html, /<mark class="chip-filter-match\b[^"]*"><span class="chip-title-fixation\b[^"]*">Ope<\/span>nAI<\/mark> <mark class="chip-filter-match\b[^"]*"><span class="chip-title-fixation\b[^"]*">Do<\/span>cs<\/mark>/)
@@ -2654,9 +2654,9 @@ test('PageChip renders a title suppression marker when common title text is supp
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['Alpha channel'],
-        suppressedTitleParts: ['Example Workspace']
-      })
-    })
+        suppressedTitleParts: ['Example Workspace'],
+      }),
+    }),
   )
 
   assert.match(html, /chip-title-suppression-marker\b/)
@@ -2717,13 +2717,13 @@ test('PageChip colors title suppression markers from token tones before hover', 
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['Alpha channel'],
-        suppressedTitleParts: ['Example Workspace', 'JIRA']
+        suppressedTitleParts: ['Example Workspace', 'JIRA'],
       }),
       suppressedTitleToneByText: Object.fromEntries<TitleSuppressionTone | ''>([
         ['example workspace', 'amber'],
-        ['jira', 'teal']
-      ])
-    })
+        ['jira', 'teal'],
+      ]),
+    }),
   )
   const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
 
@@ -2747,9 +2747,9 @@ test('PageChip can render a title suppression marker inline before structural pl
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['Alpha channel — ', { titleSuppression: 'Example Workspace' }, ' — ', { placeholder: true }],
-        suppressedTitleParts: ['Example Workspace']
-      })
-    })
+        suppressedTitleParts: ['Example Workspace'],
+      }),
+    }),
   )
   const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
 
@@ -2761,9 +2761,9 @@ test('PageChip uses a path-style placeholder for stripped structural labels', ()
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
       chip: makeChip({
-        displaySegments: ['Alpha ', { placeholder: true }, ' Beta']
-      })
-    })
+        displaySegments: ['Alpha ', { placeholder: true }, ' Beta'],
+      }),
+    }),
   )
 
   const stripMatch = html.match(/<span class="([^"]*\bchip-strip-indicator\b[^"]*)" aria-hidden="true"><span>([^<]+)<\/span><\/span>/)
@@ -2780,9 +2780,9 @@ test('PageChip labels stripped path-group placeholders with the pathgroup value'
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
       chip: makeChip({
-        displaySegments: ['Alpha ', { placeholder: true, label: 'openai/docs' }, ' Beta']
-      })
-    })
+        displaySegments: ['Alpha ', { placeholder: true, label: 'openai/docs' }, ' Beta'],
+      }),
+    }),
   )
 
   assert.match(html, /chip-strip-indicator\b[^>]*aria-label="openai\/docs"[^>]*>[\s\S]*chip-strip-indicator-glyph[\s\S]*>\/<\/span>[\s\S]*chip-strip-indicator-label/)
@@ -2811,22 +2811,22 @@ test('PageChip marks chips affected by the active suppressed title text', () => 
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['Alpha channel'],
-        suppressedTitleParts: ['Example Workspace']
-      })
+        suppressedTitleParts: ['Example Workspace'],
+      }),
     }),
-    { activeSuppressedTitle: 'Example Workspace' }
+    { activeSuppressedTitle: 'Example Workspace' },
   )
   const tealHtml = renderWithDomainCardContext(
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['Alpha channel'],
-        suppressedTitleParts: ['Example Workspace']
+        suppressedTitleParts: ['Example Workspace'],
       }),
       suppressedTitleToneByText: Object.fromEntries<TitleSuppressionTone | ''>([
-        ['example workspace', 'teal']
-      ])
+        ['example workspace', 'teal'],
+      ]),
     }),
-    { activeSuppressedTitle: 'Example Workspace' }
+    { activeSuppressedTitle: 'Example Workspace' },
   )
 
   assert.match(defaultHtml, /page-chip\b[^"]*page-chip-suppression-highlighted/)
@@ -2842,9 +2842,9 @@ test('PageChip renders path-group pills with a slash prefix', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
       chip: makeChip({
-        pathGroupLabel: 'openai/docs'
-      })
-    })
+        pathGroupLabel: 'openai/docs',
+      }),
+    }),
   )
 
   assert.match(html, /chip-pathgroup\b[^>]*>\/openai\/docs<\/span>/)
@@ -2854,9 +2854,9 @@ test('PageChip renders path suffixes without a left margin utility', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
       chip: makeChip({
-        pathSuffix: '/docs/reference'
-      })
-    })
+        pathSuffix: '/docs/reference',
+      }),
+    }),
   )
 
   const pathMatch = html.match(/<span class="([^"]*\bchip-path\b[^"]*)">/)
@@ -2873,10 +2873,10 @@ test('PageChip renders folded titles before env controls', () => {
         suppressedTitleParts: ['| Example Retail', '- DEV1'],
         envs: [
           { prefix: 'dev1us', tabUrl: 'https://dev1us.example.com/deployments', rawUrl: 'https://dev1us.example.com/deployments' },
-          { prefix: 'dev2us', tabUrl: 'https://dev2us.example.com/deployments', rawUrl: 'https://dev2us.example.com/deployments' }
-        ]
-      })
-    })
+          { prefix: 'dev2us', tabUrl: 'https://dev2us.example.com/deployments', rawUrl: 'https://dev2us.example.com/deployments' },
+        ],
+      }),
+    }),
   )
 
   assert.match(html, /page-chip-folded\b/)
@@ -2939,8 +2939,8 @@ test('PathgroupSection renders header path-group pills with a slash prefix', () 
       closableUrls: [],
       visibleChips: [],
       hiddenChips: [],
-      hiddenCount: 0
-    })
+      hiddenCount: 0,
+    }),
   )
 
   assert.match(html, /chip-pathgroup\b[^>]*>\/openai\/docs<\/span>/)
@@ -2962,8 +2962,8 @@ test('WebsitePathSection renders raw path labels and keeps suppression summary o
           rawUrl: 'https://example.atlassian.net/wiki/home',
           tabUrl: 'https://example.atlassian.net/wiki/home',
           displaySegments: ['Wiki home'],
-          suppressedTitleParts: ['- Example-Site - Confluence']
-        })
+          suppressedTitleParts: ['- Example-Site - Confluence'],
+        }),
       ],
       flatHiddenChips: [],
       flatHiddenCount: 0,
@@ -2981,15 +2981,15 @@ test('WebsitePathSection renders raw path labels and keeps suppression summary o
               rawUrl: 'https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha',
               tabUrl: 'https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha',
               displaySegments: ['Alpha guide'],
-              suppressedTitleParts: ['- Example-Site - Confluence']
-            })
+              suppressedTitleParts: ['- Example-Site - Confluence'],
+            }),
           ],
           hiddenChips: [],
           hiddenCount: 0,
-          isPinned: false
-        }
-      ]
-    })
+          isPinned: false,
+        },
+      ],
+    }),
   )
 
   assert.match(html, /website-path-section\b/)
@@ -3012,7 +3012,7 @@ test('WebsitePathSection renders raw path labels and keeps suppression summary o
 test('DomainCard renders docs.google.com website path sections through WebsitePathSection', () => {
   const group: DomainGroup = {
     domain: 'google.com',
-    tabs: []
+    tabs: [],
   }
   const vm: DashboardCardVM = {
     stableId: 'domain-google-com',
@@ -3044,13 +3044,13 @@ test('DomainCard renders docs.google.com website path sections through WebsitePa
               makeChip({
                 rawUrl: 'https://docs.google.com/document/d/doc-alpha/edit',
                 tabUrl: 'https://docs.google.com/document/d/doc-alpha/edit',
-                displaySegments: ['Example Spec']
-              })
+                displaySegments: ['Example Spec'],
+              }),
             ],
             flatHiddenChips: [],
             flatHiddenCount: 0,
             suppressedTitleParts: [],
-            clusters: []
+            clusters: [],
           },
           {
             key: '/spreadsheets',
@@ -3062,24 +3062,24 @@ test('DomainCard renders docs.google.com website path sections through WebsitePa
               makeChip({
                 rawUrl: 'https://docs.google.com/spreadsheets/d/sheet-alpha/edit',
                 tabUrl: 'https://docs.google.com/spreadsheets/d/sheet-alpha/edit',
-                displaySegments: ['Example Budget']
-              })
+                displaySegments: ['Example Budget'],
+              }),
             ],
             flatHiddenChips: [],
             flatHiddenCount: 0,
             suppressedTitleParts: [],
-            clusters: []
-          }
-        ]
-      }
-    ]
+            clusters: [],
+          },
+        ],
+      },
+    ],
   }
 
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm: withSuppressionTones(vm)
-    })
+      vm: withSuppressionTones(vm),
+    }),
   )
 
   assert.match(html, /website-path-section-label\b[^>]*>\/document<\/span>[\s\S]*<span class="chip-title-fixation\b[^"]*">Exam<\/span>ple <span class="chip-title-fixation\b[^"]*">Sp<\/span>ec/)
@@ -3092,8 +3092,8 @@ test('Overflow expanders use one-line chip text and height metrics', () => {
     React.createElement(FlatSection, {
       visibleChips: [],
       hiddenChips: [makeChip({ rawUrl: 'https://openai.com/hidden' })],
-      hiddenCount: 1
-    })
+      hiddenCount: 1,
+    }),
   )
   const pathgroupHtml = renderToStaticMarkup(
     React.createElement(PathgroupSection, {
@@ -3103,8 +3103,8 @@ test('Overflow expanders use one-line chip text and height metrics', () => {
       closableUrls: [],
       visibleChips: [],
       hiddenChips: [makeChip({ rawUrl: 'https://openai.com/path-hidden' })],
-      hiddenCount: 1
-    })
+      hiddenCount: 1,
+    }),
   )
 
   for (const html of [flatHtml, pathgroupHtml]) {
@@ -3131,15 +3131,15 @@ test('Collapsed overflow defers hidden Page Chip rendering until expansion', () 
       visibleChips: [makeChip({
         rawUrl: 'https://example.test/visible',
         tabUrl: 'https://example.test/visible',
-        displaySegments: ['Visible page']
+        displaySegments: ['Visible page'],
       })],
       hiddenChips: [makeChip({
         rawUrl: 'https://example.test/deferred',
         tabUrl: 'https://example.test/deferred',
-        displaySegments: ['Deferred hidden page']
+        displaySegments: ['Deferred hidden page'],
       })],
-      hiddenCount: 1
-    })
+      hiddenCount: 1,
+    }),
   )
 
   assert.equal([...html.matchAll(/data-tabout="page-chip"/g)].length, 1)
@@ -3154,25 +3154,25 @@ test('Overflow expanders keep the row neutral when only some hidden chips match 
     makeChip({
       rawUrl: 'https://openai.com/hidden-workspace',
       displaySegments: ['Hidden workspace page'],
-      suppressedTitleParts: ['Example Workspace']
+      suppressedTitleParts: ['Example Workspace'],
     }),
     makeChip({
       rawUrl: 'https://openai.com/hidden-other',
       displaySegments: ['Hidden other page'],
-      suppressedTitleParts: ['Other Workspace']
-    })
+      suppressedTitleParts: ['Other Workspace'],
+    }),
   ]
   const suppressedTitleToneByText = Object.fromEntries<TitleSuppressionTone | ''>([
-    ['example workspace', 'teal']
+    ['example workspace', 'teal'],
   ])
   const flatHtml = renderWithDomainCardContext(
     React.createElement(FlatSection, {
       visibleChips: [],
       hiddenChips,
       hiddenCount: hiddenChips.length,
-      suppressedTitleToneByText
+      suppressedTitleToneByText,
     }),
-    { activeSuppressedTitle: 'Example Workspace' }
+    { activeSuppressedTitle: 'Example Workspace' },
   )
   const pathgroupHtml = renderWithDomainCardContext(
     React.createElement(PathgroupSection, {
@@ -3183,9 +3183,9 @@ test('Overflow expanders keep the row neutral when only some hidden chips match 
       visibleChips: [],
       hiddenChips,
       hiddenCount: hiddenChips.length,
-      suppressedTitleToneByText
+      suppressedTitleToneByText,
     }),
-    { activeSuppressedTitle: 'Example Workspace' }
+    { activeSuppressedTitle: 'Example Workspace' },
   )
 
   for (const html of [flatHtml, pathgroupHtml]) {
@@ -3206,25 +3206,25 @@ test('Overflow expanders use full chip color when all hidden chips match active 
     makeChip({
       rawUrl: 'https://openai.com/hidden-workspace',
       displaySegments: ['Hidden workspace page'],
-      suppressedTitleParts: ['Example Workspace']
+      suppressedTitleParts: ['Example Workspace'],
     }),
     makeChip({
       rawUrl: 'https://openai.com/hidden-workspace-2',
       displaySegments: ['Hidden workspace page 2'],
-      suppressedTitleParts: ['Example Workspace']
-    })
+      suppressedTitleParts: ['Example Workspace'],
+    }),
   ]
   const suppressedTitleToneByText = Object.fromEntries<TitleSuppressionTone | ''>([
-    ['example workspace', 'teal']
+    ['example workspace', 'teal'],
   ])
   const flatHtml = renderWithDomainCardContext(
     React.createElement(FlatSection, {
       visibleChips: [],
       hiddenChips,
       hiddenCount: hiddenChips.length,
-      suppressedTitleToneByText
+      suppressedTitleToneByText,
     }),
-    { activeSuppressedTitle: 'Example Workspace' }
+    { activeSuppressedTitle: 'Example Workspace' },
   )
   const pathgroupHtml = renderWithDomainCardContext(
     React.createElement(PathgroupSection, {
@@ -3235,9 +3235,9 @@ test('Overflow expanders use full chip color when all hidden chips match active 
       visibleChips: [],
       hiddenChips,
       hiddenCount: hiddenChips.length,
-      suppressedTitleToneByText
+      suppressedTitleToneByText,
     }),
-    { activeSuppressedTitle: 'Example Workspace' }
+    { activeSuppressedTitle: 'Example Workspace' },
   )
 
   for (const html of [flatHtml, pathgroupHtml]) {
@@ -3255,7 +3255,7 @@ test('Overflow expanders use full chip color when all hidden chips match active 
 test('DomainCard shows common suppressed title text above the chips without a summary label', () => {
   const group: DomainGroup = {
     domain: 'slack.com',
-    tabs: []
+    tabs: [],
   }
   const vm: DashboardCardVM = {
     stableId: 'domain-slack-com',
@@ -3263,14 +3263,14 @@ test('DomainCard shows common suppressed title text above the chips without a su
     filtering: false,
     tabCountLabel: '2',
     suppressedTitleParts: [{ text: 'Example Workspace', count: 2 }],
-    sections: []
+    sections: [],
   }
 
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm: withSuppressionTones(vm)
-    })
+      vm: withSuppressionTones(vm),
+    }),
   )
 
   const summaryMatch = html.match(/<div[^>]*class="([^"]*title-suppression-summary[^"]*)">/)
@@ -3293,21 +3293,21 @@ test('DomainCard shows common suppressed title text above the chips without a su
 test('DomainCard renders the public suffix as less prominent title text', () => {
   const group: DomainGroup = {
     domain: 'example.co.uk',
-    tabs: []
+    tabs: [],
   }
   const vm: DashboardCardVM = {
     stableId: 'domain-example-co-uk',
     isHidden: false,
     filtering: false,
     tabCountLabel: '1',
-    sections: []
+    sections: [],
   }
 
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm: withSuppressionTones(vm)
-    })
+      vm: withSuppressionTones(vm),
+    }),
   )
 
   assert.match(html, /<span class="domain-title-name">example<\/span>/)
@@ -3320,7 +3320,7 @@ test('DomainCard renders the public suffix as less prominent title text', () => 
 test('DomainCard inlines a single non-port subdomain into the title', () => {
   const group: DomainGroup = {
     domain: 'example.com',
-    tabs: []
+    tabs: [],
   }
   const vm: DashboardCardVM = {
     stableId: 'domain-example-com',
@@ -3329,14 +3329,14 @@ test('DomainCard inlines a single non-port subdomain into the title', () => {
     tabCountLabel: '1',
     singleSubdomainKey: 'docs',
     singleSubdomainIsPort: false,
-    sections: []
+    sections: [],
   }
 
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm: withSuppressionTones(vm)
-    })
+      vm: withSuppressionTones(vm),
+    }),
   )
 
   assert.match(html, /<span class="domain-title-subdomain[^"]*\bfont-semibold\b[^"]*\btext-muted-foreground\b[^"]*">docs\.<\/span>/)
@@ -3349,7 +3349,7 @@ test('DomainCard inlines a single non-port subdomain into the title', () => {
 test('DomainCard keeps a single localhost port in the subdomain pill', () => {
   const group: DomainGroup = {
     domain: 'localhost',
-    tabs: []
+    tabs: [],
   }
   const vm: DashboardCardVM = {
     stableId: 'domain-localhost',
@@ -3358,14 +3358,14 @@ test('DomainCard keeps a single localhost port in the subdomain pill', () => {
     tabCountLabel: '1',
     singleSubdomainKey: '3001',
     singleSubdomainIsPort: true,
-    sections: []
+    sections: [],
   }
 
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm: withSuppressionTones(vm)
-    })
+      vm: withSuppressionTones(vm),
+    }),
   )
 
   assert.doesNotMatch(html, /domain-title-subdomain/)
@@ -3379,20 +3379,20 @@ test('DomainCard renders utility cards as explicitly pinnable instead of fixed',
     isHidden: false,
     filtering: false,
     tabCountLabel: '1',
-    sections: []
+    sections: [],
   }
 
   const cards = [
     { domain: '__tab-out__', label: 'New tabs', stableId: 'domain---tab-out--' },
-    { domain: '__standalone-apps__', label: 'Apps', stableId: 'domain---standalone-apps--' }
+    { domain: '__standalone-apps__', label: 'Apps', stableId: 'domain---standalone-apps--' },
   ]
 
   for (const card of cards) {
     const html = renderToStaticMarkup(
       React.createElement(DomainCard, {
         group: { domain: card.domain, label: card.label, tabs: [] },
-        vm: { ...vm, stableId: card.stableId }
-      })
+        vm: { ...vm, stableId: card.stableId },
+      }),
     )
 
     assert.match(html, /data-tabout-part="card-menu"/)
@@ -3406,7 +3406,7 @@ test('DomainCard renders utility cards as explicitly pinnable instead of fixed',
 test('DomainCard renders section-scoped single suppressed title text as neutral', () => {
   const group: DomainGroup = {
     domain: 'slack.com',
-    tabs: []
+    tabs: [],
   }
   const vm: DashboardCardVM = {
     stableId: 'domain-slack-com',
@@ -3426,23 +3426,23 @@ test('DomainCard renders section-scoped single suppressed title text as neutral'
         flatVisibleChips: [
           makeChip({
             displaySegments: ['Alpha channel'],
-            suppressedTitleParts: ['Example Workspace']
-          })
+            suppressedTitleParts: ['Example Workspace'],
+          }),
         ],
         flatHiddenChips: [],
         flatHiddenCount: 0,
         suppressedTitleParts: [{ text: 'Example Workspace', count: 2 }],
         clusters: [],
-        websitePathSections: []
-      }
-    ]
+        websitePathSections: [],
+      },
+    ],
   }
 
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm: withSuppressionTones(vm)
-    })
+      vm: withSuppressionTones(vm),
+    }),
   )
 
   assert.match(html, /subdomain-header[\s\S]*app[\s\S]*title-suppression-summary[\s\S]*Example Workspace/)
@@ -3458,7 +3458,7 @@ test('DomainCard renders section-scoped single suppressed title text as neutral'
 test('DomainCard colors section-scoped single suppressed title text when it spans rendered child groups', () => {
   const group: DomainGroup = {
     domain: 'atlassian.net',
-    tabs: []
+    tabs: [],
   }
   const vm: DashboardCardVM = {
     stableId: 'domain-atlassian-net',
@@ -3478,8 +3478,8 @@ test('DomainCard colors section-scoped single suppressed title text when it span
         flatVisibleChips: [
           makeChip({
             displaySegments: ['Work item search'],
-            suppressedTitleParts: ['- JIRA']
-          })
+            suppressedTitleParts: ['- JIRA'],
+          }),
         ],
         flatHiddenChips: [],
         flatHiddenCount: 0,
@@ -3497,23 +3497,23 @@ test('DomainCard colors section-scoped single suppressed title text when it span
                 rawUrl: 'https://example.atlassian.net/browse/APP-1',
                 tabUrl: 'https://example.atlassian.net/browse/APP-1',
                 displaySegments: ['[APP-1] Account settings'],
-                suppressedTitleParts: ['- JIRA']
-              })
+                suppressedTitleParts: ['- JIRA'],
+              }),
             ],
             hiddenChips: [],
-            hiddenCount: 0
-          }
+            hiddenCount: 0,
+          },
         ],
-        websitePathSections: []
-      }
-    ]
+        websitePathSections: [],
+      },
+    ],
   }
 
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm: withSuppressionTones(vm)
-    })
+      vm: withSuppressionTones(vm),
+    }),
   )
   const tokenMatch = html.match(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/)
   const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
@@ -3528,7 +3528,7 @@ test('DomainCard colors section-scoped single suppressed title text when it span
 test('DomainCard keeps cross-child single suppressed title text neutral when it is the only card meaning', () => {
   const group: DomainGroup = {
     domain: 'example.test',
-    tabs: []
+    tabs: [],
   }
   const vm: DashboardCardVM = {
     stableId: 'domain-example-test',
@@ -3548,14 +3548,14 @@ test('DomainCard keeps cross-child single suppressed title text neutral when it 
         flatVisibleChips: [
           makeChip({
             displaySegments: ['Deployment History - ENV A'],
-            suppressedTitleParts: ['| Example Retail']
-          })
+            suppressedTitleParts: ['| Example Retail'],
+          }),
         ],
         flatHiddenChips: [],
         flatHiddenCount: 0,
         suppressedTitleParts: [],
         clusters: [],
-        websitePathSections: []
+        websitePathSections: [],
       },
       {
         key: 'env-a',
@@ -3569,23 +3569,23 @@ test('DomainCard keeps cross-child single suppressed title text neutral when it 
             rawUrl: 'https://env-a.example.test/order',
             tabUrl: 'https://env-a.example.test/order',
             displaySegments: ['Order Page'],
-            suppressedTitleParts: ['| Example Retail']
-          })
+            suppressedTitleParts: ['| Example Retail'],
+          }),
         ],
         flatHiddenChips: [],
         flatHiddenCount: 0,
         suppressedTitleParts: [],
         clusters: [],
-        websitePathSections: []
-      }
-    ]
+        websitePathSections: [],
+      },
+    ],
   }
 
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm: withSuppressionTones(vm)
-    })
+      vm: withSuppressionTones(vm),
+    }),
   )
   const tokenMatch = html.match(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/)
   const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
@@ -3600,7 +3600,7 @@ test('DomainCard keeps cross-child single suppressed title text neutral when it 
 test('DomainCard renders pathgroup-scoped single suppressed title text as neutral', () => {
   const group: DomainGroup = {
     domain: 'contentful.com',
-    tabs: []
+    tabs: [],
   }
   const vm: DashboardCardVM = {
     stableId: 'domain-contentful-com',
@@ -3610,7 +3610,7 @@ test('DomainCard renders pathgroup-scoped single suppressed title text as neutra
     suppressedTitleParts: [],
     allSuppressedTitleParts: [
       { text: 'JIRA', count: 2 },
-      { text: 'Content — Example Website', count: 2 }
+      { text: 'Content — Example Website', count: 2 },
     ],
     sections: [
       {
@@ -3635,23 +3635,23 @@ test('DomainCard renders pathgroup-scoped single suppressed title text as neutra
             visibleChips: [
               makeChip({
                 displaySegments: ['Example Article'],
-                suppressedTitleParts: ['Content — Example Website']
-              })
+                suppressedTitleParts: ['Content — Example Website'],
+              }),
             ],
             hiddenChips: [],
-            hiddenCount: 0
-          }
+            hiddenCount: 0,
+          },
         ],
-        websitePathSections: []
-      }
-    ]
+        websitePathSections: [],
+      },
+    ],
   }
 
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm: withSuppressionTones(vm)
-    })
+      vm: withSuppressionTones(vm),
+    }),
   )
   const tokenMatch = html.match(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/)
   const markerMatch = html.match(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/)
@@ -3665,7 +3665,7 @@ test('DomainCard renders pathgroup-scoped single suppressed title text as neutra
 test('DomainCard renders pathgroup-scoped multiple suppressed titles with local tones', () => {
   const group: DomainGroup = {
     domain: 'contentful.com',
-    tabs: []
+    tabs: [],
   }
   const vm: DashboardCardVM = {
     stableId: 'domain-contentful-com',
@@ -3676,7 +3676,7 @@ test('DomainCard renders pathgroup-scoped multiple suppressed titles with local 
     allSuppressedTitleParts: [
       { text: 'Unrelated Card Token', count: 2 },
       { text: 'JIRA', count: 2 },
-      { text: 'Content — Example Website', count: 2 }
+      { text: 'Content — Example Website', count: 2 },
     ],
     sections: [
       {
@@ -3699,28 +3699,28 @@ test('DomainCard renders pathgroup-scoped multiple suppressed titles with local 
             closableUrls: [],
             suppressedTitleParts: [
               { text: 'JIRA', count: 2 },
-              { text: 'Content — Example Website', count: 2 }
+              { text: 'Content — Example Website', count: 2 },
             ],
             visibleChips: [
               makeChip({
                 displaySegments: ['Example Article'],
-                suppressedTitleParts: ['JIRA', 'Content — Example Website']
-              })
+                suppressedTitleParts: ['JIRA', 'Content — Example Website'],
+              }),
             ],
             hiddenChips: [],
-            hiddenCount: 0
-          }
+            hiddenCount: 0,
+          },
         ],
-        websitePathSections: []
-      }
-    ]
+        websitePathSections: [],
+      },
+    ],
   }
 
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm: withSuppressionTones(vm)
-    })
+      vm: withSuppressionTones(vm),
+    }),
   )
   const tokenClasses = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
   const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
@@ -3736,7 +3736,7 @@ test('DomainCard renders pathgroup-scoped multiple suppressed titles with local 
 test('DomainCard displays suppression tokens in title order while coloring higher coverage tokens first', () => {
   const group: DomainGroup = {
     domain: 'contentful.com',
-    tabs: []
+    tabs: [],
   }
   const vm: DashboardCardVM = {
     stableId: 'domain-contentful-com',
@@ -3747,7 +3747,7 @@ test('DomainCard displays suppression tokens in title order while coloring highe
     allSuppressedTitleParts: [
       { text: '— Content — Example Website —', count: 6 },
       { text: '— Example Website —', count: 3 },
-      { text: '— Contentful', count: 14 }
+      { text: '— Contentful', count: 14 },
     ],
     sections: [
       {
@@ -3771,28 +3771,28 @@ test('DomainCard displays suppression tokens in title order while coloring highe
             suppressedTitleParts: [
               { text: '— Content — Example Website —', count: 6 },
               { text: '— Example Website —', count: 3 },
-              { text: '— Contentful', count: 14 }
+              { text: '— Contentful', count: 14 },
             ],
             visibleChips: [
               makeChip({
                 displaySegments: ['Example Article Beta'],
-                suppressedTitleParts: ['— Content — Example Website —', '— Example Website —', '— Contentful']
-              })
+                suppressedTitleParts: ['— Content — Example Website —', '— Example Website —', '— Contentful'],
+              }),
             ],
             hiddenChips: [],
-            hiddenCount: 0
-          }
+            hiddenCount: 0,
+          },
         ],
-        websitePathSections: []
-      }
-    ]
+        websitePathSections: [],
+      },
+    ],
   }
 
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm: withSuppressionTones(vm)
-    })
+      vm: withSuppressionTones(vm),
+    }),
   )
   const tokenMatches = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"[^>]*aria-label="Suppressed in \d+ titles: ([^"]+)"/g)]
   const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
@@ -3800,7 +3800,7 @@ test('DomainCard displays suppression tokens in title order while coloring highe
   assert.deepEqual(tokenMatches.map((match) => requiredAt(match, 2)), [
     '— Content — Example Website —',
     '— Example Website —',
-    '— Contentful'
+    '— Contentful',
   ])
   assert.match(requiredAt(requiredAt(tokenMatches, 0), 1), /title-suppression-token-tone-teal/)
   assert.match(requiredAt(requiredAt(tokenMatches, 1), 1), /title-suppression-token-tone-sky/)
@@ -3814,7 +3814,7 @@ test('DomainCard displays suppression tokens in title order while coloring highe
 test('DomainCard coordinates child title suppression tones with a colored ancestor scope', () => {
   const group: DomainGroup = {
     domain: 'atlassian.net',
-    tabs: []
+    tabs: [],
   }
   const vm: DashboardCardVM = {
     stableId: 'domain-atlassian-net',
@@ -3825,7 +3825,7 @@ test('DomainCard coordinates child title suppression tones with a colored ancest
     allSuppressedTitleParts: [
       { text: '- JIRA', count: 3, spansRenderedChildGroups: true },
       { text: '- Example-Site', count: 2 },
-      { text: '- Confluence', count: 2 }
+      { text: '- Confluence', count: 2 },
     ],
     sections: [
       {
@@ -3838,8 +3838,8 @@ test('DomainCard coordinates child title suppression tones with a colored ancest
         flatVisibleChips: [
           makeChip({
             displaySegments: ['Work item search'],
-            suppressedTitleParts: ['- JIRA']
-          })
+            suppressedTitleParts: ['- JIRA'],
+          }),
         ],
         flatHiddenChips: [],
         flatHiddenCount: 0,
@@ -3853,30 +3853,30 @@ test('DomainCard coordinates child title suppression tones with a colored ancest
             closableUrls: [],
             suppressedTitleParts: [
               { text: '- Example-Site', count: 2 },
-              { text: '- Confluence', count: 2 }
+              { text: '- Confluence', count: 2 },
             ],
             visibleChips: [
               makeChip({
                 rawUrl: 'https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha',
                 tabUrl: 'https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha',
                 displaySegments: ['Platform Architecture Notes'],
-                suppressedTitleParts: ['- Example-Site', '- Confluence']
-              })
+                suppressedTitleParts: ['- Example-Site', '- Confluence'],
+              }),
             ],
             hiddenChips: [],
-            hiddenCount: 0
-          }
+            hiddenCount: 0,
+          },
         ],
-        websitePathSections: []
-      }
-    ]
+        websitePathSections: [],
+      },
+    ],
   }
 
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm: withSuppressionTones(vm)
-    })
+      vm: withSuppressionTones(vm),
+    }),
   )
   const tokenClasses = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
   const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
@@ -3894,7 +3894,7 @@ test('DomainCard coordinates child title suppression tones with a colored ancest
 test('DomainCard assigns subtle tones when multiple suppressed title tokens render', () => {
   const group: DomainGroup = {
     domain: 'slack.com',
-    tabs: []
+    tabs: [],
   }
   const vm: DashboardCardVM = {
     stableId: 'domain-slack-com',
@@ -3904,7 +3904,7 @@ test('DomainCard assigns subtle tones when multiple suppressed title tokens rend
     suppressedTitleParts: [
       { text: 'Example Workspace', count: 2 },
       { text: 'JIRA', count: 2 },
-      { text: 'Content — Example Website', count: 3 }
+      { text: 'Content — Example Website', count: 3 },
     ],
     sections: [
       {
@@ -3917,22 +3917,22 @@ test('DomainCard assigns subtle tones when multiple suppressed title tokens rend
         flatVisibleChips: [
           makeChip({
             displaySegments: ['Alpha channel'],
-            suppressedTitleParts: ['JIRA', 'Content — Example Website']
-          })
+            suppressedTitleParts: ['JIRA', 'Content — Example Website'],
+          }),
         ],
         flatHiddenChips: [],
         flatHiddenCount: 0,
         clusters: [],
-        websitePathSections: []
-      }
-    ]
+        websitePathSections: [],
+      },
+    ],
   }
 
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm: withSuppressionTones(vm)
-    })
+      vm: withSuppressionTones(vm),
+    }),
   )
   const tokenClasses = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
 
@@ -3967,11 +3967,11 @@ test('HistoryEntry renders open-ghost marker with data-tabout-part attribute', (
             active: false,
             activeInOtherWindow: false,
             score: 80,
-            lastActivatedAt: 0
-          }
-        ]
-      })
-    })
+            lastActivatedAt: 0,
+          },
+        ],
+      }),
+    }),
   )
 
   assert.match(html, /data-working-set-extra="true"/)

@@ -19,7 +19,7 @@ export function pageTargetMatchUrls(target: PageTarget | null | undefined): stri
 export function pageTargetMatchesHover(
   target: PageTarget | null | undefined,
   activeHoverUrl: string,
-  activeHoverUrls: readonly string[] = []
+  activeHoverUrls: readonly string[] = [],
 ): boolean {
   return pageTargetMatchUrls(target).some((url) => url === activeHoverUrl || activeHoverUrls.includes(url))
 }

@@ -18,7 +18,7 @@ function delay(milliseconds: number): Promise<void> {
 
 async function matchingServiceWorkerTargets(
   session: CDPSession,
-  workerUrl: string
+  workerUrl: string,
 ) {
   const observed = await session.send('Target.getTargets')
   return observed.targetInfos.filter((candidate) =>
@@ -28,7 +28,7 @@ async function matchingServiceWorkerTargets(
 export async function terminateServiceWorkerAndProveAbsent(
   context: BrowserContext,
   controller: Page,
-  workerUrl: string
+  workerUrl: string,
 ): Promise<void> {
   const session = await context.newCDPSession(controller)
   try {
@@ -40,7 +40,7 @@ export async function terminateServiceWorkerAndProveAbsent(
     while (performance.now() < deadline) {
       const matchingTargets = await matchingServiceWorkerTargets(
         session,
-        workerUrl
+        workerUrl,
       )
       if (matchingTargets.length === 0) {
         consecutiveAbsentObservations += 1
@@ -51,7 +51,7 @@ export async function terminateServiceWorkerAndProveAbsent(
           closeAttempts += 1
           try {
             const closed = await session.send('Target.closeTarget', {
-              targetId: target.targetId
+              targetId: target.targetId,
             })
             if (!closed.success) rejectedCloseAttempts += 1
           } catch (cause) {
@@ -66,7 +66,7 @@ export async function terminateServiceWorkerAndProveAbsent(
       `within ${String(TARGET_TIMEOUT_MS)}ms ` +
       `(closeAttempts=${String(closeAttempts)}, ` +
       `rejectedCloseAttempts=${String(rejectedCloseAttempts)}, ` +
-      `lastCloseError=${lastCloseError ?? 'none'})`
+      `lastCloseError=${lastCloseError ?? 'none'})`,
     )
   } finally {
     await session.detach().catch(() => undefined)

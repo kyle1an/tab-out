@@ -1,7 +1,7 @@
 export function makeChromeTab(
   id: number,
   url: string,
-  title: string
+  title: string,
 ): chrome.tabs.Tab {
   return {
     id,
@@ -17,6 +17,6 @@ export function makeChromeTab(
     groupId: -1,
     url,
     title,
-    favIconUrl: ''
+    favIconUrl: '',
   } as chrome.tabs.Tab
 }

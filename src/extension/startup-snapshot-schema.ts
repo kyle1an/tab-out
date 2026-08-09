@@ -28,7 +28,7 @@ const startupTitleRetentionSchema = Schema.Struct({
   tabId: Schema.Int,
   url: Schema.String,
   title: Schema.String,
-  kind: Schema.Literals(['suspended', 'retained-loading'])
+  kind: Schema.Literals(['suspended', 'retained-loading']),
 }) satisfies Schema.Schema<DashboardStartupTitleRetention>
 
 const dashboardStartupSeedBoundarySchema = Schema.Struct({
@@ -38,13 +38,13 @@ const dashboardStartupSeedBoundarySchema = Schema.Struct({
   cardOrder: Schema.Array(Schema.String),
   workingSetPriority: Schema.Struct({
     epoch: Schema.Finite,
-    keys: Schema.Array(Schema.String)
+    keys: Schema.Array(Schema.String),
   }),
-  titleRetention: Schema.optionalKey(Schema.Array(startupTitleRetentionSchema))
+  titleRetention: Schema.optionalKey(Schema.Array(startupTitleRetentionSchema)),
 })
 
 const decodeDashboardStartupSeedBoundary = Schema.decodeUnknownResult(
-  dashboardStartupSeedBoundarySchema
+  dashboardStartupSeedBoundarySchema,
 )
 
 function normalizeCardOrder(values: readonly string[]): string[] {
@@ -82,7 +82,7 @@ function titleIsUsable(title: string): boolean {
 }
 
 function normalizeTitleRetention(
-  values: readonly DashboardStartupTitleRetention[]
+  values: readonly DashboardStartupTitleRetention[],
 ): DashboardStartupTitleRetention[] {
   const seenTabIds = new Set<number>()
   const normalized: DashboardStartupTitleRetention[] = []
@@ -101,7 +101,7 @@ function normalizeTitleRetention(
 
 export function parseDashboardStartupSeedBoundary(
   value: unknown,
-  includeTitleRetention = true
+  includeTitleRetention = true,
 ): DashboardStartupSeedBoundary | null {
   const result = decodeDashboardStartupSeedBoundary(value)
   if (Result.isFailure(result)) return null
@@ -116,9 +116,9 @@ export function parseDashboardStartupSeedBoundary(
     cardOrder: normalizeCardOrder(seed.cardOrder),
     workingSetPriority: {
       epoch: seed.workingSetPriority.epoch,
-      keys: normalizeWorkingSetPriorityKeys(seed.workingSetPriority.keys)
+      keys: normalizeWorkingSetPriorityKeys(seed.workingSetPriority.keys),
     },
-    ...(titleRetention.length > 0 ? { titleRetention } : {})
+    ...(titleRetention.length > 0 ? { titleRetention } : {}),
   }
 }
 
@@ -127,20 +127,20 @@ const legacyTabCandidateSchema = Schema.Struct({
   url: Schema.optionalKey(Schema.Unknown),
   title: Schema.optionalKey(Schema.Unknown),
   suspended: Schema.optionalKey(Schema.Unknown),
-  retainedSuspendedTitle: Schema.optionalKey(Schema.Unknown)
+  retainedSuspendedTitle: Schema.optionalKey(Schema.Unknown),
 })
 
 const legacyDomainGroupCandidateSchema = Schema.Struct({
-  domain: Schema.optionalKey(Schema.Unknown)
+  domain: Schema.optionalKey(Schema.Unknown),
 })
 
 const legacyWorkingSetCandidateSchema = Schema.Struct({
-  items: Schema.Array(Schema.Unknown)
+  items: Schema.Array(Schema.Unknown),
 })
 
 const legacyWorkingSetItemCandidateSchema = Schema.Struct({
   key: Schema.optionalKey(Schema.Unknown),
-  tabUrl: Schema.optionalKey(Schema.Unknown)
+  tabUrl: Schema.optionalKey(Schema.Unknown),
 })
 
 const legacyDashboardStartupBoundarySchema = Schema.Struct({
@@ -150,10 +150,10 @@ const legacyDashboardStartupBoundarySchema = Schema.Struct({
   snapshot: Schema.Struct({
     dashboard: Schema.Struct({
       realTabs: Schema.Array(legacyTabCandidateSchema),
-      domainGroups: Schema.Array(legacyDomainGroupCandidateSchema)
+      domainGroups: Schema.Array(legacyDomainGroupCandidateSchema),
     }),
-    workingSet: Schema.optionalKey(Schema.Unknown)
-  })
+    workingSet: Schema.optionalKey(Schema.Unknown),
+  }),
 })
 
 const isLegacyDashboardStartupBoundary = Schema.is(legacyDashboardStartupBoundarySchema)
@@ -177,7 +177,7 @@ function legacyWorkingSetPriorityKeys(value: unknown): string[] {
 }
 
 function legacyTitleRetention(
-  tabs: typeof legacyDashboardStartupBoundarySchema.Type['snapshot']['dashboard']['realTabs']
+  tabs: typeof legacyDashboardStartupBoundarySchema.Type['snapshot']['dashboard']['realTabs'],
 ): DashboardStartupTitleRetention[] {
   return normalizeTitleRetention(tabs.flatMap((tab) => {
     if (
@@ -200,7 +200,7 @@ function legacyTitleRetention(
  */
 export function deriveDashboardStartupSeedFromLegacyBoundary(
   value: unknown,
-  includeTitleRetention = true
+  includeTitleRetention = true,
 ): DashboardStartupSeedBoundary | null {
   if (!isLegacyDashboardStartupBoundary(value)) return null
   const captureStartedAt = finiteNumberOr(value.captureStartedAt, value.savedAt)
@@ -212,12 +212,12 @@ export function deriveDashboardStartupSeedFromLegacyBoundary(
     savedAt: value.savedAt,
     captureStartedAt,
     cardOrder: normalizeCardOrder(value.snapshot.dashboard.domainGroups.flatMap((group) =>
-      typeof group.domain === 'string' ? [domainCardId(group.domain)] : []
+      typeof group.domain === 'string' ? [domainCardId(group.domain)] : [],
     )),
     workingSetPriority: {
       epoch: finiteNumberOr(value.workingSetSavedAt, value.savedAt),
-      keys: legacyWorkingSetPriorityKeys(value.snapshot.workingSet)
+      keys: legacyWorkingSetPriorityKeys(value.snapshot.workingSet),
     },
-    ...(titleRetention.length > 0 ? { titleRetention } : {})
+    ...(titleRetention.length > 0 ? { titleRetention } : {}),
   }
 }

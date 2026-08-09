@@ -51,26 +51,26 @@ let lastClosure: ClosureSnapshot | null = null
  * After restoring, the toast offers a "Switch" button for single-tab
  * undo so the user can jump to the restored tab if they want.
  */
-const restoreSnapshotTab = Effect.fn('undo.restoreSnapshotTab')(function*(tab: TabSnapshot) {
+const restoreSnapshotTab = Effect.fn('undo.restoreSnapshotTab')(function* (tab: TabSnapshot) {
   const browserTabs = yield* BrowserTabs
   const restoreUrl = tab.rawUrl || tab.url
   const sharedCreateProperties: chrome.tabs.CreateProperties = {
     url: restoreUrl,
     ...(Number.isInteger(tab.index) ? { index: tab.index } : {}),
     pinned: tab.pinned,
-    active: false
+    active: false,
   }
   const createdInOriginalWindow = yield* browserTabs.createTabWithFallbackUrl({
     ...sharedCreateProperties,
-    windowId: tab.windowId
+    windowId: tab.windowId,
   }, tab.url)
   if (createdInOriginalWindow) return createdInOriginalWindow
 
   return yield* browserTabs.createTabWithFallbackUrl(sharedCreateProperties, tab.url)
 })
 
-const restoreClosureTabs = Effect.fn('undo.restoreClosureTabs')(function*(
-  closure: ClosureSnapshot
+const restoreClosureTabs = Effect.fn('undo.restoreClosureTabs')(function* (
+  closure: ClosureSnapshot,
 ) {
   const browserTabs = yield* BrowserTabs
   const restoredTargets: RestoredTabTarget[] = []
@@ -85,7 +85,7 @@ const restoreClosureTabs = Effect.fn('undo.restoreClosureTabs')(function*(
     const createdTabId = created.id
     restoredTargets.push({
       tabId: createdTabId,
-      snapshot: { ...tab }
+      snapshot: { ...tab },
     })
     const groupId = tab.groupId
     if (groupId !== undefined && groupId !== -1) {
@@ -97,7 +97,7 @@ const restoreClosureTabs = Effect.fn('undo.restoreClosureTabs')(function*(
   return { attemptedTabs, failedTabs, restoredTargets }
 })
 
-const runUndoClosure = Effect.fn('undo.runClosure')(function*(closure: ClosureSnapshot) {
+const runUndoClosure = Effect.fn('undo.runClosure')(function* (closure: ClosureSnapshot) {
   if (closure.undone || closure.restoring || !closure.tabs || closure.tabs.length === 0) return
   const { attemptedTabs, failedTabs, restoredTargets } = yield* Effect.acquireUseRelease(
     Effect.sync(() => {
@@ -107,7 +107,7 @@ const runUndoClosure = Effect.fn('undo.runClosure')(function*(closure: ClosureSn
     () => restoreClosureTabs(closure),
     () => Effect.sync(() => {
       closure.restoring = false
-    })
+    }),
   )
 
   closure.tabs = failedTabs
@@ -125,14 +125,14 @@ const runUndoClosure = Effect.fn('undo.runClosure')(function*(closure: ClosureSn
     showToast(msg, {
       label: 'Retry',
       description: 'Retry the tabs that could not be restored.',
-      onClick: () => undoClosure(closure)
+      onClick: () => undoClosure(closure),
     })
   } else if (n === 1 && firstTarget) {
     const msg = 'Restored 1 tab'
     showToast(msg, {
       label: 'Switch',
       description: 'Switch to the restored tab.',
-      onClick: () => switchToRestoredTab(firstTarget)
+      onClick: () => switchToRestoredTab(firstTarget),
     })
   } else {
     showToast(`Restored ${n} tabs`)
@@ -155,7 +155,7 @@ function restoredTargetMatchesLiveTab(target: RestoredTabTarget, tab: chrome.tab
   return !!expectedUrl && liveUrl === expectedUrl
 }
 
-const runSwitchToRestoredTab = Effect.fn('undo.switchToRestoredTab')(function*(target: RestoredTabTarget) {
+const runSwitchToRestoredTab = Effect.fn('undo.switchToRestoredTab')(function* (target: RestoredTabTarget) {
   const browserTabs = yield* BrowserTabs
   const tab = yield* browserTabs.getTab(target.tabId)
   if (!restoredTargetMatchesLiveTab(target, tab)) return
@@ -176,7 +176,7 @@ function tabsInRestoreOrder(tabs: TabSnapshot[]): TabSnapshot[] {
       ? index
       : Number.POSITIVE_INFINITY
   )
-  const windows = new Map<number, Array<{ tab: TabSnapshot; sequence: number }>>()
+  const windows = new Map<number, Array<{ tab: TabSnapshot, sequence: number }>>()
   tabs.forEach((tab, sequence) => {
     windows.getOrInsertComputed(tab.windowId, () => []).push({ tab, sequence })
   })
@@ -207,7 +207,7 @@ export function markClosure(snapshot: TabSnapshot[], label?: string): (() => Pro
   showToast(label || `Closed ${n} tab${n !== 1 ? 's' : ''}`, {
     label: 'Undo',
     description: 'You can undo this action.',
-    onClick: undoThisClosure
+    onClick: undoThisClosure,
   })
   return undoThisClosure
 }

@@ -20,7 +20,7 @@ function section(overrides: Partial<DashboardSectionVM>): DashboardSectionVM {
     flatHiddenCount: 0,
     clusters: [],
     websitePathSections: [],
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -33,7 +33,7 @@ const cluster = (key: string, parts: ReturnType<typeof part>[]) => ({
   suppressedTitleParts: parts,
   visibleChips: [],
   hiddenChips: [],
-  hiddenCount: 0
+  hiddenCount: 0,
 })
 
 test('dashboard types depend on title-suppression data types, not the allocator module', () => {
@@ -101,8 +101,8 @@ test('one running tone index walks the card tree so meanings never share a color
     section({
       key: 'busy',
       suppressedTitleParts: [part('x', 2), part('y', 1)],
-      clusters: [cluster('pg', [part('deep', 1, true)])]
-    })
+      clusters: [cluster('pg', [part('deep', 1, true)])],
+    }),
   ]
 
   const { cardSuppressionToneScope, sections: toned } = allocateCardSuppressionTones([part('card-a', 3), part('card-b', 1)], sections)
@@ -129,7 +129,7 @@ test('one running tone index walks the card tree so meanings never share a color
 
 test('a child scope overrides an ancestor tone for the same token text', () => {
   const sections: DashboardSectionVM[] = [
-    section({ key: 'child', suppressedTitleParts: [part('shared', 1), part('other', 1)] })
+    section({ key: 'child', suppressedTitleParts: [part('shared', 1), part('other', 1)] }),
   ]
 
   const { cardSuppressionToneScope, sections: toned } = allocateCardSuppressionTones([part('shared', 2), part('card-only', 1)], sections)

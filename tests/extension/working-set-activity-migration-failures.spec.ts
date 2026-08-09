@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 import {
   expect,
   test,
-  type Page
+  type Page,
 } from '@playwright/test'
 import { Schema } from 'effect'
 
@@ -11,7 +11,7 @@ import {
   WORKING_SET_ACTIVITY_AUTHORITY_KEY,
   WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION,
   type WorkingSetActivityAuthorityMarker,
-  workingSetActivityAuthorityMarkerSchema
+  workingSetActivityAuthorityMarkerSchema,
 } from '../../src/extension/background/working-set-activity-authority.js'
 import {
   databaseNameForGeneration,
@@ -19,28 +19,28 @@ import {
   WORKING_SET_ACTIVITY_LAST_EVENT_INDEX,
   WORKING_SET_ACTIVITY_MANIFEST_KEY,
   WORKING_SET_ACTIVITY_MANIFEST_STORE,
-  WORKING_SET_ACTIVITY_RECORDS_STORE
+  WORKING_SET_ACTIVITY_RECORDS_STORE,
 } from '../../src/extension/background/working-set-activity-indexed-db.js'
 import {
-  WORKING_SET_ACTIVITY_KEY
+  WORKING_SET_ACTIVITY_KEY,
 } from '../../src/extension/background/working-set-activity-storage.js'
 import { DASHBOARD_SERVICE_STATE_GET_MESSAGE } from '../../src/extension/runtime-messages.js'
 import type {
   WorkingSetActivityRecord,
-  WorkingSetActivityStore
+  WorkingSetActivityStore,
 } from '../../src/extension/types'
 import {
   emptyWorkingSetActivity,
-  recordWorkingSetActivity
+  recordWorkingSetActivity,
 } from '../../src/extension/working-set.js'
 import {
   launchInstalledExtensionFromArtifact,
-  type LaunchedInstalledExtension
+  type LaunchedInstalledExtension,
 } from './installed-extension.js'
 import { terminateServiceWorkerAndProveAbsent } from './service-worker-cdp.js'
 
 const builtExtensionDirectory = fileURLToPath(
-  new URL('../../extension/', import.meta.url)
+  new URL('../../extension/', import.meta.url),
 )
 const startupTraceKey = '__tabOutWorkingSetActivityFailureTrace'
 const markedSentinelStore = 'marked-schema-sentinel'
@@ -88,7 +88,7 @@ function staticControllerUrl(installed: LaunchedInstalledExtension): string {
 }
 
 async function readAuthorityStorage(
-  page: Page
+  page: Page,
 ): Promise<AuthorityStorageSnapshot> {
   return page.evaluate(async ({ authorityKey, legacyKey }) => {
     const values = await chrome.storage.local.get([authorityKey, legacyKey])
@@ -96,50 +96,50 @@ async function readAuthorityStorage(
     return {
       legacy,
       legacyJson: JSON.stringify(legacy) ?? null,
-      marker: values[authorityKey]
+      marker: values[authorityKey],
     }
   }, {
     authorityKey: WORKING_SET_ACTIVITY_AUTHORITY_KEY,
-    legacyKey: WORKING_SET_ACTIVITY_KEY
+    legacyKey: WORKING_SET_ACTIVITY_KEY,
   })
 }
 
 async function waitForAuthorityMarker(
-  page: Page
+  page: Page,
 ): Promise<WorkingSetActivityAuthorityMarker> {
   await expect.poll(async () =>
-    (await readAuthorityStorage(page)).marker !== undefined
+    (await readAuthorityStorage(page)).marker !== undefined,
   ).toBe(true)
   const raw = (await readAuthorityStorage(page)).marker
   const marker = Schema.decodeUnknownSync(
-    workingSetActivityAuthorityMarkerSchema
+    workingSetActivityAuthorityMarkerSchema,
   )(raw)
   expect(raw).toEqual(marker)
   return marker
 }
 
 async function withFreshScenario(
-  run: (scenario: Scenario) => Promise<void>
+  run: (scenario: Scenario) => Promise<void>,
 ): Promise<void> {
   const installed = await launchInstalledExtensionFromArtifact(
-    builtExtensionDirectory
+    builtExtensionDirectory,
   )
   try {
     const controller = installed.context.pages()[0]
       ?? await installed.context.newPage()
     await controller.goto(staticControllerUrl(installed), {
-      waitUntil: 'domcontentloaded'
+      waitUntil: 'domcontentloaded',
     })
     await expect(controller).toHaveURL(staticControllerUrl(installed))
     await expect(controller.evaluate(() => chrome.runtime.id)).resolves.toBe(
-      installed.extensionId
+      installed.extensionId,
     )
     const initialMarker = await waitForAuthorityMarker(controller)
     await run({
       controller,
       initialMarker,
       installed,
-      workerUrl: installed.serviceWorker.url()
+      workerUrl: installed.serviceWorker.url(),
     })
     expect(installed.runtimeErrors()).toEqual([])
   } finally {
@@ -149,13 +149,13 @@ async function withFreshScenario(
 
 async function deletePhysicalDatabase(
   page: Page,
-  databaseName: string
+  databaseName: string,
 ): Promise<void> {
   await page.evaluate((name) => new Promise<void>((resolve, reject) => {
     const request = indexedDB.deleteDatabase(name)
     request.onerror = () => reject(request.error)
     request.onblocked = () => reject(new Error(
-      `Deleting ${name} was blocked by a live connection`
+      `Deleting ${name} was blocked by a live connection`,
     ))
     request.onsuccess = () => resolve()
   }), databaseName)
@@ -165,14 +165,14 @@ async function createPhysicalDatabase(
   page: Page,
   databaseName: string,
   version: number,
-  storeNames: readonly string[]
+  storeNames: readonly string[],
 ): Promise<void> {
   await page.evaluate(({ name, storeNames, version }) =>
     new Promise<void>((resolve, reject) => {
       const request = indexedDB.open(name, version)
       request.onerror = () => reject(request.error)
       request.onblocked = () => reject(new Error(
-        `Creating ${name} was blocked by a live connection`
+        `Creating ${name} was blocked by a live connection`,
       ))
       request.onupgradeneeded = () => {
         for (const storeName of storeNames) {
@@ -188,13 +188,13 @@ async function createPhysicalDatabase(
 
 async function inspectPhysicalDatabase(
   page: Page,
-  databaseName: string
+  databaseName: string,
 ): Promise<PhysicalDatabaseSnapshot> {
   return page.evaluate(async ({
     databaseName,
     manifestKey,
     manifestStoreName,
-    recordsStoreName
+    recordsStoreName,
   }) => {
     function requestResult<Value>(request: IDBRequest<Value>): Promise<Value> {
       return new Promise((resolve, reject) => {
@@ -212,7 +212,7 @@ async function inspectPhysicalDatabase(
         recordCount: null,
         recordIndexNames: null,
         storeNames: [],
-        version: null
+        version: null,
       }
     }
 
@@ -220,12 +220,12 @@ async function inspectPhysicalDatabase(
       const request = indexedDB.open(databaseName)
       request.onerror = () => reject(request.error)
       request.onblocked = () => reject(new Error(
-        `Inspecting ${databaseName} was blocked`
+        `Inspecting ${databaseName} was blocked`,
       ))
       request.onupgradeneeded = () => {
         request.transaction?.abort()
         reject(new Error(
-          `Inspecting ${databaseName} unexpectedly required creation`
+          `Inspecting ${databaseName} unexpectedly required creation`,
         ))
       }
       request.onsuccess = () => resolve(request.result)
@@ -239,16 +239,16 @@ async function inspectPhysicalDatabase(
       if (storeNames.includes(manifestStoreName)) {
         const transaction = database.transaction(
           manifestStoreName,
-          'readonly'
+          'readonly',
         )
         manifest = await requestResult(
-          transaction.objectStore(manifestStoreName).get(manifestKey)
+          transaction.objectStore(manifestStoreName).get(manifestKey),
         ) ?? null
       }
       if (storeNames.includes(recordsStoreName)) {
         const transaction = database.transaction(
           recordsStoreName,
-          'readonly'
+          'readonly',
         )
         const records = transaction.objectStore(recordsStoreName)
         recordIndexNames = Array.from(records.indexNames)
@@ -260,7 +260,7 @@ async function inspectPhysicalDatabase(
         recordCount,
         recordIndexNames,
         storeNames,
-        version: database.version
+        version: database.version,
       }
     } finally {
       database.close()
@@ -269,13 +269,13 @@ async function inspectPhysicalDatabase(
     databaseName,
     manifestKey: WORKING_SET_ACTIVITY_MANIFEST_KEY,
     manifestStoreName: WORKING_SET_ACTIVITY_MANIFEST_STORE,
-    recordsStoreName: WORKING_SET_ACTIVITY_RECORDS_STORE
+    recordsStoreName: WORKING_SET_ACTIVITY_RECORDS_STORE,
   })
 }
 
 async function seedUnmarkedLegacy(
   page: Page,
-  legacy: WorkingSetActivityStore
+  legacy: WorkingSetActivityStore,
 ): Promise<AuthorityStorageSnapshot> {
   await page.evaluate(async ({ authorityKey, legacyKey, legacy }) => {
     await chrome.storage.local.set({ [legacyKey]: legacy })
@@ -283,7 +283,7 @@ async function seedUnmarkedLegacy(
   }, {
     authorityKey: WORKING_SET_ACTIVITY_AUTHORITY_KEY,
     legacy,
-    legacyKey: WORKING_SET_ACTIVITY_KEY
+    legacyKey: WORKING_SET_ACTIVITY_KEY,
   })
   const snapshot = await readAuthorityStorage(page)
   expect(snapshot.marker).toBeUndefined()
@@ -299,13 +299,13 @@ function makeLegacyActivity(now: number): WorkingSetActivityStore {
     tab: {
       rawUrl: url,
       title: 'Example Native Failure',
-      url
-    }
+      url,
+    },
   })
 }
 
 async function sourceDigest(
-  activity: WorkingSetActivityStore
+  activity: WorkingSetActivityStore,
 ): Promise<string> {
   const rows = Object.values(activity.records)
     .toSorted((left, right) => left.key.localeCompare(right.key))
@@ -314,8 +314,8 @@ async function sourceDigest(
     'SHA-256',
     new TextEncoder().encode(JSON.stringify([
       WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION,
-      rows
-    ]))
+      rows,
+    ])),
   )
   return Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, '0'))
@@ -330,8 +330,8 @@ function canonicalActivityRow(record: WorkingSetActivityRecord): unknown {
     record.dismissedUntil ?? null,
     record.events.map((event) => [
       event.kind === 'activation' ? 0 : 1,
-      event.at
-    ])
+      event.at,
+    ]),
   ]
 }
 
@@ -345,7 +345,7 @@ async function installStartupTrace(page: Page): Promise<void> {
     const trace: MutableStartupTrace = {
       requestCount: 0,
       responseOk: null,
-      settled: false
+      settled: false,
     }
     Reflect.set(globalThis, traceKey, trace)
     const runtime = globalThis.chrome?.runtime
@@ -361,7 +361,7 @@ async function installStartupTrace(page: Page): Promise<void> {
       return Promise.resolve(result).then(
         (response) => {
           trace.responseOk = typeof response === 'object' && response !== null &&
-              typeof Reflect.get(response, 'ok') === 'boolean'
+            typeof Reflect.get(response, 'ok') === 'boolean'
             ? Reflect.get(response, 'ok')
             : null
           trace.settled = true
@@ -370,12 +370,12 @@ async function installStartupTrace(page: Page): Promise<void> {
         (cause: unknown) => {
           trace.settled = true
           throw cause
-        }
+        },
       )
     })
   }, {
     messageType: DASHBOARD_SERVICE_STATE_GET_MESSAGE,
-    traceKey: startupTraceKey
+    traceKey: startupTraceKey,
   })
 }
 
@@ -393,7 +393,7 @@ function parseStartupTrace(value: unknown): StartupTrace | null {
 
 async function assertFailedStartupFrame(
   page: Page,
-  url: string
+  url: string,
 ): Promise<void> {
   if (page.url() === url) {
     await page.reload({ waitUntil: 'domcontentloaded' })
@@ -419,7 +419,7 @@ async function assertFailedStartupFrame(
 
 async function assertSuccessfulStartupFrame(
   page: Page,
-  url: string
+  url: string,
 ): Promise<void> {
   await page.goto(url, { waitUntil: 'domcontentloaded' })
   const header = page.locator('[data-tabout="header-stats"]')
@@ -434,7 +434,7 @@ async function terminateScenarioWorker(scenario: Scenario): Promise<void> {
   await terminateServiceWorkerAndProveAbsent(
     scenario.installed.context,
     scenario.controller,
-    scenario.workerUrl
+    scenario.workerUrl,
   )
 }
 
@@ -443,46 +443,46 @@ test.describe.configure({ timeout: 90_000 })
 test('marked missing database fails Startup Frame and stays absent after restart', async () => {
   await withFreshScenario(async (scenario) => {
     const databaseName = databaseNameForGeneration(
-      scenario.initialMarker.generation
+      scenario.initialMarker.generation,
     )
     const authorityBefore = await readAuthorityStorage(scenario.controller)
     expect((await inspectPhysicalDatabase(
       scenario.controller,
-      databaseName
+      databaseName,
     )).exists).toBe(true)
     await terminateScenarioWorker(scenario)
     await deletePhysicalDatabase(scenario.controller, databaseName)
     expect(await inspectPhysicalDatabase(
       scenario.controller,
-      databaseName
+      databaseName,
     )).toEqual({
       exists: false,
       manifest: null,
       recordCount: null,
       recordIndexNames: null,
       storeNames: [],
-      version: null
+      version: null,
     })
 
     await installStartupTrace(scenario.controller)
     const url = dashboardUrl(scenario.installed)
     await assertFailedStartupFrame(scenario.controller, url)
     expect(await readAuthorityStorage(scenario.controller)).toEqual(
-      authorityBefore
+      authorityBefore,
     )
     expect((await inspectPhysicalDatabase(
       scenario.controller,
-      databaseName
+      databaseName,
     )).exists).toBe(false)
 
     await terminateScenarioWorker(scenario)
     await assertFailedStartupFrame(scenario.controller, url)
     expect(await readAuthorityStorage(scenario.controller)).toEqual(
-      authorityBefore
+      authorityBefore,
     )
     expect((await inspectPhysicalDatabase(
       scenario.controller,
-      databaseName
+      databaseName,
     )).exists).toBe(false)
   })
 })
@@ -490,7 +490,7 @@ test('marked missing database fails Startup Frame and stays absent after restart
 test('marked database missing a required store fails without repair or fallback', async () => {
   await withFreshScenario(async (scenario) => {
     const databaseName = databaseNameForGeneration(
-      scenario.initialMarker.generation
+      scenario.initialMarker.generation,
     )
     const authorityBefore = await readAuthorityStorage(scenario.controller)
     await terminateScenarioWorker(scenario)
@@ -499,29 +499,29 @@ test('marked database missing a required store fails without repair or fallback'
       scenario.controller,
       databaseName,
       WORKING_SET_ACTIVITY_INDEXED_DB_VERSION,
-      [WORKING_SET_ACTIVITY_MANIFEST_STORE, markedSentinelStore]
+      [WORKING_SET_ACTIVITY_MANIFEST_STORE, markedSentinelStore],
     )
     const malformed = await inspectPhysicalDatabase(
       scenario.controller,
-      databaseName
+      databaseName,
     )
     expect(malformed.storeNames).toEqual([
       WORKING_SET_ACTIVITY_MANIFEST_STORE,
-      markedSentinelStore
+      markedSentinelStore,
     ].toSorted())
     expect(malformed.version).toBe(WORKING_SET_ACTIVITY_INDEXED_DB_VERSION)
 
     await installStartupTrace(scenario.controller)
     await assertFailedStartupFrame(
       scenario.controller,
-      dashboardUrl(scenario.installed)
+      dashboardUrl(scenario.installed),
     )
     expect(await readAuthorityStorage(scenario.controller)).toEqual(
-      authorityBefore
+      authorityBefore,
     )
     expect(await inspectPhysicalDatabase(
       scenario.controller,
-      databaseName
+      databaseName,
     )).toEqual(malformed)
   })
 })
@@ -539,11 +539,11 @@ test('same-version unmarked candidate is repaired before authority is committed'
       scenario.controller,
       databaseName,
       WORKING_SET_ACTIVITY_INDEXED_DB_VERSION,
-      [candidateSentinelStore]
+      [candidateSentinelStore],
     )
     const malformed = await inspectPhysicalDatabase(
       scenario.controller,
-      databaseName
+      databaseName,
     )
     expect(malformed.storeNames).toEqual([candidateSentinelStore])
     expect((await readAuthorityStorage(scenario.controller)).marker)
@@ -551,11 +551,11 @@ test('same-version unmarked candidate is repaired before authority is committed'
 
     await assertSuccessfulStartupFrame(
       scenario.controller,
-      dashboardUrl(scenario.installed)
+      dashboardUrl(scenario.installed),
     )
     const authorityAfter = await readAuthorityStorage(scenario.controller)
     const marker = Schema.decodeUnknownSync(
-      workingSetActivityAuthorityMarkerSchema
+      workingSetActivityAuthorityMarkerSchema,
     )(authorityAfter.marker)
     expect(marker.sourceDigest).toBe(digest)
     expect(marker.generation).toBe(generation)
@@ -566,7 +566,7 @@ test('same-version unmarked candidate is repaired before authority is committed'
 
     const repaired = await inspectPhysicalDatabase(
       scenario.controller,
-      databaseName
+      databaseName,
     )
     expect(repaired).toEqual({
       exists: true,
@@ -576,15 +576,15 @@ test('same-version unmarked candidate is repaired before authority is committed'
         sourceDigest: marker.sourceDigest,
         recordCount: marker.recordCount,
         eventCount: marker.eventCount,
-        retainedAfter: marker.retainedAfter
+        retainedAfter: marker.retainedAfter,
       },
       recordCount: 1,
       recordIndexNames: [WORKING_SET_ACTIVITY_LAST_EVENT_INDEX],
       storeNames: [
         WORKING_SET_ACTIVITY_MANIFEST_STORE,
-        WORKING_SET_ACTIVITY_RECORDS_STORE
+        WORKING_SET_ACTIVITY_RECORDS_STORE,
       ].toSorted(),
-      version: WORKING_SET_ACTIVITY_INDEXED_DB_VERSION
+      version: WORKING_SET_ACTIVITY_INDEXED_DB_VERSION,
     })
   })
 })
@@ -602,11 +602,11 @@ test('future-version unmarked candidate fails closed and is left untouched', asy
       scenario.controller,
       databaseName,
       WORKING_SET_ACTIVITY_INDEXED_DB_VERSION + 1,
-      [futureSentinelStore]
+      [futureSentinelStore],
     )
     const future = await inspectPhysicalDatabase(
       scenario.controller,
-      databaseName
+      databaseName,
     )
     expect(future.version).toBe(WORKING_SET_ACTIVITY_INDEXED_DB_VERSION + 1)
     expect(future.storeNames).toEqual([futureSentinelStore])
@@ -614,7 +614,7 @@ test('future-version unmarked candidate fails closed and is left untouched', asy
     await installStartupTrace(scenario.controller)
     await assertFailedStartupFrame(
       scenario.controller,
-      dashboardUrl(scenario.installed)
+      dashboardUrl(scenario.installed),
     )
     const authorityAfter = await readAuthorityStorage(scenario.controller)
     expect(authorityAfter.marker).toBeUndefined()
@@ -622,7 +622,7 @@ test('future-version unmarked candidate fails closed and is left untouched', asy
     expect(authorityAfter.legacyJson).toBe(unmarked.legacyJson)
     expect(await inspectPhysicalDatabase(
       scenario.controller,
-      databaseName
+      databaseName,
     )).toEqual(future)
   })
 })

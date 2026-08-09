@@ -5,14 +5,14 @@ import type { ClosedTabEntry } from './closed-tabs.js'
 import { DEFAULT_HISTORY_RANGE } from './history-range.js'
 import {
   DashboardDataBuildError,
-  buildDashboardDataFromTabsEffect
+  buildDashboardDataFromTabsEffect,
 } from './render.js'
 import { runPromiseExclusiveEffect } from './promise-exclusive-effect.js'
 import {
   deriveDashboardStartupSeedFromLegacyBoundary,
   parseDashboardStartupSeedBoundary,
   type DashboardStartupSeedBoundary,
-  type DashboardStartupTitleRetention
+  type DashboardStartupTitleRetention,
 } from './startup-snapshot-schema.js'
 import { buildWorkingSetSnapshot, pageIdentityForWorkingSet } from './working-set.js'
 import type {
@@ -21,7 +21,7 @@ import type {
   HistorySearchStatus,
   TabHistorySnapshot,
   WorkingSetActivityStore,
-  WorkingSetSnapshot
+  WorkingSetSnapshot,
 } from './types'
 import type { SavedPageMetadataUpdates, SavedPagesStore } from './saved-pages.js'
 import type { RetainedPageRecord } from './retained-pages-ledger.js'
@@ -67,7 +67,7 @@ const DASHBOARD_STARTUP_SEED_CACHE_WRITE_LOCK = 'tab-out:startup-snapshot-cache-
 
 export class StartupSnapshotCacheMutationError extends Schema.TaggedErrorClass<StartupSnapshotCacheMutationError>()(
   'StartupSnapshotCacheMutationError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 const startupSeedCacheMutationSemaphore = Semaphore.makeUnsafe(1)
@@ -90,7 +90,7 @@ function sameStringOrder(left: readonly string[], right: readonly string[]): boo
 
 function sameTitleRetention(
   left: readonly DashboardStartupTitleRetention[],
-  right: readonly DashboardStartupTitleRetention[]
+  right: readonly DashboardStartupTitleRetention[],
 ): boolean {
   return left.length === right.length && left.every((entry, index) => {
     const other = right[index]
@@ -110,7 +110,7 @@ function sameSeedCore(left: DashboardStartupSeed, right: DashboardStartupSeed): 
 function sameWarmSeed(left: DashboardStartupSeed, right: DashboardStartupSeed): boolean {
   return sameSeedCore(left, right) && sameTitleRetention(
     left.titleRetention ?? [],
-    right.titleRetention ?? []
+    right.titleRetention ?? [],
   )
 }
 
@@ -120,14 +120,14 @@ function seedWithoutTitleRetention(seed: DashboardStartupSeed): DashboardStartup
     savedAt: seed.savedAt,
     captureStartedAt: seed.captureStartedAt,
     cardOrder: seed.cardOrder,
-    workingSetPriority: seed.workingSetPriority
+    workingSetPriority: seed.workingSetPriority,
   }
 }
 
 function newerSeed(
   left: DashboardStartupSeed | null,
   right: DashboardStartupSeed | null,
-  preferLeftOnEqual = true
+  preferLeftOnEqual = true,
 ): DashboardStartupSeed | null {
   if (!left) return right
   if (!right) return left
@@ -148,7 +148,7 @@ type StartupSeedStorageRead = {
 
 function readStartupSeedStorageEffect(
   storage: chrome.storage.StorageArea | null,
-  includeTitleRetention: boolean
+  includeTitleRetention: boolean,
 ): Effect.Effect<StartupSeedStorageRead> {
   if (!storage) {
     return Effect.succeed({
@@ -157,15 +157,15 @@ function readStartupSeedStorageEffect(
       hasV2: false,
       hasLegacy: false,
       selectedFromV2: false,
-      v2HadTitleRetention: false
+      v2HadTitleRetention: false,
     })
   }
   return Effect.tryPromise({
     try: () => storage.get([
       DASHBOARD_STARTUP_SEED_CACHE_KEY,
-      LEGACY_DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY
+      LEGACY_DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY,
     ]),
-    catch: (cause) => StartupSnapshotCacheMutationError.make({ cause })
+    catch: (cause) => StartupSnapshotCacheMutationError.make({ cause }),
   }).pipe(
     Effect.map((stored): StartupSeedStorageRead => {
       const rawV2 = stored[DASHBOARD_STARTUP_SEED_CACHE_KEY]
@@ -176,7 +176,7 @@ function readStartupSeedStorageEffect(
       const rawLegacy = stored[LEGACY_DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
       const legacy = deriveDashboardStartupSeedFromLegacyBoundary(
         rawLegacy,
-        includeTitleRetention
+        includeTitleRetention,
       )
       const selected = newerSeed(parsedV2, legacy)
       return {
@@ -185,7 +185,7 @@ function readStartupSeedStorageEffect(
         hasV2: parsedV2 !== null,
         hasLegacy: legacy !== null,
         selectedFromV2: selected !== null && selected === parsedV2,
-        v2HadTitleRetention: (parsedV2WithTitle?.titleRetention?.length ?? 0) > 0
+        v2HadTitleRetention: (parsedV2WithTitle?.titleRetention?.length ?? 0) > 0,
       }
     }),
     Effect.catchTag('StartupSnapshotCacheMutationError', () => Effect.succeed({
@@ -194,54 +194,54 @@ function readStartupSeedStorageEffect(
       hasV2: false,
       hasLegacy: false,
       selectedFromV2: false,
-      v2HadTitleRetention: false
-    }))
+      v2HadTitleRetention: false,
+    })),
   )
 }
 
-const runStartupSeedCacheMutation = Effect.fn('startupSeedCache.mutate')(function*<
+const runStartupSeedCacheMutation = Effect.fn('startupSeedCache.mutate')(function* <
   Value,
   Failure,
-  Requirements
+  Requirements,
 >(mutation: Effect.Effect<Value, Failure, Requirements>) {
   const guardedMutation = mutation.pipe(
     Effect.catchDefect((cause) => Effect.fail(
-      StartupSnapshotCacheMutationError.make({ cause })
-    ))
+      StartupSnapshotCacheMutationError.make({ cause }),
+    )),
   )
   return yield* startupSeedCacheMutationSemaphore.withPermit(
     runPromiseExclusiveEffect(
       (task) => navigator.locks.request(DASHBOARD_STARTUP_SEED_CACHE_WRITE_LOCK, task),
       guardedMutation,
-      (cause) => StartupSnapshotCacheMutationError.make({ cause })
-    )
+      (cause) => StartupSnapshotCacheMutationError.make({ cause }),
+    ),
   )
 })
 
 function removeLegacySeedAfterWriteEffect(
-  storage: chrome.storage.StorageArea | null
+  storage: chrome.storage.StorageArea | null,
 ): Effect.Effect<void> {
   if (!storage) return Effect.void
   return Effect.tryPromise({
     try: () => storage.remove(LEGACY_DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY),
-    catch: (cause) => StartupSnapshotCacheMutationError.make({ cause })
+    catch: (cause) => StartupSnapshotCacheMutationError.make({ cause }),
   }).pipe(
     // A valid v2 seed is already committed. Cleanup can be retried by a later
     // save without making that committed seed unavailable.
-    Effect.catchTag('StartupSnapshotCacheMutationError', () => Effect.void)
+    Effect.catchTag('StartupSnapshotCacheMutationError', () => Effect.void),
   )
 }
 
 function writeStartupSeedEffect(
   storage: chrome.storage.StorageArea | null,
-  seed: DashboardStartupSeed
+  seed: DashboardStartupSeed,
 ): Effect.Effect<boolean> {
   if (!storage) return Effect.succeed(true)
   const write = Effect.tryPromise({
     try: () => storage.set({ [DASHBOARD_STARTUP_SEED_CACHE_KEY]: seed }),
-    catch: (cause) => StartupSnapshotCacheMutationError.make({ cause })
+    catch: (cause) => StartupSnapshotCacheMutationError.make({ cause }),
   })
-  return Effect.gen(function*() {
+  return Effect.gen(function* () {
     const first = yield* Effect.result(write)
     const written = Result.isSuccess(first) || Result.isSuccess(yield* Effect.result(write))
     if (!written) return false
@@ -253,7 +253,7 @@ function writeStartupSeedEffect(
 function durableCheckpointDueAt(
   durable: DashboardStartupSeed | null,
   now: number,
-  intervalMs: number
+  intervalMs: number,
 ): number {
   const savedAt = durable?.savedAt
   if (savedAt === undefined || !Number.isFinite(savedAt) || now < savedAt) return now
@@ -261,7 +261,7 @@ function durableCheckpointDueAt(
 }
 
 export function dashboardStartupPreviousOrder(
-  seed: DashboardStartupSeed | null | undefined
+  seed: DashboardStartupSeed | null | undefined,
 ): Map<string, number> {
   return new Map((seed?.cardOrder ?? []).map((cardId, index) => [cardId, index]))
 }
@@ -271,7 +271,7 @@ export function dashboardStartupWorkingSetKey(value: string): string {
 }
 
 export function dashboardStartupWorkingSetPriorityKeys(
-  workingSet: WorkingSetSnapshot
+  workingSet: WorkingSetSnapshot,
 ): string[] {
   const seen = new Set<string>()
   return workingSet.items.flatMap((item) => {
@@ -283,7 +283,7 @@ export function dashboardStartupWorkingSetPriorityKeys(
 }
 
 export function dashboardStartupTitleRetentionFromTabs(
-  tabs: readonly DashboardTab[]
+  tabs: readonly DashboardTab[],
 ): DashboardStartupTitleRetention[] {
   const seenTabIds = new Set<number>()
   return tabs.flatMap((tab) => {
@@ -306,7 +306,7 @@ export function dashboardStartupTitleRetentionFromTabs(
 }
 
 export function dashboardStartupTitleHistory(
-  seed: DashboardStartupSeed | null | undefined
+  seed: DashboardStartupSeed | null | undefined,
 ): DashboardTab[] {
   return (seed?.titleRetention ?? []).map((entry): DashboardTab => ({
     id: entry.tabId,
@@ -323,14 +323,14 @@ export function dashboardStartupTitleHistory(
     pinned: false,
     groupId: -1,
     isTabOut: false,
-    isApp: false
+    isApp: false,
   }))
 }
 
 export function rebaseDashboardStartupWorkingSetPriority(
   seed: DashboardStartupSeed | null | undefined,
   live: WorkingSetSnapshot,
-  now = Date.now()
+  now = Date.now(),
 ): WorkingSetSnapshot {
   if (
     !seed ||
@@ -359,17 +359,17 @@ export function rebaseDashboardStartupWorkingSetPriority(
   const orderedItems = [...prioritizedItems, ...remainingItems]
   const items = orderedItems.map((item, index) => ({
     ...item,
-    score: orderedItems.length - index
+    score: orderedItems.length - index,
   }))
   return { ...live, items }
 }
 
 export const loadDashboardStartupSeedResultEffect = Effect.fn(
-  'startupSeedCache.load'
-)(function*(now = Date.now()) {
+  'startupSeedCache.load',
+)(function* (now = Date.now()) {
   const [warmRead, durableRead] = yield* Effect.all([
     readStartupSeedStorageEffect(startupSeedWarmStorage(), true),
-    readStartupSeedStorageEffect(startupSeedDurableStorage(), false)
+    readStartupSeedStorageEffect(startupSeedDurableStorage(), false),
   ], { concurrency: 'unbounded' })
   const durableSeed = durableRead.seed &&
     now - durableRead.seed.savedAt <= DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS
@@ -378,36 +378,36 @@ export const loadDashboardStartupSeedResultEffect = Effect.fn(
   return {
     ok: warmRead.ok && durableRead.ok,
     // Equal generations prefer Warm because title retention is session-only.
-    value: newerSeed(warmRead.seed, durableSeed, true)
+    value: newerSeed(warmRead.seed, durableSeed, true),
   }
 })
 
 export function loadDashboardStartupSeedResult(
-  now = Date.now()
+  now = Date.now(),
 ): Promise<DashboardStartupSeedLoadResult> {
   return getAppRuntime().runPromise(loadDashboardStartupSeedResultEffect(now))
 }
 
 export const loadDashboardStartupSeedEffect = Effect.fn(
-  'startupSeedCache.loadValue'
-)(function*(now = Date.now()) {
+  'startupSeedCache.loadValue',
+)(function* (now = Date.now()) {
   return (yield* loadDashboardStartupSeedResultEffect(now)).value
 })
 
 export function loadDashboardStartupSeed(
-  now = Date.now()
+  now = Date.now(),
 ): Promise<DashboardStartupSeed | null> {
   return getAppRuntime().runPromise(loadDashboardStartupSeedEffect(now))
 }
 
 export const invalidateDashboardStartupTitleRetentionEffect = Effect.fn(
-  'startupSeedCache.invalidateTitleRetention'
-)(function*(
+  'startupSeedCache.invalidateTitleRetention',
+)(function* (
   tabId: number | undefined,
-  now = captureDashboardStartupSnapshotStartedAt()
+  now = captureDashboardStartupSnapshotStartedAt(),
 ) {
   if (tabId === undefined || !Number.isInteger(tabId) || tabId < 0) return false
-  return yield* runStartupSeedCacheMutation(Effect.gen(function*() {
+  return yield* runStartupSeedCacheMutation(Effect.gen(function* () {
     const warmStorage = startupSeedWarmStorage()
     const warmRead = yield* readStartupSeedStorageEffect(warmStorage, true)
     if (!warmRead.ok || !warmRead.seed) return false
@@ -420,7 +420,7 @@ export const invalidateDashboardStartupTitleRetentionEffect = Effect.fn(
       captureStartedAt: Math.max(warmRead.seed.captureStartedAt, now),
       cardOrder: warmRead.seed.cardOrder,
       workingSetPriority: warmRead.seed.workingSetPriority,
-      ...(remainingTitles.length > 0 ? { titleRetention: remainingTitles } : {})
+      ...(remainingTitles.length > 0 ? { titleRetention: remainingTitles } : {}),
     }
     return yield* writeStartupSeedEffect(warmStorage, candidate)
   }))
@@ -428,19 +428,19 @@ export const invalidateDashboardStartupTitleRetentionEffect = Effect.fn(
 
 export function invalidateDashboardStartupTitleRetention(
   tabId: number | undefined,
-  now = Date.now()
+  now = Date.now(),
 ): Promise<boolean> {
   return getAppRuntime().runPromise(
     invalidateDashboardStartupTitleRetentionEffect(tabId, now).pipe(
-      Effect.catchTag('StartupSnapshotCacheMutationError', (error) => Effect.fail(error.cause))
-    )
+      Effect.catchTag('StartupSnapshotCacheMutationError', (error) => Effect.fail(error.cause)),
+    ),
   )
 }
 
 function priorityForNextWarmSeed(
   previous: DashboardStartupSeed | null,
   workingSet: WorkingSetSnapshot,
-  now: number
+  now: number,
 ): DashboardStartupSeed['workingSetPriority'] {
   const liveKeys = dashboardStartupWorkingSetPriorityKeys(workingSet)
   if (
@@ -456,16 +456,16 @@ function priorityForNextWarmSeed(
     epoch: previous.workingSetPriority.epoch,
     keys: [
       ...preservedKeys,
-      ...liveKeys.filter((key) => !preservedKeySet.has(key))
-    ]
+      ...liveKeys.filter((key) => !preservedKeySet.has(key)),
+    ],
   }
 }
 
 export const saveDashboardStartupSeedEffect = Effect.fn(
-  'startupSeedCache.save'
-)(function*(
+  'startupSeedCache.save',
+)(function* (
   source: DashboardStartupSeedSource,
-  options: SaveDashboardStartupSeedOptions = {}
+  options: SaveDashboardStartupSeedOptions = {},
 ) {
   const now = options.now ?? Date.now()
   const requestedCaptureStartedAt = options.captureStartedAt ?? now
@@ -477,12 +477,12 @@ export const saveDashboardStartupSeedEffect = Effect.fn(
     ? Math.max(0, requestedInterval)
     : 0
 
-  yield* runStartupSeedCacheMutation(Effect.gen(function*() {
+  yield* runStartupSeedCacheMutation(Effect.gen(function* () {
     const warmStorage = startupSeedWarmStorage()
     const durableStorage = startupSeedDurableStorage()
     const [warmRead, durableRead] = yield* Effect.all([
       readStartupSeedStorageEffect(warmStorage, true),
-      readStartupSeedStorageEffect(durableStorage, false)
+      readStartupSeedStorageEffect(durableStorage, false),
     ], { concurrency: 'unbounded' })
     if (!warmRead.ok || !durableRead.ok) return
 
@@ -495,7 +495,7 @@ export const saveDashboardStartupSeedEffect = Effect.fn(
       captureStartedAt,
       cardOrder: source.cardOrder,
       workingSetPriority: priorityForNextWarmSeed(previous, source.workingSet, now),
-      titleRetention: dashboardStartupTitleRetentionFromTabs(source.titleTabs)
+      titleRetention: dashboardStartupTitleRetentionFromTabs(source.titleTabs),
     }
     const candidate = parseDashboardStartupSeedBoundary(unvalidatedSeed)
     if (!candidate) return
@@ -528,7 +528,7 @@ export const saveDashboardStartupSeedEffect = Effect.fn(
     const dueAt = durableCheckpointDueAt(
       durableRead.seed,
       now,
-      durableCheckpointIntervalMs
+      durableCheckpointIntervalMs,
     )
     if (dueAt <= now && !options.scheduleDurableCheckpoint) {
       yield* writeStartupSeedEffect(durableStorage, durableCandidate)
@@ -539,31 +539,31 @@ export const saveDashboardStartupSeedEffect = Effect.fn(
       try: async () => {
         await options.scheduleDurableCheckpoint?.(dueAt)
       },
-      catch: (cause) => StartupSnapshotCacheMutationError.make({ cause })
+      catch: (cause) => StartupSnapshotCacheMutationError.make({ cause }),
     })
   }))
 })
 
 export function saveDashboardStartupSeed(
   source: DashboardStartupSeedSource,
-  options: SaveDashboardStartupSeedOptions = {}
+  options: SaveDashboardStartupSeedOptions = {},
 ): Promise<void> {
   return getAppRuntime().runPromise(
     saveDashboardStartupSeedEffect(source, options).pipe(
-      Effect.catchTag('StartupSnapshotCacheMutationError', (error) => Effect.fail(error.cause))
-    )
+      Effect.catchTag('StartupSnapshotCacheMutationError', (error) => Effect.fail(error.cause)),
+    ),
   )
 }
 
 export const promoteDashboardStartupSeedEffect = Effect.fn(
-  'startupSeedCache.promote'
-)(function*(now = Date.now()) {
-  return yield* runStartupSeedCacheMutation(Effect.gen(function*() {
+  'startupSeedCache.promote',
+)(function* (now = Date.now()) {
+  return yield* runStartupSeedCacheMutation(Effect.gen(function* () {
     const warmStorage = startupSeedWarmStorage()
     const durableStorage = startupSeedDurableStorage()
     const [warmRead, durableRead] = yield* Effect.all([
       readStartupSeedStorageEffect(warmStorage, true),
-      readStartupSeedStorageEffect(durableStorage, false)
+      readStartupSeedStorageEffect(durableStorage, false),
     ], { concurrency: 'unbounded' })
     if (!warmRead.ok || !durableRead.ok || !warmRead.seed) return false
     if (
@@ -573,7 +573,7 @@ export const promoteDashboardStartupSeedEffect = Effect.fn(
 
     const candidate: DashboardStartupSeed = {
       ...seedWithoutTitleRetention(warmRead.seed),
-      savedAt: now
+      savedAt: now,
     }
     const durableCurrent = durableRead.hasV2 && durableRead.selectedFromV2 && !!durableRead.seed &&
       sameSeedCore(durableRead.seed, candidate) &&
@@ -590,8 +590,8 @@ export const promoteDashboardStartupSeedEffect = Effect.fn(
 export function promoteDashboardStartupSeed(now = Date.now()): Promise<boolean> {
   return getAppRuntime().runPromise(
     promoteDashboardStartupSeedEffect(now).pipe(
-      Effect.catchTag('StartupSnapshotCacheMutationError', (error) => Effect.fail(error.cause))
-    )
+      Effect.catchTag('StartupSnapshotCacheMutationError', (error) => Effect.fail(error.cause)),
+    ),
   )
 }
 
@@ -626,8 +626,8 @@ export type TabsStartupSnapshotBuild = {
 // Build a complete live Tabs-source snapshot from already-gathered inputs. It
 // remains shared by page and worker-independent tests, but is never persisted.
 export const buildTabsDashboardStartupSnapshotEffect = Effect.fn(
-  'startupSnapshot.buildFromTabs'
-)(function*(inputs: TabsStartupSnapshotInputs) {
+  'startupSnapshot.buildFromTabs',
+)(function* (inputs: TabsStartupSnapshotInputs) {
   const { dashboard, savedPageUpdates } = yield* buildDashboardDataFromTabsEffect(
     inputs.dashboardTabs,
     inputs.currentWindowId,
@@ -645,8 +645,8 @@ export const buildTabsDashboardStartupSnapshotEffect = Effect.fn(
       historyTabs: inputs.filterSearch?.historyTabs ?? [],
       savedPagesStore: inputs.savedPagesStore,
       retainedPages: inputs.retainedPages ?? [],
-      retainedLiveTabs: inputs.retainedLiveTabs ?? inputs.dashboardTabs
-    }
+      retainedLiveTabs: inputs.retainedLiveTabs ?? inputs.dashboardTabs,
+    },
   )
   return yield* Effect.try({
     try: (): TabsStartupSnapshotBuild => ({
@@ -656,22 +656,22 @@ export const buildTabsDashboardStartupSnapshotEffect = Effect.fn(
         workingSet: buildWorkingSetSnapshot({
           tabs: inputs.dashboardTabs,
           activity: inputs.workingSetActivity,
-          currentWindowId: inputs.currentWindowId
+          currentWindowId: inputs.currentWindowId,
         }),
-        closedTabs: inputs.closedTabs
+        closedTabs: inputs.closedTabs,
       },
-      savedPageUpdates
+      savedPageUpdates,
     }),
-    catch: (cause) => DashboardDataBuildError.make({ cause })
+    catch: (cause) => DashboardDataBuildError.make({ cause }),
   })
 })
 
 export function buildTabsDashboardStartupSnapshot(
-  inputs: TabsStartupSnapshotInputs
+  inputs: TabsStartupSnapshotInputs,
 ): Promise<TabsStartupSnapshotBuild> {
   return getAppRuntime().runPromise(
     buildTabsDashboardStartupSnapshotEffect(inputs).pipe(
-      Effect.catchTag('DashboardDataBuildError', (error) => Effect.fail(error.cause))
-    )
+      Effect.catchTag('DashboardDataBuildError', (error) => Effect.fail(error.cause)),
+    ),
   )
 }

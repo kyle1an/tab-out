@@ -17,7 +17,7 @@ const retainedPageActivationDispositionSchema = Schema.Literals([
   'focus-tab',
   'foreground-tab',
   'background-tab',
-  'new-window'
+  'new-window',
 ])
 
 export type RetainedPageActivationDisposition =
@@ -27,32 +27,32 @@ const retainedPageActivateMessageSchema = Schema.Struct({
   type: Schema.Literals([RETAINED_PAGE_ACTIVATE_MESSAGE]),
   identityDigest: nonEmptyMessageStringSchema,
   closureToken: nonEmptyMessageStringSchema,
-  disposition: retainedPageActivationDispositionSchema
+  disposition: retainedPageActivationDispositionSchema,
 })
 
 const closedTabRetentionSettleMessageSchema = Schema.Struct({
   type: Schema.Literals([CLOSED_TAB_RETENTION_SETTLE_MESSAGE]),
-  tabId: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+  tabId: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 })
 
 const retainedPageSnapshotFields = {
   identityDigest: nonEmptyMessageStringSchema,
-  closureToken: nonEmptyMessageStringSchema
+  closureToken: nonEmptyMessageStringSchema,
 }
 
 const retainedPagesRemoveMessageSchema = Schema.Struct({
   type: Schema.Literals([RETAINED_PAGES_REMOVE_MESSAGE]),
   snapshots: Schema.Array(Schema.Struct(retainedPageSnapshotFields)).check(
     Schema.isMinLength(1),
-    Schema.isMaxLength(RETAINED_PAGE_CAPACITY)
-  )
+    Schema.isMaxLength(RETAINED_PAGE_CAPACITY),
+  ),
 })
 
 const savedPageActivateMessageSchema = Schema.Struct({
   type: Schema.Literals([SAVED_PAGE_ACTIVATE_MESSAGE]),
   url: nonEmptyMessageStringSchema,
   surfaceKind: Schema.Literals(['normal-tab', 'app']),
-  disposition: retainedPageActivationDispositionSchema
+  disposition: retainedPageActivationDispositionSchema,
 })
 
 const retainedPageActivationResponseSchema = Schema.Struct({
@@ -62,27 +62,27 @@ const retainedPageActivationResponseSchema = Schema.Struct({
     'activated-newer-retained',
     'activated-unconsumed',
     'stale',
-    'failed'
-  ])
+    'failed',
+  ]),
 })
 
 const retainedPageRemovalOutcomeSchema = Schema.Literals([
   'removed',
   'already-absent',
-  'stale'
+  'stale',
 ])
 
 const retainedPagesRemovalResponseSchema = Schema.Struct({
   ok: Schema.Literals([true]),
   outcomes: Schema.Array(retainedPageRemovalOutcomeSchema).check(
     Schema.isMinLength(1),
-    Schema.isMaxLength(RETAINED_PAGE_CAPACITY)
-  )
+    Schema.isMaxLength(RETAINED_PAGE_CAPACITY),
+  ),
 })
 
 const savedPageActivationResponseSchema = Schema.Struct({
   ok: Schema.Literals([true]),
-  outcome: Schema.Literals(['activated', 'failed'])
+  outcome: Schema.Literals(['activated', 'failed']),
 })
 
 export type RetainedPageActivateMessage = typeof retainedPageActivateMessageSchema.Type
@@ -105,7 +105,7 @@ export function parseRetainedPageActivateMessage(value: unknown): RetainedPageAc
 }
 
 export function parseClosedTabRetentionSettleMessage(
-  value: unknown
+  value: unknown,
 ): typeof closedTabRetentionSettleMessageSchema.Type | null {
   return isClosedTabRetentionSettleMessage(value) ? value : null
 }
@@ -131,14 +131,14 @@ export function parseSavedPageActivationResponse(value: unknown): SavedPageActiv
 }
 
 const closedTabRestoreMessageEnvelopeSchema = Schema.Struct({
-  type: Schema.Literals([CLOSED_TAB_RESTORE_STATE_MESSAGE])
+  type: Schema.Literals([CLOSED_TAB_RESTORE_STATE_MESSAGE]),
 })
 
 const closedTabRestoreStateMessageSchema = Schema.Struct({
   type: Schema.Literals([CLOSED_TAB_RESTORE_STATE_MESSAGE]),
   restoreId: Schema.String.check(Schema.isMinLength(1)),
   phase: Schema.Literals(['started', 'settled']),
-  restored: Schema.optionalKey(Schema.Boolean)
+  restored: Schema.optionalKey(Schema.Boolean),
 })
 
 export type ClosedTabRestoreStateMessage = typeof closedTabRestoreStateMessageSchema.Type
@@ -155,16 +155,16 @@ export function parseClosedTabRestoreStateMessage(value: unknown): ClosedTabRest
 }
 
 const tabHistoryGetMessageSchema = Schema.Struct({
-  type: Schema.Literals([TAB_HISTORY_GET_MESSAGE])
+  type: Schema.Literals([TAB_HISTORY_GET_MESSAGE]),
 })
 
 const tabHistorySwitchMessageSchema = Schema.Struct({
   type: Schema.Literals([TAB_HISTORY_SWITCH_MESSAGE]),
-  direction: Schema.optionalKey(Schema.Unknown)
+  direction: Schema.optionalKey(Schema.Unknown),
 })
 
 const dashboardServiceStateGetMessageSchema = Schema.Struct({
-  type: Schema.Literals([DASHBOARD_SERVICE_STATE_GET_MESSAGE])
+  type: Schema.Literals([DASHBOARD_SERVICE_STATE_GET_MESSAGE]),
 })
 
 const isTabHistoryGetMessageSchema = Schema.is(tabHistoryGetMessageSchema)
@@ -188,8 +188,8 @@ export function isDashboardServiceStateGetMessage(value: unknown): boolean {
 const tabHistorySuccessResponseSchema = Schema.Struct({
   ok: Schema.Literals([true]),
   snapshot: Schema.Struct({
-    entries: Schema.mutable(Schema.Array(Schema.Unknown))
-  })
+    entries: Schema.mutable(Schema.Array(Schema.Unknown)),
+  }),
 })
 
 const isTabHistorySuccessResponse = Schema.is(tabHistorySuccessResponseSchema)

@@ -5,13 +5,13 @@ import {
   OPEN_SURFACE_FAVICON_MAX_LENGTH,
   OPEN_SURFACE_INVENTORY_SCHEMA_VERSION,
   OPEN_SURFACE_TITLE_MAX_CODE_POINTS,
-  type OpenSurfaceInventory
+  type OpenSurfaceInventory,
 } from './open-surface-inventory.js'
 import {
   createCachedRetainedPageIdentityResolver,
   isRetainedPageCaptureEligible,
   type ResolveRetainedPageIdentities,
-  type RetainedPageIdentityOptions
+  type RetainedPageIdentityOptions,
 } from './retained-page-identity.js'
 
 export const OPEN_SURFACE_SESSION_STORAGE_KEY = 'tabOutOpenSurfacesSessionV1'
@@ -36,10 +36,10 @@ export class OpenSurfaceInventoryStorageError extends Schema.TaggedErrorClass<Op
       'read-session',
       'write-session',
       'read-durable',
-      'write-durable'
+      'write-durable',
     ]),
-    cause: Schema.Defect()
-  }
+    cause: Schema.Defect(),
+  },
 ) {}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -82,7 +82,7 @@ const entryKeys = new Set([
   'url',
   'title',
   'favIconUrl',
-  'closedAt'
+  'closedAt',
 ])
 
 function isLegacyOpenSurfaceInventoryValue(stored: unknown): boolean {
@@ -102,26 +102,26 @@ function normalizeLegacyOpenSurfaceInventoryValue(stored: unknown): unknown {
         : `legacy-identity-${tabId}`,
       canonicalKey: isNonEmptyString(entry.canonicalKey)
         ? entry.canonicalKey
-        : `legacy-canonical-${tabId}`
+        : `legacy-canonical-${tabId}`,
     }]
   }))
   return { ...stored, entries }
 }
 
 export type OpenSurfaceInventoryParseResult =
-  | { status: 'missing'; inventory: OpenSurfaceInventory }
-  | { status: 'valid'; inventory: OpenSurfaceInventory }
-  | { status: 'malformed'; inventory: OpenSurfaceInventory }
-  | { status: 'newer'; raw: unknown }
+  | { status: 'missing', inventory: OpenSurfaceInventory }
+  | { status: 'valid', inventory: OpenSurfaceInventory }
+  | { status: 'malformed', inventory: OpenSurfaceInventory }
+  | { status: 'newer', raw: unknown }
 
 async function reindexOpenSurfaceInventory(
   inventory: OpenSurfaceInventory,
-  resolveIdentities: ResolveRetainedPageIdentities
-): Promise<{ readonly inventory: OpenSurfaceInventory; readonly changed: boolean }> {
+  resolveIdentities: ResolveRetainedPageIdentities,
+): Promise<{ readonly inventory: OpenSurfaceInventory, readonly changed: boolean }> {
   const storedEntries = Object.entries(inventory.entries)
   const identities = await resolveIdentities(storedEntries.map(([, entry]) => ({
     surfaceKind: entry.surfaceKind,
-    url: entry.url
+    url: entry.url,
   })))
   const entries: Record<string, OpenSurfaceInventory['entries'][string]> = {}
   let changed = inventory.schemaVersion !== OPEN_SURFACE_INVENTORY_SCHEMA_VERSION
@@ -137,7 +137,7 @@ async function reindexOpenSurfaceInventory(
       identityDigest: identity.identityDigest,
       surfaceKind: identity.surfaceKind,
       canonicalKey: identity.canonicalKey,
-      url: identity.url
+      url: identity.url,
     }
     entries[tabId] = reindexed
     if (
@@ -154,8 +154,8 @@ async function reindexOpenSurfaceInventory(
         inventory: {
           schemaVersion: OPEN_SURFACE_INVENTORY_SCHEMA_VERSION,
           identityVersion: 1,
-          entries
-        }
+          entries,
+        },
       }
     : { changed: false, inventory }
 }
@@ -163,7 +163,7 @@ async function reindexOpenSurfaceInventory(
 function parseInventoryEntry(
   stored: unknown,
   tabIdKey: string,
-  now: number
+  now: number,
 ): OpenSurfaceInventory['entries'][string] | null {
   if (!isRecord(stored) || !hasOnlyKeys(stored, entryKeys)) return null
   if (
@@ -178,7 +178,7 @@ function parseInventoryEntry(
     !isNonEmptyString(stored.url) ||
     !isRetainedPageCaptureEligible({
       surfaceKind: stored.surfaceKind,
-      url: stored.url
+      url: stored.url,
     }) ||
     !hasBoundedTitle(stored.title) ||
     !isReusableFavicon(stored.favIconUrl) ||
@@ -196,13 +196,13 @@ function parseInventoryEntry(
     url: stored.url,
     title: stored.title,
     ...(stored.favIconUrl === undefined ? {} : { favIconUrl: stored.favIconUrl }),
-    ...(stored.closedAt === undefined ? {} : { closedAt: stored.closedAt })
+    ...(stored.closedAt === undefined ? {} : { closedAt: stored.closedAt }),
   }
 }
 
 export function parseOpenSurfaceInventoryValue(
   stored: unknown,
-  now = Date.now()
+  now = Date.now(),
 ): OpenSurfaceInventoryParseResult {
   if (stored === undefined) {
     return { status: 'missing', inventory: emptyOpenSurfaceInventory() }
@@ -224,8 +224,8 @@ export function parseOpenSurfaceInventoryValue(
     !isRecord(stored) ||
     (stored.schemaVersion !== 1 &&
       stored.schemaVersion !== OPEN_SURFACE_INVENTORY_SCHEMA_VERSION) ||
-    stored.identityVersion !== 1 ||
-    !isRecord(stored.entries)
+      stored.identityVersion !== 1 ||
+      !isRecord(stored.entries)
   ) {
     return { status: 'malformed', inventory: emptyOpenSurfaceInventory() }
   }
@@ -240,7 +240,7 @@ export function parseOpenSurfaceInventoryValue(
   const inventory: OpenSurfaceInventory = {
     schemaVersion: stored.schemaVersion,
     identityVersion: 1,
-    entries
+    entries,
   }
   return malformed
     ? { status: 'malformed', inventory }
@@ -253,19 +253,19 @@ export class OpenSurfaceInventoryStorage extends Context.Service<OpenSurfaceInve
     OpenSurfaceInventoryStorageError
   >
   readonly writeSession: (
-    inventory: OpenSurfaceInventory
+    inventory: OpenSurfaceInventory,
   ) => Effect.Effect<void, OpenSurfaceInventoryStorageError>
   readonly readDurable: () => Effect.Effect<
     OpenSurfaceInventoryParseResult,
     OpenSurfaceInventoryStorageError
   >
   readonly writeDurable: (
-    inventory: OpenSurfaceInventory
+    inventory: OpenSurfaceInventory,
   ) => Effect.Effect<void, OpenSurfaceInventoryStorageError>
 }>()('@tab-out/background/OpenSurfaceInventoryStorage') {
   static layer(
     backend: OpenSurfaceInventoryStorageBackend,
-    options: OpenSurfaceInventoryStorageOptions = {}
+    options: OpenSurfaceInventoryStorageOptions = {},
   ): Layer.Layer<OpenSurfaceInventoryStorage> {
     const resolveIdentities = createCachedRetainedPageIdentityResolver(options)
     const makeChannel = (channel: {
@@ -276,13 +276,13 @@ export class OpenSurfaceInventoryStorage extends Context.Service<OpenSurfaceInve
       readonly read: () => PromiseLike<unknown>
       readonly write: (inventory: OpenSurfaceInventory) => PromiseLike<void>
     }) => {
-      const read = Effect.fn(channel.readName)(function*() {
+      const read = Effect.fn(channel.readName)(function* () {
         const stored = yield* Effect.tryPromise({
           try: channel.read,
           catch: (cause) => OpenSurfaceInventoryStorageError.make({
             operation: channel.readOperation,
-            cause
-          })
+            cause,
+          }),
         })
         const originalParsed = parseOpenSurfaceInventoryValue(stored)
         if (originalParsed.status === 'newer') return originalParsed
@@ -300,29 +300,29 @@ export class OpenSurfaceInventoryStorage extends Context.Service<OpenSurfaceInve
           try: () => reindexOpenSurfaceInventory(parsed.inventory, resolveIdentities),
           catch: (cause) => OpenSurfaceInventoryStorageError.make({
             operation: channel.readOperation,
-            cause
-          })
+            cause,
+          }),
         })
         if (parsed.status === 'valid' && reindexed.changed) {
           yield* Effect.tryPromise({
             try: () => channel.write(reindexed.inventory),
             catch: (cause) => OpenSurfaceInventoryStorageError.make({
               operation: channel.writeOperation,
-              cause
-            })
+              cause,
+            }),
           })
         }
         return parsed.status === 'valid'
           ? { status: 'valid' as const, inventory: reindexed.inventory }
           : { status: 'malformed' as const, inventory: reindexed.inventory }
       })
-      const write = Effect.fn(channel.writeName)(function*(inventory: OpenSurfaceInventory) {
+      const write = Effect.fn(channel.writeName)(function* (inventory: OpenSurfaceInventory) {
         yield* Effect.tryPromise({
           try: () => channel.write(inventory),
           catch: (cause) => OpenSurfaceInventoryStorageError.make({
             operation: channel.writeOperation,
-            cause
-          })
+            cause,
+          }),
         })
       })
       return { read, write }
@@ -334,7 +334,7 @@ export class OpenSurfaceInventoryStorage extends Context.Service<OpenSurfaceInve
       readOperation: 'read-session',
       writeOperation: 'write-session',
       read: () => backend.readSession(),
-      write: (inventory) => backend.writeSession(inventory)
+      write: (inventory) => backend.writeSession(inventory),
     })
     const durable = makeChannel({
       readName: 'OpenSurfaceInventoryStorage.readDurable',
@@ -342,14 +342,14 @@ export class OpenSurfaceInventoryStorage extends Context.Service<OpenSurfaceInve
       readOperation: 'read-durable',
       writeOperation: 'write-durable',
       read: () => backend.readDurable(),
-      write: (inventory) => backend.writeDurable(inventory)
+      write: (inventory) => backend.writeDurable(inventory),
     })
 
     return Layer.succeed(OpenSurfaceInventoryStorage, OpenSurfaceInventoryStorage.of({
       readSession: session.read,
       writeSession: session.write,
       readDurable: durable.read,
-      writeDurable: durable.write
+      writeDurable: durable.write,
     }))
   }
 }

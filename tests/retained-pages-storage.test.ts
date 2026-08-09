@@ -5,14 +5,14 @@ import { ManagedRuntime } from 'effect'
 import {
   emptyRetainedPageLedger,
   RETAINED_PAGE_LIFETIME_MS,
-  recordRetainedPageClosure
+  recordRetainedPageClosure,
 } from '../src/extension/retained-pages-ledger.js'
 import {
   RetainedPageLedgerStorage,
   createRetainedPageLedgerStorageDecodeCache,
   decodeRetainedPageLedgerStorageValue,
   encodeRetainedPageLedgerStorageValue,
-  parseRetainedPageLedgerValue
+  parseRetainedPageLedgerValue,
 } from '../src/extension/retained-pages-storage.js'
 import { createRetainedPageIdentity } from '../src/extension/retained-page-identity.js'
 
@@ -29,7 +29,7 @@ test('Retained Page Ledger decoding treats missing storage as empty and accepts 
     title: 'Example article',
     favIconUrl: 'https://example.test/favicon.ico',
     closedAt: 1_000,
-    closureToken: 'lifetime-example'
+    closureToken: 'lifetime-example',
   }).ledger
   const valid = parseRetainedPageLedgerValue(stored)
 
@@ -51,7 +51,7 @@ test('Retained Page Ledger storage reindexes expanded identities and keeps the n
         url,
         title: 'Older snapshot',
         closedAt: 1_000,
-        closureToken: 'lifetime-old'
+        closureToken: 'lifetime-old',
       },
       'legacy-identity-new': {
         identityDigest: 'legacy-identity-new',
@@ -60,21 +60,21 @@ test('Retained Page Ledger storage reindexes expanded identities and keeps the n
         url,
         title: 'Newer snapshot',
         closedAt: 2_000,
-        closureToken: 'lifetime-new'
-      }
+        closureToken: 'lifetime-new',
+      },
     },
     removalBoundaries: {
       'removed-old': {
         identityDigest: 'legacy-identity-old',
         closureToken: 'removed-old',
-        expiresAt: boundaryExpiry
+        expiresAt: boundaryExpiry,
       },
       'removed-new': {
         identityDigest: 'legacy-identity-new',
         closureToken: 'removed-new',
-        expiresAt: boundaryExpiry
-      }
-    }
+        expiresAt: boundaryExpiry,
+      },
+    },
   }
   let writes = 0
   const runtime = ManagedRuntime.make(RetainedPageLedgerStorage.layer({
@@ -82,17 +82,17 @@ test('Retained Page Ledger storage reindexes expanded identities and keeps the n
     write: async (ledger) => {
       writes += 1
       stored = ledger
-    }
+    },
   }, {
     reindexExpandedIdentities: true,
-    runtimeId: 'tab-out-id'
+    runtimeId: 'tab-out-id',
   }))
   t.after(() => runtime.dispose())
 
   const result = await runtime.runPromise(runtime.runSync(RetainedPageLedgerStorage).read())
   const identity = await createRetainedPageIdentity({
     surfaceKind: 'normal-tab',
-    url
+    url,
   }, { runtimeId: 'tab-out-id' })
   assert.ok(identity)
 
@@ -102,7 +102,7 @@ test('Retained Page Ledger storage reindexes expanded identities and keeps the n
   assert.equal(result.ledger.pages[identity.identityDigest]?.canonicalKey, identity.canonicalKey)
   assert.deepEqual(
     Object.values(result.ledger.removalBoundaries).map((boundary) => boundary.identityDigest),
-    [identity.identityDigest, identity.identityDigest]
+    [identity.identityDigest, identity.identityDigest],
   )
   assert.equal(writes, 1)
 })
@@ -120,14 +120,14 @@ test('Retained Page Ledger storage merges expanded collisions before enforcing c
       url,
       title: `Expanded page ${index}`,
       closedAt: 1_000 + index,
-      closureToken: `lifetime-${String(index).padStart(3, '0')}`
+      closureToken: `lifetime-${String(index).padStart(3, '0')}`,
     }]
   }))
   let stored: unknown = {
     schemaVersion: 1,
     identityVersion: 1,
     pages,
-    removalBoundaries: {}
+    removalBoundaries: {},
   }
   let writes = 0
   const runtime = ManagedRuntime.make(RetainedPageLedgerStorage.layer({
@@ -135,10 +135,10 @@ test('Retained Page Ledger storage merges expanded collisions before enforcing c
     write: async (ledger) => {
       writes += 1
       stored = ledger
-    }
+    },
   }, {
     reindexExpandedIdentities: true,
-    runtimeId: 'tab-out-id'
+    runtimeId: 'tab-out-id',
   }))
   t.after(() => runtime.dispose())
 
@@ -160,10 +160,10 @@ test('Retained Page Ledger storage trusts current compact keys and leaves newer 
         url: 'https://example.test/current-compact',
         title: 'Current compact record',
         closedAt: 1_000,
-        closureToken: 'lifetime-current'
-      }
+        closureToken: 'lifetime-current',
+      },
     },
-    removalBoundaries: {}
+    removalBoundaries: {},
   }
   let stored: unknown = compact
   let writes = 0
@@ -172,14 +172,14 @@ test('Retained Page Ledger storage trusts current compact keys and leaves newer 
     read: async () => stored,
     write: async () => {
       writes += 1
-    }
+    },
   }, {
     reindexExpandedIdentities: true,
     runtimeId: 'tab-out-id',
     sha256: async (input) => {
       hashCalls += 1
       return globalThis.crypto.subtle.digest('SHA-256', input)
-    }
+    },
   }))
   t.after(() => runtime.dispose())
   const storage = runtime.runSync(RetainedPageLedgerStorage)
@@ -197,10 +197,10 @@ test('Retained Page Ledger storage trusts current compact keys and leaves newer 
       future: {
         identityDigest: 'future-derived-field',
         surfaceKind: 'normal-tab',
-        url: 'https://example.test/future'
-      }
+        url: 'https://example.test/future',
+      },
     },
-    removalBoundaries: {}
+    removalBoundaries: {},
   }
   const newer = await runtime.runPromise(storage.read())
   assert.equal(newer.status, 'newer')
@@ -218,14 +218,14 @@ test('Retained Page Ledger storage compression round-trips the compact field all
     title: 'Example article',
     favIconUrl: 'https://example.test/favicon.ico',
     closedAt: 1_000,
-    closureToken: 'lifetime-example'
+    closureToken: 'lifetime-example',
   }).ledger
   const encoded = await encodeRetainedPageLedgerStorageValue(ledger)
   assert.deepEqual(Object.keys(encoded as Record<string, unknown>).sort(), [
     'data',
     'encoding',
     'identityVersion',
-    'schemaVersion'
+    'schemaVersion',
   ])
 
   const decoded = await decodeRetainedPageLedgerStorageValue(encoded)
@@ -239,7 +239,7 @@ test('compressed ledger decoding fails closed while preserving unknown newer env
     schemaVersion: 1,
     identityVersion: 1,
     encoding: 'gzip-base64-json-v1',
-    data: 'not-gzip'
+    data: 'not-gzip',
   }
   const decodedCorrupted = await decodeRetainedPageLedgerStorageValue(corrupted)
   assert.equal(decodedCorrupted, corrupted)
@@ -249,7 +249,7 @@ test('compressed ledger decoding fails closed while preserving unknown newer env
     schemaVersion: 2,
     identityVersion: 1,
     encoding: 'future-encoding',
-    data: 'opaque'
+    data: 'opaque',
   }
   const decodedNewer = await decodeRetainedPageLedgerStorageValue(newer)
   assert.equal(decodedNewer, newer)
@@ -264,7 +264,7 @@ test('compressed ledger cache reuses only an exact known persisted envelope', as
     url: 'https://example.test/first',
     title: 'First page',
     closedAt: 1_000,
-    closureToken: 'lifetime-first'
+    closureToken: 'lifetime-first',
   }).ledger
   const secondLedger = recordRetainedPageClosure(firstLedger, {
     identityDigest: 'identity-second',
@@ -273,7 +273,7 @@ test('compressed ledger cache reuses only an exact known persisted envelope', as
     url: 'https://example.test/second',
     title: 'Second page',
     closedAt: 2_000,
-    closureToken: 'lifetime-second'
+    closureToken: 'lifetime-second',
   }).ledger
   const firstEncoded = await encodeRetainedPageLedgerStorageValue(firstLedger)
   const secondEncoded = await encodeRetainedPageLedgerStorageValue(secondLedger)
@@ -287,14 +287,14 @@ test('compressed ledger cache reuses only an exact known persisted envelope', as
     schemaVersion: 1,
     identityVersion: 1,
     encoding: 'gzip-base64-json-v1',
-    data: 'not-gzip'
+    data: 'not-gzip',
   }
   const corrupted = await cache.decode(corruptedInput)
   const futureInput = {
     schemaVersion: 2,
     identityVersion: 1,
     encoding: 'future-encoding',
-    data: 'opaque'
+    data: 'opaque',
   }
   const future = await cache.decode(futureInput)
   const returnedToFirst = await cache.decode(structuredClone(firstEncoded))
@@ -318,13 +318,13 @@ test('compressed ledger cache never memoizes undecodable or outer-unknown envelo
     schemaVersion: 1,
     identityVersion: 1,
     encoding: 'gzip-base64-json-v1',
-    data: 'not-gzip'
+    data: 'not-gzip',
   }
   const newer = {
     schemaVersion: 2,
     identityVersion: 1,
     encoding: 'future-encoding',
-    data: 'opaque'
+    data: 'opaque',
   }
 
   const firstCorrupted = await cache.decode(corrupted)
@@ -348,7 +348,7 @@ test('compressed ledger cache matches a fresh worker and the persisted compact p
     url: 'https://example.test/projected?view=exact',
     title: 'Projected page',
     closedAt: 1_000,
-    closureToken: 'lifetime-projected'
+    closureToken: 'lifetime-projected',
   }).ledger
   const encoded = await encodeRetainedPageLedgerStorageValue(ledger)
   const warmCache = createRetainedPageLedgerStorageDecodeCache()
@@ -368,7 +368,7 @@ test('compressed ledger cache matches a fresh worker and the persisted compact p
   assert.deepEqual(warmParsed.ledger, restartedParsed.ledger)
   assert.equal(
     warmParsed.ledger.pages['identity-projected']?.canonicalKey,
-    'https://example.test/projected?view=exact'
+    'https://example.test/projected?view=exact',
   )
 })
 
@@ -384,10 +384,10 @@ test('Retained Page Ledger decoding identifies malformed current data for an iso
         url: 'https://example.test/article',
         title: 'Example article',
         closedAt: Number.NaN,
-        closureToken: 'lifetime-example'
-      }
+        closureToken: 'lifetime-example',
+      },
     },
-    removalBoundaries: {}
+    removalBoundaries: {},
   })
 
   assert.equal(malformed.status, 'malformed')
@@ -399,7 +399,7 @@ test('Retained Page Ledger decoding preserves an unknown newer envelope without 
     schemaVersion: 2,
     identityVersion: 1,
     pages: { future: { shape: 'unknown' } },
-    removalBoundaries: {}
+    removalBoundaries: {},
   }
   const newer = parseRetainedPageLedgerValue(stored)
 
@@ -419,10 +419,10 @@ test('Retained Page Ledger decoding rejects records whose persisted map keys do 
         url: 'https://example.test/article',
         title: 'Example article',
         closedAt: 1_000,
-        closureToken: 'lifetime-example'
-      }
+        closureToken: 'lifetime-example',
+      },
     },
-    removalBoundaries: {}
+    removalBoundaries: {},
   })
   const mismatchedBoundary = parseRetainedPageLedgerValue({
     schemaVersion: 1,
@@ -432,9 +432,9 @@ test('Retained Page Ledger decoding rejects records whose persisted map keys do 
       'wrong-lifetime': {
         identityDigest: 'identity-example',
         closureToken: 'lifetime-example',
-        expiresAt: 1_000 + 30 * 24 * 60 * 60 * 1_000
-      }
-    }
+        expiresAt: 1_000 + 30 * 24 * 60 * 60 * 1_000,
+      },
+    },
   })
 
   assert.equal(mismatchedPage.status, 'malformed')
@@ -453,7 +453,7 @@ test('Retained Page Ledger decoding salvages valid records while dropping invali
         url: 'https://example.test/valid',
         title: 'Valid page',
         closedAt: 900,
-        closureToken: 'valid-lifetime'
+        closureToken: 'valid-lifetime',
       },
       future: {
         identityDigest: 'future',
@@ -462,7 +462,7 @@ test('Retained Page Ledger decoding salvages valid records while dropping invali
         url: 'https://example.test/future',
         title: 'Future page',
         closedAt: 1_001,
-        closureToken: 'future-lifetime'
+        closureToken: 'future-lifetime',
       },
       unsafe: {
         identityDigest: 'unsafe',
@@ -471,10 +471,10 @@ test('Retained Page Ledger decoding salvages valid records while dropping invali
         url: 'https://example.test/unsafe',
         title: 'Unsafe page',
         closedAt: Number.MAX_VALUE,
-        closureToken: 'unsafe-lifetime'
-      }
+        closureToken: 'unsafe-lifetime',
+      },
     },
-    removalBoundaries: {}
+    removalBoundaries: {},
   }
 
   const parsed = parseRetainedPageLedgerValue(stored, 1_000)
@@ -496,7 +496,7 @@ test('Retained Page Ledger decoding strips metadata-bearing envelopes and record
         url: 'https://example.test/valid',
         title: 'Valid page',
         closedAt: 900,
-        closureToken: 'valid-lifetime'
+        closureToken: 'valid-lifetime',
       },
       metadata: {
         identityDigest: 'metadata',
@@ -506,11 +506,11 @@ test('Retained Page Ledger decoding strips metadata-bearing envelopes and record
         title: 'Metadata-bearing page',
         closedAt: 900,
         closureToken: 'metadata-lifetime',
-        privateNote: 'must not persist'
-      }
+        privateNote: 'must not persist',
+      },
     },
     removalBoundaries: {},
-    privateNote: 'must not persist'
+    privateNote: 'must not persist',
   }, 1_000)
 
   assert.equal(parsed.status, 'malformed')
@@ -528,15 +528,15 @@ test('Removal Boundary decoding accepts only its minimal field allowlist', () =>
       valid: {
         identityDigest: 'identity-valid',
         closureToken: 'valid',
-        expiresAt: validExpiresAt
+        expiresAt: validExpiresAt,
       },
       metadata: {
         identityDigest: 'identity-metadata',
         closureToken: 'metadata',
         expiresAt: validExpiresAt,
-        closedAt: 900
-      }
-    }
+        closedAt: 900,
+      },
+    },
   }, 1_000)
 
   assert.equal(parsed.status, 'malformed')
@@ -544,8 +544,8 @@ test('Removal Boundary decoding accepts only its minimal field allowlist', () =>
     valid: {
       identityDigest: 'identity-valid',
       closureToken: 'valid',
-      expiresAt: validExpiresAt
-    }
+      expiresAt: validExpiresAt,
+    },
   })
 })
 
@@ -557,7 +557,7 @@ test('Retained Page Ledger restore enforces metadata bounds and stable fields', 
     url: 'https://example.test/valid',
     title: 'Valid page',
     closedAt: 900,
-    closureToken: 'valid-lifetime'
+    closureToken: 'valid-lifetime',
   } as const
   const parsed = parseRetainedPageLedgerValue({
     schemaVersion: 1,
@@ -569,15 +569,15 @@ test('Retained Page Ledger restore enforces metadata bounds and stable fields', 
       'blob-favicon': {
         ...base,
         identityDigest: 'blob-favicon',
-        favIconUrl: 'blob:https://example.test/private'
+        favIconUrl: 'blob:https://example.test/private',
       },
       'long-favicon': {
         ...base,
         identityDigest: 'long-favicon',
-        favIconUrl: `https://example.test/${'x'.repeat(2_100)}`
-      }
+        favIconUrl: `https://example.test/${'x'.repeat(2_100)}`,
+      },
     },
-    removalBoundaries: {}
+    removalBoundaries: {},
   }, 1_000)
 
   assert.equal(parsed.status, 'malformed')
@@ -594,14 +594,14 @@ test('Retained Page Ledger restore keeps only the 500 newest valid identities', 
       url: `https://example.test/${index}`,
       title: `Page ${index}`,
       closedAt: index,
-      closureToken: `lifetime-${index}`
+      closureToken: `lifetime-${index}`,
     }]
   }))
   const parsed = parseRetainedPageLedgerValue({
     schemaVersion: 1,
     identityVersion: 1,
     pages,
-    removalBoundaries: {}
+    removalBoundaries: {},
   }, 1_000)
 
   assert.equal(parsed.status, 'malformed')
@@ -617,7 +617,7 @@ test('Retained Page Ledger storage reads and writes through one typed background
     read: async () => stored,
     write: async (value) => {
       stored = value
-    }
+    },
   }))
   t.after(() => runtime.dispose())
   const storage = runtime.runSync(RetainedPageLedgerStorage)
@@ -638,13 +638,13 @@ test('Retained Page Ledger storage reuses only a byte-identical decoded valid pa
     url: 'https://example.test/cached',
     title: 'Cached page',
     closedAt: 1_000,
-    closureToken: 'lifetime-cached'
+    closureToken: 'lifetime-cached',
   }).ledger
   const runtime = ManagedRuntime.make(RetainedPageLedgerStorage.layer({
     read: async () => stored,
     write: async (value) => {
       stored = value
-    }
+    },
   }))
   t.after(() => runtime.dispose())
   const storage = runtime.runSync(RetainedPageLedgerStorage)

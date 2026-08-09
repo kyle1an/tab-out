@@ -21,7 +21,7 @@ function effectiveUrl(tab: chrome.tabs.Tab): string {
  */
 export function buildOpenTabDedupePlan(
   tabs: readonly chrome.tabs.Tab[],
-  currentWindowId: number
+  currentWindowId: number,
 ): OpenTabDedupePlan {
   const eligibleTabs = tabs.filter((tab) => {
     const rawUrl = liveTabUrlForIdentity(tab)
@@ -39,7 +39,7 @@ export function buildOpenTabDedupePlan(
     const closeTargets = pickDuplicateTabsToClose(matchingTabs, {
       currentWindowId,
       preservePinnedTabOut: isTabOutGroup,
-      isTabOutUrl: isTabOutPageUrl
+      isTabOutUrl: isTabOutPageUrl,
     })
     if (closeTargets.length === 0) continue
     urls.push(url)

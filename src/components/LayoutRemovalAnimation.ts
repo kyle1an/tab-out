@@ -91,8 +91,8 @@ export function startLayoutRemovalAnimation(
     onAfterRemove,
     onDeferredLayoutRelease,
     scheduleCleanup = scheduleLayoutRemovalCleanup,
-    scheduleDeferredRelease = scheduleLayoutRemovalCleanup
-  }: LayoutRemovalAnimationOptions
+    scheduleDeferredRelease = scheduleLayoutRemovalCleanup,
+  }: LayoutRemovalAnimationOptions,
 ): boolean {
   if (!isLayoutRemovalSurface(surfaceValue)) return false
 
@@ -126,7 +126,7 @@ export function startLayoutRemovalAnimation(
       ? `opacity ${duration}ms ${LAYOUT_REMOVAL_EASING}`
       : [
           `opacity ${duration}ms ${LAYOUT_REMOVAL_EASING}`,
-          `transform ${duration}ms ${LAYOUT_REMOVAL_EASING}`
+          `transform ${duration}ms ${LAYOUT_REMOVAL_EASING}`,
         ].join(', ')
 
     body.appendChild(ghost)

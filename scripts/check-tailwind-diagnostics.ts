@@ -15,7 +15,7 @@ import {
   Queue,
   Ref,
   Schema,
-  Stream
+  Stream,
 } from 'effect'
 import * as ChildProcess from 'effect/unstable/process/ChildProcess'
 import * as ChildProcessSpawner from 'effect/unstable/process/ChildProcessSpawner'
@@ -26,15 +26,15 @@ import {
   requireConfigurationParams,
   requirePublishedDiagnosticsParams,
   type Diagnostic,
-  type JsonRpcMessage
+  type JsonRpcMessage,
 } from './tailwind-language-server-protocol.ts'
 
 class TailwindDiagnosticsError extends Schema.TaggedErrorClass<TailwindDiagnosticsError>()(
   'TailwindDiagnosticsError',
   {
     operation: Schema.String,
-    cause: Schema.Defect()
-  }
+    cause: Schema.Defect(),
+  },
 ) {
   override get message(): string {
     const detail = this.cause instanceof Error ? this.cause.message : String(this.cause)
@@ -67,7 +67,7 @@ const tailwindSettings = {
   classAttributes: ['class', 'className', 'ngClass', 'toastOptions', 'positionerClassName'],
   classFunctions: ['cn', 'clsx'],
   files: {
-    exclude: ['**/.git/**', '**/node_modules/**']
+    exclude: ['**/.git/**', '**/node_modules/**'],
   },
   lint: {
     invalidScreen: 'error',
@@ -79,7 +79,7 @@ const tailwindSettings = {
     cssConflict: 'warning',
     recommendedVariantOrder: 'warning',
     usedBlocklistedClass: 'warning',
-    suggestCanonicalClasses: 'warning'
+    suggestCanonicalClasses: 'warning',
   },
   experimental: {
     configFile: 'src/styles/app.css',
@@ -92,23 +92,23 @@ const tailwindSettings = {
       'twc\\.[^`]+`([^`]*)`',
       'twc\\(.*?\\).*?`([^`]*)`',
       ['twc\\.[^`]+\\(([^)]*)\\)', '(?:\'|"|`)([^\']*)(?:\'|"|`)'],
-      ['twc\\(.*?\\).*?\\(([^)]*)\\)', '(?:\'|"|`)([^\']*)(?:\'|"|`)']
-    ]
-  }
+      ['twc\\(.*?\\).*?\\(([^)]*)\\)', '(?:\'|"|`)([^\']*)(?:\'|"|`)'],
+    ],
+  },
 }
 
 function diagnosticsError(operation: string, cause: unknown): TailwindDiagnosticsError {
   return TailwindDiagnosticsError.make({ operation, cause })
 }
 
-const sourceFiles = Effect.fn('tailwindDiagnostics.sourceFiles')(function*() {
+const sourceFiles = Effect.fn('tailwindDiagnostics.sourceFiles')(function* () {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
   const output = yield* spawner.string(ChildProcess.make(
     'git',
     ['ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'extension/base.css'],
-    { cwd: workspaceRoot }
+    { cwd: workspaceRoot },
   )).pipe(
-    Effect.mapError((cause) => diagnosticsError('list source files', cause))
+    Effect.mapError((cause) => diagnosticsError('list source files', cause)),
   )
 
   return [...new Set(output.split('\n'))]
@@ -144,17 +144,17 @@ function send(input: Queue.Queue<Uint8Array>, message: unknown): Effect.Effect<v
       const body = JSON.stringify(message)
       return Buffer.from(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`)
     },
-    catch: (cause) => diagnosticsError('encode JSON-RPC message', cause)
+    catch: (cause) => diagnosticsError('encode JSON-RPC message', cause),
   }).pipe(
     Effect.flatMap((chunk) => Queue.offer(input, chunk)),
-    Effect.asVoid
+    Effect.asVoid,
   )
 }
 
 function respond(
   input: Queue.Queue<Uint8Array>,
   id: number | string,
-  result: unknown
+  result: unknown,
 ): Effect.Effect<void, TailwindDiagnosticsError> {
   return send(input, { jsonrpc: '2.0', id, result })
 }
@@ -163,15 +163,15 @@ function request(
   state: LanguageServerState,
   input: Queue.Queue<Uint8Array>,
   method: string,
-  params: unknown
+  params: unknown,
 ): Effect.Effect<unknown, TailwindDiagnosticsError> {
-  return Effect.gen(function*() {
+  return Effect.gen(function* () {
     const id = state.nextRequestId++
     const pending = yield* Deferred.make<unknown, TailwindDiagnosticsError>()
     state.pendingRequests.set(id, pending)
     yield* send(input, { jsonrpc: '2.0', id, method, params })
     return yield* Deferred.await(pending).pipe(
-      Effect.ensuring(Effect.sync(() => state.pendingRequests.delete(id)))
+      Effect.ensuring(Effect.sync(() => state.pendingRequests.delete(id))),
     )
   })
 }
@@ -179,7 +179,7 @@ function request(
 function notify(
   input: Queue.Queue<Uint8Array>,
   method: string,
-  params?: unknown
+  params?: unknown,
 ): Effect.Effect<void, TailwindDiagnosticsError> {
   return send(input, { jsonrpc: '2.0', method, params })
 }
@@ -200,7 +200,7 @@ function configurationFor(section: string | undefined): unknown {
 
 function handleServerRequest(
   input: Queue.Queue<Uint8Array>,
-  message: JsonRpcMessage
+  message: JsonRpcMessage,
 ): Effect.Effect<void, TailwindDiagnosticsError> {
   if (message.id === undefined || !message.method) return Effect.void
   const messageId = message.id
@@ -208,13 +208,13 @@ function handleServerRequest(
   if (message.method === 'workspace/configuration') {
     return Effect.try({
       try: () => requireConfigurationParams(message.params),
-      catch: (cause) => diagnosticsError('validate workspace configuration request', cause)
+      catch: (cause) => diagnosticsError('validate workspace configuration request', cause),
     }).pipe(
       Effect.flatMap(({ items }) => respond(
         input,
         messageId,
-        items.map((item) => configurationFor(item.section))
-      ))
+        items.map((item) => configurationFor(item.section)),
+      )),
     )
   }
 
@@ -231,7 +231,7 @@ function handleServerRequest(
 function handleMessage(
   state: LanguageServerState,
   input: Queue.Queue<Uint8Array>,
-  message: JsonRpcMessage
+  message: JsonRpcMessage,
 ): Effect.Effect<void, TailwindDiagnosticsError> {
   if (message.method && message.id !== undefined) {
     return handleServerRequest(input, message)
@@ -243,22 +243,22 @@ function handleMessage(
     state.pendingRequests.delete(message.id)
     return message.error
       ? Deferred.fail(pending, diagnosticsError(`JSON-RPC request ${message.id}`, new Error(message.error.message))).pipe(
-        Effect.asVoid
-      )
+          Effect.asVoid,
+        )
       : Deferred.succeed(pending, message.result).pipe(Effect.asVoid)
   }
 
   if (message.method === 'textDocument/publishDiagnostics') {
     return Effect.try({
       try: () => requirePublishedDiagnosticsParams(message.params),
-      catch: (cause) => diagnosticsError('validate published diagnostics', cause)
+      catch: (cause) => diagnosticsError('validate published diagnostics', cause),
     }).pipe(
       Effect.tap(({ uri, diagnostics }) => Effect.sync(() => {
         state.diagnosticsByUri.set(uri, diagnostics)
         state.publishedUris.add(uri)
         state.lastDiagnosticsAt = Date.now()
       })),
-      Effect.asVoid
+      Effect.asVoid,
     )
   }
 
@@ -288,9 +288,9 @@ function parseServerOutput(state: LanguageServerState, chunk: Uint8Array): JsonR
   }
 }
 
-const waitForDiagnostics = Effect.fn('tailwindDiagnostics.waitForDiagnostics')(function*(
+const waitForDiagnostics = Effect.fn('tailwindDiagnostics.waitForDiagnostics')(function* (
   state: LanguageServerState,
-  expectedUris: readonly string[]
+  expectedUris: readonly string[],
 ) {
   const timeoutAt = Date.now() + 30_000
   const expectedUriSet = new Set(expectedUris)
@@ -306,8 +306,8 @@ const waitForDiagnostics = Effect.fn('tailwindDiagnostics.waitForDiagnostics')(f
   return yield* Effect.fail(diagnosticsError(
     'wait for diagnostics',
     new Error(
-      `Timed out waiting for Tailwind diagnostics (${state.publishedUris.size}/${expectedUris.length} documents; missing ${missingCount})`
-    )
+      `Timed out waiting for Tailwind diagnostics (${state.publishedUris.size}/${expectedUris.length} documents; missing ${missingCount})`,
+    ),
   ))
 })
 
@@ -320,7 +320,7 @@ function relativeFileForUri(uri: string): string {
   return path.relative(workspaceRoot, fileURLToPath(uri))
 }
 
-const runTailwindDiagnostics = Effect.fn('tailwindDiagnostics.run')(function*() {
+const runTailwindDiagnostics = Effect.fn('tailwindDiagnostics.run')(function* () {
   const fileSystem = yield* FileSystem.FileSystem
   const files = yield* sourceFiles()
   const documents = yield* Effect.forEach(files, (file) => {
@@ -331,8 +331,8 @@ const runTailwindDiagnostics = Effect.fn('tailwindDiagnostics.run')(function*() 
         file,
         uri: pathToFileURL(absolutePath).href,
         languageId: languageIdFor(file),
-        text
-      }))
+        text,
+      })),
     )
   }, { concurrency: 'unbounded' })
 
@@ -342,7 +342,7 @@ const runTailwindDiagnostics = Effect.fn('tailwindDiagnostics.run')(function*() 
     pendingRequests: new Map(),
     nextRequestId: 1,
     outputBuffer: Buffer.alloc(0),
-    lastDiagnosticsAt: 0
+    lastDiagnosticsAt: 0,
   }
   const serverInput = yield* Queue.unbounded<Uint8Array>()
   const serverErrors = yield* Ref.make('')
@@ -351,32 +351,32 @@ const runTailwindDiagnostics = Effect.fn('tailwindDiagnostics.run')(function*() 
     env: process.env,
     stdin: {
       stream: Stream.fromQueue(serverInput),
-      endOnDone: true
+      endOnDone: true,
     },
     stdout: 'pipe',
-    stderr: 'pipe'
+    stderr: 'pipe',
   }).pipe(
-    Effect.mapError((cause) => diagnosticsError('start Tailwind language server', cause))
+    Effect.mapError((cause) => diagnosticsError('start Tailwind language server', cause)),
   )
 
   const stdoutFiber = yield* server.stdout.pipe(
     Stream.runForEach((chunk) => Effect.try({
       try: () => parseServerOutput(state, chunk),
-      catch: (cause) => diagnosticsError('parse Tailwind language-server output', cause)
+      catch: (cause) => diagnosticsError('parse Tailwind language-server output', cause),
     }).pipe(
       Effect.flatMap((messages) => Effect.forEach(
         messages,
         (message) => handleMessage(state, serverInput, message),
-        { discard: true }
-      ))
+        { discard: true },
+      )),
     )),
-    Effect.forkScoped
+    Effect.forkScoped,
   )
   yield* server.stderr.pipe(
     Stream.decodeText(),
     Stream.runForEach((chunk) => Ref.update(serverErrors, (current) => current + chunk)),
     Effect.catchCause((cause) => Ref.update(serverErrors, (current) => `${current}${String(cause)}`)),
-    Effect.forkScoped
+    Effect.forkScoped,
   )
 
   const gracefulShutdown = request(state, serverInput, 'shutdown', null).pipe(
@@ -385,13 +385,13 @@ const runTailwindDiagnostics = Effect.fn('tailwindDiagnostics.run')(function*() 
     Effect.asVoid,
     Effect.timeoutOrElse({
       duration: '2 seconds',
-      orElse: () => server.kill()
+      orElse: () => server.kill(),
     }),
-    Effect.ignoreCause
+    Effect.ignoreCause,
   )
   yield* Effect.addFinalizer(() => gracefulShutdown)
 
-  const protocol = Effect.gen(function*() {
+  const protocol = Effect.gen(function* () {
     yield* request(state, serverInput, 'initialize', {
       processId: process.pid,
       clientInfo: { name: 'tab-out-tailwind-check' },
@@ -402,22 +402,22 @@ const runTailwindDiagnostics = Effect.fn('tailwindDiagnostics.run')(function*() 
         workspace: {
           configuration: true,
           workspaceFolders: true,
-          didChangeConfiguration: { dynamicRegistration: false }
+          didChangeConfiguration: { dynamicRegistration: false },
         },
         textDocument: {
           publishDiagnostics: {
             relatedInformation: true,
-            versionSupport: true
-          }
+            versionSupport: true,
+          },
         },
-        window: { workDoneProgress: true }
+        window: { workDoneProgress: true },
       },
-      initializationOptions: {}
+      initializationOptions: {},
     })
 
     yield* notify(serverInput, 'initialized', {})
     yield* notify(serverInput, 'workspace/didChangeConfiguration', {
-      settings: { tailwindCSS: tailwindSettings }
+      settings: { tailwindCSS: tailwindSettings },
     })
 
     yield* Effect.forEach(documents, (document) => notify(serverInput, 'textDocument/didOpen', {
@@ -425,8 +425,8 @@ const runTailwindDiagnostics = Effect.fn('tailwindDiagnostics.run')(function*() 
         uri: document.uri,
         languageId: document.languageId,
         version: 1,
-        text: document.text
-      }
+        text: document.text,
+      },
     }), { discard: true })
 
     yield* waitForDiagnostics(state, documents.map((document) => document.uri))
@@ -434,14 +434,14 @@ const runTailwindDiagnostics = Effect.fn('tailwindDiagnostics.run')(function*() 
   const unexpectedServerExit = Fiber.join(stdoutFiber).pipe(
     Effect.flatMap(() => Effect.fail(diagnosticsError(
       'read Tailwind language-server output',
-      new Error('Tailwind language server closed stdout before diagnostics completed')
-    )))
+      new Error('Tailwind language server closed stdout before diagnostics completed'),
+    ))),
   )
   yield* protocol.pipe(
     Effect.raceFirst(unexpectedServerExit),
     Effect.tapError(() => Ref.get(serverErrors).pipe(
-      Effect.flatMap((errors) => errors.trim() ? Console.error(errors.trim()) : Effect.void)
-    ))
+      Effect.flatMap((errors) => errors.trim() ? Console.error(errors.trim()) : Effect.void),
+    )),
   )
 
   const diagnostics = [...state.diagnosticsByUri]
@@ -459,7 +459,7 @@ const runTailwindDiagnostics = Effect.fn('tailwindDiagnostics.run')(function*() 
     const column = diagnostic.range.start.character + 1
     const code = diagnostic.code ? ` ${diagnostic.code}` : ''
     yield* Console.error(
-      `${file}:${line}:${column} ${severityName(diagnostic.severity)}${code}: ${diagnostic.message}`
+      `${file}:${line}:${column} ${severityName(diagnostic.severity)}${code}: ${diagnostic.message}`,
     )
   }
 
@@ -478,5 +478,5 @@ const runTailwindDiagnostics = Effect.fn('tailwindDiagnostics.run')(function*() 
 runTailwindDiagnostics().pipe(
   Effect.scoped,
   Effect.provide(NodeServices.layer),
-  NodeRuntime.runMain
+  NodeRuntime.runMain,
 )

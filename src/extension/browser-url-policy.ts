@@ -4,7 +4,7 @@ const BROWSER_INTERNAL_PROTOCOLS = new Set([
   'chrome-extension:',
   'chrome-search:',
   'chrome-untrusted:',
-  'devtools:'
+  'devtools:',
 ])
 
 export function isBrowserInternalUrl(url: string | null | undefined): boolean {

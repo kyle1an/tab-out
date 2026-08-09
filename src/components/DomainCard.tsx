@@ -89,7 +89,7 @@ function TabBadgeCount({ count }: { count: string }) {
 
 function TabBadge({
   label,
-  accessibleLabel
+  accessibleLabel,
 }: {
   label?: string | number | undefined
   accessibleLabel?: string | undefined
@@ -109,7 +109,7 @@ function TabBadge({
       aria-label={accessibleLabel}
       className={cn(
         'open-tabs-badge tab-count-badge inline-flex h-5.5 box-border items-center rounded-md bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-(--accent-amber) [corner-shape:squircle]',
-        isFiltered && 'tab-count-badge-filtered'
+        isFiltered && 'tab-count-badge-filtered',
       )}
     >
       {!savedOnly && (
@@ -127,7 +127,7 @@ function TabBadge({
   )
 }
 
-function DedupButton({ count, closing = false, onClick }: { count: number; closing?: boolean; onClick: () => void | Promise<void> }) {
+function DedupButton({ count, closing = false, onClick }: { count: number, closing?: boolean, onClick: () => void | Promise<void> }) {
   const label = `Dedupe ${count}`
   return (
     <button
@@ -135,7 +135,7 @@ function DedupButton({ count, closing = false, onClick }: { count: number; closi
       data-tabout-part="dedupe-button"
       className={cn(
         'action-btn inline-flex h-5.5 box-border cursor-pointer items-center gap-1.25 rounded-[10px] border border-(--warm-gray) bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-muted-foreground transition-[color,border-color] duration-200 [corner-shape:squircle] hover:border-foreground hover:text-foreground [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-swift',
-        closing && 'closing'
+        closing && 'closing',
       )}
       onClick={onClick}
     >
@@ -160,7 +160,7 @@ function PinnedDomainIndicator({ displayName }: { displayName: string }) {
 function ReorderPinnedDomainButton({
   displayName,
   onKeyDown,
-  onPointerDown
+  onPointerDown,
 }: {
   displayName: string
   onKeyDown: (e: KeyboardEvent<HTMLButtonElement>) => void | Promise<void>
@@ -182,7 +182,7 @@ function ReorderPinnedDomainButton({
   )
 }
 
-function DomainTitle({ displayName, subdomainKey = '' }: { displayName: string; subdomainKey?: string }) {
+function DomainTitle({ displayName, subdomainKey = '' }: { displayName: string, subdomainKey?: string }) {
   const { name, suffix } = splitDomainForDisplay(displayName)
   if (!suffix && !subdomainKey) return displayName
 
@@ -206,7 +206,7 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
     setActiveSuppressedTitle,
     dedupeBadgesClosing,
     suppressionCloseTargetsByText: vm.suppressionCloseTargetsByText ?? {},
-    suppressionSuspendTargetsByText: vm.suppressionSuspendTargetsByText ?? {}
+    suppressionSuspendTargetsByText: vm.suppressionSuspendTargetsByText ?? {},
   }
   if (vm.isHidden) return null
   const hideCardClose = group.domain === '__standalone-apps__'
@@ -246,19 +246,19 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
           closableCount,
           filter,
           group,
-          removedCount: snapshot.length
+          removedCount: snapshot.length,
         })) {
           block.classList.add('closing')
           await new Promise((resolve) => setTimeout(resolve, 250))
         }
-      }
+      },
     })
   }
 
   async function onSuspendDomain() {
     await suspendDomainTabs({
       group,
-      filter
+      filter,
     })
   }
 
@@ -274,12 +274,12 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
           closableCount: closableSuspendedCount,
           filter,
           group,
-          removedCount: snapshot.length
+          removedCount: snapshot.length,
         })) {
           block.classList.add('closing')
           await new Promise((resolve) => setTimeout(resolve, 250))
         }
-      }
+      },
     })
   }
 
@@ -299,7 +299,7 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
         if (snapshot.length === 0) return
         setDedupeBadgesClosing(true)
         await new Promise((resolve) => setTimeout(resolve, 200))
-      }
+      },
     }).finally(() => {
       setDedupeBadgesClosing(false)
     })
@@ -425,7 +425,7 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
           // react to them below.
           "data-[tabout-reorder-target=true]:before:pointer-events-none data-[tabout-reorder-target=true]:before:absolute data-[tabout-reorder-target=true]:before:inset-x-0 data-[tabout-reorder-target=true]:before:z-5 data-[tabout-reorder-target=true]:before:h-0.5 data-[tabout-reorder-target=true]:before:rounded-full data-[tabout-reorder-target=true]:before:content-[''] [&[data-tabout-reorder-target=true]:not([data-tabout-reorder-noop=true])]:before:bg-(--accent-amber) [&[data-tabout-reorder-target=true]:not([data-tabout-reorder-noop=true])]:before:shadow-[0_1px_2px_rgba(10,10,10,0.1)] data-[tabout-reorder-noop=true]:before:bg-[color-mix(in_srgb,var(--accent-amber)_36%,var(--warm-gray))] data-[tabout-reorder-noop=true]:before:shadow-[0_1px_1px_rgba(10,10,10,0.05)] data-[tabout-reorder-placement=before]:before:-top-1.5 data-[tabout-reorder-placement=after]:before:-bottom-1.5",
           isAppsCard && 'domain-block-apps',
-          group.pinned && 'domain-block-pinned'
+          group.pinned && 'domain-block-pinned',
         )}
         data-domain-id={vm.stableId}
       >
@@ -433,7 +433,7 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
           className={cn(
             'domain-header min-w-0',
             isAppsCard ? 'px-1.75' : 'px-2',
-            showCardMenu && 'grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2.5 gap-y-1'
+            showCardMenu && 'grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2.5 gap-y-1',
           )}
         >
           <div className="domain-header-flow flex min-w-0 flex-row flex-wrap items-center justify-start gap-x-2.5 gap-y-1">
@@ -454,7 +454,7 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
                   'mission-subdomain inline-flex h-5.5 box-border items-center rounded-md bg-[rgba(82,82,82,0.04)] px-2 py-0 text-[12px] font-medium text-muted-foreground [corner-shape:squircle]',
                   vm.singleSubdomainIsPort
                     ? "before:font-normal before:opacity-45 before:content-[':']"
-                    : "after:ml-px after:font-normal after:opacity-45 after:content-['.']"
+                    : "after:ml-px after:font-normal after:opacity-45 after:content-['.']",
                 )}
               >
                 {vm.singleSubdomainKey}
@@ -483,7 +483,7 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
         <div
           className={cn(
             'mission-card relative flex flex-col gap-2 overflow-visible',
-            isAppsCard ? 'p-1.75' : 'p-2'
+            isAppsCard ? 'p-1.75' : 'p-2',
           )}
         >
           <TitleSuppressionSummary
@@ -511,7 +511,7 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
                   flatSection={section.hasFlat ? {
                     visibleChips: section.flatVisibleChips,
                     hiddenChips: section.flatHiddenChips,
-                    hiddenCount: section.flatHiddenCount
+                    hiddenCount: section.flatHiddenCount,
                   } : null}
                   suppressedTitleParts={section.suppressedTitleParts ?? []}
                   websitePathSections={section.websitePathSections}

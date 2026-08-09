@@ -6,45 +6,45 @@ import type { Page, Worker } from '@playwright/test'
 import { chromeSupportPolicy } from '../../src/extension/chrome-support.js'
 import {
   OPEN_SURFACE_DURABLE_STORAGE_KEY,
-  OPEN_SURFACE_SESSION_STORAGE_KEY
+  OPEN_SURFACE_SESSION_STORAGE_KEY,
 } from '../../src/extension/open-surface-inventory-storage.js'
 import type {
   OpenSurfaceInventory,
-  OpenSurfaceInventoryEntry
+  OpenSurfaceInventoryEntry,
 } from '../../src/extension/open-surface-inventory.js'
 import {
   emptyOpenSurfaceInventory,
-  OPEN_SURFACE_INVENTORY_SCHEMA_VERSION
+  OPEN_SURFACE_INVENTORY_SCHEMA_VERSION,
 } from '../../src/extension/open-surface-inventory.js'
 import {
   emptyRetainedPageLedger,
   RETAINED_PAGE_CAPACITY,
   RETAINED_PAGE_LIFETIME_MS,
-  type RetainedPageLedger
+  type RetainedPageLedger,
 } from '../../src/extension/retained-pages-ledger.js'
 import { RETAINED_PAGE_IDENTITY_VERSION } from '../../src/extension/retained-page-identity.js'
 import {
   encodeRetainedPageLedgerStorageValue,
-  RETAINED_PAGES_STORAGE_KEY
+  RETAINED_PAGES_STORAGE_KEY,
 } from '../../src/extension/retained-pages-storage.js'
 import { RETENTION_HEALTH_STORAGE_KEY } from '../../src/extension/retention-health.js'
 import {
   CLOSED_TAB_RETENTION_SETTLE_MESSAGE,
-  DASHBOARD_SERVICE_STATE_GET_MESSAGE
+  DASHBOARD_SERVICE_STATE_GET_MESSAGE,
 } from '../../src/extension/runtime-messages.js'
 import {
   STARTUP_SNAPSHOT_DEBOUNCE_MS,
-  STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_ALARM
+  STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_ALARM,
 } from '../../src/extension/background/startup-snapshot-service.js'
 import {
-  DASHBOARD_STARTUP_SEED_CACHE_KEY
+  DASHBOARD_STARTUP_SEED_CACHE_KEY,
 } from '../../src/extension/startup-snapshot.js'
 import { canonicalDedupeKey } from '../../src/extension/url-canonical.js'
 import {
   buildRepresentativeDurableInventory,
   buildSaturatedRetainedPageLedger,
   RETAINED_STORAGE_PROFILE_DURABLE_SURFACES,
-  RETAINED_STORAGE_PROFILE_REMOVAL_BOUNDARIES
+  RETAINED_STORAGE_PROFILE_REMOVAL_BOUNDARIES,
 } from '../helpers/retained-storage-profile.js'
 import {
   buildCompleteRepresentativeLocalProfileV1,
@@ -52,12 +52,12 @@ import {
   COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_KEYS,
   COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_LIVE_MUTABLE_KEYS,
   COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_STABLE_KEYS,
-  COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_VERSION
+  COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_VERSION,
 } from '../helpers/complete-local-storage-profile.js'
 import {
   expect,
   test,
-  type InstalledExtension
+  type InstalledExtension,
 } from './installed-extension.js'
 
 const CHROME_LOCAL_QUOTA_BYTES = 10 * 1_024 * 1_024
@@ -90,11 +90,11 @@ function benchmarkCount(name: string, fallback: number): number {
 
 const WARMUP_PAIR_COUNT = benchmarkCount(
   'TAB_OUT_RETENTION_BENCHMARK_WARMUPS',
-  5
+  5,
 )
 const MEASURED_PAIR_COUNT = benchmarkCount(
   'TAB_OUT_RETENTION_BENCHMARK_RUNS',
-  30
+  30,
 )
 const SKIP_CLOSE_BURST = process.env.TAB_OUT_RETENTION_BENCHMARK_SKIP_BURST === '1'
 const BURST_PREFLIGHT_ONLY =
@@ -169,9 +169,9 @@ interface InstalledBurstSample {
   readonly phaseTrace?: readonly {
     readonly area: string
     readonly durationMs: number
-    readonly inventory?: { readonly entries: number; readonly markedClosed: number }
+    readonly inventory?: { readonly entries: number, readonly markedClosed: number }
     readonly keys?: readonly string[]
-    readonly ledger?: { readonly pages: number; readonly removalBoundaries: number }
+    readonly ledger?: { readonly pages: number, readonly removalBoundaries: number }
     readonly operation: string
     readonly startMs: number
   }[]
@@ -212,7 +212,7 @@ function canonicalJson(value: unknown): string {
     if (typeof current !== 'object' || current === null) return current
     return Object.fromEntries(Object.keys(current).sort().map((key) => [
       key,
-      sortKeys((current as Record<string, unknown>)[key])
+      sortKeys((current as Record<string, unknown>)[key]),
     ]))
   }
   return JSON.stringify(sortKeys(value))
@@ -224,22 +224,22 @@ function sha256Json(value: unknown): string {
 
 function openSurfaceIdentityV1(
   surfaceKind: OpenSurfaceInventoryEntry['surfaceKind'],
-  url: string
+  url: string,
 ): Pick<OpenSurfaceInventoryEntry, 'canonicalKey' | 'identityDigest'> {
   const canonicalKey = canonicalDedupeKey(url)
   const identityMaterial = JSON.stringify([
     RETAINED_PAGE_IDENTITY_VERSION,
     surfaceKind,
-    canonicalKey
+    canonicalKey,
   ])
   return {
     canonicalKey,
-    identityDigest: createHash('sha256').update(identityMaterial).digest('hex')
+    identityDigest: createHash('sha256').update(identityMaterial).digest('hex'),
   }
 }
 
 function withOpenSurfaceIdentityV1(
-  inventory: OpenSurfaceInventory
+  inventory: OpenSurfaceInventory,
 ): OpenSurfaceInventory {
   return {
     ...inventory,
@@ -247,24 +247,24 @@ function withOpenSurfaceIdentityV1(
     identityVersion: RETAINED_PAGE_IDENTITY_VERSION,
     entries: Object.fromEntries(Object.entries(inventory.entries).map(([
       tabId,
-      entry
+      entry,
     ]) => [tabId, {
       ...entry,
-      ...openSurfaceIdentityV1(entry.surfaceKind, entry.url)
-    }]))
+      ...openSurfaceIdentityV1(entry.surfaceKind, entry.url),
+    }])),
   }
 }
 
 function pickRecordKeys(
   record: Readonly<Record<string, unknown>>,
-  keys: readonly string[]
+  keys: readonly string[],
 ): Record<string, unknown> {
   return Object.fromEntries(keys.map((key) => [key, record[key]]))
 }
 
 function refreshRepresentativeProfileLiveTimes(
   fixture: Readonly<Record<string, unknown>>,
-  now = Date.now()
+  now = Date.now(),
 ): Record<string, unknown> {
   const startupSeed = fixture[DASHBOARD_STARTUP_SEED_CACHE_KEY]
   if (
@@ -284,8 +284,8 @@ function refreshRepresentativeProfileLiveTimes(
       ...startupSeed,
       savedAt: now,
       captureStartedAt: now,
-      workingSetPriority: { ...workingSetPriority, epoch: now }
-    }
+      workingSetPriority: { ...workingSetPriority, epoch: now },
+    },
   }
 }
 
@@ -300,7 +300,7 @@ function distribution(values: readonly number[]) {
     min: Math.min(...values),
     p50: percentile(values, 0.5),
     p95: percentile(values, 0.95),
-    max: Math.max(...values)
+    max: Math.max(...values),
   }
 }
 
@@ -310,20 +310,20 @@ function shiftedSaturatedLedger(now: number): RetainedPageLedger {
     ...source,
     pages: Object.fromEntries(Object.entries(source.pages).map(([
       identityDigest,
-      page
+      page,
     ], index) => [identityDigest, {
       ...page,
-      closedAt: now - (RETAINED_PAGE_CAPACITY - index)
+      closedAt: now - (RETAINED_PAGE_CAPACITY - index),
     }])),
     removalBoundaries: Object.fromEntries(
       Object.entries(source.removalBoundaries).map(([
         closureToken,
-        boundary
+        boundary,
       ], index) => [closureToken, {
         ...boundary,
-        expiresAt: now - index + RETAINED_PAGE_LIFETIME_MS
-      }])
-    )
+        expiresAt: now - index + RETAINED_PAGE_LIFETIME_MS,
+      }]),
+    ),
   }
 }
 
@@ -331,10 +331,10 @@ async function saturatedProfile(): Promise<SaturatedProfile> {
   const ledger = shiftedSaturatedLedger(Date.now())
   const [emptyPersistedLedger, persistedLedger] = await Promise.all([
     encodeRetainedPageLedgerStorageValue(emptyRetainedPageLedger()),
-    encodeRetainedPageLedgerStorageValue(ledger)
+    encodeRetainedPageLedgerStorageValue(ledger),
   ])
   const durableInventory = withOpenSurfaceIdentityV1(
-    buildRepresentativeDurableInventory()
+    buildRepresentativeDurableInventory(),
   )
   const representativeLocal = buildCompleteRepresentativeLocalProfileV1()
   return {
@@ -347,8 +347,8 @@ async function saturatedProfile(): Promise<SaturatedProfile> {
     representativeLocalFixtureSha256: sha256Json(representativeLocal),
     representativeLocalStableSha256: sha256Json(pickRecordKeys(
       representativeLocal,
-      COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_STABLE_KEYS
-    ))
+      COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_STABLE_KEYS,
+    )),
   }
 }
 
@@ -361,11 +361,11 @@ async function seedRetentionStorageState(
     readonly requireStartupRefresh?: boolean
     readonly session: OpenSurfaceInventory
     readonly timeoutMs?: number
-  }
+  },
 ): Promise<void> {
   const timeoutMs = state.timeoutMs ?? 30_000
   const representativeLocal = refreshRepresentativeProfileLiveTimes(
-    state.representativeLocal
+    state.representativeLocal,
   )
   try {
     await worker.evaluate(async ({
@@ -381,13 +381,13 @@ async function seedRetentionStorageState(
       startupCheckpointAlarm,
       startupSeedLock,
       timeoutMs,
-      trackerKey
+      trackerKey,
     }) => {
       type StorageGet = (
-        keys?: string | readonly string[] | Record<string, unknown> | null
+        keys?: string | readonly string[] | Record<string, unknown> | null,
       ) => Promise<Record<string, unknown>>
       type StorageSet = (items: Record<string, unknown>) => Promise<void>
-      type InstrumentedStorageArea = { get: StorageGet; set: StorageSet }
+      type InstrumentedStorageArea = { get: StorageGet, set: StorageSet }
       type SeedBarrierTracker = {
         readonly restore: () => void
         readonly seed: () => Promise<void>
@@ -489,7 +489,7 @@ async function seedRetentionStorageState(
 
       const onStorageChanged = (
         changes: Record<string, chrome.storage.StorageChange>,
-        areaName: string
+        areaName: string,
       ) => {
         if (
           seeded &&
@@ -500,7 +500,7 @@ async function seedRetentionStorageState(
 
       async function waitUntil(
         predicate: () => boolean,
-        message: string
+        message: string,
       ): Promise<void> {
         while (performance.now() < deadline) {
           if (predicate()) return
@@ -511,7 +511,7 @@ async function seedRetentionStorageState(
 
       async function withTimeout<Value>(
         promise: PromiseLike<Value>,
-        message: string
+        message: string,
       ): Promise<Value> {
         let timeoutHandle: ReturnType<typeof setTimeout> | undefined
         try {
@@ -520,9 +520,9 @@ async function seedRetentionStorageState(
             new Promise<never>((_resolve, reject) => {
               timeoutHandle = setTimeout(
                 () => reject(new Error(message)),
-                Math.max(0, deadline - performance.now())
+                Math.max(0, deadline - performance.now()),
               )
-            })
+            }),
           ])
         } finally {
           if (timeoutHandle !== undefined) clearTimeout(timeoutHandle)
@@ -555,13 +555,13 @@ async function seedRetentionStorageState(
             originalLocalSet({
               ...representativeLocal,
               [ledgerKey]: ledger,
-              [durableKey]: durable
+              [durableKey]: durable,
             }),
-            originalSessionSet({ [sessionKey]: session })
+            originalSessionSet({ [sessionKey]: session }),
           ])
           ledgerReadbackMatched = persistedLedgerValuesEqual(
             (await originalLocalGet(ledgerKey))[ledgerKey],
-            ledger
+            ledger,
           )
         },
         status() {
@@ -571,7 +571,7 @@ async function seedRetentionStorageState(
             ledgerChanged,
             ledgerReadObserved,
             ledgerReadbackMatched,
-            startupSeedLockObserved
+            startupSeedLockObserved,
           }
         },
         async waitAndRestore() {
@@ -591,7 +591,7 @@ async function seedRetentionStorageState(
                   `(ledgerChangeEventObserved=${String(ledgerChangeEventObserved)}, ` +
                   `ledgerReadObserved=${String(ledgerReadObserved)}, ` +
                   `startupSeedLockObserved=${String(startupSeedLockObserved)}, ` +
-                  `activeStorageCalls=${activeStorageCalls})`
+                  `activeStorageCalls=${activeStorageCalls})`,
                 )
               }
             }
@@ -601,17 +601,17 @@ async function seedRetentionStorageState(
             // may skip a seeded cache read, but they always enter this lock.
             await withTimeout(
               originalLockRequest(startupSeedLock, () => undefined),
-              'Timed out waiting for the Startup Snapshot write lock'
+              'Timed out waiting for the Startup Snapshot write lock',
             )
             await waitUntil(
               () => activeStorageCalls === 0 &&
                 performance.now() - lastActivityAt >= quietMs,
-              'Timed out waiting for Startup Snapshot storage quiescence'
+              'Timed out waiting for Startup Snapshot storage quiescence',
             )
           } finally {
             tracker.restore()
           }
-        }
+        },
       }
 
       localArea.get = wrapGet('local', originalLocalGet)
@@ -624,7 +624,7 @@ async function seedRetentionStorageState(
         return Reflect.apply(
           originalLockRequest,
           navigator.locks,
-          [name, ...args]
+          [name, ...args],
         ) as Promise<unknown>
       }) as typeof navigator.locks.request
       globalScope[trackerKey] = tracker
@@ -641,7 +641,7 @@ async function seedRetentionStorageState(
       startupCheckpointAlarm: STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_ALARM,
       startupSeedLock: STARTUP_SEED_WRITE_LOCK,
       timeoutMs,
-      trackerKey: SEED_BARRIER_TRACKER_KEY
+      trackerKey: SEED_BARRIER_TRACKER_KEY,
     })
 
     await worker.evaluate(async (trackerKey) => {
@@ -658,7 +658,7 @@ async function seedRetentionStorageState(
     // prove that the product read it and entered the Startup Snapshot lock.
     await new Promise((resolve) => setTimeout(
       resolve,
-      STARTUP_SNAPSHOT_DEBOUNCE_MS + 1_000
+      STARTUP_SNAPSHOT_DEBOUNCE_MS + 1_000,
     ))
     if (state.requireStartupRefresh !== false) {
       const signalDeadline = performance.now() + timeoutMs
@@ -668,7 +668,7 @@ async function seedRetentionStorageState(
         ledgerChanged: true,
         ledgerReadObserved: false,
         ledgerReadbackMatched: false,
-        startupSeedLockObserved: false
+        startupSeedLockObserved: false,
       }
       while (performance.now() < signalDeadline) {
         signalStatus = await worker.evaluate((trackerKey) => {
@@ -707,7 +707,7 @@ async function seedRetentionStorageState(
           `ledgerChangeEventObserved=${String(signalStatus.ledgerChangeEventObserved)}, ` +
           `ledgerReadbackMatched=${String(signalStatus.ledgerReadbackMatched)}, ` +
           `startupSeedLockObserved=${String(signalStatus.startupSeedLockObserved)}, ` +
-          `activeStorageCalls=${signalStatus.activeStorageCalls})`
+          `activeStorageCalls=${signalStatus.activeStorageCalls})`,
         )
       }
     }
@@ -737,7 +737,7 @@ async function seedInstalledProfile(
   worker: Worker,
   kind: ProfileKind,
   profile: SaturatedProfile,
-  requireStartupRefresh = true
+  requireStartupRefresh = true,
 ): Promise<void> {
   const emptyInventory = emptyOpenSurfaceInventory()
   await seedRetentionStorageState(worker, {
@@ -747,7 +747,7 @@ async function seedInstalledProfile(
       : profile.emptyPersistedLedger,
     representativeLocal: profile.representativeLocal,
     requireStartupRefresh,
-    session: emptyInventory
+    session: emptyInventory,
   })
 }
 
@@ -755,7 +755,7 @@ async function readInstalledProfile(worker: Worker): Promise<InstalledProfileRea
   return worker.evaluate(async ({
     durableKey,
     ledgerKey,
-    retentionLifetimeMs
+    retentionLifetimeMs,
   }) => {
     function isRecord(value: unknown): value is Record<string, unknown> {
       return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -767,12 +767,12 @@ async function readInstalledProfile(worker: Worker): Promise<InstalledProfileRea
         if (!isRecord(current)) return current
         return Object.fromEntries(Object.keys(current).sort().map((key) => [
           key,
-          sortKeys(current[key])
+          sortKeys(current[key]),
         ]))
       }
       const digest = await crypto.subtle.digest(
         'SHA-256',
-        new TextEncoder().encode(JSON.stringify(sortKeys(value)))
+        new TextEncoder().encode(JSON.stringify(sortKeys(value))),
       )
       return new Uint8Array(digest).toHex()
     }
@@ -784,7 +784,7 @@ async function readInstalledProfile(worker: Worker): Promise<InstalledProfileRea
         typeof value.data !== 'string'
       ) return value
       const stream = new Blob([Uint8Array.fromBase64(value.data)]).stream().pipeThrough(
-        new DecompressionStream('gzip')
+        new DecompressionStream('gzip'),
       )
       return JSON.parse(await new Response(stream).text())
     }
@@ -822,12 +822,12 @@ async function readInstalledProfile(worker: Worker): Promise<InstalledProfileRea
       durableSurfaces,
       ledgerSha256: rawLedger === undefined ? null : await digestJson(rawLedger),
       pages,
-      removalBoundaries
+      removalBoundaries,
     }
   }, {
     durableKey: OPEN_SURFACE_DURABLE_STORAGE_KEY,
     ledgerKey: RETAINED_PAGES_STORAGE_KEY,
-    retentionLifetimeMs: RETAINED_PAGE_LIFETIME_MS
+    retentionLifetimeMs: RETAINED_PAGE_LIFETIME_MS,
   })
 }
 
@@ -842,7 +842,7 @@ async function installedStorageFootprint(worker: Worker): Promise<{
     durableKey,
     ledgerKey,
     representativeLocalKeys,
-    representativeLocalStableKeys
+    representativeLocalStableKeys,
   }) => {
     function sortKeys(current: unknown): unknown {
       if (Array.isArray(current)) return current.map(sortKeys)
@@ -850,23 +850,23 @@ async function installedStorageFootprint(worker: Worker): Promise<{
       const record = current as Record<string, unknown>
       return Object.fromEntries(Object.keys(record).sort().map((key) => [
         key,
-        sortKeys(record[key])
+        sortKeys(record[key]),
       ]))
     }
 
     async function digestJson(value: unknown): Promise<string> {
       const digest = await crypto.subtle.digest(
         'SHA-256',
-        new TextEncoder().encode(JSON.stringify(sortKeys(value)))
+        new TextEncoder().encode(JSON.stringify(sortKeys(value))),
       )
       return new Uint8Array(digest).toHex()
     }
 
     const representativeLocal = await chrome.storage.local.get(
-      [...representativeLocalKeys]
+      [...representativeLocalKeys],
     )
     const stableRepresentativeLocal = Object.fromEntries(
-      representativeLocalStableKeys.map((key) => [key, representativeLocal[key]])
+      representativeLocalStableKeys.map((key) => [key, representativeLocal[key]]),
     )
     return {
       observedLocalBytes: await chrome.storage.local.getBytesInUse(null),
@@ -877,14 +877,14 @@ async function installedStorageFootprint(worker: Worker): Promise<{
       representativeLocalStableSha256: await digestJson(stableRepresentativeLocal),
       retainedLocalBytes: await chrome.storage.local.getBytesInUse([
         ledgerKey,
-        durableKey
-      ])
+        durableKey,
+      ]),
     }
   }, {
     durableKey: OPEN_SURFACE_DURABLE_STORAGE_KEY,
     ledgerKey: RETAINED_PAGES_STORAGE_KEY,
     representativeLocalKeys: COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_KEYS,
-    representativeLocalStableKeys: COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_STABLE_KEYS
+    representativeLocalStableKeys: COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_STABLE_KEYS,
   })
 }
 
@@ -892,7 +892,7 @@ async function closeInstalledTargetWithWorkerTerminated<Value>(
   installedExtension: InstalledExtension,
   page: Page,
   targetUrlPrefix: string,
-  observe: () => Promise<Value>
+  observe: () => Promise<Value>,
 ): Promise<{
   readonly closeCommandToObservationMs: number
   readonly observation: Value
@@ -913,7 +913,7 @@ async function closeInstalledTargetWithWorkerTerminated<Value>(
     ))
     if (candidateTargets.length !== 1) {
       throw new Error(
-        `Expected one cold-close CDP target, observed ${candidateTargets.length}`
+        `Expected one cold-close CDP target, observed ${candidateTargets.length}`,
       )
     }
     const candidateTarget = candidateTargets[0]
@@ -924,7 +924,7 @@ async function closeInstalledTargetWithWorkerTerminated<Value>(
     // snapshot can flow directly into the physical target close.
     observationPromise = observe()
     const closed = await session.send('Target.closeTarget', {
-      targetId: workerTarget.targetId
+      targetId: workerTarget.targetId,
     })
     if (!closed.success) {
       throw new Error('Chrome rejected installed service-worker termination')
@@ -945,7 +945,7 @@ async function closeInstalledTargetWithWorkerTerminated<Value>(
         }
         const closeCommandStartedAt = performance.now()
         const targetClosed = await session.send('Target.closeTarget', {
-          targetId: candidateTarget.targetId
+          targetId: candidateTarget.targetId,
         })
         if (!targetClosed.success) {
           throw new Error('Chrome rejected the cold physical target close')
@@ -954,7 +954,7 @@ async function closeInstalledTargetWithWorkerTerminated<Value>(
         return {
           closeCommandToObservationMs:
             performance.now() - closeCommandStartedAt,
-          observation
+          observation,
         }
       }
       await new Promise((resolve) => setTimeout(resolve, 10))
@@ -990,7 +990,7 @@ async function ensureStartupFrameInstrumentation(page: Page): Promise<void> {
     const trace: StartupTrace = {
       headerReadyAt: null,
       latestPreHeaderRequest: null,
-      preHeaderRequestCount: 0
+      preHeaderRequestCount: 0,
     }
     ;(globalThis as TraceGlobal).__tabOutRetentionBenchmarkStartupTrace = trace
 
@@ -1019,7 +1019,7 @@ async function ensureStartupFrameInstrumentation(page: Page): Promise<void> {
             trace.latestPreHeaderRequest = {
               durationMs: finishedAt - startedAt,
               finishedAt,
-              startedAt
+              startedAt,
             }
           }
           return value
@@ -1038,7 +1038,7 @@ async function ensureStartupFrameInstrumentation(page: Page): Promise<void> {
       attributes: true,
       attributeFilter: ['aria-hidden'],
       childList: true,
-      subtree: true
+      subtree: true,
     })
     recordHeaderReady()
   }, { serviceStateMessageType: DASHBOARD_SERVICE_STATE_GET_MESSAGE })
@@ -1047,7 +1047,7 @@ async function ensureStartupFrameInstrumentation(page: Page): Promise<void> {
 
 async function measureStartupFrame(
   installedExtension: InstalledExtension,
-  page: Page
+  page: Page,
 ): Promise<{
   readonly serviceStateRequestMs: number
   readonly preHeaderServiceStateRequestCount: number
@@ -1061,7 +1061,7 @@ async function measureStartupFrame(
   const wallStartedAt = performance.now()
   await page.goto(
     `chrome-extension://${installedExtension.extensionId}/index.html`,
-    { waitUntil: 'domcontentloaded' }
+    { waitUntil: 'domcontentloaded' },
   )
   const stats = page.locator('[data-tabout="header-stats"]')
   await expect(stats).toBeAttached()
@@ -1097,14 +1097,14 @@ async function measureStartupFrame(
       diagnostic.headerReadyAt - diagnostic.latestPreHeaderRequest.finishedAt,
     startupFrameReadyMs: diagnostic.headerReadyAt,
     visiblePageChips: await page.locator('[data-tabout="page-chip"]').count(),
-    wallToHeaderObservationMs
+    wallToHeaderObservationMs,
   }
 }
 
 async function measureInstalledProfileState(
   installedExtension: InstalledExtension,
   kind: ProfileKind,
-  profile: SaturatedProfile
+  profile: SaturatedProfile,
 ): Promise<InstalledProfileSample> {
   const page = await installedExtension.context.newPage()
   try {
@@ -1119,7 +1119,7 @@ async function measureInstalledProfileState(
 async function readInstalledProfileDiagnostic(
   installedExtension: InstalledExtension,
   kind: ProfileKind,
-  profile: SaturatedProfile
+  profile: SaturatedProfile,
 ): Promise<InstalledProfileDiagnostic> {
   // Diagnostics still wait for the storage/lock quiet barrier, but an
   // identical first profile is allowed to produce no storage-triggered refresh.
@@ -1127,10 +1127,10 @@ async function readInstalledProfileDiagnostic(
     installedExtension.serviceWorker,
     kind,
     profile,
-    false
+    false,
   )
   const footprint = await installedStorageFootprint(
-    installedExtension.serviceWorker
+    installedExtension.serviceWorker,
   )
   const reading = await readInstalledProfile(installedExtension.serviceWorker)
   return { ...reading, ...footprint }
@@ -1139,7 +1139,7 @@ async function readInstalledProfileDiagnostic(
 async function runPairedProfileSample(
   installedExtension: InstalledExtension,
   profile: SaturatedProfile,
-  pairIndex: number
+  pairIndex: number,
 ): Promise<PairedProfileSample> {
   const order: readonly ProfileKind[] = pairIndex % 2 === 0
     ? ['empty', 'saturated']
@@ -1148,7 +1148,7 @@ async function runPairedProfileSample(
   for (const kind of order) {
     samples.set(
       kind,
-      await measureInstalledProfileState(installedExtension, kind, profile)
+      await measureInstalledProfileState(installedExtension, kind, profile),
     )
   }
   const empty = samples.get('empty')
@@ -1160,7 +1160,7 @@ async function runPairedProfileSample(
 async function runPairedProfileDiagnostic(
   installedExtension: InstalledExtension,
   profile: SaturatedProfile,
-  pairIndex: number
+  pairIndex: number,
 ): Promise<PairedProfileDiagnostic> {
   const order: readonly ProfileKind[] = pairIndex % 2 === 0
     ? ['empty', 'saturated']
@@ -1169,7 +1169,7 @@ async function runPairedProfileDiagnostic(
   for (const kind of order) {
     diagnostics.set(
       kind,
-      await readInstalledProfileDiagnostic(installedExtension, kind, profile)
+      await readInstalledProfileDiagnostic(installedExtension, kind, profile),
     )
   }
   const empty = diagnostics.get('empty')
@@ -1179,7 +1179,7 @@ async function runPairedProfileDiagnostic(
 }
 
 test('installed minimum-Chrome progressively mounts every dense folded retained target', async ({
-  installedExtension
+  installedExtension,
 }) => {
   const profile = await saturatedProfile()
   const page = await installedExtension.context.newPage()
@@ -1188,13 +1188,13 @@ test('installed minimum-Chrome progressively mounts every dense folded retained 
     await seedInstalledProfile(installedExtension.serviceWorker, 'saturated', profile)
     await page.goto(
       `chrome-extension://${installedExtension.extensionId}/index.html`,
-      { waitUntil: 'domcontentloaded' }
+      { waitUntil: 'domcontentloaded' },
     )
     const stats = page.locator('[data-tabout="header-stats"]')
     await expect(stats).not.toHaveAttribute('aria-hidden', 'true')
 
     const envTargets = page.locator(
-      '.chip-env-shell [data-tabout-retained-page-identity]'
+      '.chip-env-shell [data-tabout-retained-page-identity]',
     )
     await expect.poll(() => envTargets.count()).toBeGreaterThan(0)
     const firstMountedCount = await envTargets.count()
@@ -1204,7 +1204,7 @@ test('installed minimum-Chrome progressively mounts every dense folded retained 
       const previousCount = await envTargets.count()
       const scrolled = await page.evaluate(() => {
         const sentinel = document.querySelector(
-          '[data-tabout-part="progressive-env-sentinel"]'
+          '[data-tabout-part="progressive-env-sentinel"]',
         )
         if (!sentinel) return false
         sentinel.scrollIntoView({ block: 'center' })
@@ -1214,14 +1214,14 @@ test('installed minimum-Chrome progressively mounts every dense folded retained 
       await expect.poll(async () => (
         await envTargets.count() > previousCount ||
         await page.locator(
-          '[data-tabout-part="progressive-env-sentinel"]'
+          '[data-tabout-part="progressive-env-sentinel"]',
         ).count() === 0
       )).toBe(true)
     }
 
     await expect(envTargets).toHaveCount(450)
     await expect(page.locator(
-      '[data-tabout-part="progressive-env-sentinel"]'
+      '[data-tabout-part="progressive-env-sentinel"]',
     )).toHaveCount(0)
     const identities = await envTargets.evaluateAll((targets) => targets.map((target) => (
       target.getAttribute('data-tabout-retained-page-identity')
@@ -1253,7 +1253,7 @@ function burstInventory(tabIds: readonly number[]): {
     const label = String(index).padStart(3, '0')
     const url = exactLengthUrl(
       `https://close-${label}.example.test/article?fixture=`,
-      2_048
+      2_048,
     )
     const surfaceKind = index < 450 ? 'normal-tab' : 'app'
     sessionEntries[String(tabId)] = {
@@ -1265,13 +1265,13 @@ function burstInventory(tabIds: readonly number[]): {
       title: '🧪'.repeat(512),
       favIconUrl: exactLengthUrl(
         `https://assets.example.test/close-${label}?fixture=`,
-        2_048
-      )
+        2_048,
+      ),
     }
   }
 
   const durableEntries: Record<string, OpenSurfaceInventoryEntry> = {
-    ...sessionEntries
+    ...sessionEntries,
   }
   const representative = Object.values(buildRepresentativeDurableInventory().entries)
     .slice(BENCHMARK_TAB_COUNT)
@@ -1281,7 +1281,7 @@ function burstInventory(tabIds: readonly number[]): {
       ...entry,
       tabId,
       closureToken: fixedHex(2_000_000 + index, 32),
-      ...openSurfaceIdentityV1(entry.surfaceKind, entry.url)
+      ...openSurfaceIdentityV1(entry.surfaceKind, entry.url),
     }
   }
 
@@ -1289,20 +1289,20 @@ function burstInventory(tabIds: readonly number[]): {
     session: {
       schemaVersion: OPEN_SURFACE_INVENTORY_SCHEMA_VERSION,
       identityVersion: RETAINED_PAGE_IDENTITY_VERSION,
-      entries: sessionEntries
+      entries: sessionEntries,
     },
     durable: {
       schemaVersion: OPEN_SURFACE_INVENTORY_SCHEMA_VERSION,
       identityVersion: RETAINED_PAGE_IDENTITY_VERSION,
-      entries: durableEntries
-    }
+      entries: durableEntries,
+    },
   }
 }
 
 type IdentityTokenPair = readonly [identityDigest: string, closureToken: string]
 
 function candidateIdentityTokens(
-  inventory: OpenSurfaceInventory
+  inventory: OpenSurfaceInventory,
 ): readonly IdentityTokenPair[] {
   return Object.values(inventory.entries)
     .map((entry): IdentityTokenPair => [entry.identityDigest, entry.closureToken])
@@ -1312,7 +1312,7 @@ function candidateIdentityTokens(
 }
 
 function candidateIdentityTokenSha256(
-  pairs: readonly IdentityTokenPair[]
+  pairs: readonly IdentityTokenPair[],
 ): string {
   return createHash('sha256').update(JSON.stringify(pairs)).digest('hex')
 }
@@ -1327,7 +1327,7 @@ function nextBenchmarkTabUrlPrefix(): string {
 async function createBenchmarkTabs(
   worker: Worker,
   urlPrefix: string,
-  count = BENCHMARK_TAB_COUNT
+  count = BENCHMARK_TAB_COUNT,
 ): Promise<{
   readonly failures: readonly string[]
   readonly tabIds: readonly number[]
@@ -1336,7 +1336,7 @@ async function createBenchmarkTabs(
     batchSize,
     batchTimeoutMs,
     nextCount,
-    nextUrlPrefix
+    nextUrlPrefix,
   }) => {
     const tabIds: number[] = []
     const failures: string[] = []
@@ -1350,9 +1350,9 @@ async function createBenchmarkTabs(
           const index = batchStart + offset
           return chrome.tabs.create({
             active: false,
-            url: `${nextUrlPrefix}${index}`
+            url: `${nextUrlPrefix}${index}`,
           })
-        }
+        },
       ))
       const batchTabIds: number[] = []
       for (const [offset, result] of results.entries()) {
@@ -1385,7 +1385,7 @@ async function createBenchmarkTabs(
       }
       if (!batchLoaded) {
         failures.push(
-          `tabs ${batchStart}-${batchEnd - 1}: timed out waiting for page load`
+          `tabs ${batchStart}-${batchEnd - 1}: timed out waiting for page load`,
         )
         break
       }
@@ -1396,20 +1396,20 @@ async function createBenchmarkTabs(
     batchSize: BENCHMARK_TAB_CREATE_BATCH_SIZE,
     batchTimeoutMs: BENCHMARK_TAB_CREATE_BATCH_TIMEOUT_MS,
     nextCount: count,
-    nextUrlPrefix: urlPrefix
+    nextUrlPrefix: urlPrefix,
   })
 }
 
 async function waitForOpenSurfaceCheckpoint(
   worker: Worker,
   tabIds: readonly number[],
-  timeoutMs = 30_000
+  timeoutMs = 30_000,
 ): Promise<void> {
   await worker.evaluate(async ({
     durableKey,
     sessionKey,
     tabIds: expectedTabIds,
-    timeoutMs
+    timeoutMs,
   }) => {
     function isRecord(value: unknown): value is Record<string, unknown> {
       if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -1420,7 +1420,7 @@ async function waitForOpenSurfaceCheckpoint(
 
     function matchesEveryTab(
       value: unknown,
-      expectedTabs: readonly chrome.tabs.Tab[]
+      expectedTabs: readonly chrome.tabs.Tab[],
     ): boolean {
       if (!isRecord(value)) return false
       const entries = Reflect.get(value, 'entries')
@@ -1443,7 +1443,7 @@ async function waitForOpenSurfaceCheckpoint(
       ))
       const [durableStored, sessionStored] = await Promise.all([
         chrome.storage.local.get(durableKey),
-        chrome.storage.session.get(sessionKey)
+        chrome.storage.session.get(sessionKey),
       ])
       const matched = expectedTabs.length === expectedTabIds.length &&
         expectedTabs.every((tab) => tab.status === 'complete') &&
@@ -1458,18 +1458,18 @@ async function waitForOpenSurfaceCheckpoint(
       await new Promise((resolve) => setTimeout(resolve, 25))
     }
     throw new Error(
-      `Timed out waiting for ${expectedTabIds.length} created tabs in both open-surface inventories`
+      `Timed out waiting for ${expectedTabIds.length} created tabs in both open-surface inventories`,
     )
   }, {
     durableKey: OPEN_SURFACE_DURABLE_STORAGE_KEY,
     sessionKey: OPEN_SURFACE_SESSION_STORAGE_KEY,
     tabIds,
-    timeoutMs
+    timeoutMs,
   })
 }
 
 async function openDashboardServiceController(
-  installedExtension: InstalledExtension
+  installedExtension: InstalledExtension,
 ): Promise<Page> {
   const page = await installedExtension.context.newPage()
   const interceptedScriptPaths = new Set<string>()
@@ -1480,17 +1480,17 @@ async function openDashboardServiceController(
       await route.fulfill({
         body: '',
         contentType: 'application/javascript',
-        status: 200
+        status: 200,
       })
-    }
+    },
   )
   await page.goto(
     `chrome-extension://${installedExtension.extensionId}/index.html?retention-benchmark=service-barrier`,
-    { waitUntil: 'domcontentloaded' }
+    { waitUntil: 'domcontentloaded' },
   )
   expect([...interceptedScriptPaths].sort()).toEqual([
     '/dist/app.js',
-    '/dist/filter-focus-boot.js'
+    '/dist/filter-focus-boot.js',
   ])
   return page
 }
@@ -1504,9 +1504,9 @@ async function waitForDashboardServiceQueue(page: Page): Promise<void> {
         new Promise<never>((_resolve, reject) => {
           timeoutHandle = setTimeout(
             () => reject(new Error('Timed out draining Dashboard service work')),
-            timeoutMs
+            timeoutMs,
           )
-        })
+        }),
       ])
       return typeof response === 'object' && response !== null &&
         Reflect.get(response, 'ok') === true
@@ -1515,7 +1515,7 @@ async function waitForDashboardServiceQueue(page: Page): Promise<void> {
     }
   }, {
     messageType: DASHBOARD_SERVICE_STATE_GET_MESSAGE,
-    timeoutMs: 120_000
+    timeoutMs: 120_000,
   })
   if (!ok) throw new Error('Dashboard service queue barrier returned no state')
 }
@@ -1523,7 +1523,7 @@ async function waitForDashboardServiceQueue(page: Page): Promise<void> {
 async function waitForClosedSurfaceSettlement(
   worker: Worker,
   tabIds: readonly number[],
-  urlPrefix: string
+  urlPrefix: string,
 ): Promise<void> {
   await worker.evaluate(async ({
     durableKey,
@@ -1531,7 +1531,7 @@ async function waitForClosedSurfaceSettlement(
     sessionKey,
     tabIds: expectedTabIds,
     timeoutMs,
-    urlPrefix: expectedUrlPrefix
+    urlPrefix: expectedUrlPrefix,
   }) => {
     function isRecord(value: unknown): value is Record<string, unknown> {
       return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -1544,7 +1544,7 @@ async function waitForClosedSurfaceSettlement(
       const [durableStored, sessionStored, tabs] = await Promise.all([
         chrome.storage.local.get(durableKey),
         chrome.storage.session.get(sessionKey),
-        chrome.tabs.query({})
+        chrome.tabs.query({}),
       ])
       const durable = durableStored[durableKey]
       const session = sessionStored[sessionKey]
@@ -1577,7 +1577,7 @@ async function waitForClosedSurfaceSettlement(
     sessionKey: OPEN_SURFACE_SESSION_STORAGE_KEY,
     tabIds,
     timeoutMs: 30_000,
-    urlPrefix
+    urlPrefix,
   })
 }
 
@@ -1585,11 +1585,11 @@ async function cleanupBenchmarkTabs(
   installedExtension: InstalledExtension,
   tabIds: readonly number[],
   urlPrefix: string,
-  profile: SaturatedProfile
+  profile: SaturatedProfile,
 ): Promise<void> {
   const removedIds = await installedExtension.serviceWorker.evaluate(async ({
     candidateTabIds,
-    expectedUrlPrefix
+    expectedUrlPrefix,
   }) => {
     const candidateTabIdSet = new Set(candidateTabIds)
     const remaining = (await chrome.tabs.query({})).filter((tab) => (
@@ -1606,7 +1606,7 @@ async function cleanupBenchmarkTabs(
   await waitForClosedSurfaceSettlement(
     installedExtension.serviceWorker,
     allTabIds,
-    urlPrefix
+    urlPrefix,
   )
 
   const emptyInventory = emptyOpenSurfaceInventory()
@@ -1615,7 +1615,7 @@ async function cleanupBenchmarkTabs(
     ledger: profile.emptyPersistedLedger,
     representativeLocal: profile.representativeLocal,
     requireStartupRefresh: false,
-    session: emptyInventory
+    session: emptyInventory,
   })
   const reset = await readInstalledProfile(installedExtension.serviceWorker)
   const sessionSurfaces = await installedExtension.serviceWorker.evaluate(async (key) => {
@@ -1643,7 +1643,7 @@ function singleCloseInventory(tabId: number): {
 } {
   const url = exactLengthUrl(
     'https://single-close.example.test/article?fixture=',
-    2_048
+    2_048,
   )
   const entry: OpenSurfaceInventoryEntry = {
     tabId,
@@ -1654,13 +1654,13 @@ function singleCloseInventory(tabId: number): {
     title: '🧪'.repeat(512),
     favIconUrl: exactLengthUrl(
       'https://assets.example.test/single-close?fixture=',
-      2_048
-    )
+      2_048,
+    ),
   }
   const inventory: OpenSurfaceInventory = {
     schemaVersion: OPEN_SURFACE_INVENTORY_SCHEMA_VERSION,
     identityVersion: RETAINED_PAGE_IDENTITY_VERSION,
-    entries: { [String(tabId)]: entry }
+    entries: { [String(tabId)]: entry },
   }
   return { durable: inventory, session: inventory }
 }
@@ -1694,13 +1694,13 @@ function overQuotaCandidateInventory(tabId: number): {
     title: deterministicNoise(512, 12),
     favIconUrl: `${faviconPrefix}${deterministicNoise(
       2_048 - faviconPrefix.length,
-      13
-    )}`
+      13,
+    )}`,
   }
   const inventory: OpenSurfaceInventory = {
     schemaVersion: OPEN_SURFACE_INVENTORY_SCHEMA_VERSION,
     identityVersion: RETAINED_PAGE_IDENTITY_VERSION,
-    entries: { [String(tabId)]: entry }
+    entries: { [String(tabId)]: entry },
   }
   return { durable: inventory, session: inventory }
 }
@@ -1709,7 +1709,7 @@ async function seedBurstState(
   worker: Worker,
   kind: ProfileKind,
   profile: SaturatedProfile,
-  inventory: ReturnType<typeof burstInventory>
+  inventory: ReturnType<typeof burstInventory>,
 ): Promise<void> {
   await seedRetentionStorageState(worker, {
     durable: inventory.durable,
@@ -1718,7 +1718,7 @@ async function seedBurstState(
       : profile.emptyPersistedLedger,
     representativeLocal: profile.representativeLocal,
     session: inventory.session,
-    timeoutMs: CLOSE_BURST_SETUP_TIMEOUT_MS
+    timeoutMs: CLOSE_BURST_SETUP_TIMEOUT_MS,
   })
 }
 
@@ -1733,7 +1733,7 @@ async function fillInstalledLocalQuota(worker: Worker): Promise<{
     const baseBytes = await chrome.storage.local.getBytesInUse(null)
     let fillerLength = Math.max(
       0,
-      quotaBytes - baseBytes - fillerKey.length - 256
+      quotaBytes - baseBytes - fillerKey.length - 256,
     )
     let accepted = false
     for (let attempt = 0; attempt < 32 && fillerLength > 0; attempt += 1) {
@@ -1752,7 +1752,7 @@ async function fillInstalledLocalQuota(worker: Worker): Promise<{
     if (growth > 0) {
       try {
         await chrome.storage.local.set({
-          [fillerKey]: 'q'.repeat(fillerLength + growth)
+          [fillerKey]: 'q'.repeat(fillerLength + growth),
         })
         fillerLength += growth
         usedBytes = await chrome.storage.local.getBytesInUse(null)
@@ -1764,11 +1764,11 @@ async function fillInstalledLocalQuota(worker: Worker): Promise<{
       baseBytes,
       fillerLength,
       freeBytes: quotaBytes - usedBytes,
-      usedBytes
+      usedBytes,
     }
   }, {
     fillerKey: QUOTA_FILLER_STORAGE_KEY,
-    quotaBytes: CHROME_LOCAL_QUOTA_BYTES
+    quotaBytes: CHROME_LOCAL_QUOTA_BYTES,
   })
 }
 
@@ -1776,7 +1776,7 @@ async function closeInstalledBurst(
   worker: Worker,
   tabIds: readonly number[],
   expectedCandidates: readonly IdentityTokenPair[],
-  instrumentPhases = false
+  instrumentPhases = false,
 ): Promise<InstalledBurstSample> {
   return worker.evaluate(async ({
     durableKey,
@@ -1786,7 +1786,7 @@ async function closeInstalledBurst(
     ledgerKey,
     sessionKey,
     startupSeedLock,
-    tabIds: closeTabIds
+    tabIds: closeTabIds,
   }) => {
     function isRecord(value: unknown): value is Record<string, unknown> {
       return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -1799,7 +1799,7 @@ async function closeInstalledBurst(
         typeof value.data !== 'string'
       ) return value
       const stream = new Blob([Uint8Array.fromBase64(value.data)]).stream().pipeThrough(
-        new DecompressionStream('gzip')
+        new DecompressionStream('gzip'),
       )
       return JSON.parse(await new Response(stream).text())
     }
@@ -1807,16 +1807,16 @@ async function closeInstalledBurst(
     async function sha256Text(value: string): Promise<string> {
       const digest = await crypto.subtle.digest(
         'SHA-256',
-        new TextEncoder().encode(value)
+        new TextEncoder().encode(value),
       )
       return new Uint8Array(digest).toHex()
     }
 
     type StorageGet = (
-      keys?: string | readonly string[] | Record<string, unknown> | null
+      keys?: string | readonly string[] | Record<string, unknown> | null,
     ) => Promise<Record<string, unknown>>
     type StorageSet = (items: Record<string, unknown>) => Promise<void>
-    type InstrumentedStorageArea = { get: StorageGet; set: StorageSet }
+    type InstrumentedStorageArea = { get: StorageGet, set: StorageSet }
     type RawTrace = {
       area: string
       finishedAt: number
@@ -1845,7 +1845,7 @@ async function closeInstalledBurst(
     let ledgerSetCalls = 0
     const {
       promise: firstLedgerSet,
-      resolve: settleFirstLedgerSet
+      resolve: settleFirstLedgerSet,
     } = Promise.withResolvers<void>()
     const startupRefreshLockFlights: Array<{
       readonly completion: Promise<void>
@@ -1863,7 +1863,7 @@ async function closeInstalledBurst(
             finishedAt: performance.now(),
             keys,
             operation: 'get',
-            startedAt
+            startedAt,
           })
         }
       }
@@ -1895,7 +1895,7 @@ async function closeInstalledBurst(
             finishedAt,
             items,
             operation: 'set',
-            startedAt
+            startedAt,
           })
         }
       }
@@ -1918,13 +1918,13 @@ async function closeInstalledBurst(
             finishedAt: performance.now(),
             keys: name,
             operation: 'get',
-            startedAt
+            startedAt,
           })
         }
       }) as typeof chrome.alarms.get
       chrome.alarms.create = (async (
         name: string,
-        alarmInfo: chrome.alarms.AlarmCreateInfo
+        alarmInfo: chrome.alarms.AlarmCreateInfo,
       ) => {
         const startedAt = performance.now()
         try {
@@ -1935,11 +1935,11 @@ async function closeInstalledBurst(
             finishedAt: performance.now(),
             keys: name,
             operation: 'create',
-            startedAt
+            startedAt,
           })
         }
       }) as typeof chrome.alarms.create
-      Response.prototype.text = async function() {
+      Response.prototype.text = async function () {
         const startedAt = performance.now()
         try {
           return await originalResponseText.call(this)
@@ -1948,11 +1948,11 @@ async function closeInstalledBurst(
             area: 'compression',
             finishedAt: performance.now(),
             operation: 'decompress-text',
-            startedAt
+            startedAt,
           })
         }
       }
-      Response.prototype.bytes = async function() {
+      Response.prototype.bytes = async function () {
         const startedAt = performance.now()
         try {
           return await originalResponseBytes.call(this)
@@ -1961,7 +1961,7 @@ async function closeInstalledBurst(
             area: 'compression',
             finishedAt: performance.now(),
             operation: 'compress-bytes',
-            startedAt
+            startedAt,
           })
         }
       }
@@ -1971,15 +1971,15 @@ async function closeInstalledBurst(
       const result = Reflect.apply(
         originalLockRequest,
         navigator.locks,
-        [name, ...args]
+        [name, ...args],
       ) as Promise<unknown>
       if (name === startupSeedLock) {
         startupRefreshLockFlights.push({
           startedAt,
           completion: result.then(
             () => undefined,
-            () => undefined
-          )
+            () => undefined,
+          ),
         })
       }
       return result
@@ -1991,7 +1991,7 @@ async function closeInstalledBurst(
     let removedEvents = 0
     const {
       promise: allRemovals,
-      resolve: settleAllRemovals
+      resolve: settleAllRemovals,
     } = Promise.withResolvers<void>()
     const onTabRemoved = (tabId: number) => {
       if (!closeTabIdSet.has(tabId)) return
@@ -2003,7 +2003,7 @@ async function closeInstalledBurst(
     }
     async function withTimeout<Value>(
       promise: PromiseLike<Value>,
-      message: string
+      message: string,
     ): Promise<Value> {
       let timeoutHandle: ReturnType<typeof setTimeout> | undefined
       try {
@@ -2012,9 +2012,9 @@ async function closeInstalledBurst(
           new Promise<never>((_resolve, reject) => {
             timeoutHandle = setTimeout(
               () => reject(new Error(message)),
-              30_000
+              30_000,
             )
-          })
+          }),
         ])
       } finally {
         if (timeoutHandle !== undefined) clearTimeout(timeoutHandle)
@@ -2028,7 +2028,7 @@ async function closeInstalledBurst(
       await chrome.tabs.remove([...closeTabIds])
       await Promise.all([
         withTimeout(firstLedgerSet, 'Timed out waiting for Retained Page Ledger'),
-        withTimeout(allRemovals, 'Timed out waiting for tab removals')
+        withTimeout(allRemovals, 'Timed out waiting for tab removals'),
       ])
       const removeCallToFirstLedgerSetMs =
         (firstLedgerSetAt ?? performance.now()) - startedAt
@@ -2040,7 +2040,7 @@ async function closeInstalledBurst(
       while (performance.now() < cleanupDeadline) {
         const [sessionStored, durableStored] = await Promise.all([
           originalSessionGet(sessionKey),
-          originalLocalGet(durableKey)
+          originalLocalGet(durableKey),
         ])
         const session = sessionStored[sessionKey]
         const durable = durableStored[durableKey]
@@ -2084,7 +2084,7 @@ async function closeInstalledBurst(
         performance.now() < startupRefreshDeadline
       ) {
         startupRefreshFlight = startupRefreshLockFlights.findLast(
-          (flight) => flight.startedAt >= finalLedgerSetStartedAt
+          (flight) => flight.startedAt >= finalLedgerSetStartedAt,
         )
         if (!startupRefreshFlight) {
           await new Promise((resolve) => setTimeout(resolve, 10))
@@ -2095,7 +2095,7 @@ async function closeInstalledBurst(
       }
       await withTimeout(
         startupRefreshFlight.completion,
-        'Timed out waiting for the Startup Snapshot write lock to settle'
+        'Timed out waiting for the Startup Snapshot write lock to settle',
       )
 
       const storedLedger = (await originalLocalGet(ledgerKey))[ledgerKey]
@@ -2119,11 +2119,11 @@ async function closeInstalledBurst(
         leftIdentity.localeCompare(rightIdentity) || leftToken.localeCompare(rightToken)
       ))
       const candidatePageIdentityTokenSha256 = await sha256Text(
-        JSON.stringify(actualIdentityTokens)
+        JSON.stringify(actualIdentityTokens),
       )
       const candidatePagesMatched = candidatePairs.filter(([
         identityDigest,
-        closureToken
+        closureToken,
       ]) => actualTokenByIdentity.get(identityDigest) === closureToken).length
       const phaseTrace = []
       for (const call of rawTrace) {
@@ -2144,16 +2144,16 @@ async function closeInstalledBurst(
         const detail: {
           area: string
           durationMs: number
-          inventory?: { entries: number; markedClosed: number }
+          inventory?: { entries: number, markedClosed: number }
           keys?: readonly string[]
-          ledger?: { pages: number; removalBoundaries: number }
+          ledger?: { pages: number, removalBoundaries: number }
           operation: string
           startMs: number
         } = {
           area: call.area,
           durationMs: call.finishedAt - call.startedAt,
           operation: call.operation,
-          startMs: call.startedAt - startedAt
+          startMs: call.startedAt - startedAt,
         }
         if (call.items) {
           detail.keys = callKeys
@@ -2164,7 +2164,7 @@ async function closeInstalledBurst(
               entries: entries.length,
               markedClosed: entries.filter((entry) => (
                 isRecord(entry) && typeof entry.closedAt === 'number'
-              )).length
+              )).length,
             }
           }
           if (call.items[ledgerKey] !== undefined) {
@@ -2176,7 +2176,7 @@ async function closeInstalledBurst(
               removalBoundaries: isRecord(writtenLedger) &&
                 isRecord(writtenLedger.removalBoundaries)
                 ? Object.keys(writtenLedger.removalBoundaries).length
-                : -1
+                : -1,
             }
           }
         } else if (call.keys !== undefined) {
@@ -2202,7 +2202,7 @@ async function closeInstalledBurst(
         removeCallToFinalLedgerSetMs,
         removeCallToFirstLedgerSetMs,
         removalBoundaries,
-        sessionSurfaces
+        sessionSurfaces,
       }
     } finally {
       chrome.tabs.onRemoved.removeListener(onTabRemoved)
@@ -2226,7 +2226,7 @@ async function closeInstalledBurst(
     ledgerKey: RETAINED_PAGES_STORAGE_KEY,
     sessionKey: OPEN_SURFACE_SESSION_STORAGE_KEY,
     startupSeedLock: STARTUP_SEED_WRITE_LOCK,
-    tabIds
+    tabIds,
   })
 }
 
@@ -2234,7 +2234,7 @@ async function measureBurstState(
   installedExtension: InstalledExtension,
   kind: ProfileKind,
   profile: SaturatedProfile,
-  instrumentPhases = false
+  instrumentPhases = false,
 ): Promise<InstalledBurstSample> {
   const urlPrefix = nextBenchmarkTabUrlPrefix()
   const controlPage = await openDashboardServiceController(installedExtension)
@@ -2242,13 +2242,13 @@ async function measureBurstState(
   try {
     const creation = await createBenchmarkTabs(
       installedExtension.serviceWorker,
-      urlPrefix
+      urlPrefix,
     )
     tabIds = creation.tabIds
     if (creation.failures.length > 0 || tabIds.length !== BENCHMARK_TAB_COUNT) {
       throw new Error(
         `Created ${tabIds.length}/${BENCHMARK_TAB_COUNT} benchmark tabs: ` +
-        creation.failures.join('; ')
+        creation.failures.join('; '),
       )
     }
     // The real onCreated checkpoint waits behind initial reconciliation and
@@ -2259,7 +2259,7 @@ async function measureBurstState(
     await waitForOpenSurfaceCheckpoint(
       installedExtension.serviceWorker,
       tabIds,
-      CLOSE_BURST_SETUP_TIMEOUT_MS
+      CLOSE_BURST_SETUP_TIMEOUT_MS,
     )
     await waitForDashboardServiceQueue(controlPage)
     const inventory = burstInventory(tabIds)
@@ -2267,13 +2267,13 @@ async function measureBurstState(
       installedExtension.serviceWorker,
       kind,
       profile,
-      inventory
+      inventory,
     )
     return await closeInstalledBurst(
       installedExtension.serviceWorker,
       tabIds,
       candidateIdentityTokens(inventory.session),
-      instrumentPhases
+      instrumentPhases,
     )
   } finally {
     try {
@@ -2287,7 +2287,7 @@ async function measureBurstState(
 async function measureSingleCloseState(
   installedExtension: InstalledExtension,
   kind: ProfileKind,
-  profile: SaturatedProfile
+  profile: SaturatedProfile,
 ): Promise<InstalledBurstSample> {
   const urlPrefix = nextBenchmarkTabUrlPrefix()
   let tabIds: readonly number[] = []
@@ -2295,13 +2295,13 @@ async function measureSingleCloseState(
     const creation = await createBenchmarkTabs(
       installedExtension.serviceWorker,
       urlPrefix,
-      1
+      1,
     )
     tabIds = creation.tabIds
     const tabId = tabIds[0]
     if (creation.failures.length > 0 || tabId === undefined) {
       throw new Error(
-        `Chrome did not create the close target: ${creation.failures.join('; ')}`
+        `Chrome did not create the close target: ${creation.failures.join('; ')}`,
       )
     }
     await waitForOpenSurfaceCheckpoint(installedExtension.serviceWorker, [tabId])
@@ -2310,12 +2310,12 @@ async function measureSingleCloseState(
       installedExtension.serviceWorker,
       kind,
       profile,
-      inventory
+      inventory,
     )
     return await closeInstalledBurst(
       installedExtension.serviceWorker,
       [tabId],
-      candidateIdentityTokens(inventory.session)
+      candidateIdentityTokens(inventory.session),
     )
   } finally {
     await cleanupBenchmarkTabs(installedExtension, tabIds, urlPrefix, profile)
@@ -2325,7 +2325,7 @@ async function measureSingleCloseState(
 async function runPairedSingleCloseSample(
   installedExtension: InstalledExtension,
   profile: SaturatedProfile,
-  pairIndex: number
+  pairIndex: number,
 ): Promise<PairedBurstSample> {
   const order: readonly ProfileKind[] = pairIndex % 2 === 0
     ? ['empty', 'saturated']
@@ -2343,7 +2343,7 @@ async function runPairedSingleCloseSample(
 async function measureColdSingleCloseState(
   installedExtension: InstalledExtension,
   kind: ProfileKind,
-  profile: SaturatedProfile
+  profile: SaturatedProfile,
 ): Promise<InstalledColdCloseSample> {
   const urlPrefix = nextBenchmarkTabUrlPrefix()
   const controlPage = await installedExtension.context.newPage()
@@ -2355,34 +2355,34 @@ async function measureColdSingleCloseState(
     async (route) => {
       interceptedScriptPaths.add(new URL(route.request().url()).pathname)
       await route.fulfill({
-      body: '',
-      contentType: 'application/javascript',
-      status: 200
+        body: '',
+        contentType: 'application/javascript',
+        status: 200,
       })
-    }
+    },
   )
 
   try {
     const creation = await createBenchmarkTabs(
       installedExtension.serviceWorker,
       urlPrefix,
-      1
+      1,
     )
     tabIds = creation.tabIds
     const tabId = tabIds[0]
     if (creation.failures.length > 0 || tabId === undefined) {
       throw new Error(
-        `Chrome did not create the cold-close target: ${creation.failures.join('; ')}`
+        `Chrome did not create the cold-close target: ${creation.failures.join('; ')}`,
       )
     }
     await waitForOpenSurfaceCheckpoint(installedExtension.serviceWorker, [tabId])
     await controlPage.goto(
       `chrome-extension://${installedExtension.extensionId}/index.html?retention-benchmark=cold-close`,
-      { waitUntil: 'domcontentloaded' }
+      { waitUntil: 'domcontentloaded' },
     )
     expect([...interceptedScriptPaths].sort()).toEqual([
       '/dist/app.js',
-      '/dist/filter-focus-boot.js'
+      '/dist/filter-focus-boot.js',
     ])
 
     const inventory = singleCloseInventory(tabId)
@@ -2399,7 +2399,7 @@ async function measureColdSingleCloseState(
       installedExtension.serviceWorker,
       kind,
       profile,
-      inventory
+      inventory,
     )
 
     const capabilities = await controlPage.evaluate(({
@@ -2410,7 +2410,7 @@ async function measureColdSingleCloseState(
       ledgerKey,
       settleMessageType,
       targetTabId,
-      timeoutMs
+      timeoutMs,
     }) => {
       type Observation = {
         readonly candidatePagesMatched: number
@@ -2433,13 +2433,13 @@ async function measureColdSingleCloseState(
           typeof value.data !== 'string'
         ) return value
         const stream = new Blob([Uint8Array.fromBase64(value.data)]).stream().pipeThrough(
-          new DecompressionStream('gzip')
+          new DecompressionStream('gzip'),
         )
         return JSON.parse(await new Response(stream).text())
       }
 
       let ledgerPublishedAt: number | null = null
-      let ledgerCounts: { pages: number; removalBoundaries: number } | null = null
+      let ledgerCounts: { pages: number, removalBoundaries: number } | null = null
       let removalAt: number | null = null
       let settlementAt: number | null = null
 
@@ -2477,7 +2477,7 @@ async function measureColdSingleCloseState(
             pages: ledgerCounts.pages,
             removalBoundaries: ledgerCounts.removalBoundaries,
             removalToLedgerPublicationMs: ledgerPublishedAt - removalAt,
-            removalToSettlementMs: settlementAt - removalAt
+            removalToSettlementMs: settlementAt - removalAt,
           })
         }
         const onRemoved = (removedTabId: number) => {
@@ -2485,7 +2485,7 @@ async function measureColdSingleCloseState(
           removalAt = performance.now()
           void chrome.runtime.sendMessage({
             type: settleMessageType,
-            tabId: targetTabId
+            tabId: targetTabId,
           }).then((response: unknown) => {
             if (!isRecord(response) || response.ok !== true) {
               fail(new Error('Cold capture settlement was not acknowledged'))
@@ -2497,7 +2497,7 @@ async function measureColdSingleCloseState(
         }
         const onStorageChanged = (
           changes: Record<string, chrome.storage.StorageChange>,
-          areaName: string
+          areaName: string,
         ) => {
           if (areaName !== 'local' || !Object.hasOwn(changes, ledgerKey)) return
           const observedAt = performance.now()
@@ -2524,7 +2524,7 @@ async function measureColdSingleCloseState(
               pages: Object.keys(ledger.pages).length,
               removalBoundaries: isRecord(ledger.removalBoundaries)
                 ? Object.keys(ledger.removalBoundaries).length
-                : -1
+                : -1,
             }
             finish()
           }).catch(fail)
@@ -2539,7 +2539,7 @@ async function measureColdSingleCloseState(
         hasStorageChangedListener:
           typeof chrome.storage?.onChanged?.addListener === 'function',
         hasTabsRemovedListener:
-          typeof chrome.tabs?.onRemoved?.addListener === 'function'
+          typeof chrome.tabs?.onRemoved?.addListener === 'function',
       }
     }, {
       candidateClosureToken: closureToken,
@@ -2549,17 +2549,17 @@ async function measureColdSingleCloseState(
         favIconUrl: expectedPage.favIconUrl,
         surfaceKind: expectedPage.surfaceKind,
         title: expectedPage.title,
-        url: expectedPage.url
+        url: expectedPage.url,
       },
       ledgerKey: RETAINED_PAGES_STORAGE_KEY,
       settleMessageType: CLOSED_TAB_RETENTION_SETTLE_MESSAGE,
       targetTabId: tabId,
-      timeoutMs: 30_000
+      timeoutMs: 30_000,
     })
     expect(capabilities).toEqual({
       extensionId: installedExtension.extensionId,
       hasStorageChangedListener: true,
-      hasTabsRemovedListener: true
+      hasTabsRemovedListener: true,
     })
 
     const close = await closeInstalledTargetWithWorkerTerminated(
@@ -2582,14 +2582,14 @@ async function measureColdSingleCloseState(
           throw new Error('Cold-close controller was not armed')
         }
         return controller.observation
-      }, COLD_CLOSE_CONTROLLER_KEY)
+      }, COLD_CLOSE_CONTROLLER_KEY),
     )
     const observation = close.observation
 
     await waitForClosedSurfaceSettlement(
       installedExtension.serviceWorker,
       [tabId],
-      urlPrefix
+      urlPrefix,
     )
     const [reading, sessionSurfaces] = await Promise.all([
       readInstalledProfile(installedExtension.serviceWorker),
@@ -2602,7 +2602,7 @@ async function measureColdSingleCloseState(
         return typeof entries === 'object' && entries !== null && !Array.isArray(entries)
           ? Object.keys(entries).length
           : -1
-      }, OPEN_SURFACE_SESSION_STORAGE_KEY)
+      }, OPEN_SURFACE_SESSION_STORAGE_KEY),
     ])
 
     return {
@@ -2615,7 +2615,7 @@ async function measureColdSingleCloseState(
       pages: reading.pages,
       removalBoundaries: reading.removalBoundaries,
       sessionSurfaces,
-      workerAbsentBeforeClose: true
+      workerAbsentBeforeClose: true,
     }
   } finally {
     await controlPage.close().catch(() => undefined)
@@ -2626,7 +2626,7 @@ async function measureColdSingleCloseState(
 async function runPairedColdSingleCloseSample(
   installedExtension: InstalledExtension,
   profile: SaturatedProfile,
-  pairIndex: number
+  pairIndex: number,
 ): Promise<PairedColdCloseSample> {
   const order: readonly ProfileKind[] = pairIndex % 2 === 0
     ? ['empty', 'saturated']
@@ -2635,7 +2635,7 @@ async function runPairedColdSingleCloseSample(
   for (const kind of order) {
     samples.set(
       kind,
-      await measureColdSingleCloseState(installedExtension, kind, profile)
+      await measureColdSingleCloseState(installedExtension, kind, profile),
     )
   }
   const empty = samples.get('empty')
@@ -2649,7 +2649,7 @@ async function runPairedColdSingleCloseSample(
 async function runPairedBurstSample(
   installedExtension: InstalledExtension,
   profile: SaturatedProfile,
-  pairIndex: number
+  pairIndex: number,
 ): Promise<PairedBurstSample> {
   const order: readonly ProfileKind[] = pairIndex % 2 === 0
     ? ['empty', 'saturated']
@@ -2665,7 +2665,7 @@ async function runPairedBurstSample(
 }
 
 test('installed minimum-Chrome retained keys and complete representative local storage stay within budgets', async ({
-  installedExtension
+  installedExtension,
 }, testInfo) => {
   test.skip(MEASURED_PAIR_COUNT === 0, 'No measured benchmark pairs requested')
   const userAgent = await installedExtension.serviceWorker.evaluate(() => navigator.userAgent)
@@ -2680,7 +2680,7 @@ test('installed minimum-Chrome retained keys and complete representative local s
     samples.push(await runPairedProfileSample(
       installedExtension,
       profile,
-      WARMUP_PAIR_COUNT + index
+      WARMUP_PAIR_COUNT + index,
     ))
   }
   // Keep benchmark-only decompression, recursive hashing, exact readback, and
@@ -2692,7 +2692,7 @@ test('installed minimum-Chrome retained keys and complete representative local s
     diagnosticSamples.push(await runPairedProfileDiagnostic(
       installedExtension,
       profile,
-      WARMUP_PAIR_COUNT + index
+      WARMUP_PAIR_COUNT + index,
     ))
   }
 
@@ -2701,10 +2701,10 @@ test('installed minimum-Chrome retained keys and complete representative local s
   ))
   const pageLocalRequestStartContributions = samples.map(({
     empty,
-    saturated
+    saturated,
   }) => (
     saturated.serviceStateRequestStartedAtMs -
-      empty.serviceStateRequestStartedAtMs
+    empty.serviceStateRequestStartedAtMs
   ))
   const wallObservationContributions = samples.map(({ empty, saturated }) => (
     saturated.wallToHeaderObservationMs - empty.wallToHeaderObservationMs
@@ -2713,10 +2713,10 @@ test('installed minimum-Chrome retained keys and complete representative local s
     saturated.probeDecodeAndPruneMs - empty.probeDecodeAndPruneMs
   ))
   const retainedBytes = diagnosticSamples.map(({
-    saturated
+    saturated,
   }) => saturated.retainedLocalBytes)
   const observedLocalBytes = diagnosticSamples.map(({
-    saturated
+    saturated,
   }) => saturated.observedLocalBytes)
   const report = {
     authority: {
@@ -2727,14 +2727,14 @@ test('installed minimum-Chrome retained keys and complete representative local s
       pageLifecycle: 'each empty or saturated measurement owns one fresh extension page that is closed after header publication and visible-chip inspection',
       startupFrameGate: 'paired page-local performance.now() from the navigation document time origin to the synchronous header-stats aria-hidden publication that admits the complete Startup Frame',
       automationObservation: 'Node wall time through page.goto and Playwright locator observation is diagnostic only because CDP transport and assertion polling are outside the product seam',
-      workerRead: 'manual post-quiescence decode/prune probe and the measured Dashboard request run with the installed service worker already warm'
+      workerRead: 'manual post-quiescence decode/prune probe and the measured Dashboard request run with the installed service worker already warm',
     },
     runPlan: {
       warmupPairs: WARMUP_PAIR_COUNT,
       measuredPairs: MEASURED_PAIR_COUNT,
       order: 'empty/saturated order alternates for every pair',
       diagnosticPairs: diagnosticSamples.length,
-      diagnosticIsolation: 'the exact-readback phase begins only after every timed pair completes'
+      diagnosticIsolation: 'the exact-readback phase begins only after every timed pair completes',
     },
     profile: {
       retainedPages: RETAINED_PAGE_CAPACITY,
@@ -2750,63 +2750,63 @@ test('installed minimum-Chrome retained keys and complete representative local s
         fixtureSha256: profile.representativeLocalFixtureSha256,
         stableKeysSha256: profile.representativeLocalStableSha256,
         liveMutableKeys:
-          COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_LIVE_MUTABLE_KEYS
-      }
+          COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_LIVE_MUTABLE_KEYS,
+      },
     },
     bytes: {
       retainedKeys: distribution(retainedBytes),
       completeRepresentativeLocal: distribution(observedLocalBytes),
       retainedBudget: RETAINED_LOCAL_BUDGET_BYTES,
       completeBudget: COMPLETE_LOCAL_BUDGET_BYTES,
-      completeLocalGate: `evaluated against ${COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_VERSION}`
+      completeLocalGate: `evaluated against ${COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_VERSION}`,
     },
     preHeaderServiceStateRequestCounts: {
       saturated: distribution(samples.map(({
-        saturated
+        saturated,
       }) => saturated.preHeaderServiceStateRequestCount)),
       pairedContribution: distribution(samples.map(({ empty, saturated }) => (
         saturated.preHeaderServiceStateRequestCount -
-          empty.preHeaderServiceStateRequestCount
-      )))
+        empty.preHeaderServiceStateRequestCount
+      ))),
     },
     timingMs: {
       saturatedPageLocalRequestStart: distribution(
-        samples.map(({ saturated }) => saturated.serviceStateRequestStartedAtMs)
+        samples.map(({ saturated }) => saturated.serviceStateRequestStartedAtMs),
       ),
       pairedPageLocalRequestStartContribution: distribution(
-        pageLocalRequestStartContributions
+        pageLocalRequestStartContributions,
       ),
       saturatedLatestPreHeaderServiceStateRequest: distribution(
-        samples.map(({ saturated }) => saturated.serviceStateRequestMs)
+        samples.map(({ saturated }) => saturated.serviceStateRequestMs),
       ),
       pairedLatestPreHeaderServiceStateRequestContribution: distribution(samples.map(({
         empty,
-        saturated
+        saturated,
       }) => saturated.serviceStateRequestMs - empty.serviceStateRequestMs)),
       saturatedLatestServiceStateToHeader: distribution(
-        samples.map(({ saturated }) => saturated.serviceStateToHeaderMs)
+        samples.map(({ saturated }) => saturated.serviceStateToHeaderMs),
       ),
       pairedLatestServiceStateToHeaderContribution: distribution(samples.map(({
         empty,
-        saturated
+        saturated,
       }) => saturated.serviceStateToHeaderMs - empty.serviceStateToHeaderMs)),
       saturatedProbeDecodeAndPrune: distribution(
-        diagnosticSamples.map(({ saturated }) => saturated.probeDecodeAndPruneMs)
+        diagnosticSamples.map(({ saturated }) => saturated.probeDecodeAndPruneMs),
       ),
       pairedProbeDecodeAndPruneContribution: distribution(decodeContributions),
       saturatedPageLocalStartupFrameReady: distribution(
-        samples.map(({ saturated }) => saturated.startupFrameReadyMs)
+        samples.map(({ saturated }) => saturated.startupFrameReadyMs),
       ),
       pairedPageLocalStartupFrameContribution: distribution(
-        pageLocalStartupContributions
+        pageLocalStartupContributions,
       ),
       saturatedWallToHeaderObservation: distribution(
-        samples.map(({ saturated }) => saturated.wallToHeaderObservationMs)
+        samples.map(({ saturated }) => saturated.wallToHeaderObservationMs),
       ),
       pairedWallToHeaderObservationContribution: distribution(
-        wallObservationContributions
+        wallObservationContributions,
       ),
-      startupContributionP95Budget: STARTUP_CONTRIBUTION_P95_BUDGET_MS
+      startupContributionP95Budget: STARTUP_CONTRIBUTION_P95_BUDGET_MS,
     },
     exactReadback: {
       expectedLedgerSha256: profile.ledgerSha256,
@@ -2824,31 +2824,31 @@ test('installed minimum-Chrome retained keys and complete representative local s
             saturated.representativeLocalKeysPresent,
           observedRepresentativeLocalSha256: {
             empty: empty.representativeLocalSha256,
-            saturated: saturated.representativeLocalSha256
+            saturated: saturated.representativeLocalSha256,
           },
           stableRepresentativeLocalSha256: {
             empty: empty.representativeLocalStableSha256,
-            saturated: saturated.representativeLocalStableSha256
+            saturated: saturated.representativeLocalStableSha256,
           },
           preHeaderServiceStateRequestCount: {
             empty: timing.empty.preHeaderServiceStateRequestCount,
-            saturated: timing.saturated.preHeaderServiceStateRequestCount
+            saturated: timing.saturated.preHeaderServiceStateRequestCount,
           },
           visiblePageChips: timing.saturated.visiblePageChips,
           ledgerSha256: saturated.ledgerSha256,
-          durableInventorySha256: saturated.durableInventorySha256
+          durableInventorySha256: saturated.durableInventorySha256,
         }
-      })
+      }),
     },
     explicitGaps: [
       'The authoritative Startup Frame delta uses the navigation document clock and exact header publication; the Playwright wall observation remains diagnostic and intentionally includes automation overhead.',
       'Pre-header service-request counts are workload diagnostics and lower-bound capture attempts; request segments describe the request with the latest start before header publication.',
-      'probeDecodeAndPrune runs in the isolated post-timing diagnostic phase; the full Dashboard Startup Frame timing is a warm post-quiescence measurement over the real stored encoding, and the cold one-close lifecycle is measured in its separate physical-target lane.'
-    ]
+      'probeDecodeAndPrune runs in the isolated post-timing diagnostic phase; the full Dashboard Startup Frame timing is a warm post-quiescence measurement over the real stored encoding, and the cold one-close lifecycle is measured in its separate physical-target lane.',
+    ],
   }
   await testInfo.attach('closed-tab-retention-installed-profile.json', {
     body: JSON.stringify(report, null, 2),
-    contentType: 'application/json'
+    contentType: 'application/json',
   })
   console.log(`closed-tab-retention installed profile benchmark: ${JSON.stringify(report)}`)
 
@@ -2858,26 +2858,26 @@ test('installed minimum-Chrome retained keys and complete representative local s
     expect(empty.durableSurfaces).toBe(0)
     expect(saturated.pages).toBe(RETAINED_PAGE_CAPACITY)
     expect(saturated.removalBoundaries).toBe(
-      RETAINED_STORAGE_PROFILE_REMOVAL_BOUNDARIES
+      RETAINED_STORAGE_PROFILE_REMOVAL_BOUNDARIES,
     )
     expect(saturated.durableSurfaces).toBe(
-      RETAINED_STORAGE_PROFILE_DURABLE_SURFACES
+      RETAINED_STORAGE_PROFILE_DURABLE_SURFACES,
     )
     expect(empty.representativeLocalKeysPresent).toBe(
-      COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_KEYS.length
+      COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_KEYS.length,
     )
     expect(saturated.representativeLocalKeysPresent).toBe(
-      COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_KEYS.length
+      COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_KEYS.length,
     )
     expect(empty.representativeLocalStableSha256).toBe(
-      profile.representativeLocalStableSha256
+      profile.representativeLocalStableSha256,
     )
     expect(saturated.representativeLocalStableSha256).toBe(
-      profile.representativeLocalStableSha256
+      profile.representativeLocalStableSha256,
     )
     expect(saturated.ledgerSha256).toBe(profile.ledgerSha256)
     expect(saturated.durableInventorySha256).toBe(
-      profile.durableInventorySha256
+      profile.durableInventorySha256,
     )
   }
   for (const { empty, saturated } of samples) {
@@ -2892,18 +2892,18 @@ test('installed minimum-Chrome retained keys and complete representative local s
     expect(saturated.visiblePageChips).toBeGreaterThan(0)
   }
   expect(Math.max(...retainedBytes)).toBeLessThanOrEqual(
-    RETAINED_LOCAL_BUDGET_BYTES
+    RETAINED_LOCAL_BUDGET_BYTES,
   )
   expect(Math.max(...observedLocalBytes)).toBeLessThanOrEqual(
-    COMPLETE_LOCAL_BUDGET_BYTES
+    COMPLETE_LOCAL_BUDGET_BYTES,
   )
   expect(percentile(pageLocalStartupContributions, 0.95)).toBeLessThanOrEqual(
-    STARTUP_CONTRIBUTION_P95_BUDGET_MS
+    STARTUP_CONTRIBUTION_P95_BUDGET_MS,
   )
 })
 
 test('installed minimum-Chrome records warm single-close mutation timing', async ({
-  installedExtension
+  installedExtension,
 }, testInfo) => {
   test.skip(MEASURED_PAIR_COUNT === 0, 'No measured benchmark pairs requested')
   const profile = await saturatedProfile()
@@ -2915,7 +2915,7 @@ test('installed minimum-Chrome records warm single-close mutation timing', async
     samples.push(await runPairedSingleCloseSample(
       installedExtension,
       profile,
-      WARMUP_PAIR_COUNT + index
+      WARMUP_PAIR_COUNT + index,
     ))
   }
 
@@ -2924,37 +2924,37 @@ test('installed minimum-Chrome records warm single-close mutation timing', async
     runPlan: {
       warmupPairs: WARMUP_PAIR_COUNT,
       measuredPairs: MEASURED_PAIR_COUNT,
-      order: 'empty/saturated order alternates for every pair'
+      order: 'empty/saturated order alternates for every pair',
     },
     timingMs: {
       emptyRemoveCallToFirstLedgerSet: distribution(
-        samples.map(({ empty }) => empty.removeCallToFirstLedgerSetMs)
+        samples.map(({ empty }) => empty.removeCallToFirstLedgerSetMs),
       ),
       saturatedRemoveCallToFirstLedgerSet: distribution(
-        samples.map(({ saturated }) => saturated.removeCallToFirstLedgerSetMs)
+        samples.map(({ saturated }) => saturated.removeCallToFirstLedgerSetMs),
       ),
       emptyRemoveCallToFinalLedgerSet: distribution(
-        samples.map(({ empty }) => empty.removeCallToFinalLedgerSetMs)
+        samples.map(({ empty }) => empty.removeCallToFinalLedgerSetMs),
       ),
       saturatedRemoveCallToFinalLedgerSet: distribution(
-        samples.map(({ saturated }) => saturated.removeCallToFinalLedgerSetMs)
+        samples.map(({ saturated }) => saturated.removeCallToFinalLedgerSetMs),
       ),
       emptyLastRemovalToFinalLedger: distribution(samples.map(({ empty }) => empty.ledgerAfterLastRemovalMs)),
       saturatedLastRemovalToFinalLedger: distribution(samples.map(({ saturated }) => saturated.ledgerAfterLastRemovalMs)),
       emptyInventoryCleanup: distribution(samples.map(({ empty }) => empty.cleanupMs)),
       saturatedInventoryCleanup: distribution(samples.map(({ saturated }) => saturated.cleanupMs)),
-      warmLastRemovalToFinalLedgerP95Budget: WARM_SINGLE_CLOSE_P95_BUDGET_MS
+      warmLastRemovalToFinalLedgerP95Budget: WARM_SINGLE_CLOSE_P95_BUDGET_MS,
     },
     writes: {
       authority: 'actual storage.local.set calls whose items include the Retained Page Ledger key',
       empty: samples.map(({ empty }) => empty.ledgerSetCalls),
-      saturated: samples.map(({ saturated }) => saturated.ledgerSetCalls)
+      saturated: samples.map(({ saturated }) => saturated.ledgerSetCalls),
     },
-    companionGate: 'the forced-cold distribution is measured separately with an external extension-page observer so worker termination remains real'
+    companionGate: 'the forced-cold distribution is measured separately with an external extension-page observer so worker termination remains real',
   }
   await testInfo.attach('closed-tab-retention-installed-single-close.json', {
     body: JSON.stringify(report, null, 2),
-    contentType: 'application/json'
+    contentType: 'application/json',
   })
   console.log(`closed-tab-retention installed single-close benchmark: ${JSON.stringify(report)}`)
 
@@ -2974,16 +2974,16 @@ test('installed minimum-Chrome records warm single-close mutation timing', async
   }
   expect(percentile(
     samples.map(({ empty }) => empty.ledgerAfterLastRemovalMs),
-    0.95
+    0.95,
   )).toBeLessThanOrEqual(WARM_SINGLE_CLOSE_P95_BUDGET_MS)
   expect(percentile(
     samples.map(({ saturated }) => saturated.ledgerAfterLastRemovalMs),
-    0.95
+    0.95,
   )).toBeLessThanOrEqual(WARM_SINGLE_CLOSE_P95_BUDGET_MS)
 })
 
 test('installed minimum-Chrome records cold single-close mutation timing', async ({
-  installedExtension
+  installedExtension,
 }, testInfo) => {
   test.skip(MEASURED_PAIR_COUNT === 0, 'No measured benchmark pairs requested')
   const profile = await saturatedProfile()
@@ -2995,7 +2995,7 @@ test('installed minimum-Chrome records cold single-close mutation timing', async
     samples.push(await runPairedColdSingleCloseSample(
       installedExtension,
       profile,
-      WARMUP_PAIR_COUNT + index
+      WARMUP_PAIR_COUNT + index,
     ))
   }
 
@@ -3004,50 +3004,50 @@ test('installed minimum-Chrome records cold single-close mutation timing', async
       lifecycle: 'one CDP session confirms the installed MV3 worker target is absent and the candidate target is present, then immediately closes that physical target',
       gate: 'CDP close command through the controller receiving the production settlement response is a strict end-to-end upper bound: it includes Chrome event delivery, cold worker launch, the retained-close batch and durable-set Promise settlement, plus response delivery',
       eventDiagnostic: 'the main-app-blocked controller page records its own tabs.onRemoved delivery; cross-context broadcast order does not make that timestamp the worker callback timestamp',
-      storageDiagnostic: 'candidate-verified storage.onChanged publication proves the exact maximum-sized synthetic snapshot became observable but may precede the originating set Promise settlement'
+      storageDiagnostic: 'candidate-verified storage.onChanged publication proves the exact maximum-sized synthetic snapshot became observable but may precede the originating set Promise settlement',
     },
     runPlan: {
       warmupPairs: WARMUP_PAIR_COUNT,
       measuredPairs: MEASURED_PAIR_COUNT,
-      order: 'empty/saturated order alternates for every pair'
+      order: 'empty/saturated order alternates for every pair',
     },
     timingMs: {
       emptyCloseCommandToSettlementObservation: distribution(
-        samples.map(({ empty }) => empty.closeCommandToSettlementObservationMs)
+        samples.map(({ empty }) => empty.closeCommandToSettlementObservationMs),
       ),
       saturatedCloseCommandToSettlementObservation: distribution(
         samples.map(({ saturated }) => (
           saturated.closeCommandToSettlementObservationMs
-        ))
+        )),
       ),
       emptyControllerRemovalToSettlement: distribution(
-        samples.map(({ empty }) => empty.removalToSettlementMs)
+        samples.map(({ empty }) => empty.removalToSettlementMs),
       ),
       saturatedControllerRemovalToSettlement: distribution(
-        samples.map(({ saturated }) => saturated.removalToSettlementMs)
+        samples.map(({ saturated }) => saturated.removalToSettlementMs),
       ),
       emptyControllerRemovalToLedgerPublication: distribution(
-        samples.map(({ empty }) => empty.removalToLedgerPublicationMs)
+        samples.map(({ empty }) => empty.removalToLedgerPublicationMs),
       ),
       saturatedControllerRemovalToLedgerPublication: distribution(
-        samples.map(({ saturated }) => saturated.removalToLedgerPublicationMs)
+        samples.map(({ saturated }) => saturated.removalToLedgerPublicationMs),
       ),
       emptyLedgerPublicationToSettlement: distribution(
-        samples.map(({ empty }) => empty.ledgerPublicationToSettlementMs)
+        samples.map(({ empty }) => empty.ledgerPublicationToSettlementMs),
       ),
       saturatedLedgerPublicationToSettlement: distribution(
-        samples.map(({ saturated }) => saturated.ledgerPublicationToSettlementMs)
+        samples.map(({ saturated }) => saturated.ledgerPublicationToSettlementMs),
       ),
       coldCloseCommandToSettlementObservationP95Budget:
-        COLD_SINGLE_CLOSE_P95_BUDGET_MS
-    }
+        COLD_SINGLE_CLOSE_P95_BUDGET_MS,
+    },
   }
   await testInfo.attach('closed-tab-retention-installed-cold-single-close.json', {
     body: JSON.stringify(report, null, 2),
-    contentType: 'application/json'
+    contentType: 'application/json',
   })
   console.log(
-    `closed-tab-retention installed cold single-close benchmark: ${JSON.stringify(report)}`
+    `closed-tab-retention installed cold single-close benchmark: ${JSON.stringify(report)}`,
   )
 
   for (const { empty, saturated } of samples) {
@@ -3070,18 +3070,18 @@ test('installed minimum-Chrome records cold single-close mutation timing', async
   }
   expect(percentile(
     samples.map(({ empty }) => empty.closeCommandToSettlementObservationMs),
-    0.95
+    0.95,
   )).toBeLessThanOrEqual(COLD_SINGLE_CLOSE_P95_BUDGET_MS)
   expect(percentile(
     samples.map(({ saturated }) => (
       saturated.closeCommandToSettlementObservationMs
     )),
-    0.95
+    0.95,
   )).toBeLessThanOrEqual(COLD_SINGLE_CLOSE_P95_BUDGET_MS)
 })
 
 test('installed minimum-Chrome preserves prior retention truth when local quota rejects capture', async ({
-  installedExtension
+  installedExtension,
 }, testInfo) => {
   const worker = installedExtension.serviceWorker
   const profile = await saturatedProfile()
@@ -3091,13 +3091,13 @@ test('installed minimum-Chrome preserves prior retention truth when local quota 
   try {
     await senderPage.goto(
       `chrome-extension://${installedExtension.extensionId}/index.html`,
-      { waitUntil: 'domcontentloaded' }
+      { waitUntil: 'domcontentloaded' },
     )
     await seedBurstState(
       worker,
       'saturated',
       profile,
-      overQuotaCandidateInventory(tabId)
+      overQuotaCandidateInventory(tabId),
     )
     const before = await readInstalledProfile(worker)
     const quota = await fillInstalledLocalQuota(worker)
@@ -3105,19 +3105,19 @@ test('installed minimum-Chrome preserves prior retention truth when local quota 
       chrome.runtime.sendMessage({ type: messageType, tabId: nextTabId })
     ), {
       messageType: CLOSED_TAB_RETENTION_SETTLE_MESSAGE,
-      nextTabId: tabId
+      nextTabId: tabId,
     })
     const after = await readInstalledProfile(worker)
     const failureState = await worker.evaluate(async ({
       durableKey,
       healthKey,
       nextTabId,
-      sessionKey
+      sessionKey,
     }) => {
       const [durableStored, healthStored, sessionStored] = await Promise.all([
         chrome.storage.local.get(durableKey),
         chrome.storage.session.get(healthKey),
-        chrome.storage.session.get(sessionKey)
+        chrome.storage.session.get(sessionKey),
       ])
       const candidateKey = String(nextTabId)
       const durable = durableStored[durableKey] as {
@@ -3129,42 +3129,42 @@ test('installed minimum-Chrome preserves prior retention truth when local quota 
       return {
         candidateInDurableInventory: Object.hasOwn(
           durable?.entries ?? {},
-          candidateKey
+          candidateKey,
         ),
         candidateInSessionInventory: Object.hasOwn(
           session?.entries ?? {},
-          candidateKey
+          candidateKey,
         ),
-        health: healthStored[healthKey] as unknown
+        health: healthStored[healthKey] as unknown,
       }
     }, {
       durableKey: OPEN_SURFACE_DURABLE_STORAGE_KEY,
       healthKey: RETENTION_HEALTH_STORAGE_KEY,
       nextTabId: tabId,
-      sessionKey: OPEN_SURFACE_SESSION_STORAGE_KEY
+      sessionKey: OPEN_SURFACE_SESSION_STORAGE_KEY,
     })
     const report = {
       authority: 'installed-extension test settlement message over the production adjacent-close capture path; the synthetic tab id makes this a storage-failure probe, not a physical tabs.onRemoved benchmark',
       quota,
       settlement: {
         response,
-        semantics: 'acknowledges batch settlement; capture outcome is authoritative in ledger, inventory, and retention health'
+        semantics: 'acknowledges batch settlement; capture outcome is authoritative in ledger, inventory, and retention health',
       },
       before: {
         pages: before.pages,
         removalBoundaries: before.removalBoundaries,
-        ledgerSha256: before.ledgerSha256
+        ledgerSha256: before.ledgerSha256,
       },
       after: {
         pages: after.pages,
         removalBoundaries: after.removalBoundaries,
-        ledgerSha256: after.ledgerSha256
+        ledgerSha256: after.ledgerSha256,
       },
-      failureState
+      failureState,
     }
     await testInfo.attach('closed-tab-retention-installed-over-quota.json', {
       body: JSON.stringify(report, null, 2),
-      contentType: 'application/json'
+      contentType: 'application/json',
     })
     console.log(`closed-tab-retention installed over-quota probe: ${JSON.stringify(report)}`)
 
@@ -3172,7 +3172,7 @@ test('installed minimum-Chrome preserves prior retention truth when local quota 
     expect(response).toEqual({ ok: true })
     expect(before.pages).toBe(RETAINED_PAGE_CAPACITY)
     expect(before.removalBoundaries).toBe(
-      RETAINED_STORAGE_PROFILE_REMOVAL_BOUNDARIES
+      RETAINED_STORAGE_PROFILE_REMOVAL_BOUNDARIES,
     )
     expect(before.ledgerSha256).toBe(profile.ledgerSha256)
     expect(after.pages).toBe(before.pages)
@@ -3180,12 +3180,12 @@ test('installed minimum-Chrome preserves prior retention truth when local quota 
     expect(after.ledgerSha256).toBe(before.ledgerSha256)
     expect(
       failureState.candidateInSessionInventory ||
-      failureState.candidateInDurableInventory
+      failureState.candidateInDurableInventory,
     ).toBe(true)
     expect(failureState.health).toMatchObject({
       failureKind: 'capture',
       operationKind: 'automatic-capture',
-      retryState: 'exhausted-after-one-retry'
+      retryState: 'exhausted-after-one-retry',
     })
   } finally {
     await senderPage.close().catch(() => undefined)
@@ -3194,32 +3194,32 @@ test('installed minimum-Chrome preserves prior retention truth when local quota 
       fillerKey,
       healthKey,
       ledgerKey,
-      sessionKey
+      sessionKey,
     }) => {
       await Promise.all([
         chrome.storage.local.remove([ledgerKey, durableKey, fillerKey]),
-        chrome.storage.session.remove([sessionKey, healthKey])
+        chrome.storage.session.remove([sessionKey, healthKey]),
       ])
       const [fillerBytes, localStored, sessionStored] = await Promise.all([
         chrome.storage.local.getBytesInUse(fillerKey),
         chrome.storage.local.get([ledgerKey, durableKey, fillerKey]),
-        chrome.storage.session.get([sessionKey, healthKey])
+        chrome.storage.session.get([sessionKey, healthKey]),
       ])
       return {
         fillerBytes,
         localKeysAbsent: [ledgerKey, durableKey, fillerKey].every(
-          (key) => localStored[key] === undefined
+          (key) => localStored[key] === undefined,
         ),
         sessionKeysAbsent: [sessionKey, healthKey].every(
-          (key) => sessionStored[key] === undefined
-        )
+          (key) => sessionStored[key] === undefined,
+        ),
       }
     }, {
       durableKey: OPEN_SURFACE_DURABLE_STORAGE_KEY,
       fillerKey: QUOTA_FILLER_STORAGE_KEY,
       healthKey: RETENTION_HEALTH_STORAGE_KEY,
       ledgerKey: RETAINED_PAGES_STORAGE_KEY,
-      sessionKey: OPEN_SURFACE_SESSION_STORAGE_KEY
+      sessionKey: OPEN_SURFACE_SESSION_STORAGE_KEY,
     })
     if (
       cleanup.fillerBytes !== 0 ||
@@ -3230,13 +3230,13 @@ test('installed minimum-Chrome preserves prior retention truth when local quota 
 })
 
 test('installed minimum-Chrome batches a real 500-tab close within retention budgets', async ({
-  installedExtension
+  installedExtension,
 }, testInfo) => {
   test.setTimeout(CLOSE_BURST_TEST_TIMEOUT_MS)
   test.skip(SKIP_CLOSE_BURST, 'Close-burst benchmark explicitly disabled')
   test.skip(
     MEASURED_PAIR_COUNT === 0 && !BURST_PREFLIGHT_ONLY,
-    'No measured benchmark pairs requested'
+    'No measured benchmark pairs requested',
   )
   const profile = await saturatedProfile()
   const samples: PairedBurstSample[] = []
@@ -3248,7 +3248,7 @@ test('installed minimum-Chrome batches a real 500-tab close within retention bud
   const preflight = await measureBurstState(
     installedExtension,
     BURST_PREFLIGHT_KIND,
-    profile
+    profile,
   )
   const preflightPassed = preflight.completed &&
     preflight.ledgerAfterLastRemovalMs <= CLOSE_BURST_P95_BUDGET_MS &&
@@ -3256,13 +3256,13 @@ test('installed minimum-Chrome batches a real 500-tab close within retention bud
     preflight.candidatePagesExpected === BENCHMARK_TAB_COUNT &&
     preflight.candidatePagesMatched === BENCHMARK_TAB_COUNT &&
     preflight.candidatePageIdentityTokenSha256 ===
-      preflight.expectedCandidatePageIdentityTokenSha256
+    preflight.expectedCandidatePageIdentityTokenSha256
   if (!preflightPassed) {
     const failureDiagnostic = await measureBurstState(
       installedExtension,
       BURST_PREFLIGHT_KIND,
       profile,
-      true
+      true,
     ).catch((error: unknown) => ({ error: String(error) }))
     const report = {
       authority: 'one real chrome.tabs.remove call over 500 installed-extension tabs',
@@ -3273,26 +3273,26 @@ test('installed minimum-Chrome batches a real 500-tab close within retention bud
         completed: true,
         exactCandidateIdentityTokenReplacement: true,
         ledgerAfterLastRemovalMs: CLOSE_BURST_P95_BUDGET_MS,
-        ledgerSetCalls: CLOSE_BURST_MAX_LEDGER_WRITES
+        ledgerSetCalls: CLOSE_BURST_MAX_LEDGER_WRITES,
       },
       gateDefinition: 'The 1s product gate starts at the last delivered tabs.onRemoved event because the extension cannot process events Chrome has not delivered. Remove-call timing and event delivery remain diagnostics.',
-      measuredDistribution: `not run because the basic ${BURST_PREFLIGHT_KIND} preflight failed`
+      measuredDistribution: `not run because the basic ${BURST_PREFLIGHT_KIND} preflight failed`,
     }
     await testInfo.attach('closed-tab-retention-installed-burst-preflight.json', {
       body: JSON.stringify(report, null, 2),
-      contentType: 'application/json'
+      contentType: 'application/json',
     })
     console.log(`closed-tab-retention installed burst preflight: ${JSON.stringify(report)}`)
     expect(preflight.completed, 'all 500 close candidates must settle').toBe(true)
     expect(preflight.ledgerAfterLastRemovalMs).toBeLessThanOrEqual(
-      CLOSE_BURST_P95_BUDGET_MS
+      CLOSE_BURST_P95_BUDGET_MS,
     )
     expect(preflight.ledgerSetCalls).toBeLessThanOrEqual(
-      CLOSE_BURST_MAX_LEDGER_WRITES
+      CLOSE_BURST_MAX_LEDGER_WRITES,
     )
     expect(preflight.candidatePagesMatched).toBe(BENCHMARK_TAB_COUNT)
     expect(preflight.candidatePageIdentityTokenSha256).toBe(
-      preflight.expectedCandidatePageIdentityTokenSha256
+      preflight.expectedCandidatePageIdentityTokenSha256,
     )
     return
   }
@@ -3301,7 +3301,7 @@ test('installed minimum-Chrome batches a real 500-tab close within retention bud
     candidatePagesMatched: preflight.candidatePagesMatched,
     ledgerAfterLastRemovalMs: preflight.ledgerAfterLastRemovalMs,
     ledgerSetCalls: preflight.ledgerSetCalls,
-    profileKind: BURST_PREFLIGHT_KIND
+    profileKind: BURST_PREFLIGHT_KIND,
   })}`)
 
   if (BURST_PREFLIGHT_ONLY) {
@@ -3313,14 +3313,14 @@ test('installed minimum-Chrome batches a real 500-tab close within retention bud
         completed: true,
         exactCandidateIdentityTokenReplacement: true,
         ledgerAfterLastRemovalMs: CLOSE_BURST_P95_BUDGET_MS,
-        ledgerSetCalls: CLOSE_BURST_MAX_LEDGER_WRITES
+        ledgerSetCalls: CLOSE_BURST_MAX_LEDGER_WRITES,
       },
       gateDefinition: 'The 1s product gate starts at the last delivered tabs.onRemoved event because the extension cannot process events Chrome has not delivered. Remove-call timing and event delivery remain diagnostics.',
-      measuredDistribution: 'intentionally omitted by the preflight-only benchmark option'
+      measuredDistribution: 'intentionally omitted by the preflight-only benchmark option',
     }
     await testInfo.attach('closed-tab-retention-installed-burst-preflight.json', {
       body: JSON.stringify(report, null, 2),
-      contentType: 'application/json'
+      contentType: 'application/json',
     })
     console.log(`closed-tab-retention installed burst preflight: ${JSON.stringify(report)}`)
     return
@@ -3330,45 +3330,45 @@ test('installed minimum-Chrome batches a real 500-tab close within retention bud
     const sample = await runPairedBurstSample(installedExtension, profile, index)
     console.log(`closed-tab-retention installed burst warmup ${index + 1}/${WARMUP_PAIR_COUNT}: ${JSON.stringify({
       emptyMs: sample.empty.ledgerAfterLastRemovalMs,
-      saturatedMs: sample.saturated.ledgerAfterLastRemovalMs
+      saturatedMs: sample.saturated.ledgerAfterLastRemovalMs,
     })}`)
   }
   for (let index = 0; index < MEASURED_PAIR_COUNT; index += 1) {
     const sample = await runPairedBurstSample(
       installedExtension,
       profile,
-      WARMUP_PAIR_COUNT + index
+      WARMUP_PAIR_COUNT + index,
     )
     samples.push(sample)
     console.log(`closed-tab-retention installed burst measured ${index + 1}/${MEASURED_PAIR_COUNT}: ${JSON.stringify({
       emptyMs: sample.empty.ledgerAfterLastRemovalMs,
-      saturatedMs: sample.saturated.ledgerAfterLastRemovalMs
+      saturatedMs: sample.saturated.ledgerAfterLastRemovalMs,
     })}`)
   }
 
   const saturatedDurations = samples.map(({
-    saturated
+    saturated,
   }) => saturated.ledgerAfterLastRemovalMs)
   const report = {
     authority: 'one real chrome.tabs.remove call over 500 installed-extension tabs',
     runPlan: {
       warmupPairs: WARMUP_PAIR_COUNT,
       measuredPairs: MEASURED_PAIR_COUNT,
-      order: 'empty/saturated order alternates for every pair'
+      order: 'empty/saturated order alternates for every pair',
     },
     gateDefinition: 'The 1s product gate starts at the last delivered tabs.onRemoved event because the extension cannot process events Chrome has not delivered. Remove-call timing and event delivery remain diagnostics.',
     timingMs: {
       emptyRemoveCallToFirstLedgerSet: distribution(
-        samples.map(({ empty }) => empty.removeCallToFirstLedgerSetMs)
+        samples.map(({ empty }) => empty.removeCallToFirstLedgerSetMs),
       ),
       saturatedRemoveCallToFirstLedgerSet: distribution(
-        samples.map(({ saturated }) => saturated.removeCallToFirstLedgerSetMs)
+        samples.map(({ saturated }) => saturated.removeCallToFirstLedgerSetMs),
       ),
       emptyRemoveCallToFinalLedgerSet: distribution(
-        samples.map(({ empty }) => empty.removeCallToFinalLedgerSetMs)
+        samples.map(({ empty }) => empty.removeCallToFinalLedgerSetMs),
       ),
       saturatedRemoveCallToFinalLedgerSet: distribution(
-        samples.map(({ saturated }) => saturated.removeCallToFinalLedgerSetMs)
+        samples.map(({ saturated }) => saturated.removeCallToFinalLedgerSetMs),
       ),
       emptyEventDelivery: distribution(samples.map(({ empty }) => empty.eventDeliveryMs)),
       saturatedEventDelivery: distribution(samples.map(({ saturated }) => saturated.eventDeliveryMs)),
@@ -3376,19 +3376,19 @@ test('installed minimum-Chrome batches a real 500-tab close within retention bud
       saturatedLastRemovalToFinalLedger: distribution(saturatedDurations),
       emptyInventoryCleanup: distribution(samples.map(({ empty }) => empty.cleanupMs)),
       saturatedInventoryCleanup: distribution(samples.map(({ saturated }) => saturated.cleanupMs)),
-      saturatedP95Budget: CLOSE_BURST_P95_BUDGET_MS
+      saturatedP95Budget: CLOSE_BURST_P95_BUDGET_MS,
     },
     writes: {
       authority: 'actual storage.local.set calls whose items include the Retained Page Ledger key',
       empty: samples.map(({ empty }) => empty.ledgerSetCalls),
       saturated: samples.map(({ saturated }) => saturated.ledgerSetCalls),
-      maximum: CLOSE_BURST_MAX_LEDGER_WRITES
+      maximum: CLOSE_BURST_MAX_LEDGER_WRITES,
     },
-    exactReadback: samples
+    exactReadback: samples,
   }
   await testInfo.attach('closed-tab-retention-installed-burst.json', {
     body: JSON.stringify(report, null, 2),
-    contentType: 'application/json'
+    contentType: 'application/json',
   })
   console.log(`closed-tab-retention installed burst benchmark: ${JSON.stringify(report)}`)
 
@@ -3396,21 +3396,21 @@ test('installed minimum-Chrome batches a real 500-tab close within retention bud
     expect(sample.completed).toBe(true)
     expect(sample.pages).toBe(RETAINED_PAGE_CAPACITY)
     expect(sample.sessionSurfaces).toBe(
-      RETAINED_STORAGE_PROFILE_DURABLE_SURFACES - BENCHMARK_TAB_COUNT
+      RETAINED_STORAGE_PROFILE_DURABLE_SURFACES - BENCHMARK_TAB_COUNT,
     )
     expect(sample.durableSurfaces).toBe(
-      RETAINED_STORAGE_PROFILE_DURABLE_SURFACES - BENCHMARK_TAB_COUNT
+      RETAINED_STORAGE_PROFILE_DURABLE_SURFACES - BENCHMARK_TAB_COUNT,
     )
     expect(sample.ledgerSetCalls).toBeLessThanOrEqual(
-      CLOSE_BURST_MAX_LEDGER_WRITES
+      CLOSE_BURST_MAX_LEDGER_WRITES,
     )
     expect(sample.candidatePagesExpected).toBe(BENCHMARK_TAB_COUNT)
     expect(sample.candidatePagesMatched).toBe(BENCHMARK_TAB_COUNT)
     expect(sample.candidatePageIdentityTokenSha256).toBe(
-      sample.expectedCandidatePageIdentityTokenSha256
+      sample.expectedCandidatePageIdentityTokenSha256,
     )
   }
   expect(percentile(saturatedDurations, 0.95)).toBeLessThanOrEqual(
-    CLOSE_BURST_P95_BUDGET_MS
+    CLOSE_BURST_P95_BUDGET_MS,
   )
 })

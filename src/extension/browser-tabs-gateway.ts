@@ -28,7 +28,7 @@ export type ChromeTabsApi = {
     reload?(tabId: number): Promise<void>
     duplicate?(tabId: number): Promise<chrome.tabs.Tab | undefined>
     move?(tabId: number, moveProperties: chrome.tabs.MoveProperties): Promise<chrome.tabs.Tab | chrome.tabs.Tab[] | undefined>
-    group?(options: { tabIds: number | number[]; groupId?: number }): Promise<number>
+    group?(options: { tabIds: number | number[], groupId?: number }): Promise<number>
   }
   windows?: {
     get?(windowId: number): Promise<chrome.windows.Window>
@@ -51,8 +51,8 @@ export type ChromeTabsApi = {
 }
 
 export type BrowserReadResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; value: T }
+  | { ok: true, value: T }
+  | { ok: false, value: T }
 
 let injectedChromeTabsApi: ChromeTabsApi | null = null
 
@@ -120,7 +120,7 @@ export type RemoveTabsOptions = {
 
 export async function removeTabs(
   tabIds: number[],
-  { beforeSingleRemove }: RemoveTabsOptions = {}
+  { beforeSingleRemove }: RemoveTabsOptions = {},
 ): Promise<number[]> {
   const api = chromeTabsApi()
   if (!api?.tabs?.remove || tabIds.length === 0) return []

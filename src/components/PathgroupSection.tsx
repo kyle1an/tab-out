@@ -74,7 +74,7 @@ function syncPathgroupLabelTruncation(labelEl: HTMLElement | null) {
 
 function updatePathgroupLabelTruncation(
   labelEl: HTMLElement | null,
-  setPathgroupLabelTruncated: Dispatch<SetStateAction<boolean>>
+  setPathgroupLabelTruncated: Dispatch<SetStateAction<boolean>>,
 ) {
   const isTruncated = syncPathgroupLabelTruncation(labelEl)
   setPathgroupLabelTruncated((current) => current === isTruncated ? current : isTruncated)
@@ -97,7 +97,7 @@ function PathgroupCloseButton({ count, isFirstContent = false, onClick }: Pathgr
         type="button"
         className={cn(
           'pathgroup-close-btn absolute top-1/2 right-0 grid size-5 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-tab-card p-0 text-muted-foreground opacity-0 transition-[opacity,background] duration-150 group-hover/pathgroup-section:opacity-100 hover:bg-[#ededed] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
-          isFirstContent && 'top-[calc(50%-1px)]'
+          isFirstContent && 'top-[calc(50%-1px)]',
         )}
         aria-label={title}
         onClick={onClick}
@@ -127,7 +127,7 @@ export function PathgroupSection({ domain = '', subdomainKey = '', websitePathKe
     hiddenCount,
     filter,
     suppressedTitleToneByText,
-    overflowButtonClassName: 'pl-3'
+    overflowButtonClassName: 'pl-3',
   })
 
   async function onTogglePin() {
@@ -182,7 +182,7 @@ export function PathgroupSection({ domain = '', subdomainKey = '', websitePathKe
       <div
         className={cn(
           'pathgroup-header relative flex items-center gap-1.5 pr-6 pb-0.5 pl-0',
-          isFirstContent ? 'pt-0' : 'pt-0.75'
+          isFirstContent ? 'pt-0' : 'pt-0.75',
         )}
       >
         <TooltipAnchor content={pathgroupLabelTooltipContent}>

@@ -90,7 +90,7 @@ export function snapshotChromeTabs(chromeTabs: SnapshotTab[], opts: SnapshotOpti
         pinned: !!t.pinned,
         groupId: typeof t.groupId === 'number' ? t.groupId : -1,
         windowId: t.windowId,
-        ...(typeof t.index === 'number' ? { index: t.index } : {})
+        ...(typeof t.index === 'number' ? { index: t.index } : {}),
       }
     })
     .filter((s) => {
@@ -101,16 +101,16 @@ export function snapshotChromeTabs(chromeTabs: SnapshotTab[], opts: SnapshotOpti
     })
 }
 
-const fetchChromeOpenTabsSnapshotEffect = Effect.fn('tabs.fetchChromeSnapshot')(function*() {
+const fetchChromeOpenTabsSnapshotEffect = Effect.fn('tabs.fetchChromeSnapshot')(function* () {
   const browserTabs = yield* BrowserTabs
   const [tabsResult, windowsResult] = yield* Effect.all([
     browserTabs.queryAllTabsResult(),
     browserTabs.getAllWindowsResult(),
-    fetchTabGroupColorsEffect()
+    fetchTabGroupColorsEffect(),
   ], { concurrency: 'unbounded' })
   return {
     ok: tabsResult.ok && windowsResult.ok,
-    snapshot: { tabs: tabsResult.value, windows: windowsResult.value }
+    snapshot: { tabs: tabsResult.value, windows: windowsResult.value },
   }
 })
 
@@ -119,7 +119,7 @@ export function normalizeChromeOpenTabs({ tabs, windows }: ChromeOpenTabsSnapsho
   const previousTabById = new Map(
     previousTabs
       .filter((tab): tab is DashboardTab & { id: number } => typeof tab.id === 'number')
-      .map((tab) => [tab.id, tab] as const)
+      .map((tab) => [tab.id, tab] as const),
   )
   const runtimeId = globalThis.chrome?.runtime?.id ?? null
   return tabs.map((tab) => {
@@ -128,7 +128,7 @@ export function normalizeChromeOpenTabs({ tabs, windows }: ChromeOpenTabsSnapsho
     return normalizeChromeTabToDashboardItem(tab, {
       ...(previousTab ? { previousTab } : {}),
       runtimeId,
-      ...(windowType === undefined ? {} : { windowType })
+      ...(windowType === undefined ? {} : { windowType }),
     })
   })
 }
@@ -142,12 +142,12 @@ export function seedOpenTabsTitleHistory(tabs: readonly DashboardTab[]): void {
   seededOpenTabsTitleHistory = tabs.filter((tab) => typeof tab.id === 'number')
 }
 
-export const fetchOpenTabsSnapshotEffect = Effect.fn('tabs.fetchOpenSnapshot')(function*(
-  capturedBrowserSnapshot: ChromeOpenTabsSnapshot | null = null
+export const fetchOpenTabsSnapshotEffect = Effect.fn('tabs.fetchOpenSnapshot')(function* (
+  capturedBrowserSnapshot: ChromeOpenTabsSnapshot | null = null,
 ) {
   const fallbackTabs = openTabs.length > 0 ? openTabs : seededOpenTabsTitleHistory
-  return yield* Effect.gen(function*() {
-    let result: { ok: boolean; snapshot: ChromeOpenTabsSnapshot }
+  return yield* Effect.gen(function* () {
+    let result: { ok: boolean, snapshot: ChromeOpenTabsSnapshot }
     if (capturedBrowserSnapshot) {
       yield* fetchTabGroupColorsEffect()
       result = { ok: true, snapshot: capturedBrowserSnapshot }
@@ -162,19 +162,19 @@ export const fetchOpenTabsSnapshotEffect = Effect.fn('tabs.fetchOpenSnapshot')(f
     yield* rememberSuspendTargetFromTabsEffect(nextOpenTabs)
     return { ok: true, tabs: nextOpenTabs }
   }).pipe(
-    Effect.catchDefect(() => Effect.succeed({ ok: false, tabs: fallbackTabs }))
+    Effect.catchDefect(() => Effect.succeed({ ok: false, tabs: fallbackTabs })),
   )
 })
 
 export function fetchOpenTabsSnapshotResult(
-  capturedBrowserSnapshot: ChromeOpenTabsSnapshot | null = null
+  capturedBrowserSnapshot: ChromeOpenTabsSnapshot | null = null,
 ): Promise<OpenTabsFetchResult> {
   return getAppRuntime().runPromise(fetchOpenTabsSnapshotEffect(capturedBrowserSnapshot))
 }
 
 export function fetchOpenTabsSnapshot(): Promise<DashboardTab[]> {
   return getAppRuntime().runPromise(fetchOpenTabsSnapshotEffect().pipe(
-    Effect.map((result) => result.tabs)
+    Effect.map((result) => result.tabs),
   ))
 }
 
@@ -192,7 +192,7 @@ function emptyTabCloseResult(status: 'complete' | 'unknown'): TabCloseResult {
     value: [],
     attemptedCount: 0,
     removedCount: 0,
-    failedCount: 0
+    failedCount: 0,
   }
 }
 
@@ -200,9 +200,9 @@ function emptyTabCloseResult(status: 'complete' | 'unknown'): TabCloseResult {
  * Close an already-resolved physical-tab set and report the exact accepted and
  * rejected writes. `value` contains Undo snapshots for confirmed removals.
  */
-export const closeResolvedTabsEffect = Effect.fn('tabs.closeResolved')(function*(
+export const closeResolvedTabsEffect = Effect.fn('tabs.closeResolved')(function* (
   tabs: readonly chrome.tabs.Tab[],
-  { includeTabOutUrls = false }: SnapshotOptions = {}
+  { includeTabOutUrls = false }: SnapshotOptions = {},
 ) {
   const seenIds = new Set<number>()
   const attemptedTabs = tabs.filter((tab) => {
@@ -213,7 +213,7 @@ export const closeResolvedTabsEffect = Effect.fn('tabs.closeResolved')(function*
   if (attemptedTabs.length === 0) return emptyTabCloseResult('complete')
 
   const attemptedTabsById = new Map(
-    attemptedTabs.flatMap((tab) => typeof tab.id === 'number' ? [[tab.id, tab] as const] : [])
+    attemptedTabs.flatMap((tab) => typeof tab.id === 'number' ? [[tab.id, tab] as const] : []),
   )
   const browserTabs = yield* BrowserTabs
   const removedIds = new Set(yield* browserTabs.removeTabs(tabIds(attemptedTabs), {
@@ -226,9 +226,9 @@ export const closeResolvedTabsEffect = Effect.fn('tabs.closeResolved')(function*
       if (!expectedTab || !liveTab) return false
       return !!liveTabByValidatedId([liveTab], {
         tabId,
-        url: liveTabUrlForIdentity(expectedTab)
+        url: liveTabUrlForIdentity(expectedTab),
       })
-    }
+    },
   }))
   const removedTabs = attemptedTabs.filter((tab) => typeof tab.id === 'number' && removedIds.has(tab.id))
   const removedCount = removedTabs.length
@@ -243,13 +243,13 @@ export const closeResolvedTabsEffect = Effect.fn('tabs.closeResolved')(function*
     value: snapshotChromeTabs(removedTabs, { includeTabOutUrls }),
     attemptedCount: attemptedTabs.length,
     removedCount,
-    failedCount
+    failedCount,
   }
 })
 
 export function closeResolvedTabsResult(
   tabs: readonly chrome.tabs.Tab[],
-  options: SnapshotOptions = {}
+  options: SnapshotOptions = {},
 ): Promise<TabCloseResult> {
   return getAppRuntime().runPromise(closeResolvedTabsEffect(tabs, options))
 }
@@ -268,9 +268,9 @@ export function closeResolvedTabsResult(
  * @returns {Promise<TabCloseResult>} confirmed snapshots plus mutation status
  * and attempted, removed, and failed counts
  */
-export const closeTabsExactEffect = Effect.fn('tabs.closeExact')(function*(
+export const closeTabsExactEffect = Effect.fn('tabs.closeExact')(function* (
   urls: string[],
-  opts: CloseOptions = {}
+  opts: CloseOptions = {},
 ) {
   if (!urls || urls.length === 0) return emptyTabCloseResult('complete')
   const { preserveGroups = false, preservePinnedTabOut = true } = opts
@@ -290,7 +290,7 @@ export const closeTabsExactEffect = Effect.fn('tabs.closeExact')(function*(
 
 export function closeTabsExactResult(
   urls: string[],
-  opts: CloseOptions = {}
+  opts: CloseOptions = {},
 ): Promise<TabCloseResult> {
   return getAppRuntime().runPromise(closeTabsExactEffect(urls, opts))
 }
@@ -303,9 +303,9 @@ export function closeTabsExactResult(
  * Returns confirmed snapshots plus mutation status and attempted/removed/failed
  * counts.
  */
-export const closeTabsByTargetsEffect = Effect.fn('tabs.closeByTargets')(function*(
+export const closeTabsByTargetsEffect = Effect.fn('tabs.closeByTargets')(function* (
   targets: readonly DashboardTabMutationTarget[],
-  opts: TargetCloseOptions = {}
+  opts: TargetCloseOptions = {},
 ) {
   if (targets.length === 0) return emptyTabCloseResult('complete')
   const { preserveGroups = false, preservePinnedTabOut = true, requireSuspended = false } = opts
@@ -330,7 +330,7 @@ export const closeTabsByTargetsEffect = Effect.fn('tabs.closeByTargets')(functio
 
 export function closeTabsByTargetsResult(
   targets: readonly DashboardTabMutationTarget[],
-  opts: TargetCloseOptions = {}
+  opts: TargetCloseOptions = {},
 ): Promise<TabCloseResult> {
   return getAppRuntime().runPromise(closeTabsByTargetsEffect(targets, opts))
 }
@@ -351,17 +351,17 @@ export type ExactTabFocusOrOpenResult =
   | { status: 'opened' | 'open-failed' }
 
 function exactTabFocusOrOpenResult(
-  status: ExactTabFocusOrOpenResult['status']
+  status: ExactTabFocusOrOpenResult['status'],
 ): ExactTabFocusOrOpenResult {
   return { status }
 }
 
 /** Open only when a successful browser read proves no matching tab exists. */
-export const focusExactTabOrOpenEffect = Effect.fn('tabs.focusExactOrOpen')(function*(url: string) {
+export const focusExactTabOrOpenEffect = Effect.fn('tabs.focusExactOrOpen')(function* (url: string) {
   const result = yield* focusExactTabTargetEffect(url)
   if (result.status === 'not-found') {
     return exactTabFocusOrOpenResult(
-      (yield* openTabUrlEffect(url)) ? 'opened' : 'open-failed'
+      (yield* openTabUrlEffect(url)) ? 'opened' : 'open-failed',
     )
   }
   return exactTabFocusOrOpenResult(result.status)
@@ -380,9 +380,9 @@ export function focusExactTabOrOpenResult(url: string): Promise<ExactTabFocusOrO
  * @param {{ active?: boolean }} [opts]
  * @returns {Promise<boolean>} whether Chrome created the tab
  */
-export const openTabUrlEffect = Effect.fn('tabs.openUrl')(function*(
+export const openTabUrlEffect = Effect.fn('tabs.openUrl')(function* (
   url: string,
-  opts: { active?: boolean } = {}
+  opts: { active?: boolean } = {},
 ) {
   if (!url) return false
   const { active = true } = opts
@@ -400,7 +400,7 @@ export function openTabUrl(url: string, opts: { active?: boolean } = {}): Promis
  * @param {string} url
  * @returns {Promise<boolean>} whether Chrome created the window
  */
-export const openTabUrlInNewWindowEffect = Effect.fn('tabs.openUrlInNewWindow')(function*(url: string) {
+export const openTabUrlInNewWindowEffect = Effect.fn('tabs.openUrlInNewWindow')(function* (url: string) {
   if (!url) return false
   const browserTabs = yield* BrowserTabs
   return !!(yield* browserTabs.createWindow({ url, focused: true, type: 'normal' }))
@@ -426,10 +426,10 @@ export function openTabUrlInNewWindow(url: string): Promise<boolean> {
  * @param {{ currentWindowId?: number, preservePinned?: boolean, preservePinnedTabOut?: boolean }} [opts]
  * @returns {Promise<TabCloseResult>}
  */
-export const closeDuplicateTabsEffect = Effect.fn('tabs.closeDuplicates')(function*(
+export const closeDuplicateTabsEffect = Effect.fn('tabs.closeDuplicates')(function* (
   urls: string[],
   keepOne = true,
-  opts: DedupeOptions = {}
+  opts: DedupeOptions = {},
 ) {
   const requestedUrls = [...new Set(urls.map(canonicalDedupeKey).filter(Boolean))]
   if (requestedUrls.length === 0) return emptyTabCloseResult('complete')
@@ -475,8 +475,8 @@ export const closeDuplicateTabsEffect = Effect.fn('tabs.closeDuplicates')(functi
         currentWindowId,
         preservePinned,
         preservePinnedTabOut,
-        isTabOutUrl: isTabOutPageUrl
-      })
+        isTabOutUrl: isTabOutPageUrl,
+      }),
     )
   }
 
@@ -486,7 +486,7 @@ export const closeDuplicateTabsEffect = Effect.fn('tabs.closeDuplicates')(functi
 export function closeDuplicateTabsResult(
   urls: string[],
   keepOne = true,
-  opts: DedupeOptions = {}
+  opts: DedupeOptions = {},
 ): Promise<TabCloseResult> {
   return getAppRuntime().runPromise(closeDuplicateTabsEffect(urls, keepOne, opts))
 }

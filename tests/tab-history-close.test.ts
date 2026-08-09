@@ -16,7 +16,7 @@ test('closing a Tab Out history row preserves its URL for Undo', async (t) => {
     title: 'Tab Out',
     active: false,
     pinned: false,
-    groupId: -1
+    groupId: -1,
   }] as chrome.tabs.Tab[]
   const api = createFakeChromeApi({ runtimeId, tabs })
   const previousChrome = globalThis.chrome
@@ -35,7 +35,7 @@ test('closing a Tab Out history row preserves its URL for Undo', async (t) => {
     rawUrl: tabUrl,
     displayUrl: 'Tab Out',
     favIconUrl: '',
-    exists: true
+    exists: true,
   }))
 
   assert.equal(result.status, 'closed')
@@ -54,7 +54,7 @@ test('history close reports a rejected removal without exposing an Undo snapshot
     title: 'Docs',
     active: false,
     pinned: false,
-    groupId: -1
+    groupId: -1,
   }] as chrome.tabs.Tab[]
   const api = createFakeChromeApi({ tabs })
   api.tabs.remove = async () => {
@@ -76,7 +76,7 @@ test('history close reports a rejected removal without exposing an Undo snapshot
     rawUrl: tabUrl,
     displayUrl: 'example.test/docs',
     favIconUrl: '',
-    exists: true
+    exists: true,
   }))
 
   assert.deepEqual(result, { status: 'failed', closed: false, snapshot: [] })

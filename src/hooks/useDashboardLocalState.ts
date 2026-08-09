@@ -4,7 +4,7 @@ import {
   DOMAIN_PIN_STORAGE_KEY,
   normalizePinnedDomains,
   type PinnedDomainMutation,
-  type PinnedDomainReorderPlacement
+  type PinnedDomainReorderPlacement,
 } from '../extension/domain-pins.js'
 import { mutatePinnedDomains, mutatePinnedPageChips, mutatePinnedSections } from '../extension/dashboard-pin-mutations.js'
 import { applyPinnedPageChipMutation, createPinnedPageChipIndex, normalizePinnedPageChips, PAGE_CHIP_PIN_STORAGE_KEY, type PinnedPageChipMutation, type PinnedPageChipIndex } from '../extension/page-chip-pins.js'
@@ -16,7 +16,7 @@ import {
   loadDashboardLocalStateResult,
   sameDashboardLocalState,
   sameStringOrder,
-  type DashboardLocalState
+  type DashboardLocalState,
 } from '../extension/dashboard-local-state.js'
 
 export { loadDashboardLocalState, loadDashboardLocalStateResult } from '../extension/dashboard-local-state.js'
@@ -52,7 +52,7 @@ const EMPTY_DASHBOARD_LOCAL_STATE = emptyDashboardLocalState()
 export function reconcileDashboardLocalStateStorageChanges(
   currentState: DashboardLocalState,
   changes: Record<string, chrome.storage.StorageChange>,
-  pendingWrites: DashboardLocalStatePendingWrites
+  pendingWrites: DashboardLocalStatePendingWrites,
 ): DashboardLocalStateStorageReconciliation | null {
   let nextState = currentState
   const appliedKeys: DashboardLocalStatePinKey[] = []
@@ -62,7 +62,7 @@ export function reconcileDashboardLocalStateStorageChanges(
   function reconcilePinValue(
     storageKey: string,
     stateKey: DashboardLocalStatePinKey,
-    normalize: (value: unknown) => string[]
+    normalize: (value: unknown) => string[],
   ): void {
     if (!Object.hasOwn(changes, storageKey)) return
     const nextValue = changes[storageKey]?.newValue
@@ -99,7 +99,7 @@ export function useDashboardLocalState({
   onBeforeApplyPinnedPageChips,
   onDomainPinSaveError,
   onSectionPinSaveError,
-  onPageChipPinSaveError
+  onPageChipPinSaveError,
 }: UseDashboardLocalStateOptions = {}) {
   const [state, setState] = useState<DashboardLocalState>(initialState ?? EMPTY_DASHBOARD_LOCAL_STATE)
   const stateRef = useRef(state)
@@ -110,7 +110,7 @@ export function useDashboardLocalState({
   const pendingPinWritesRef = useRef<Record<DashboardLocalStatePinKey, number>>({
     pinnedDomains: 0,
     pinnedSectionIds: 0,
-    pinnedPageChipIds: 0
+    pinnedPageChipIds: 0,
   })
   const onBeforeApplyPinnedDomainsRef = useRef(onBeforeApplyPinnedDomains)
   const onBeforeApplyPinnedSectionsRef = useRef(onBeforeApplyPinnedSections)
@@ -179,7 +179,7 @@ export function useDashboardLocalState({
 
     const onStorageChanged = (
       changes: Record<string, chrome.storage.StorageChange>,
-      areaName: string
+      areaName: string,
     ) => {
       if (areaName !== 'local') return
       const pendingWrites = pendingPinWritesRef.current
@@ -187,7 +187,7 @@ export function useDashboardLocalState({
       const reconciliation = reconcileDashboardLocalStateStorageChanges(currentState, changes, {
         pinnedDomains: pendingWrites.pinnedDomains > 0,
         pinnedSectionIds: pendingWrites.pinnedSectionIds > 0,
-        pinnedPageChipIds: pendingWrites.pinnedPageChipIds > 0
+        pinnedPageChipIds: pendingWrites.pinnedPageChipIds > 0,
       })
       if (!reconciliation) return
 
@@ -210,13 +210,13 @@ export function useDashboardLocalState({
       if (reconciliation.appliedKeys.includes('pinnedSectionIds')) {
         onBeforeApplyPinnedSectionsRef.current?.(changedPinnedValue(
           currentState.pinnedSectionIds,
-          reconciliation.nextState.pinnedSectionIds
+          reconciliation.nextState.pinnedSectionIds,
         ))
       }
       if (reconciliation.appliedKeys.includes('pinnedPageChipIds')) {
         onBeforeApplyPinnedPageChipsRef.current?.(changedPinnedValue(
           currentState.pinnedPageChipIds,
-          reconciliation.nextState.pinnedPageChipIds
+          reconciliation.nextState.pinnedPageChipIds,
         ))
       }
       stateRef.current = reconciliation.nextState
@@ -229,11 +229,11 @@ export function useDashboardLocalState({
 
   const pinnedSections = useMemo<ReadonlySet<string>>(
     () => state.pinnedSectionIds.length === 0 ? EMPTY_PINNED_SECTIONS : new Set(state.pinnedSectionIds),
-    [state.pinnedSectionIds]
+    [state.pinnedSectionIds],
   )
   const pinnedPageChips = useMemo<PinnedPageChipIndex>(
     () => state.pinnedPageChipIds.length === 0 ? EMPTY_PINNED_PAGE_CHIPS : createPinnedPageChipIndex(state.pinnedPageChipIds),
-    [state.pinnedPageChipIds]
+    [state.pinnedPageChipIds],
   )
 
   function updateCurrentState(update: (current: DashboardLocalState) => DashboardLocalState): void {
@@ -245,7 +245,7 @@ export function useDashboardLocalState({
   async function withPendingPinWrite<Value>(
     stateKey: DashboardLocalStatePinKey,
     write: () => Promise<Value>,
-    settle: (value: Value) => void
+    settle: (value: Value) => void,
   ): Promise<void> {
     pendingPinWritesRef.current[stateKey] += 1
     const release = () => {
@@ -284,7 +284,7 @@ export function useDashboardLocalState({
     await applyPinnedDomainMutationOptimistically({
       type: 'set-pinned',
       domain,
-      pinned: !stateRef.current.pinnedDomains.includes(domain)
+      pinned: !stateRef.current.pinnedDomains.includes(domain),
     })
   }
 
@@ -296,7 +296,7 @@ export function useDashboardLocalState({
     const mutation: PinnedSectionMutation = {
       type: 'set-pinned',
       id,
-      pinned: !stateRef.current.pinnedSectionIds.includes(id)
+      pinned: !stateRef.current.pinnedSectionIds.includes(id),
     }
     const nextIds = applyPinnedSectionMutation(stateRef.current.pinnedSectionIds, mutation)
     if (sameStringOrder(nextIds, stateRef.current.pinnedSectionIds)) return
@@ -318,7 +318,7 @@ export function useDashboardLocalState({
     const mutation: PinnedPageChipMutation = {
       type: 'set-pinned',
       id,
-      pinned: !stateRef.current.pinnedPageChipIds.includes(id)
+      pinned: !stateRef.current.pinnedPageChipIds.includes(id),
     }
     const nextIds = applyPinnedPageChipMutation(stateRef.current.pinnedPageChipIds, mutation)
     if (sameStringOrder(nextIds, stateRef.current.pinnedPageChipIds)) return
@@ -346,6 +346,6 @@ export function useDashboardLocalState({
     togglePinnedDomain,
     reorderPinnedDomain,
     togglePinnedSection,
-    togglePinnedPageChip
+    togglePinnedPageChip,
   }
 }

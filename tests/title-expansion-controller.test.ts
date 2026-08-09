@@ -4,7 +4,7 @@ import test from 'node:test'
 import { createTitleExpansionController, createTitleExpansionLane } from '../src/components/title-expansion/index.js'
 import type { TitleExpansionScheduler } from '../src/components/title-expansion/index.js'
 
-type ScheduledTask = { fn: () => void; delayMs: number; cleared: boolean }
+type ScheduledTask = { fn: () => void, delayMs: number, cleared: boolean }
 
 function createFakeScheduler() {
   const tasks: ScheduledTask[] = []
@@ -17,7 +17,7 @@ function createFakeScheduler() {
     clear(handle) {
       const task = tasks.find((candidate) => candidate === handle)
       if (task) task.cleared = true
-    }
+    },
   }
   function firePending() {
     for (const task of tasks.splice(0)) {
@@ -39,7 +39,7 @@ function createRecordingController(lane = createTitleExpansionLane(), overrides:
     closeDelayMs: 160,
     scheduler: fake.scheduler,
     onExpandedChange: (expanded: boolean) => expandedChanges.push(expanded),
-    ...overrides
+    ...overrides,
   })
   return { controller, lane, fake, expandedChanges }
 }
@@ -139,7 +139,7 @@ test('cancelPendingClose keeps the expansion open through the scheduled fire', (
 test('shouldCancelClose vetoes close at entry and clears any pending collapse', () => {
   let menuOpen = false
   const { controller, fake, expandedChanges } = createRecordingController(createTitleExpansionLane(), {
-    shouldCancelClose: () => menuOpen
+    shouldCancelClose: () => menuOpen,
   })
 
   controller.open()
@@ -156,7 +156,7 @@ test('shouldCancelClose vetoes close at entry and clears any pending collapse', 
 test('shouldCancelClose is re-checked when the delayed close fires', () => {
   let menuOpen = false
   const { controller, lane, fake } = createRecordingController(createTitleExpansionLane(), {
-    shouldCancelClose: () => menuOpen
+    shouldCancelClose: () => menuOpen,
   })
 
   controller.open()
@@ -170,7 +170,7 @@ test('shouldCancelClose is re-checked when the delayed close fires', () => {
 
 test('closeNow collapses and releases even while shouldCancelClose vetoes', () => {
   const { controller, lane } = createRecordingController(createTitleExpansionLane(), {
-    shouldCancelClose: () => true
+    shouldCancelClose: () => true,
   })
 
   controller.open()
@@ -189,7 +189,7 @@ test('a lane steal collapses the previous owner without touching the new owner',
     lane,
     closeDelayMs: 160,
     scheduler: fakeB.scheduler,
-    onExpandedChange: () => {}
+    onExpandedChange: () => {},
   })
 
   first.controller.open()
@@ -205,7 +205,7 @@ test('shouldIgnoreLaneSteal keeps the previous owner expanded while the lane mov
   let menuOpen = true
   const lane = createTitleExpansionLane()
   const first = createRecordingController(lane, {
-    shouldIgnoreLaneSteal: () => menuOpen
+    shouldIgnoreLaneSteal: () => menuOpen,
   })
 
   first.controller.open()
@@ -222,7 +222,7 @@ test('shouldIgnoreLaneSteal keeps the previous owner expanded while the lane mov
 test('a delayed close that fires after a steal collapses the entry but leaves the lane with its new owner', () => {
   const lane = createTitleExpansionLane()
   const first = createRecordingController(lane, {
-    shouldIgnoreLaneSteal: () => true
+    shouldIgnoreLaneSteal: () => true,
   })
 
   first.controller.open()

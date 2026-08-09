@@ -11,7 +11,7 @@ import {
   removeRetainedPageSnapshots,
   RETAINED_PAGE_CAPACITY,
   RETAINED_PAGE_LIFETIME_MS,
-  type RetainedPageClosure
+  type RetainedPageClosure,
 } from '../src/extension/retained-pages-ledger.js'
 
 const closure: RetainedPageClosure = {
@@ -22,7 +22,7 @@ const closure: RetainedPageClosure = {
   title: 'Example article',
   favIconUrl: 'https://example.test/favicon.ico',
   closedAt: 1_000,
-  closureToken: 'lifetime-example'
+  closureToken: 'lifetime-example',
 }
 
 test('a genuine closure creates one retained page and replaying its lifetime is a no-op', () => {
@@ -35,7 +35,7 @@ test('a genuine closure creates one retained page and replaying its lifetime is 
 
   const replayed = recordRetainedPageClosure(inserted.ledger, {
     ...closure,
-    closedAt: 9_000
+    closedAt: 9_000,
   })
 
   assert.equal(replayed.outcome, 'replayed')
@@ -50,7 +50,7 @@ test('a newer closure refreshes one identity while an older delayed closure cann
     ...closure,
     title: 'Updated article',
     closedAt: 3_000,
-    closureToken: 'lifetime-newer'
+    closureToken: 'lifetime-newer',
   })
 
   assert.equal(refreshed.outcome, 'refreshed')
@@ -63,7 +63,7 @@ test('a newer closure refreshes one identity while an older delayed closure cann
     ...closure,
     title: 'Delayed stale article',
     closedAt: 2_000,
-    closureToken: 'lifetime-delayed'
+    closureToken: 'lifetime-delayed',
   })
 
   assert.equal(delayed.outcome, 'stale')
@@ -81,7 +81,7 @@ test('a newer closure updates its target while preserving useful prior metadata'
     url: 'https://example.test/article?new-target',
     title: '',
     closedAt: 2_000,
-    closureToken: 'lifetime-new-target'
+    closureToken: 'lifetime-new-target',
   })
 
   assert.equal(refreshed.outcome, 'refreshed')
@@ -89,24 +89,24 @@ test('a newer closure updates its target while preserving useful prior metadata'
     ...closure,
     url: 'https://example.test/article?new-target',
     closedAt: 2_000,
-    closureToken: 'lifetime-new-target'
+    closureToken: 'lifetime-new-target',
   })
 })
 
 test('equal-time closures use their stable lifetime tokens as a deterministic tie-breaker', () => {
   const first = recordRetainedPageClosure(emptyRetainedPageLedger(), {
     ...closure,
-    closureToken: 'lifetime-middle'
+    closureToken: 'lifetime-middle',
   })
   const earlierTie = recordRetainedPageClosure(first.ledger, {
     ...closure,
     title: 'Lower token',
-    closureToken: 'lifetime-before'
+    closureToken: 'lifetime-before',
   })
   const laterTie = recordRetainedPageClosure(first.ledger, {
     ...closure,
     title: 'Higher token',
-    closureToken: 'lifetime-zed'
+    closureToken: 'lifetime-zed',
   })
 
   assert.equal(earlierTie.outcome, 'stale')
@@ -121,18 +121,18 @@ test('retained pages expire at 30 days but remain visible inside the lifetime', 
 
   const stillActive = pruneRetainedPageLedger(
     inserted.ledger,
-    closure.closedAt + RETAINED_PAGE_LIFETIME_MS - 1
+    closure.closedAt + RETAINED_PAGE_LIFETIME_MS - 1,
   )
   assert.equal(stillActive.changed, false)
   assert.equal(stillActive.ledger, inserted.ledger)
   assert.equal(
     stillActive.nextExpiryAt,
-    closure.closedAt + RETAINED_PAGE_LIFETIME_MS
+    closure.closedAt + RETAINED_PAGE_LIFETIME_MS,
   )
 
   const expired = pruneRetainedPageLedger(
     inserted.ledger,
-    closure.closedAt + RETAINED_PAGE_LIFETIME_MS
+    closure.closedAt + RETAINED_PAGE_LIFETIME_MS,
   )
   assert.equal(expired.changed, true)
   assert.equal(expired.removedPages, 1)
@@ -150,7 +150,7 @@ test('retained-page prune cache reuses a ledger only before its next expiry', ()
 
   const atExpiry = prune(
     inserted.ledger,
-    closure.closedAt + RETAINED_PAGE_LIFETIME_MS
+    closure.closedAt + RETAINED_PAGE_LIFETIME_MS,
   )
   assert.notEqual(atExpiry, first)
   assert.equal(atExpiry.changed, true)
@@ -171,7 +171,7 @@ test('the global capacity keeps the 500 most recently closed identities', () => 
       canonicalKey: `https://example.test/${index}`,
       url: `https://example.test/${index}`,
       closedAt: closure.closedAt + index,
-      closureToken: `lifetime-${index}`
+      closureToken: `lifetime-${index}`,
     }).ledger
   }
 
@@ -181,7 +181,7 @@ test('the global capacity keeps the 500 most recently closed identities', () => 
   assert.deepEqual(ledger.removalBoundaries['lifetime-0'], {
     identityDigest: 'identity-000',
     closureToken: 'lifetime-0',
-    expiresAt: closure.closedAt + RETAINED_PAGE_LIFETIME_MS
+    expiresAt: closure.closedAt + RETAINED_PAGE_LIFETIME_MS,
   })
 })
 
@@ -194,13 +194,13 @@ test('bulk recording applies mixed ordered outcomes and capacity boundaries', ()
       canonicalKey: `https://example.test/${index}`,
       url: `https://example.test/${index}`,
       closedAt: 2_000 + index,
-      closureToken: `lifetime-${index}`
+      closureToken: `lifetime-${index}`,
     }).ledger
   }
   ledger = removeRetainedPageSnapshot(
     ledger,
     'identity-250',
-    'lifetime-250'
+    'lifetime-250',
   ).ledger
 
   const closures: RetainedPageClosure[] = [
@@ -210,7 +210,7 @@ test('bulk recording applies mixed ordered outcomes and capacity boundaries', ()
       canonicalKey: 'https://example.test/new',
       url: 'https://example.test/new',
       closedAt: 3_000,
-      closureToken: 'lifetime-new'
+      closureToken: 'lifetime-new',
     },
     {
       ...closure,
@@ -219,7 +219,7 @@ test('bulk recording applies mixed ordered outcomes and capacity boundaries', ()
       url: 'https://example.test/400?newest',
       title: 'Newest 400',
       closedAt: 4_000,
-      closureToken: 'lifetime-400-new'
+      closureToken: 'lifetime-400-new',
     },
     {
       ...closure,
@@ -227,7 +227,7 @@ test('bulk recording applies mixed ordered outcomes and capacity boundaries', ()
       canonicalKey: 'https://example.test/250',
       url: 'https://example.test/250',
       closedAt: 2_250,
-      closureToken: 'lifetime-250'
+      closureToken: 'lifetime-250',
     },
     {
       ...closure,
@@ -235,8 +235,8 @@ test('bulk recording applies mixed ordered outcomes and capacity boundaries', ()
       canonicalKey: 'https://example.test/too-old',
       url: 'https://example.test/too-old',
       closedAt: 1,
-      closureToken: 'lifetime-too-old'
-    }
+      closureToken: 'lifetime-too-old',
+    },
   ]
 
   const bulk = recordRetainedPageClosures(ledger, closures)
@@ -245,7 +245,7 @@ test('bulk recording applies mixed ordered outcomes and capacity boundaries', ()
     { changed: true, outcome: 'inserted' },
     { changed: true, outcome: 'refreshed' },
     { changed: false, outcome: 'blocked' },
-    { changed: true, outcome: 'stale' }
+    { changed: true, outcome: 'stale' },
   ])
   assert.equal(bulk.changed, true)
   assert.equal(Object.keys(bulk.ledger.pages).length, RETAINED_PAGE_CAPACITY)
@@ -256,7 +256,7 @@ test('bulk recording applies mixed ordered outcomes and capacity boundaries', ()
   assert.deepEqual(bulk.ledger.removalBoundaries['lifetime-too-old'], {
     identityDigest: 'identity-too-old',
     closureToken: 'lifetime-too-old',
-    expiresAt: 1 + RETAINED_PAGE_LIFETIME_MS
+    expiresAt: 1 + RETAINED_PAGE_LIFETIME_MS,
   })
 })
 
@@ -272,15 +272,15 @@ test('bulk recording keeps replay, stale, and equal-time ordering deterministic'
       canonicalKey: 'https://example.test/second',
       url: 'https://example.test/second',
       closedAt: 1_500,
-      closureToken: 'lifetime-second'
-    }
+      closureToken: 'lifetime-second',
+    },
   ])
 
   assert.deepEqual(bulk.results.map((result) => result.outcome), [
     'replayed',
     'stale',
     'refreshed',
-    'inserted'
+    'inserted',
   ])
   assert.equal(bulk.ledger.pages['identity-example']?.closureToken, 'lifetime-zed')
   assert.equal(bulk.ledger.pages['identity-second']?.closedAt, 1_500)
@@ -290,14 +290,14 @@ test('an all-no-op bulk preserves the original ledger reference', () => {
   const inserted = recordRetainedPageClosure(emptyRetainedPageLedger(), closure)
   const bulk = recordRetainedPageClosures(inserted.ledger, [
     { ...closure, closedAt: 9_000 },
-    { ...closure, closedAt: 500, closureToken: 'lifetime-older' }
+    { ...closure, closedAt: 500, closureToken: 'lifetime-older' },
   ])
 
   assert.equal(bulk.changed, false)
   assert.equal(bulk.ledger, inserted.ledger)
   assert.deepEqual(bulk.results.map((result) => result.outcome), [
     'replayed',
-    'stale'
+    'stale',
   ])
 })
 
@@ -310,7 +310,7 @@ test('a delayed candidate older than a saturated ledger gets a replay boundary',
       canonicalKey: `https://example.test/${index}`,
       url: `https://example.test/${index}`,
       closedAt: 1_000 + index,
-      closureToken: `lifetime-${index}`
+      closureToken: `lifetime-${index}`,
     }).ledger
   }
   ledger = {
@@ -319,9 +319,9 @@ test('a delayed candidate older than a saturated ledger gets a replay boundary',
       'lifetime-delayed-older': {
         identityDigest: 'identity-delayed',
         closureToken: 'lifetime-delayed-older',
-        expiresAt: 400 + RETAINED_PAGE_LIFETIME_MS
-      }
-    }
+        expiresAt: 400 + RETAINED_PAGE_LIFETIME_MS,
+      },
+    },
   }
 
   const delayed = recordRetainedPageClosure(ledger, {
@@ -330,7 +330,7 @@ test('a delayed candidate older than a saturated ledger gets a replay boundary',
     canonicalKey: 'https://example.test/delayed',
     url: 'https://example.test/delayed',
     closedAt: 500,
-    closureToken: 'lifetime-delayed'
+    closureToken: 'lifetime-delayed',
   })
 
   assert.equal(delayed.outcome, 'stale')
@@ -339,18 +339,18 @@ test('a delayed candidate older than a saturated ledger gets a replay boundary',
   assert.deepEqual(delayed.ledger.removalBoundaries['lifetime-delayed'], {
     identityDigest: 'identity-delayed',
     closureToken: 'lifetime-delayed',
-    expiresAt: 500 + RETAINED_PAGE_LIFETIME_MS
+    expiresAt: 500 + RETAINED_PAGE_LIFETIME_MS,
   })
   assert.equal(
     delayed.ledger.removalBoundaries['lifetime-delayed-older'],
-    undefined
+    undefined,
   )
 
   const withSpace = {
     ...delayed.ledger,
     pages: Object.fromEntries(
-      Object.entries(delayed.ledger.pages).slice(1)
-    )
+      Object.entries(delayed.ledger.pages).slice(1),
+    ),
   }
   const replayed = recordRetainedPageClosure(withSpace, {
     ...closure,
@@ -358,7 +358,7 @@ test('a delayed candidate older than a saturated ledger gets a replay boundary',
     canonicalKey: 'https://example.test/delayed',
     url: 'https://example.test/delayed',
     closedAt: 500,
-    closureToken: 'lifetime-delayed'
+    closureToken: 'lifetime-delayed',
   })
 
   assert.equal(replayed.outcome, 'blocked')
@@ -374,14 +374,14 @@ test('pruning keeps only the newest replay boundary for one identity', () => {
       older: {
         identityDigest: 'identity-example',
         closureToken: 'older',
-        expiresAt: 1_000 + RETAINED_PAGE_LIFETIME_MS
+        expiresAt: 1_000 + RETAINED_PAGE_LIFETIME_MS,
       },
       newer: {
         identityDigest: 'identity-example',
         closureToken: 'newer',
-        expiresAt: 2_000 + RETAINED_PAGE_LIFETIME_MS
-      }
-    }
+        expiresAt: 2_000 + RETAINED_PAGE_LIFETIME_MS,
+      },
+    },
   }
 
   const pruned = pruneRetainedPageLedger(ledger, 3_000)
@@ -396,7 +396,7 @@ test('removal keeps only a replay boundary and a genuinely newer closure can ret
   const removed = removeRetainedPageSnapshot(
     inserted.ledger,
     closure.identityDigest,
-    closure.closureToken
+    closure.closureToken,
   )
 
   assert.equal(removed.outcome, 'removed')
@@ -405,12 +405,12 @@ test('removal keeps only a replay boundary and a genuinely newer closure can ret
   assert.deepEqual(removed.ledger.removalBoundaries['lifetime-example'], {
     identityDigest: 'identity-example',
     closureToken: 'lifetime-example',
-    expiresAt: 1_000 + RETAINED_PAGE_LIFETIME_MS
+    expiresAt: 1_000 + RETAINED_PAGE_LIFETIME_MS,
   })
 
   const replayed = recordRetainedPageClosure(removed.ledger, {
     ...closure,
-    closedAt: 9_000
+    closedAt: 9_000,
   })
   assert.equal(replayed.outcome, 'blocked')
   assert.equal(replayed.changed, false)
@@ -420,7 +420,7 @@ test('removal keeps only a replay boundary and a genuinely newer closure can ret
     ...closure,
     title: 'Newly closed article',
     closedAt: 10_000,
-    closureToken: 'lifetime-after-removal'
+    closureToken: 'lifetime-after-removal',
   })
   assert.equal(newer.outcome, 'inserted')
   assert.equal(newer.changed, true)
@@ -434,37 +434,37 @@ test('batch removal applies exact snapshots in order and preserves stale newer l
     identityDigest: 'identity-second',
     canonicalKey: 'https://example.test/second',
     url: 'https://example.test/second',
-    closureToken: 'lifetime-second'
+    closureToken: 'lifetime-second',
   }
   const newerClosure: RetainedPageClosure = {
     ...closure,
     identityDigest: 'identity-newer',
     canonicalKey: 'https://example.test/newer',
     url: 'https://example.test/newer',
-    closureToken: 'lifetime-newer'
+    closureToken: 'lifetime-newer',
   }
   const inserted = recordRetainedPageClosures(
     emptyRetainedPageLedger(),
-    [closure, secondClosure, newerClosure]
+    [closure, secondClosure, newerClosure],
   )
 
   const removed = removeRetainedPageSnapshots(inserted.ledger, [
     {
       identityDigest: closure.identityDigest,
-      closureToken: closure.closureToken
+      closureToken: closure.closureToken,
     },
     {
       identityDigest: 'identity-absent',
-      closureToken: 'lifetime-absent'
+      closureToken: 'lifetime-absent',
     },
     {
       identityDigest: newerClosure.identityDigest,
-      closureToken: 'lifetime-stale'
+      closureToken: 'lifetime-stale',
     },
     {
       identityDigest: secondClosure.identityDigest,
-      closureToken: secondClosure.closureToken
-    }
+      closureToken: secondClosure.closureToken,
+    },
   ])
 
   assert.equal(removed.changed, true)
@@ -474,17 +474,17 @@ test('batch removal applies exact snapshots in order and preserves stale newer l
       { changed: true, outcome: 'removed' },
       { changed: false, outcome: 'already-absent' },
       { changed: false, outcome: 'stale' },
-      { changed: true, outcome: 'removed' }
-    ]
+      { changed: true, outcome: 'removed' },
+    ],
   )
   assert.deepEqual(Object.keys(removed.ledger.pages), ['identity-newer'])
   assert.equal(
     removed.ledger.pages['identity-newer']?.closureToken,
-    'lifetime-newer'
+    'lifetime-newer',
   )
   assert.deepEqual(
     Object.keys(removed.ledger.removalBoundaries).toSorted(),
-    ['lifetime-example', 'lifetime-second']
+    ['lifetime-example', 'lifetime-second'],
   )
 })
 
@@ -493,14 +493,14 @@ test('a removed lifetime stays blocked when a known identity reindex changes its
   const removed = removeRetainedPageSnapshot(
     inserted.ledger,
     closure.identityDigest,
-    closure.closureToken
+    closure.closureToken,
   )
 
   const replayedAfterReindex = recordRetainedPageClosure(removed.ledger, {
     ...closure,
     identityDigest: 'identity-reindexed',
     canonicalKey: 'https://example.test/article-canonical-v2',
-    closedAt: 9_000
+    closedAt: 9_000,
   })
 
   assert.equal(replayedAfterReindex.outcome, 'blocked')
@@ -514,19 +514,19 @@ test('a removal boundary expires at the removed snapshot original horizon', () =
   const removed = removeRetainedPageSnapshot(
     inserted.ledger,
     closure.identityDigest,
-    closure.closureToken
+    closure.closureToken,
   )
 
   const stillProtected = pruneRetainedPageLedger(
     removed.ledger,
-    closure.closedAt + RETAINED_PAGE_LIFETIME_MS - 1
+    closure.closedAt + RETAINED_PAGE_LIFETIME_MS - 1,
   )
   assert.equal(stillProtected.changed, false)
   assert.equal(stillProtected.ledger, removed.ledger)
 
   const expired = pruneRetainedPageLedger(
     removed.ledger,
-    closure.closedAt + RETAINED_PAGE_LIFETIME_MS
+    closure.closedAt + RETAINED_PAGE_LIFETIME_MS,
   )
   assert.equal(expired.changed, true)
   assert.equal(expired.removedPages, 0)

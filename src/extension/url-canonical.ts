@@ -32,7 +32,7 @@ const BUILT_IN_CANONICALIZERS: UrlCanonicalizerRule[] = [
       if (!isGitHubRepositoryRootPath(u.pathname)) return null
       const pathname = u.pathname.endsWith('/') ? u.pathname.slice(0, -1) : u.pathname
       return `${u.origin}${pathname}${u.search}${u.hash}`
-    }
+    },
   },
 
   // Atlassian Jira: /browse/{ISSUE}-{N} → dedup by issue + focused comment.
@@ -49,8 +49,8 @@ const BUILT_IN_CANONICALIZERS: UrlCanonicalizerRule[] = [
       const comment = u.searchParams.get('focusedCommentId') || (u.hash.match(/^#comment-(\d+)$/)?.[1] ?? '')
       const base = `${u.origin}/browse/${m[1]}`
       return comment ? `${base}?focusedCommentId=${comment}` : base
-    }
-  }
+    },
+  },
 ]
 
 export function canonicalDedupeKey(url: string): string {

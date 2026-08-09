@@ -8,12 +8,12 @@ import {
   type WorkingSetActivityAuthorityMarker,
   type WorkingSetActivityChromeAuthorityPort,
   type WorkingSetActivityGenerationManifest,
-  type WorkingSetActivityIndexedDbAuthorityPort
+  type WorkingSetActivityIndexedDbAuthorityPort,
 } from '../src/extension/background/working-set-activity-authority.js'
 import type { WorkingSetActivityWrite } from '../src/extension/background/working-set-activity-storage.js'
 import type {
   WorkingSetActivityRecord,
-  WorkingSetActivityStore
+  WorkingSetActivityStore,
 } from '../src/extension/types'
 
 const NOW = Date.UTC(2026, 7, 9, 12)
@@ -52,7 +52,7 @@ interface SharedAuthorityState {
 function activityRecord(
   key: string,
   title: string,
-  at: number
+  at: number,
 ): WorkingSetActivityRecord {
   return {
     key,
@@ -61,28 +61,28 @@ function activityRecord(
     domain: URL.parse(key)?.hostname ?? '',
     lastSeenAt: at,
     lastActivatedAt: at,
-    events: [{ kind: 'activation', at }]
+    events: [{ kind: 'activation', at }],
   }
 }
 
 function activityStore(
-  records: readonly WorkingSetActivityRecord[]
+  records: readonly WorkingSetActivityRecord[],
 ): WorkingSetActivityStore {
   return {
     version: 1,
-    records: Object.fromEntries(records.map((record) => [record.key, record]))
+    records: Object.fromEntries(records.map((record) => [record.key, record])),
   }
 }
 
 function makeLegacyActivity(): WorkingSetActivityStore {
   return activityStore([
     activityRecord('https://example.test/docs', 'Example Docs', NOW - 1000),
-    activityRecord('https://example.test/tasks', 'Example Tasks', NOW - 2000)
+    activityRecord('https://example.test/tasks', 'Example Tasks', NOW - 2000),
   ])
 }
 
 function makeSharedState(
-  legacy: unknown = makeLegacyActivity()
+  legacy: unknown = makeLegacyActivity(),
 ): SharedAuthorityState {
   return {
     marker: undefined,
@@ -104,12 +104,12 @@ function makeSharedState(
     mismatchVerificationOnce: false,
     failMarkerReadbackOnce: false,
     addUnexpectedMarkerFieldOnReadbackOnce: false,
-    markerReadbackOverrideOnce: null
+    markerReadbackOverrideOnce: null,
   }
 }
 
 function fakeChromePort(
-  state: SharedAuthorityState
+  state: SharedAuthorityState,
 ): WorkingSetActivityChromeAuthorityPort {
   return {
     async readMarker() {
@@ -155,12 +155,12 @@ function fakeChromePort(
       state.calls.push('legacy:read')
       state.legacyReads += 1
       return structuredClone(state.legacy)
-    }
+    },
   }
 }
 
 function fakeIndexedDbPort(
-  state: SharedAuthorityState
+  state: SharedAuthorityState,
 ): WorkingSetActivityIndexedDbAuthorityPort {
   return {
     async stage(manifest, activity) {
@@ -173,7 +173,7 @@ function fakeIndexedDbPort(
       }
       state.generations.set(manifest.generation, {
         manifest: structuredClone(manifest),
-        activity: structuredClone(activity)
+        activity: structuredClone(activity),
       })
       if (failure === 'after') {
         throw new Error('synthetic target commit-then-reject ambiguity')
@@ -194,8 +194,8 @@ function fakeIndexedDbPort(
           activityRecord(
             'https://example.test/mismatch',
             'Mismatched generation',
-            NOW
-          )
+            NOW,
+          ),
         ])
       }
       return structuredClone(stored.activity)
@@ -227,7 +227,7 @@ function fakeIndexedDbPort(
     async close() {
       state.calls.push('idb:close')
       state.closes += 1
-    }
+    },
   }
 }
 
@@ -235,12 +235,12 @@ function makeBackend(state: SharedAuthorityState) {
   return makeWorkingSetActivityAuthorityBackend({
     chrome: fakeChromePort(state),
     indexedDb: fakeIndexedDbPort(state),
-    now: () => NOW
+    now: () => NOW,
   })
 }
 
 function persistedMarker(
-  state: SharedAuthorityState
+  state: SharedAuthorityState,
 ): WorkingSetActivityAuthorityMarker {
   assert.ok(isAuthorityMarker(state.marker))
   return state.marker
@@ -256,11 +256,11 @@ function updatedActivity(before: WorkingSetActivityStore): WorkingSetActivityWri
     title: 'Updated docs',
     lastSeenAt: at,
     lastNavigatedAt: at,
-    events: [...existing.events, { kind: 'navigation', at }]
+    events: [...existing.events, { kind: 'navigation', at }],
   }
   const activity = activityStore([
     upsert,
-    ...Object.values(before.records).filter((record) => record.key !== key)
+    ...Object.values(before.records).filter((record) => record.key !== key),
   ])
   return { activity, upsert, deleteKeys: [] }
 }
@@ -282,7 +282,7 @@ test('migration commits and verifies the target before writing and reading back 
     'idb:stage',
     'idb:verify',
     'marker:write',
-    'marker:read'
+    'marker:read',
   ])
 })
 
@@ -293,7 +293,7 @@ test('concurrent first operations serialize behind one migration', async () => {
   const results = await Promise.all([
     backend.read(),
     backend.read(),
-    backend.read()
+    backend.read(),
   ])
 
   assert.deepEqual(results, [state.legacy, state.legacy, state.legacy])
@@ -307,7 +307,7 @@ test('concurrent first operations serialize behind one migration', async () => {
 
 const stageFailureModes: readonly Exclude<OneShotMode, null>[] = [
   'before',
-  'after'
+  'after',
 ]
 
 for (const failure of stageFailureModes) {
@@ -416,13 +416,13 @@ test('missing legacy state migrates as a verified known-empty generation', async
 
   assert.deepEqual(await makeBackend(state).read(), {
     version: 1,
-    records: {}
+    records: {},
   })
 
   const marker = persistedMarker(state)
   assert.deepEqual(state.generations.get(marker.generation)?.activity, {
     version: 1,
-    records: {}
+    records: {},
   })
   assert.equal(state.stages, 1)
   assert.equal(state.markerWrites, 1)
@@ -439,7 +439,7 @@ test('mismatched marker readback fails even when the durable marker is valid', a
     recordCount: 2,
     eventCount: 2,
     retainedAfter: NOW - 30 * 24 * 60 * 60 * 1000,
-    cutoverAt: NOW
+    cutoverAt: NOW,
   }
 
   await assert.rejects(async () => makeBackend(state).read())
@@ -491,7 +491,7 @@ for (const marker of [
   { version: 1, backend: 'legacy', schemaVersion: 1, generation: `v1:${'0'.repeat(64)}`, sourceDigest: '0'.repeat(64), recordCount: 2, eventCount: 2, retainedAfter: 0, cutoverAt: NOW },
   { version: 1, backend: 'idb', schemaVersion: 2, generation: `v1:${'0'.repeat(64)}`, sourceDigest: '0'.repeat(64), recordCount: 2, eventCount: 2, retainedAfter: 0, cutoverAt: NOW },
   { version: 1, backend: 'idb', schemaVersion: 1, generation: 'invalid-generation', sourceDigest: '0'.repeat(64), recordCount: 2, eventCount: 2, retainedAfter: 0, cutoverAt: NOW },
-  { version: 1, backend: 'idb', schemaVersion: 1, generation: `v1:${'0'.repeat(64)}`, sourceDigest: 'not-a-digest', recordCount: 2, eventCount: 2, retainedAfter: 0, cutoverAt: NOW }
+  { version: 1, backend: 'idb', schemaVersion: 1, generation: `v1:${'0'.repeat(64)}`, sourceDigest: 'not-a-digest', recordCount: 2, eventCount: 2, retainedAfter: 0, cutoverAt: NOW },
 ]) {
   test(`malformed or unsupported marker fails closed: ${JSON.stringify(marker)}`, async () => {
     const state = makeSharedState()
@@ -507,7 +507,7 @@ for (const marker of [
 
 for (const legacy of [
   { version: 1, records: [] },
-  { version: 2, records: {} }
+  { version: 2, records: {} },
 ]) {
   test(`required migration rejects invalid legacy state: ${JSON.stringify(legacy)}`, async () => {
     const state = makeSharedState(legacy)
@@ -527,7 +527,7 @@ test('active writes and replacements stay on the confirmed generation without sh
   const migrated = await backend.read()
   const change = updatedActivity(migrated)
   const replacement = activityStore([
-    activityRecord('https://example.test/replaced', 'Replacement', NOW + 2000)
+    activityRecord('https://example.test/replaced', 'Replacement', NOW + 2000),
   ])
 
   await backend.write(change)
@@ -549,7 +549,7 @@ test('equivalent legacy insertion orders derive the same source digest', async (
 
   assert.equal(
     persistedMarker(left).sourceDigest,
-    persistedMarker(right).sourceDigest
+    persistedMarker(right).sourceDigest,
   )
 })
 

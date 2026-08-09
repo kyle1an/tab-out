@@ -14,7 +14,7 @@ function coreFields(overrides: Partial<Parameters<typeof makeHistoryEntry>[0]> =
     rawUrl: 'https://real.example/page',
     displayUrl: 'real.example/page',
     favIconUrl: '',
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -50,9 +50,9 @@ test('normalizeTabHistorySnapshot: live rows keep Chrome tab favIconUrl', () => 
   const snapshot = normalizeTabHistorySnapshot({
     entries: [
       makeHistoryEntry(coreFields({
-        favIconUrl: 'https://site.example/icon.png'
-      }))
-    ]
+        favIconUrl: 'https://site.example/icon.png',
+      })),
+    ],
   })
 
   assert.equal(snapshot.entries[0]?.favIconUrl, 'https://site.example/icon.png')
@@ -63,7 +63,7 @@ test('normalizeTabHistorySnapshot: loading only survives for live awake rows', (
   const suspended = makeHistoryEntry(coreFields({
     exists: true,
     loading: true,
-    rawUrl: SUSPENDER_RAW
+    rawUrl: SUSPENDER_RAW,
   }))
   const closed = makeHistoryEntry(coreFields({ exists: false, loading: true }))
 
@@ -79,9 +79,9 @@ test('normalizeTabHistorySnapshot: preserves pending background-tab state', () =
     entries: [
       makeHistoryEntry(coreFields({
         pending: true,
-        createdAt: 1234
-      }))
-    ]
+        createdAt: 1234,
+      })),
+    ],
   })
 
   assert.equal(snapshot.pendingSize, 1)

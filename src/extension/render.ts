@@ -106,7 +106,7 @@ export function buildDashboardViewModel({ realTabs, domainGroups: groups = [], f
       ...(groupChipOrder === undefined ? {} : { chipOrder: groupChipOrder }),
       ...(chipPriority === undefined ? {} : { chipPriority }),
       ...(pinnedSections === undefined ? {} : { pinnedSections }),
-      ...(pinnedPageChips === undefined ? {} : { pinnedPageChips })
+      ...(pinnedPageChips === undefined ? {} : { pinnedPageChips }),
     }
     const matchedVm = computeDomainCardViewModel(group, sharedCardOptions)
     if (!matchedVm.isHidden) {
@@ -137,12 +137,12 @@ export function buildDashboardViewModel({ realTabs, domainGroups: groups = [], f
       dedupCount,
       filteredCloseCount: filteredCloseTargets.length,
       hasCards: groups.length > 0,
-      filtering
+      filtering,
     },
     matchedCards,
     globalDedupeUrls,
     filteredCloseUrls,
-    filteredCloseTargets
+    filteredCloseTargets,
   }
 }
 
@@ -163,8 +163,8 @@ export function dashboardChipPriorityFromWorkingSet(workingSet: WorkingSetSnapsh
 }
 
 export const getCurrentWindowIdResultEffect = Effect.fn(
-  'dashboard.currentWindowId'
-)(function*() {
+  'dashboard.currentWindowId',
+)(function* () {
   const browserTabs = yield* BrowserTabs
   const currentWindowResult = yield* browserTabs.getCurrentWindowResult()
   const currentWindowId = currentWindowResult.value?.id
@@ -203,7 +203,7 @@ export function dedupeCompanionSearchTabs(
   realTabs: DashboardTab[],
   historyTabs: DashboardTab[],
   bookmarkTabs: DashboardTab[],
-  filter: string
+  filter: string,
 ): { historyTabs: DashboardTab[], bookmarkTabs: DashboardTab[] } {
   const filterQuery = compileFilterQuery(filter)
   const priorCompanionKeys = new Set<string>()
@@ -213,7 +213,7 @@ export function dedupeCompanionSearchTabs(
   const dedupedBookmarkTabs = removePriorSourceMatches(bookmarkTabs, priorCompanionKeys)
   return {
     historyTabs: dedupedHistoryTabs,
-    bookmarkTabs: dedupedBookmarkTabs
+    bookmarkTabs: dedupedBookmarkTabs,
   }
 }
 
@@ -224,12 +224,12 @@ export type DashboardDataBuild = {
 
 export class DashboardDataBuildError extends Schema.TaggedErrorClass<DashboardDataBuildError>()(
   'DashboardDataBuildError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 export const buildDashboardDataFromTabsEffect = Effect.fn(
-  'dashboard.buildDataFromTabs'
-)(function*(
+  'dashboard.buildDataFromTabs',
+)(function* (
   dashboardTabs: DashboardTab[],
   currentWindowId: number | null,
   previousOrder: Map<string, number> = new Map(),
@@ -247,8 +247,8 @@ export const buildDashboardDataFromTabsEffect = Effect.fn(
     savedPagesStore,
     retainedPages = [],
     retainedLiveTabs = dashboardTabs,
-    now = Date.now()
-  }: BuildDashboardDataOptions = {}
+    now = Date.now(),
+  }: BuildDashboardDataOptions = {},
 ) {
   const historyQuery = includeHistoryMatches ? searchQuery.trim() : ''
   const resolvedSavedPagesStore = savedPagesStore ?? (yield* loadSavedPagesStoreEffect())
@@ -261,7 +261,7 @@ export const buildDashboardDataFromTabsEffect = Effect.fn(
         resolvedSavedPagesStore,
         retainedPages,
         now,
-        retainedLiveTabs
+        retainedLiveTabs,
       )
       const realTabs = tabsProjection.tabs
       const annotatedBookmarkTabs = annotateSavedPageHints(companionBookmarkTabs, tabsProjection.store)
@@ -276,7 +276,7 @@ export const buildDashboardDataFromTabsEffect = Effect.fn(
             .filter((page) => page.closedAt + RETAINED_PAGE_LIFETIME_MS > now)
             .map(({ canonicalKey, surfaceKind }) => ({
               canonicalKey,
-              surfaceKind
+              surfaceKind,
             })),
           currentWindowId,
           bookmarkTabs: annotatedBookmarkTabs,
@@ -287,12 +287,12 @@ export const buildDashboardDataFromTabsEffect = Effect.fn(
           historySearchQuery: historyQuery,
           historyRange,
           historySearchStatus: includeHistoryMatches ? historySearchStatus : 'idle',
-          savedKeys: savedPageKeysFromStore(tabsProjection.store)
+          savedKeys: savedPageKeysFromStore(tabsProjection.store),
         },
-        savedPageUpdates: { base: resolvedSavedPagesStore, merged: tabsProjection.store }
+        savedPageUpdates: { base: resolvedSavedPagesStore, merged: tabsProjection.store },
       }
     },
-    catch: (cause) => DashboardDataBuildError.make({ cause })
+    catch: (cause) => DashboardDataBuildError.make({ cause }),
   })
 })
 
@@ -300,16 +300,16 @@ export function buildDashboardDataFromTabs(
   dashboardTabs: DashboardTab[],
   currentWindowId: number | null,
   previousOrder: Map<string, number> = new Map(),
-  options: BuildDashboardDataOptions = {}
+  options: BuildDashboardDataOptions = {},
 ): Promise<DashboardDataBuild> {
   return getAppRuntime().runPromise(
     buildDashboardDataFromTabsEffect(
       dashboardTabs,
       currentWindowId,
       previousOrder,
-      options
+      options,
     ).pipe(
-      Effect.catchTag('DashboardDataBuildError', (error) => Effect.fail(error.cause))
-    )
+      Effect.catchTag('DashboardDataBuildError', (error) => Effect.fail(error.cause)),
+    ),
   )
 }

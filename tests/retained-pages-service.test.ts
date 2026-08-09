@@ -7,32 +7,32 @@ import {
   emptyRetainedPageLedger,
   recordRetainedPageClosure,
   recordRetainedPageClosures,
-  RETAINED_PAGE_LIFETIME_MS
+  RETAINED_PAGE_LIFETIME_MS,
 } from '../src/extension/retained-pages-ledger.js'
 import {
   RetainedPageLedgerStorage,
   parseRetainedPageLedgerValue,
-  type RetainedPageLedgerStorageBackend
+  type RetainedPageLedgerStorageBackend,
 } from '../src/extension/retained-pages-storage.js'
 import {
   OpenSurfaceInventoryStorage,
   parseOpenSurfaceInventoryValue,
-  type OpenSurfaceInventoryStorageBackend
+  type OpenSurfaceInventoryStorageBackend,
 } from '../src/extension/open-surface-inventory-storage.js'
 import {
   emptyOpenSurfaceInventory,
   markOpenSurfaceClosure,
   OPEN_SURFACE_INVENTORY_SCHEMA_VERSION,
-  seedOpenSurfaceInventory
+  seedOpenSurfaceInventory,
 } from '../src/extension/open-surface-inventory.js'
 import { createRetainedPageIdentity } from '../src/extension/retained-page-identity.js'
 import {
   RetentionHealth,
-  type RetentionHealthStorageBackend
+  type RetentionHealthStorageBackend,
 } from '../src/extension/retention-health.js'
 import type {
   RetainedPageActivationDisposition,
-  RetainedPagesOptions
+  RetainedPagesOptions,
 } from '../src/extension/background/retained-pages-service.js'
 
 function exampleClosure(closedAt = 1_000) {
@@ -44,7 +44,7 @@ function exampleClosure(closedAt = 1_000) {
     title: 'Example article',
     favIconUrl: 'https://example.test/favicon.ico',
     closedAt,
-    closureToken: 'lifetime-example'
+    closureToken: 'lifetime-example',
   }
 }
 
@@ -54,7 +54,7 @@ function makeRetainedPagesRuntime(
   inventoryBackend?: OpenSurfaceInventoryStorageBackend,
   now: () => number = () => 1_000,
   options: Partial<RetainedPagesOptions> = {},
-  healthBackend?: RetentionHealthStorageBackend
+  healthBackend?: RetentionHealthStorageBackend,
 ) {
   let sessionInventory: unknown
   let durableInventory: unknown
@@ -66,7 +66,7 @@ function makeRetainedPagesRuntime(
     readDurable: async () => durableInventory,
     writeDurable: async (value) => {
       durableInventory = value
-    }
+    },
   }
   let healthStored: unknown
   const health = healthBackend || {
@@ -76,15 +76,15 @@ function makeRetainedPagesRuntime(
     },
     clear: async () => {
       healthStored = undefined
-    }
+    },
   }
   const dependencies = Layer.mergeAll(
     RetainedPageLedgerStorage.layer(ledgerBackend),
     OpenSurfaceInventoryStorage.layer(inventories),
-    RetentionHealth.layer(health, now)
+    RetentionHealth.layer(health, now),
   )
   const runtime = ManagedRuntime.make(
-    RetainedPages.layer({ now, ...options }).pipe(Layer.provide(dependencies))
+    RetainedPages.layer({ now, ...options }).pipe(Layer.provide(dependencies)),
   )
   t.after(() => runtime.dispose())
   return runtime
@@ -93,7 +93,7 @@ function makeRetainedPagesRuntime(
 function retainedLedgerWithExample(closedAt = 1_000) {
   return recordRetainedPageClosure(
     emptyRetainedPageLedger(),
-    exampleClosure(closedAt)
+    exampleClosure(closedAt),
   ).ledger
 }
 
@@ -103,7 +103,7 @@ test('RetainedPages captures one genuine closure in the durable ledger', async (
     read: async () => stored,
     write: async (value) => {
       stored = value
-    }
+    },
   }
   const runtime = makeRetainedPagesRuntime(t, backend)
   const retainedPages = runtime.runSync(RetainedPages)
@@ -125,7 +125,7 @@ test('RetainedPages retries an automatic capture write exactly once', async (t) 
       writeCount += 1
       if (writeCount === 1) throw new Error('transient write failure')
       stored = value
-    }
+    },
   })
 
   await runtime.runPromise(runtime.runSync(RetainedPages).captureClosure(exampleClosure()))
@@ -142,10 +142,10 @@ test('RetainedPages preserves the prior durable ledger when both capture writes 
       'identity-prior': {
         ...exampleClosure(500),
         identityDigest: 'identity-prior',
-        closureToken: 'lifetime-prior'
-      }
+        closureToken: 'lifetime-prior',
+      },
     },
-    removalBoundaries: {}
+    removalBoundaries: {},
   }
   const stored: unknown = priorLedger
   let writeCount = 0
@@ -154,11 +154,11 @@ test('RetainedPages preserves the prior durable ledger when both capture writes 
     write: async () => {
       writeCount += 1
       throw new Error('persistent write failure')
-    }
+    },
   })
 
   await assert.rejects(() => runtime.runPromise(
-    runtime.runSync(RetainedPages).captureClosure(exampleClosure())
+    runtime.runSync(RetainedPages).captureClosure(exampleClosure()),
   ))
 
   assert.equal(writeCount, 2)
@@ -175,7 +175,7 @@ test('RetainedPages records capture health only after its one retry is exhausted
     write: async (value) => {
       if (captureShouldFail) throw new Error('persistent capture failure')
       ledgerStored = value
-    }
+    },
   }, undefined, () => 1_000, {}, {
     read: async () => healthStored,
     write: async (episode) => {
@@ -184,7 +184,7 @@ test('RetainedPages records capture health only after its one retry is exhausted
     clear: async () => {
       healthClearCount += 1
       healthStored = undefined
-    }
+    },
   })
   const retainedPages = runtime.runSync(RetainedPages)
 
@@ -194,13 +194,13 @@ test('RetainedPages records capture health only after its one retry is exhausted
     operationKind: 'automatic-capture',
     retryState: 'exhausted-after-one-retry',
     startedAt: 1_000,
-    lastFailedAt: 1_000
+    lastFailedAt: 1_000,
   })
 
   captureShouldFail = false
   await runtime.runPromise(retainedPages.captureClosure({
     ...exampleClosure(2_000),
-    closureToken: 'recovered-lifetime'
+    closureToken: 'recovered-lifetime',
   }))
   assert.equal(healthStored, undefined)
   assert.equal(healthClearCount, 1)
@@ -215,13 +215,13 @@ test('RetainedPages never retries a rejected batch removal write', async (t) => 
     write: async () => {
       writeCount += 1
       throw new Error('batch write failure')
-    }
+    },
   })
 
   await assert.rejects(() => runtime.runPromise(
     runtime.runSync(RetainedPages).removeSnapshots([
-      { identityDigest: 'identity-example', closureToken: 'lifetime-example' }
-    ])
+      { identityDigest: 'identity-example', closureToken: 'lifetime-example' },
+    ]),
   ))
 
   assert.equal(writeCount, 1)
@@ -237,14 +237,14 @@ test('RetainedPages treats expiry-before-removal as success even when physical c
     write: async () => {
       writeCount += 1
       throw new Error('cleanup unavailable')
-    }
+    },
   }, undefined, () => 1_000 + RETAINED_PAGE_LIFETIME_MS)
 
   const result = await runtime.runPromise(
     runtime.runSync(RetainedPages).removeSnapshots([{
       identityDigest: 'identity-example',
-      closureToken: 'lifetime-example'
-    }])
+      closureToken: 'lifetime-example',
+    }]),
   )
 
   assert.equal(result.results[0]?.outcome, 'already-absent')
@@ -258,11 +258,11 @@ test('RetainedPages preserves mixed expired and stale outcomes when cleanup is d
     identityDigest: 'identity-newer',
     canonicalKey: 'https://example.test/newer',
     url: 'https://example.test/newer',
-    closureToken: 'lifetime-newer'
+    closureToken: 'lifetime-newer',
   }
   const priorLedger = recordRetainedPageClosures(
     emptyRetainedPageLedger(),
-    [exampleClosure(), newerClosure]
+    [exampleClosure(), newerClosure],
   ).ledger
   const stored: unknown = priorLedger
   let writeCount = 0
@@ -271,19 +271,19 @@ test('RetainedPages preserves mixed expired and stale outcomes when cleanup is d
     write: async () => {
       writeCount += 1
       throw new Error('cleanup unavailable')
-    }
+    },
   }, undefined, () => 1_000 + RETAINED_PAGE_LIFETIME_MS)
 
   const result = await runtime.runPromise(
     runtime.runSync(RetainedPages).removeSnapshots([
       { identityDigest: 'identity-example', closureToken: 'lifetime-example' },
-      { identityDigest: 'identity-newer', closureToken: 'lifetime-stale' }
-    ])
+      { identityDigest: 'identity-newer', closureToken: 'lifetime-stale' },
+    ]),
   )
 
   assert.deepEqual(result.results.map(({ outcome }) => outcome), [
     'already-absent',
-    'stale'
+    'stale',
   ])
   assert.equal(result.changed, false)
   assert.equal(writeCount, 1)
@@ -295,19 +295,19 @@ test('RetainedPages preserves an unknown newer ledger and refuses a false empty 
     schemaVersion: 2,
     identityVersion: 1,
     pages: { future: { shape: 'unknown' } },
-    removalBoundaries: {}
+    removalBoundaries: {},
   }
   let writeCount = 0
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => futureLedger,
     write: async () => {
       writeCount += 1
-    }
+    },
   })
 
   await assert.rejects(
     () => runtime.runPromise(runtime.runSync(RetainedPages).getLedger()),
-    { _tag: 'RetainedPagesNewerVersionError' }
+    { _tag: 'RetainedPagesNewerVersionError' },
   )
   assert.equal(writeCount, 0)
 })
@@ -317,7 +317,7 @@ test('RetainedPages resets only a malformed current ledger during an authoritati
     schemaVersion: 1,
     identityVersion: 1,
     pages: { broken: true },
-    removalBoundaries: {}
+    removalBoundaries: {},
   }
   let writeCount = 0
   const runtime = makeRetainedPagesRuntime(t, {
@@ -325,7 +325,7 @@ test('RetainedPages resets only a malformed current ledger during an authoritati
     write: async (value) => {
       writeCount += 1
       stored = value
-    }
+    },
   })
 
   const ledger = await runtime.runPromise(runtime.runSync(RetainedPages).getLedger())
@@ -342,13 +342,13 @@ test('RetainedPages records restore health when it resets a malformed current le
     schemaVersion: 1,
     identityVersion: 1,
     pages: { broken: true },
-    removalBoundaries: {}
+    removalBoundaries: {},
   }
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => stored,
     write: async (value) => {
       stored = value
-    }
+    },
   }, undefined, () => 2_000, {}, {
     read: async () => healthStored,
     write: async (episode) => {
@@ -357,7 +357,7 @@ test('RetainedPages records restore health when it resets a malformed current le
     clear: async () => {
       healthClearCount += 1
       healthStored = undefined
-    }
+    },
   })
 
   await runtime.runPromise(runtime.runSync(RetainedPages).getLedger())
@@ -367,12 +367,12 @@ test('RetainedPages records restore health when it resets a malformed current le
     operationKind: 'retained-ledger-reset',
     retryState: 'not-applicable',
     startedAt: 2_000,
-    lastFailedAt: 2_000
+    lastFailedAt: 2_000,
   })
   assert.equal(healthClearCount, 0, 'the reset itself must remain reportable')
 
   await runtime.runPromise(
-    runtime.runSync(RetainedPages).captureClosure(exampleClosure(3_000))
+    runtime.runSync(RetainedPages).captureClosure(exampleClosure(3_000)),
   )
   assert.equal(healthStored, undefined)
   assert.equal(healthClearCount, 1, 'a later valid ledger write proves recovery')
@@ -383,12 +383,12 @@ test('RetainedPages records restore health when it rebuilds a malformed durable 
   let durableStored: unknown = {
     schemaVersion: 1,
     identityVersion: 1,
-    entries: { broken: true }
+    entries: { broken: true },
   }
   let healthStored: unknown
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => undefined,
-    write: async () => undefined
+    write: async () => undefined,
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => {
@@ -397,7 +397,7 @@ test('RetainedPages records restore health when it rebuilds a malformed durable 
     readDurable: async () => durableStored,
     writeDurable: async (value) => {
       durableStored = value
-    }
+    },
   }, () => 3_000, {}, {
     read: async () => healthStored,
     write: async (episode) => {
@@ -405,7 +405,7 @@ test('RetainedPages records restore health when it rebuilds a malformed durable 
     },
     clear: async () => {
       healthStored = undefined
-    }
+    },
   })
 
   await runtime.runPromise(runtime.runSync(RetainedPages).reconcileOpenSurfaces(
@@ -414,8 +414,8 @@ test('RetainedPages records restore health when it rebuilds a malformed durable 
       tabId: 1,
       surfaceKind: 'normal-tab',
       url: 'https://example.test/open',
-      title: 'Open'
-    }]
+      title: 'Open',
+    }],
   ))
 
   assert.equal(parseOpenSurfaceInventoryValue(durableStored).status, 'valid')
@@ -424,7 +424,7 @@ test('RetainedPages records restore health when it rebuilds a malformed durable 
     operationKind: 'durable-inventory-reset',
     retryState: 'not-applicable',
     startedAt: 3_000,
-    lastFailedAt: 3_000
+    lastFailedAt: 3_000,
   })
 })
 
@@ -432,19 +432,19 @@ test('RetainedPages records generic restore health when live reconciliation capt
   let healthStored: unknown
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => undefined,
-    write: async () => undefined
+    write: async () => undefined,
   }, undefined, () => 3_500, {}, {
     read: async () => healthStored,
     write: async (episode) => { healthStored = episode },
-    clear: async () => { healthStored = undefined }
+    clear: async () => { healthStored = undefined },
   })
 
   await assert.rejects(
     runtime.runPromise(runtime.runSync(RetainedPages).reconcileOpenSurfaces(
       'worker-resume',
-      Promise.reject(new Error('live capture unavailable'))
+      Promise.reject(new Error('live capture unavailable')),
     )),
-    /live capture unavailable/
+    /live capture unavailable/,
   )
 
   assert.deepEqual(healthStored, {
@@ -452,7 +452,7 @@ test('RetainedPages records generic restore health when live reconciliation capt
     operationKind: 'open-surface-coverage',
     retryState: 'not-applicable',
     startedAt: 3_500,
-    lastFailedAt: 3_500
+    lastFailedAt: 3_500,
   })
 })
 
@@ -460,28 +460,28 @@ test('RetainedPages preserves unknown newer inventories and reports incomplete c
   const newerSession = {
     schemaVersion: OPEN_SURFACE_INVENTORY_SCHEMA_VERSION + 1,
     identityVersion: 1,
-    entries: { future: true }
+    entries: { future: true },
   }
   const newerDurable = {
     schemaVersion: 1,
     identityVersion: 2,
-    entries: { future: true }
+    entries: { future: true },
   }
   let sessionStored: unknown = newerSession
   let durableStored: unknown = newerDurable
   let healthStored: unknown
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => undefined,
-    write: async () => undefined
+    write: async () => undefined,
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => { sessionStored = value },
     readDurable: async () => durableStored,
-    writeDurable: async (value) => { durableStored = value }
+    writeDurable: async (value) => { durableStored = value },
   }, () => 3_750, {}, {
     read: async () => healthStored,
     write: async (episode) => { healthStored = episode },
-    clear: async () => { healthStored = undefined }
+    clear: async () => { healthStored = undefined },
   })
 
   await runtime.runPromise(runtime.runSync(RetainedPages).reconcileOpenSurfaces(
@@ -490,8 +490,8 @@ test('RetainedPages preserves unknown newer inventories and reports incomplete c
       tabId: 1,
       surfaceKind: 'normal-tab',
       url: 'https://example.test/current',
-      title: 'Current'
-    }]
+      title: 'Current',
+    }],
   ))
 
   assert.deepEqual(sessionStored, newerSession)
@@ -501,7 +501,7 @@ test('RetainedPages preserves unknown newer inventories and reports incomplete c
     operationKind: 'open-surface-coverage',
     retryState: 'not-applicable',
     startedAt: 3_750,
-    lastFailedAt: 3_750
+    lastFailedAt: 3_750,
   })
 })
 
@@ -515,7 +515,7 @@ test('RetainedPages first installation seeds inventories without creating closed
     write: async (value) => {
       ledgerWriteCount += 1
       ledgerStored = value
-    }
+    },
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => {
@@ -524,7 +524,7 @@ test('RetainedPages first installation seeds inventories without creating closed
     readDurable: async () => durableStored,
     writeDurable: async (value) => {
       durableStored = value
-    }
+    },
   })
 
   await runtime.runPromise(runtime.runSync(RetainedPages).reconcileOpenSurfaces(
@@ -533,8 +533,8 @@ test('RetainedPages first installation seeds inventories without creating closed
       tabId: 1,
       surfaceKind: 'normal-tab',
       url: 'https://example.test/open',
-      title: 'Open'
-    }]
+      title: 'Open',
+    }],
   ))
 
   assert.equal(ledgerWriteCount, 0)
@@ -548,10 +548,10 @@ test('RetainedPages browser startup captures prior durable lifetimes before seed
     tabId: 1,
     surfaceKind: 'normal-tab' as const,
     url: 'https://example.test/restored',
-    title: 'Restored'
+    title: 'Restored',
   }
   const priorInventory = await seedOpenSurfaceInventory([observation], {
-    closureTokenFactory: () => 'prior-browser-lifetime'
+    closureTokenFactory: () => 'prior-browser-lifetime',
   })
   let ledgerStored: unknown
   let sessionStored: unknown
@@ -560,7 +560,7 @@ test('RetainedPages browser startup captures prior durable lifetimes before seed
     read: async () => ledgerStored,
     write: async (value) => {
       ledgerStored = value
-    }
+    },
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => {
@@ -569,11 +569,11 @@ test('RetainedPages browser startup captures prior durable lifetimes before seed
     readDurable: async () => durableStored,
     writeDurable: async (value) => {
       durableStored = value
-    }
+    },
   })
 
   const result = await runtime.runPromise(
-    runtime.runSync(RetainedPages).reconcileOpenSurfaces('browser-startup', [observation])
+    runtime.runSync(RetainedPages).reconcileOpenSurfaces('browser-startup', [observation]),
   )
 
   assert.equal(result.inferredClosures, 1)
@@ -581,7 +581,7 @@ test('RetainedPages browser startup captures prior durable lifetimes before seed
   assert.equal(ledger.status, 'valid')
   assert.equal(
     Object.values(ledger.ledger.pages)[0]?.closureToken,
-    'prior-browser-lifetime'
+    'prior-browser-lifetime',
   )
   const session = parseOpenSurfaceInventoryValue(sessionStored)
   assert.equal(session.status, 'valid')
@@ -593,7 +593,7 @@ test('RetainedPages reconciliation reuses its checkpointed closure time after fi
     tabId: 91,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/reconciliation-replay',
-    title: 'Reconciliation replay'
+    title: 'Reconciliation replay',
   }], { closureTokenFactory: () => 'reconciliation-lifetime' })
   let now = 1_000
   let ledgerStored: unknown
@@ -603,7 +603,7 @@ test('RetainedPages reconciliation reuses its checkpointed closure time after fi
   let durableWrites = 0
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => ledgerStored,
-    write: async (value) => { ledgerStored = value }
+    write: async (value) => { ledgerStored = value },
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => {
@@ -616,7 +616,7 @@ test('RetainedPages reconciliation reuses its checkpointed closure time after fi
       durableWrites += 1
       if (durableWrites === 2) throw new Error('final durable checkpoint unavailable')
       durableStored = value
-    }
+    },
   }, () => now)
   const service = runtime.runSync(RetainedPages)
 
@@ -636,19 +636,19 @@ test('RetainedPages worker resume falls back to valid durable inventory when ses
       tabId: 1,
       surfaceKind: 'normal-tab',
       url: 'https://example.test/surviving',
-      title: 'Surviving'
+      title: 'Surviving',
     },
     {
       tabId: 2,
       surfaceKind: 'normal-tab',
       url: 'https://example.test/missing',
-      title: 'Missing'
-    }
+      title: 'Missing',
+    },
   ], {
     closureTokenFactory: (() => {
       let token = 0
       return () => `durable-lifetime-${++token}`
-    })()
+    })(),
   })
   let ledgerStored: unknown
   let sessionStored: unknown
@@ -657,7 +657,7 @@ test('RetainedPages worker resume falls back to valid durable inventory when ses
     read: async () => ledgerStored,
     write: async (value) => {
       ledgerStored = value
-    }
+    },
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => {
@@ -666,7 +666,7 @@ test('RetainedPages worker resume falls back to valid durable inventory when ses
     readDurable: async () => durableStored,
     writeDurable: async (value) => {
       durableStored = value
-    }
+    },
   })
 
   const result = await runtime.runPromise(
@@ -674,8 +674,8 @@ test('RetainedPages worker resume falls back to valid durable inventory when ses
       tabId: 1,
       surfaceKind: 'normal-tab',
       url: 'https://example.test/surviving',
-      title: 'Surviving'
-    }])
+      title: 'Surviving',
+    }]),
   )
 
   assert.equal(result.inferredClosures, 1)
@@ -683,7 +683,7 @@ test('RetainedPages worker resume falls back to valid durable inventory when ses
   assert.equal(ledger.status, 'valid')
   assert.equal(
     Object.values(ledger.ledger.pages)[0]?.closureToken,
-    'durable-lifetime-2'
+    'durable-lifetime-2',
   )
   const session = parseOpenSurfaceInventoryValue(sessionStored)
   const durable = parseOpenSurfaceInventoryValue(durableStored)
@@ -698,7 +698,7 @@ test('RetainedPages records an ordinary physical close before removing its inven
     tabId: 7,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/closed',
-    title: 'Closed'
+    title: 'Closed',
   }], { closureTokenFactory: () => 'ordinary-close-lifetime' })
   let ledgerStored: unknown
   let sessionStored: unknown = inventory
@@ -707,7 +707,7 @@ test('RetainedPages records an ordinary physical close before removing its inven
     read: async () => ledgerStored,
     write: async (value) => {
       ledgerStored = value
-    }
+    },
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => {
@@ -716,11 +716,11 @@ test('RetainedPages records an ordinary physical close before removing its inven
     readDurable: async () => durableStored,
     writeDurable: async (value) => {
       durableStored = value
-    }
+    },
   })
 
   const result = await runtime.runPromise(
-    runtime.runSync(RetainedPages).captureClosedSurface(7)
+    runtime.runSync(RetainedPages).captureClosedSurface(7),
   )
 
   assert.equal(result.outcome, 'inserted')
@@ -728,7 +728,7 @@ test('RetainedPages records an ordinary physical close before removing its inven
   assert.equal(ledger.status, 'valid')
   assert.equal(
     Object.values(ledger.ledger.pages)[0]?.closureToken,
-    'ordinary-close-lifetime'
+    'ordinary-close-lifetime',
   )
   const session = parseOpenSurfaceInventoryValue(sessionStored)
   const durable = parseOpenSurfaceInventoryValue(durableStored)
@@ -743,23 +743,23 @@ test('RetainedPages does not rewrite valid inventories for an all-missing close 
     tabId: 1,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/still-open',
-    title: 'Still open'
+    title: 'Still open',
   }], { closureTokenFactory: () => 'still-open-lifetime' })
   let ledgerWrites = 0
   let sessionWrites = 0
   let durableWrites = 0
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => undefined,
-    write: async () => { ledgerWrites += 1 }
+    write: async () => { ledgerWrites += 1 },
   }, {
     readSession: async () => inventory,
     writeSession: async () => { sessionWrites += 1 },
     readDurable: async () => inventory,
-    writeDurable: async () => { durableWrites += 1 }
+    writeDurable: async () => { durableWrites += 1 },
   })
 
   const captured = await runtime.runPromise(
-    runtime.runSync(RetainedPages).captureClosedSurfaces([999, 999])
+    runtime.runSync(RetainedPages).captureClosedSurfaces([999, 999]),
   )
 
   assert.equal(captured.ledger, null)
@@ -774,23 +774,23 @@ test('RetainedPages falls back per tab from a missing session candidate to durab
     tabId: 71,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/durable-candidate',
-    title: 'Durable candidate'
+    title: 'Durable candidate',
   }], { closureTokenFactory: () => 'durable-candidate-lifetime' })
   let ledgerStored: unknown
   let sessionStored: unknown = emptyOpenSurfaceInventory()
   let durableStored: unknown = durableInventory
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => ledgerStored,
-    write: async (value) => { ledgerStored = value }
+    write: async (value) => { ledgerStored = value },
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => { sessionStored = value },
     readDurable: async () => durableStored,
-    writeDurable: async (value) => { durableStored = value }
+    writeDurable: async (value) => { durableStored = value },
   })
 
   const result = await runtime.runPromise(
-    runtime.runSync(RetainedPages).captureClosedSurface(71)
+    runtime.runSync(RetainedPages).captureClosedSurface(71),
   )
 
   assert.equal(result.outcome, 'inserted')
@@ -798,7 +798,7 @@ test('RetainedPages falls back per tab from a missing session candidate to durab
   assert.equal(ledger.status, 'valid')
   assert.equal(
     ledger.ledger.pages[Object.keys(ledger.ledger.pages)[0] || '']?.closureToken,
-    'durable-candidate-lifetime'
+    'durable-candidate-lifetime',
   )
   const session = parseOpenSurfaceInventoryValue(sessionStored)
   const durable = parseOpenSurfaceInventoryValue(durableStored)
@@ -814,7 +814,7 @@ test('RetainedPages isolates a failed session read and still captures from durab
     tabId: 72,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/read-fallback',
-    title: 'Read fallback'
+    title: 'Read fallback',
   }], { closureTokenFactory: () => 'read-fallback-lifetime' })
   let ledgerStored: unknown
   let durableStored: unknown = durableInventory
@@ -822,20 +822,20 @@ test('RetainedPages isolates a failed session read and still captures from durab
   let healthStored: unknown
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => ledgerStored,
-    write: async (value) => { ledgerStored = value }
+    write: async (value) => { ledgerStored = value },
   }, {
     readSession: async () => { throw new Error('session unavailable') },
     writeSession: async () => { sessionWriteCount += 1 },
     readDurable: async () => durableStored,
-    writeDurable: async (value) => { durableStored = value }
+    writeDurable: async (value) => { durableStored = value },
   }, () => 1_000, {}, {
     read: async () => healthStored,
     write: async (value) => { healthStored = value },
-    clear: async () => { healthStored = undefined }
+    clear: async () => { healthStored = undefined },
   })
 
   const result = await runtime.runPromise(
-    runtime.runSync(RetainedPages).captureClosedSurface(72)
+    runtime.runSync(RetainedPages).captureClosedSurface(72),
   )
 
   assert.equal(result.outcome, 'inserted')
@@ -850,7 +850,7 @@ test('RetainedPages isolates a failed session read and still captures from durab
     operationKind: 'open-surface-coverage',
     retryState: 'not-applicable',
     startedAt: 1_000,
-    lastFailedAt: 1_000
+    lastFailedAt: 1_000,
   })
 })
 
@@ -860,25 +860,25 @@ test('RetainedPages drains an adjacent close batch through one ledger transactio
       tabId: 21,
       surfaceKind: 'normal-tab',
       url: 'https://one.example.test/',
-      title: 'One'
+      title: 'One',
     },
     {
       tabId: 22,
       surfaceKind: 'normal-tab',
       url: 'https://two.example.test/',
-      title: 'Two'
+      title: 'Two',
     },
     {
       tabId: 23,
       surfaceKind: 'app',
       url: 'https://app.example.test/',
-      title: 'App'
-    }
+      title: 'App',
+    },
   ], {
     closureTokenFactory: (() => {
       let token = 0
       return () => `batch-lifetime-${++token}`
-    })()
+    })(),
   })
   let ledgerStored: unknown
   let ledgerWrites = 0
@@ -891,7 +891,7 @@ test('RetainedPages drains an adjacent close batch through one ledger transactio
     write: async (value) => {
       ledgerWrites += 1
       ledgerStored = value
-    }
+    },
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => {
@@ -902,18 +902,18 @@ test('RetainedPages drains an adjacent close batch through one ledger transactio
     writeDurable: async (value) => {
       durableWrites += 1
       durableStored = value
-    }
+    },
   })
 
   const captured = await runtime.runPromise(
-    runtime.runSync(RetainedPages).captureClosedSurfaces([21, 22, 23])
+    runtime.runSync(RetainedPages).captureClosedSurfaces([21, 22, 23]),
   )
 
   assert.ok(captured.ledger)
   assert.deepEqual(captured.results.map((result) => result.outcome), [
     'inserted',
     'inserted',
-    'inserted'
+    'inserted',
   ])
   assert.equal(ledgerWrites, 1)
   assert.equal(sessionWrites, 2)
@@ -934,7 +934,7 @@ test('RetainedPages isolates one cleanup-store failure and replays without refre
     tabId: 8,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/interrupted',
-    title: 'Interrupted'
+    title: 'Interrupted',
   }], { closureTokenFactory: () => 'interrupted-lifetime' })
   let now = 1_000
   let ledgerStored: unknown
@@ -947,7 +947,7 @@ test('RetainedPages isolates one cleanup-store failure and replays without refre
     write: async (value) => {
       ledgerWriteCount += 1
       ledgerStored = value
-    }
+    },
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => {
@@ -958,13 +958,13 @@ test('RetainedPages isolates one cleanup-store failure and replays without refre
     readDurable: async () => durableStored,
     writeDurable: async (value) => {
       durableStored = value
-    }
+    },
   }, () => now)
 
   await runtime.runPromise(runtime.runSync(RetainedPages).captureClosedSurface(8))
   now = 2_000
   const replay = await runtime.runPromise(
-    runtime.runSync(RetainedPages).captureClosedSurface(8)
+    runtime.runSync(RetainedPages).captureClosedSurface(8),
   )
 
   assert.equal(replay.outcome, 'replayed')
@@ -985,7 +985,7 @@ test('RetainedPages preserves a durable closure time when the matching session m
     tabId: 9,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/partial-mark',
-    title: 'Partial mark'
+    title: 'Partial mark',
   }], { closureTokenFactory: () => 'partial-mark-lifetime' })
   let now = 1_000
   let ledgerStored: unknown
@@ -998,7 +998,7 @@ test('RetainedPages preserves a durable closure time when the matching session m
     write: async (value) => {
       if (rejectLedgerWrites) throw new Error('ledger unavailable')
       ledgerStored = value
-    }
+    },
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => {
@@ -1011,11 +1011,11 @@ test('RetainedPages preserves a durable closure time when the matching session m
     readDurable: async () => durableStored,
     writeDurable: async (value) => {
       durableStored = value
-    }
+    },
   }, () => now)
 
   await assert.rejects(() => runtime.runPromise(
-    runtime.runSync(RetainedPages).captureClosedSurface(9)
+    runtime.runSync(RetainedPages).captureClosedSurface(9),
   ))
   const partiallyMarkedSession = parseOpenSurfaceInventoryValue(sessionStored)
   const partiallyMarkedDurable = parseOpenSurfaceInventoryValue(durableStored)
@@ -1038,27 +1038,27 @@ test('RetainedPages chooses the earliest marked time for one matching lifetime t
     tabId: 10,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/conflicting-marks',
-    title: 'Conflicting marks'
+    title: 'Conflicting marks',
   }], { closureTokenFactory: () => 'matching-lifetime' })
   const entry = inventory.entries['10']
   assert.ok(entry)
   const session = {
     ...inventory,
-    entries: { '10': { ...entry, closedAt: 2_000 } }
+    entries: { 10: { ...entry, closedAt: 2_000 } },
   }
   const durable = {
     ...inventory,
-    entries: { '10': { ...entry, closedAt: 1_000 } }
+    entries: { 10: { ...entry, closedAt: 1_000 } },
   }
   let ledgerStored: unknown
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => ledgerStored,
-    write: async (value) => { ledgerStored = value }
+    write: async (value) => { ledgerStored = value },
   }, {
     readSession: async () => session,
     writeSession: async () => undefined,
     readDurable: async () => durable,
-    writeDurable: async () => undefined
+    writeDurable: async () => undefined,
   }, () => 3_000)
 
   await runtime.runPromise(runtime.runSync(RetainedPages).captureClosedSurface(10))
@@ -1073,31 +1073,31 @@ test('RetainedPages keeps current-session precedence for different lifetime toke
     tabId: 11,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/session-precedence',
-    title: 'Session precedence'
+    title: 'Session precedence',
   }], { closureTokenFactory: () => 'base-lifetime' })
   const entry = inventory.entries['11']
   assert.ok(entry)
   const session = {
     ...inventory,
     entries: {
-      '11': { ...entry, closureToken: 'session-lifetime', closedAt: 2_000 }
-    }
+      11: { ...entry, closureToken: 'session-lifetime', closedAt: 2_000 },
+    },
   }
   const durable = {
     ...inventory,
     entries: {
-      '11': { ...entry, closureToken: 'durable-lifetime', closedAt: 1_000 }
-    }
+      11: { ...entry, closureToken: 'durable-lifetime', closedAt: 1_000 },
+    },
   }
   let ledgerStored: unknown
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => ledgerStored,
-    write: async (value) => { ledgerStored = value }
+    write: async (value) => { ledgerStored = value },
   }, {
     readSession: async () => session,
     writeSession: async () => undefined,
     readDurable: async () => durable,
-    writeDurable: async () => undefined
+    writeDurable: async () => undefined,
   }, () => 3_000)
 
   await runtime.runPromise(runtime.runSync(RetainedPages).captureClosedSurface(11))
@@ -1113,7 +1113,7 @@ test('RetainedPages replays after durable cleanup fails without refreshing time'
     tabId: 12,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/durable-cleanup',
-    title: 'Durable cleanup'
+    title: 'Durable cleanup',
   }], { closureTokenFactory: () => 'durable-cleanup-lifetime' })
   let now = 1_000
   let ledgerStored: unknown
@@ -1126,7 +1126,7 @@ test('RetainedPages replays after durable cleanup fails without refreshing time'
     write: async (value) => {
       ledgerWrites += 1
       ledgerStored = value
-    }
+    },
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => { sessionStored = value },
@@ -1135,13 +1135,13 @@ test('RetainedPages replays after durable cleanup fails without refreshing time'
       durableWrites += 1
       if (durableWrites === 2) throw new Error('durable cleanup interrupted')
       durableStored = value
-    }
+    },
   }, () => now)
 
   await runtime.runPromise(runtime.runSync(RetainedPages).captureClosedSurface(12))
   now = 2_000
   const replay = await runtime.runPromise(
-    runtime.runSync(RetainedPages).captureClosedSurface(12)
+    runtime.runSync(RetainedPages).captureClosedSurface(12),
   )
 
   assert.equal(replay.outcome, 'replayed')
@@ -1156,7 +1156,7 @@ test('a partially cleaned lifetime cannot revive after its original expiry', asy
     tabId: 18,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/expired-replay',
-    title: 'Expired replay'
+    title: 'Expired replay',
   }], { closureTokenFactory: () => 'expired-replay-lifetime' })
   let now = 1_000
   let ledgerStored: unknown
@@ -1167,7 +1167,7 @@ test('a partially cleaned lifetime cannot revive after its original expiry', asy
     read: async () => ledgerStored,
     write: async (value) => {
       ledgerStored = value
-    }
+    },
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => {
@@ -1178,14 +1178,14 @@ test('a partially cleaned lifetime cannot revive after its original expiry', asy
     readDurable: async () => durableStored,
     writeDurable: async (value) => {
       durableStored = value
-    }
+    },
   }, () => now)
 
   await runtime.runPromise(runtime.runSync(RetainedPages).captureClosedSurface(18))
   now += RETAINED_PAGE_LIFETIME_MS
 
   const replay = await runtime.runPromise(
-    runtime.runSync(RetainedPages).captureClosedSurface(18)
+    runtime.runSync(RetainedPages).captureClosedSurface(18),
   )
   const ledger = parseRetainedPageLedgerValue(ledgerStored)
 
@@ -1202,20 +1202,20 @@ test('a marked delayed lifetime cannot displace a saturated newer ledger', async
       identityDigest: `identity-capacity-${index}`,
       canonicalKey: `https://example.test/capacity/${index}`,
       url: `https://example.test/capacity/${index}`,
-      closureToken: `capacity-lifetime-${index}`
+      closureToken: `capacity-lifetime-${index}`,
     }).ledger
   }
   const openInventory = await seedOpenSurfaceInventory([{
     tabId: 19,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/delayed-capacity',
-    title: 'Delayed capacity'
+    title: 'Delayed capacity',
   }], { closureTokenFactory: () => 'delayed-capacity-lifetime' })
   const markedInventory = markOpenSurfaceClosure(
     openInventory,
     19,
     1_000,
-    'delayed-capacity-lifetime'
+    'delayed-capacity-lifetime',
   ).inventory
   let sessionStored: unknown = markedInventory
   let durableStored: unknown = markedInventory
@@ -1225,7 +1225,7 @@ test('a marked delayed lifetime cannot displace a saturated newer ledger', async
     write: async (value) => {
       ledgerWrites += 1
       ledgerStored = value
-    }
+    },
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => {
@@ -1234,11 +1234,11 @@ test('a marked delayed lifetime cannot displace a saturated newer ledger', async
     readDurable: async () => durableStored,
     writeDurable: async (value) => {
       durableStored = value
-    }
+    },
   }, () => 10_000)
 
   const result = await runtime.runPromise(
-    runtime.runSync(RetainedPages).captureClosedSurface(19)
+    runtime.runSync(RetainedPages).captureClosedSurface(19),
   )
 
   assert.equal(result.outcome, 'stale')
@@ -1247,7 +1247,7 @@ test('a marked delayed lifetime cannot displace a saturated newer ledger', async
   assert.equal(ledgerStored.pages['identity-example'], undefined)
   const delayedIdentity = await createRetainedPageIdentity({
     surfaceKind: 'normal-tab',
-    url: 'https://example.test/delayed-capacity'
+    url: 'https://example.test/delayed-capacity',
   })
   assert.ok(delayedIdentity)
   assert.deepEqual(
@@ -1255,8 +1255,8 @@ test('a marked delayed lifetime cannot displace a saturated newer ledger', async
     {
       identityDigest: delayedIdentity.identityDigest,
       closureToken: 'delayed-capacity-lifetime',
-      expiresAt: 1_000 + RETAINED_PAGE_LIFETIME_MS
-    }
+      expiresAt: 1_000 + RETAINED_PAGE_LIFETIME_MS,
+    },
   )
 })
 
@@ -1265,7 +1265,7 @@ test('RetainedPages observes live surfaces and transfers their lifetime across r
   let durableStored: unknown
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => undefined,
-    write: async () => undefined
+    write: async () => undefined,
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => {
@@ -1274,7 +1274,7 @@ test('RetainedPages observes live surfaces and transfers their lifetime across r
     readDurable: async () => durableStored,
     writeDurable: async (value) => {
       durableStored = value
-    }
+    },
   })
   const retainedPages = runtime.runSync(RetainedPages)
 
@@ -1282,7 +1282,7 @@ test('RetainedPages observes live surfaces and transfers their lifetime across r
     tabId: 9,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/before',
-    title: 'Before'
+    title: 'Before',
   }))
   const before = parseOpenSurfaceInventoryValue(sessionStored)
   assert.equal(before.status, 'valid')
@@ -1292,7 +1292,7 @@ test('RetainedPages observes live surfaces and transfers their lifetime across r
     tabId: 10,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/after',
-    title: 'After'
+    title: 'After',
   }))
 
   const after = parseOpenSurfaceInventoryValue(sessionStored)
@@ -1308,7 +1308,7 @@ test('RetainedPages collapses cross-tab aliases after a partial replacement writ
     tabId: 30,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/before-partial-replacement',
-    title: 'Before partial replacement'
+    title: 'Before partial replacement',
   }], { closureTokenFactory: () => 'partial-replacement-lifetime' })
   let ledgerStored: unknown
   let sessionStored: unknown = inventory
@@ -1316,7 +1316,7 @@ test('RetainedPages collapses cross-tab aliases after a partial replacement writ
   let failDurableTransfer = true
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => ledgerStored,
-    write: async (value) => { ledgerStored = value }
+    write: async (value) => { ledgerStored = value },
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => { sessionStored = value },
@@ -1327,7 +1327,7 @@ test('RetainedPages collapses cross-tab aliases after a partial replacement writ
         throw new Error('durable replacement write interrupted')
       }
       durableStored = value
-    }
+    },
   })
   const retainedPages = runtime.runSync(RetainedPages)
 
@@ -1335,7 +1335,7 @@ test('RetainedPages collapses cross-tab aliases after a partial replacement writ
     tabId: 31,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/after-partial-replacement',
-    title: 'After partial replacement'
+    title: 'After partial replacement',
   }))
   const partialSession = parseOpenSurfaceInventoryValue(sessionStored)
   const partialDurable = parseOpenSurfaceInventoryValue(durableStored)
@@ -1355,7 +1355,7 @@ test('RetainedPages collapses cross-tab aliases after a partial replacement writ
   assert.deepEqual(session.inventory.entries, {})
   assert.deepEqual(durable.inventory.entries, {})
   assert.deepEqual(Object.values(ledger.ledger.pages).map((page) => page.url), [
-    'https://example.test/after-partial-replacement'
+    'https://example.test/after-partial-replacement',
   ])
 })
 
@@ -1364,14 +1364,14 @@ test('RetainedPages drops an invalidated asynchronous checkpoint', async (t) => 
     tabId: 29,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/original',
-    title: 'Original'
+    title: 'Original',
   }], { closureTokenFactory: () => 'original-lifetime' })
   let sessionStored: unknown = inventory
   let durableStored: unknown = inventory
   let inventoryReads = 0
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => undefined,
-    write: async () => undefined
+    write: async () => undefined,
   }, {
     readSession: async () => {
       inventoryReads += 1
@@ -1382,7 +1382,7 @@ test('RetainedPages drops an invalidated asynchronous checkpoint', async (t) => 
       inventoryReads += 1
       return durableStored
     },
-    writeDurable: async (value) => { durableStored = value }
+    writeDurable: async (value) => { durableStored = value },
   })
 
   await runtime.runPromise(runtime.runSync(RetainedPages).checkpointOpenSurfaces(
@@ -1394,11 +1394,11 @@ test('RetainedPages drops an invalidated asynchronous checkpoint', async (t) => 
           tabId: 29,
           surfaceKind: 'normal-tab',
           url: 'https://example.test/stale-late-update',
-          title: 'Stale late update'
-        }
+          title: 'Stale late update',
+        },
       },
-      isCurrent: () => false
-    }])
+      isCurrent: () => false,
+    }]),
   ))
 
   assert.equal(inventoryReads, 0)
@@ -1411,31 +1411,31 @@ test('RetainedPages removes stale inventory when a current capture is confirmed 
     tabId: 30,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/stale',
-    title: 'Stale'
+    title: 'Stale',
   }], { closureTokenFactory: () => 'stale-lifetime' })
   let sessionStored: unknown = inventory
   let durableStored: unknown = inventory
   let healthStored: unknown
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => undefined,
-    write: async () => undefined
+    write: async () => undefined,
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => { sessionStored = value },
     readDurable: async () => durableStored,
-    writeDurable: async (value) => { durableStored = value }
+    writeDurable: async (value) => { durableStored = value },
   }, () => 1_000, {}, {
     read: async () => healthStored,
     write: async (value) => { healthStored = value },
-    clear: async () => { healthStored = undefined }
+    clear: async () => { healthStored = undefined },
   })
 
   await runtime.runPromise(runtime.runSync(RetainedPages).checkpointOpenSurfaces(
     Promise.resolve([{
       tabId: 30,
       capture: { status: 'ineligible' },
-      isCurrent: () => true
-    }])
+      isCurrent: () => true,
+    }]),
   ))
 
   const session = parseOpenSurfaceInventoryValue(sessionStored)
@@ -1452,31 +1452,31 @@ test('RetainedPages preserves prior inventory when a current checkpoint is unava
     tabId: 31,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/preserve-on-unavailable',
-    title: 'Preserve on unavailable'
+    title: 'Preserve on unavailable',
   }], { closureTokenFactory: () => 'preserved-lifetime' })
   let sessionStored: unknown = inventory
   let durableStored: unknown = inventory
   let healthStored: unknown
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => undefined,
-    write: async () => undefined
+    write: async () => undefined,
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => { sessionStored = value },
     readDurable: async () => durableStored,
-    writeDurable: async (value) => { durableStored = value }
+    writeDurable: async (value) => { durableStored = value },
   }, () => 1_000, {}, {
     read: async () => healthStored,
     write: async (value) => { healthStored = value },
-    clear: async () => { healthStored = undefined }
+    clear: async () => { healthStored = undefined },
   })
 
   await runtime.runPromise(runtime.runSync(RetainedPages).checkpointOpenSurfaces(
     Promise.resolve([{
       tabId: 31,
       capture: { status: 'unavailable' },
-      isCurrent: () => true
-    }])
+      isCurrent: () => true,
+    }]),
   ))
 
   const session = parseOpenSurfaceInventoryValue(sessionStored)
@@ -1487,7 +1487,7 @@ test('RetainedPages preserves prior inventory when a current checkpoint is unava
   assert.equal(durable.inventory.entries['31']?.closureToken, 'preserved-lifetime')
   assert.equal(
     (healthStored as { operationKind?: string } | undefined)?.operationKind,
-    'open-surface-coverage'
+    'open-surface-coverage',
   )
 })
 
@@ -1496,22 +1496,22 @@ test('RetainedPages removes a replaced tab lifetime when its replacement cannot 
     tabId: 39,
     surfaceKind: 'normal-tab',
     url: 'https://example.test/replaced',
-    title: 'Replaced'
+    title: 'Replaced',
   }], { closureTokenFactory: () => 'replaced-lifetime' })
   let sessionStored: unknown = inventory
   let durableStored: unknown = inventory
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => undefined,
-    write: async () => undefined
+    write: async () => undefined,
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => { sessionStored = value },
     readDurable: async () => durableStored,
-    writeDurable: async (value) => { durableStored = value }
+    writeDurable: async (value) => { durableStored = value },
   })
 
   await runtime.runPromise(
-    runtime.runSync(RetainedPages).replaceOpenSurface(39, Promise.resolve(null))
+    runtime.runSync(RetainedPages).replaceOpenSurface(39, Promise.resolve(null)),
   )
 
   const session = parseOpenSurfaceInventoryValue(sessionStored)
@@ -1529,7 +1529,7 @@ test('RetainedPages checkpoints an adjacent observation batch with one write per
   let durableWrites = 0
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => undefined,
-    write: async () => undefined
+    write: async () => undefined,
   }, {
     readSession: async () => sessionStored,
     writeSession: async (value) => {
@@ -1540,7 +1540,7 @@ test('RetainedPages checkpoints an adjacent observation batch with one write per
     writeDurable: async (value) => {
       durableWrites += 1
       durableStored = value
-    }
+    },
   })
 
   await runtime.runPromise(runtime.runSync(RetainedPages).observeOpenSurfaces([
@@ -1548,20 +1548,20 @@ test('RetainedPages checkpoints an adjacent observation batch with one write per
       tabId: 31,
       surfaceKind: 'normal-tab',
       url: 'https://one.example.test/',
-      title: 'One'
+      title: 'One',
     },
     {
       tabId: 32,
       surfaceKind: 'normal-tab',
       url: 'https://two.example.test/',
-      title: 'Two'
+      title: 'Two',
     },
     {
       tabId: 33,
       surfaceKind: 'app',
       url: 'https://app.example.test/',
-      title: 'App'
-    }
+      title: 'App',
+    },
   ]))
 
   assert.equal(sessionWrites, 1)
@@ -1576,31 +1576,31 @@ test('RetainedPages checkpoints an adjacent observation batch with one write per
 
 test('RetainedPages activates and consumes only the requested exact snapshot', async (t) => {
   let stored: unknown = retainedLedgerWithExample()
-  const recoveries: Array<{ disposition: RetainedPageActivationDisposition; url: string }> = []
+  const recoveries: Array<{ disposition: RetainedPageActivationDisposition, url: string }> = []
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => stored,
     write: async (value) => {
       stored = value
-    }
+    },
   }, undefined, undefined, {
     recoverSnapshot: async (page, disposition) => {
       recoveries.push({ disposition, url: page.url })
       return true
-    }
+    },
   })
 
   const result = await runtime.runPromise(
     runtime.runSync(RetainedPages).activateSnapshot(
       'identity-example',
       'lifetime-example',
-      'foreground-tab'
-    )
+      'foreground-tab',
+    ),
   )
 
   assert.deepEqual(result, { outcome: 'activated' })
   assert.deepEqual(recoveries, [{
     disposition: 'foreground-tab',
-    url: 'https://example.test/article?view=exact#comment'
+    url: 'https://example.test/article?view=exact#comment',
   }])
   const parsed = parseRetainedPageLedgerValue(stored)
   assert.equal(parsed.status, 'valid')
@@ -1611,20 +1611,20 @@ test('RetainedPages rejects a stale activation snapshot before browser recovery'
   let recoveryCount = 0
   const runtime = makeRetainedPagesRuntime(t, {
     read: async () => retainedLedgerWithExample(),
-    write: async () => undefined
+    write: async () => undefined,
   }, undefined, undefined, {
     recoverSnapshot: async () => {
       recoveryCount += 1
       return true
-    }
+    },
   })
 
   const result = await runtime.runPromise(
     runtime.runSync(RetainedPages).activateSnapshot(
       'identity-example',
       'different-lifetime',
-      'foreground-tab'
-    )
+      'foreground-tab',
+    ),
   )
 
   assert.deepEqual(result, { outcome: 'stale' })
@@ -1642,25 +1642,25 @@ test('RetainedPages single-flights concurrent activation for one retained identi
     read: async () => stored,
     write: async (value) => {
       stored = value
-    }
+    },
   }, undefined, undefined, {
     recoverSnapshot: async () => {
       recoveryCount += 1
       await recoveryGate
       return true
-    }
+    },
   })
   const retainedPages = runtime.runSync(RetainedPages)
 
   const first = runtime.runPromise(retainedPages.activateSnapshot(
     'identity-example',
     'lifetime-example',
-    'foreground-tab'
+    'foreground-tab',
   ))
   const second = runtime.runPromise(retainedPages.activateSnapshot(
     'identity-example',
     'lifetime-example',
-    'new-window'
+    'new-window',
   ))
   await new Promise((resolve) => setTimeout(resolve, 0))
   assert.equal(recoveryCount, 1)
@@ -1668,7 +1668,7 @@ test('RetainedPages single-flights concurrent activation for one retained identi
 
   assert.deepEqual(await Promise.all([first, second]), [
     { outcome: 'activated' },
-    { outcome: 'activated' }
+    { outcome: 'activated' },
   ])
 })
 
@@ -1678,23 +1678,23 @@ test('RetainedPages preserves a newer closure that arrives while an older snapsh
     read: async () => stored,
     write: async (value) => {
       stored = value
-    }
+    },
   }, undefined, undefined, {
     recoverSnapshot: async () => {
       stored = recordRetainedPageClosure(
         stored as ReturnType<typeof retainedLedgerWithExample>,
-        { ...exampleClosure(2_000), closureToken: 'newer-lifetime' }
+        { ...exampleClosure(2_000), closureToken: 'newer-lifetime' },
       ).ledger
       return true
-    }
+    },
   })
 
   const result = await runtime.runPromise(
     runtime.runSync(RetainedPages).activateSnapshot(
       'identity-example',
       'lifetime-example',
-      'foreground-tab'
-    )
+      'foreground-tab',
+    ),
   )
 
   assert.deepEqual(result, { outcome: 'activated-newer-retained' })
@@ -1711,17 +1711,17 @@ test('RetainedPages reports partial success and never retries a failed consume w
     write: async () => {
       writeCount += 1
       throw new Error('explicit consume write failed')
-    }
+    },
   }, undefined, undefined, {
-    recoverSnapshot: async () => true
+    recoverSnapshot: async () => true,
   })
 
   const result = await runtime.runPromise(
     runtime.runSync(RetainedPages).activateSnapshot(
       'identity-example',
       'lifetime-example',
-      'foreground-tab'
-    )
+      'foreground-tab',
+    ),
   )
 
   assert.deepEqual(result, { outcome: 'activated-unconsumed' })
@@ -1735,17 +1735,17 @@ test('RetainedPages leaves the snapshot retained when browser recovery fails', a
     read: async () => stored,
     write: async () => {
       writeCount += 1
-    }
+    },
   }, undefined, undefined, {
-    recoverSnapshot: async () => false
+    recoverSnapshot: async () => false,
   })
 
   const result = await runtime.runPromise(
     runtime.runSync(RetainedPages).activateSnapshot(
       'identity-example',
       'lifetime-example',
-      'background-tab'
-    )
+      'background-tab',
+    ),
   )
 
   assert.deepEqual(result, { outcome: 'failed' })

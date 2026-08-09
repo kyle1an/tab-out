@@ -44,8 +44,8 @@ test('a never-activated background history row uses the existing index UI withou
       title: 'Background Docs',
       url: 'https://example.com/background',
       rawUrl: 'https://example.com/background',
-      displayUrl: 'example.com/background'
-    })
+      displayUrl: 'example.com/background',
+    }),
   ])
 
   assert.match(html, /data-pending="true"/)
@@ -65,8 +65,8 @@ test('history entries never render Cursor, Pending, or Pinned title badges', () 
       title: 'Current notes',
       url: 'https://example.com/current',
       rawUrl: 'https://example.com/current',
-      displayUrl: 'example.com/current'
-    })
+      displayUrl: 'example.com/current',
+    }),
   ], { activeWasInserted: true })
 
   assert.doesNotMatch(html, />Cursor<\/span>/)

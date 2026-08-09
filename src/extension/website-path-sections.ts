@@ -21,7 +21,7 @@ const GOOGLE_DOCS_PREFIXES = [
   '/spreadsheets',
   '/presentation',
   '/forms',
-  '/drawings'
+  '/drawings',
 ]
 
 const ATLASSIAN_PREFIXES = [
@@ -29,18 +29,18 @@ const ATLASSIAN_PREFIXES = [
   '/servicedesk',
   '/browse',
   '/issues',
-  '/wiki'
+  '/wiki',
 ]
 
 const BUILT_IN_WEBSITE_PATH_SECTION_RULES: WebsitePathSectionRule[] = [
   {
     hostname: 'docs.google.com',
-    extract: (url) => pathSection(recognizedPathPrefix(url.pathname, GOOGLE_DOCS_PREFIXES))
+    extract: (url) => pathSection(recognizedPathPrefix(url.pathname, GOOGLE_DOCS_PREFIXES)),
   },
   {
     hostnameEndsWith: '.atlassian.net',
-    extract: (url) => pathSection(recognizedPathPrefix(url.pathname, ATLASSIAN_PREFIXES))
-  }
+    extract: (url) => pathSection(recognizedPathPrefix(url.pathname, ATLASSIAN_PREFIXES)),
+  },
 ]
 
 export function resolveWebsitePathSection(url: string): WebsitePathSectionResult | null {

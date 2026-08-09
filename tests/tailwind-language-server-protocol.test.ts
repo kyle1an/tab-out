@@ -5,7 +5,7 @@ import {
   isUnknownRecord,
   parseJsonRpcMessage,
   requireConfigurationParams,
-  requirePublishedDiagnosticsParams
+  requirePublishedDiagnosticsParams,
 } from '../scripts/tailwind-language-server-protocol.js'
 
 test('validates Tailwind language-server JSON-RPC envelopes', () => {
@@ -14,29 +14,29 @@ test('validates Tailwind language-server JSON-RPC envelopes', () => {
       jsonrpc: '2.0',
       id: 1,
       method: 'workspace/configuration',
-      params: { items: [{ section: 'tailwindCSS.lint' }] }
+      params: { items: [{ section: 'tailwindCSS.lint' }] },
     })),
     {
       jsonrpc: '2.0',
       id: 1,
       method: 'workspace/configuration',
-      params: { items: [{ section: 'tailwindCSS.lint' }] }
-    }
+      params: { items: [{ section: 'tailwindCSS.lint' }] },
+    },
   )
   assert.throws(
     () => parseJsonRpcMessage('{"method": 42}'),
-    /invalid JSON-RPC message/
+    /invalid JSON-RPC message/,
   )
 })
 
 test('validates workspace configuration requests before reading their items', () => {
   assert.deepEqual(
     requireConfigurationParams({ items: [{ section: 'tailwindCSS' }, {}] }),
-    { items: [{ section: 'tailwindCSS' }, {}] }
+    { items: [{ section: 'tailwindCSS' }, {}] },
   )
   assert.throws(
     () => requireConfigurationParams({ items: [{ section: 42 }] }),
-    /invalid workspace configuration parameters/
+    /invalid workspace configuration parameters/,
   )
 })
 
@@ -46,21 +46,21 @@ test('validates published diagnostic locations and messages', () => {
     diagnostics: [{
       range: {
         start: { line: 2, character: 4 },
-        end: { line: 2, character: 8 }
+        end: { line: 2, character: 8 },
       },
       severity: 2,
       code: 'suggestCanonicalClasses',
-      message: 'Example diagnostic'
-    }]
+      message: 'Example diagnostic',
+    }],
   }
 
   assert.deepEqual(requirePublishedDiagnosticsParams(params), params)
   assert.throws(
     () => requirePublishedDiagnosticsParams({
       uri: 'file:///example.tsx',
-      diagnostics: [{ range: { start: { line: -1, character: 0 } }, message: 'Invalid' }]
+      diagnostics: [{ range: { start: { line: -1, character: 0 } }, message: 'Invalid' }],
     }),
-    /published invalid diagnostics/
+    /published invalid diagnostics/,
   )
 })
 

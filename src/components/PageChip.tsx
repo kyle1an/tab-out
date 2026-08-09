@@ -50,7 +50,7 @@ let chipTextResizeObserver: SizeChangeObserver | null = null
 const chipTextMeasuredSizes = new WeakMap<HTMLElement, ObservedElementSize>()
 const chipTextTruncationCallbacks = new WeakMap<
   HTMLElement,
-  (metrics: { hasExpandableContent: boolean; height: number; isTruncated: boolean; width: number }) => void
+  (metrics: { hasExpandableContent: boolean, height: number, isTruncated: boolean, width: number }) => void
 >()
 
 const PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX = 12
@@ -72,7 +72,7 @@ const DEFAULT_CHIP_EXPANSION_GEOMETRY: ChipExpansionGeometry = {
   viewportConstrained: false,
   width: 0,
   x: 'start',
-  y: 'down'
+  y: 'down',
 }
 
 interface PageChipProps {
@@ -92,12 +92,12 @@ function chipMatchesHoverState(target: DashboardChipData, state: HoverState): bo
 function pageChipHoverMatchKey(
   state: HoverState,
   chip: DashboardChipData,
-  titleVariantChips: readonly DashboardChipData[]
+  titleVariantChips: readonly DashboardChipData[],
 ): string {
   if (!state.url || !state.source || state.source === 'chip') return ''
   const matches = [
     chipMatchesHoverState(chip, state),
-    ...titleVariantChips.map((variant) => chipMatchesHoverState(variant, state))
+    ...titleVariantChips.map((variant) => chipMatchesHoverState(variant, state)),
   ]
   return matches.some(Boolean) ? matches.map((matched) => matched ? '1' : '0').join('') : ''
 }
@@ -196,7 +196,7 @@ function isTitleSuppressionSegment(segment: DashboardSegment): segment is { titl
   return typeof segment !== 'string' && 'titleSuppression' in segment
 }
 
-function isStructuralPlaceholderSegment(segment: DashboardSegment): segment is { placeholder: true; label?: string } {
+function isStructuralPlaceholderSegment(segment: DashboardSegment): segment is { placeholder: true, label?: string } {
   return typeof segment !== 'string' && 'placeholder' in segment
 }
 
@@ -232,8 +232,8 @@ function getChipTextPaintedContentWidth(textEl: HTMLElement | null) {
         return node.textContent?.trim()
           ? win.NodeFilter.FILTER_ACCEPT
           : win.NodeFilter.FILTER_REJECT
-      }
-    }
+      },
+    },
   )
   let maxRight = 0
 
@@ -314,7 +314,7 @@ function getTitleVariantMinimumContentWidth(textEl: HTMLElement | null) {
     const listInlinePadding = list ? elementInlinePaddingWidth(list) : 0
     width = Math.max(
       width,
-      listInlinePadding + elementInlinePaddingWidth(shell) + titleVariantButtonMinimumWidth(button)
+      listInlinePadding + elementInlinePaddingWidth(shell) + titleVariantButtonMinimumWidth(button),
     )
   }
   return Math.round(width * 100) / 100
@@ -381,7 +381,7 @@ function firstChipExpansionTextOffsetOnLine(
   targetLineIndex: number,
   range: Range,
   textRect: DOMRect,
-  lineHeight: number
+  lineHeight: number,
 ) {
   let low = 0
   let high = node.length - 1
@@ -524,7 +524,7 @@ function clampedChipFragmentHtml(document: Document, fragment: DocumentFragment)
 
 function getClampedPageChipLineHtml(
   textEl: HTMLElement | null,
-  geometry?: ChipTextLineCaptureGeometry
+  geometry?: ChipTextLineCaptureGeometry,
 ) {
   return getExpandedPageChipLineHtml(textEl, clampedChipFragmentHtml, geometry)
 }
@@ -534,7 +534,7 @@ type ChipLineFragmentSerializer = (document: Document, fragment: DocumentFragmen
 function getExpandedPageChipLineHtml(
   textEl: HTMLElement | null,
   serializeFragment: ChipLineFragmentSerializer = expandedChipFragmentHtml,
-  geometry?: ChipTextLineCaptureGeometry
+  geometry?: ChipTextLineCaptureGeometry,
 ) {
   if (!textEl || typeof document === 'undefined') return []
 
@@ -572,8 +572,8 @@ function getExpandedPageChipLineHtml(
           return win.NodeFilter.FILTER_ACCEPT
         }
         return win.NodeFilter.FILTER_SKIP
-      }
-    }
+      },
+    },
   )
   const textNodes: Text[] = []
   const markerElements: HTMLElement[] = []
@@ -590,7 +590,7 @@ function getExpandedPageChipLineHtml(
   }
 
   const range = ownerDocument.createRange()
-  const textLineBounds = new Map<Text, { first: number; last: number } | null>()
+  const textLineBounds = new Map<Text, { first: number, last: number } | null>()
   function getTextLineBounds(node: Text) {
     const cached = textLineBounds.get(node)
     if (cached !== undefined) return cached
@@ -711,7 +711,7 @@ const PAGE_CHIP_EXPANSION_LINE_CLASSES: ExpansionLineClasses = {
   wrapper: 'page-chip-expanded-lines block min-w-0 max-w-full',
   line: 'page-chip-expanded-line block min-w-0 max-w-full whitespace-nowrap',
   constrainedLine: 'page-chip-expanded-line page-chip-expanded-line-constrained block min-w-0 max-w-full whitespace-normal break-normal wrap-break-word',
-  tailLine: 'page-chip-expanded-line page-chip-expanded-line-tail block min-w-0 max-w-full whitespace-normal break-normal wrap-break-word'
+  tailLine: 'page-chip-expanded-line page-chip-expanded-line-tail block min-w-0 max-w-full whitespace-normal break-normal wrap-break-word',
 }
 
 function chipExpansionLineMarkup(lineHtml: readonly string[], viewportConstrained = false) {
@@ -721,7 +721,7 @@ function chipExpansionLineMarkup(lineHtml: readonly string[], viewportConstraine
 function expandedMeasureFitsLineCount(
   measureEl: HTMLElement,
   width: number,
-  targetLineCount: number
+  targetLineCount: number,
 ) {
   measureEl.style.width = `${Math.max(1, width)}px`
   const lineHeight = getChipTextLineHeight(measureEl)
@@ -746,7 +746,7 @@ function getExpandedSingleLineNaturalWidth(measureEl: HTMLElement) {
     return Math.round(Math.max(
       measureEl.scrollWidth,
       measureEl.getBoundingClientRect().width,
-      range.getBoundingClientRect().width
+      range.getBoundingClientRect().width,
     ) * 100) / 100
   } finally {
     range.detach()
@@ -787,11 +787,11 @@ function expandedPageChipMeasureMarkup(textEl: HTMLElement, lineHtml: readonly s
 
 function createExpandedPageChipMeasureElement(
   textEl: HTMLElement,
-  lineHtml: readonly string[]
+  lineHtml: readonly string[],
 ) {
   return createExpansionMeasureElement(textEl, {
     className: 'page-chip-expansion-measure pointer-events-none invisible fixed top-0 left-0 z-[-1] block min-w-0 max-w-none whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-tab-live [font-family:inherit] [hyphenate-character:\'\'] wrap-break-word',
-    markup: expandedPageChipMeasureMarkup(textEl, lineHtml)
+    markup: expandedPageChipMeasureMarkup(textEl, lineHtml),
   })
 }
 
@@ -807,7 +807,7 @@ function getExpandedTitleVariantContentWidth(textEl: HTMLElement, visibleWidth: 
     const width = Math.min(Math.max(visibleWidth, naturalTitleWidth), maxContentWidth)
     return {
       viewportConstrained: naturalTitleWidth - maxContentWidth > PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX,
-      width: Math.round(width * 100) / 100
+      width: Math.round(width * 100) / 100,
     }
   } finally {
     measureEl.remove()
@@ -820,7 +820,7 @@ function getExpandedWrappedPageChipContentWidth(
   visibleWidth: number,
   maxContentWidth: number,
   targetLineCount: number,
-  lineHtml: readonly string[]
+  lineHtml: readonly string[],
 ): ExpandedPageChipContentMetrics {
   // Try the resting width first: if the revealed content still fits within the resting
   // line count there, keep the resting width and don't grow (no guard padding). Flooring
@@ -833,7 +833,7 @@ function getExpandedWrappedPageChipContentWidth(
     maxContentWidth,
     steps: PAGE_CHIP_EXPANDED_WIDTH_SEARCH_STEPS,
     guardPx: lineHtml.length > 0 ? PAGE_CHIP_EXPANDED_WIDTH_GUARD_PX : 0,
-    fits: (width) => expandedMeasureFitsLineCount(measureEl, width, targetLineCount)
+    fits: (width) => expandedMeasureFitsLineCount(measureEl, width, targetLineCount),
   })
 }
 
@@ -841,7 +841,7 @@ function getExpandedPageChipContentWidth(
   textEl: HTMLElement | null,
   lineHtml: readonly string[],
   maxContentWidth: number,
-  visibleWidthOverride = 0
+  visibleWidthOverride = 0,
 ): ExpandedPageChipContentMetrics {
   if (!textEl) return { viewportConstrained: false, width: 0 }
 
@@ -866,7 +866,7 @@ function getExpandedPageChipContentWidth(
       const width = Math.min(Math.max(visibleWidth, naturalWidth), maxContentWidth)
       return {
         viewportConstrained: naturalWidth - maxContentWidth > PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX,
-        width: Math.round(width * 100) / 100
+        width: Math.round(width * 100) / 100,
       }
     }
 
@@ -906,7 +906,7 @@ function getExpandedPageChipHorizontalInset(chipEl: HTMLElement, textEl: HTMLEle
 
 function readChipTextFadeMetrics(
   textEl: HTMLElement,
-  textRect = textEl.getBoundingClientRect()
+  textRect = textEl.getBoundingClientRect(),
 ): ChipTextFadeMetrics {
   const isTruncated = isChipTextTruncated(textEl)
   const hasExpandableContent = isTruncated || titleVariantLabelsOverflow(textEl) || titleVariantContentOverflows(textEl)
@@ -914,14 +914,14 @@ function readChipTextFadeMetrics(
     hasExpandableContent,
     height: Math.round(textRect.height * 100) / 100,
     isTruncated,
-    width: Math.round(textRect.width * 100) / 100
+    width: Math.round(textRect.width * 100) / 100,
   }
 }
 
 function applyChipTextFadeMetrics(
   textEl: HTMLElement,
   metrics: ChipTextFadeMetrics,
-  syncFadeEnd = true
+  syncFadeEnd = true,
 ) {
   const { height, isTruncated, width } = metrics
   chipTextMeasuredSizes.set(textEl, { height, width })
@@ -934,14 +934,14 @@ function applyChipTextFadeMetrics(
 function syncChipTextFade(
   textEl: HTMLElement | null,
   syncFadeEnd = true,
-  measuredMetrics?: ChipTextFadeMetrics
+  measuredMetrics?: ChipTextFadeMetrics,
 ) {
   if (!textEl) return { hasExpandableContent: false, height: 0, isTruncated: false, width: 0 }
 
   return applyChipTextFadeMetrics(
     textEl,
     measuredMetrics ?? readChipTextFadeMetrics(textEl),
-    syncFadeEnd
+    syncFadeEnd,
   )
 }
 
@@ -982,13 +982,13 @@ function readChipTextLayout(textEl: HTMLElement, clampEligible: boolean, clampKe
   const nextMetrics = {
     hasExpandableContent: fadeMetrics.hasExpandableContent,
     isTruncated: fadeMetrics.isTruncated,
-    width: fadeMetrics.width
+    width: fadeMetrics.width,
   }
   let nextClamp: ChipTextClamp | null = null
   if (clampEligible && fadeMetrics.isTruncated && fadeMetrics.width > 0) {
     const lineHtml = getClampedPageChipLineHtml(textEl, {
       lineHeight: getChipTextLineHeight(textEl),
-      textRect
+      textRect,
     })
     if (lineHtml.length > 1) {
       nextClamp = { key: clampKey, lineHtml, width: fadeMetrics.width }
@@ -996,7 +996,7 @@ function readChipTextLayout(textEl: HTMLElement, clampEligible: boolean, clampKe
   }
   return {
     fadeMetrics,
-    layout: { clamp: nextClamp, metrics: nextMetrics }
+    layout: { clamp: nextClamp, metrics: nextMetrics },
   }
 }
 
@@ -1049,7 +1049,7 @@ function getPageChipExpansionGeometry(chipEl: HTMLElement | null, textEl: HTMLEl
     viewportConstrained: contentMetrics.viewportConstrained,
     width: Math.min(maxWidth, Math.max(rect.width, minWidth, contentMetrics.width + horizontalInset)),
     x: 'start',
-    y: roomBelow >= rect.height * 2 || roomBelow >= roomAbove ? 'down' : 'up'
+    y: roomBelow >= rect.height * 2 || roomBelow >= roomAbove ? 'down' : 'up',
   }
 }
 
@@ -1058,7 +1058,7 @@ function roundedElementSize(element: HTMLElement | null): ChipSlotSize {
   const rect = element.getBoundingClientRect()
   return {
     height: Math.round(rect.height * 100) / 100,
-    width: Math.round(rect.width * 100) / 100
+    width: Math.round(rect.width * 100) / 100,
   }
 }
 
@@ -1120,7 +1120,7 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
         chip.isApp && !chip.iconOnly && 'size-5 -mx-0.5 -my-0.5',
         !chip.iconOnly && dupeCount > 1 && 'chip-favicon-stack',
         chip.isApp && 'is-app',
-        showFaviconCloseAction && 'pointer-events-none'
+        showFaviconCloseAction && 'pointer-events-none',
       )}
     >
       {!chip.iconOnly && dupeCount > 2 && (
@@ -1128,7 +1128,7 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
           className={cn(
             'chip-favicon-stack-layer pointer-events-none absolute top-0 left-0 z-0 size-4 max-h-4 max-w-4 translate-x-1 translate-y-1 rounded-sm bg-(--card-bg) ring-1 ring-neutral-300/45 shadow-[0_1px_2px_rgba(10,10,10,0.12)] [corner-shape:squircle] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-swift',
             showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0',
-            dedupeBadgesClosing && 'closing'
+            dedupeBadgesClosing && 'closing',
           )}
           aria-hidden="true"
         />
@@ -1138,7 +1138,7 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
           className={cn(
             'chip-favicon-stack-layer pointer-events-none absolute top-0 left-0 z-1 size-4 max-h-4 max-w-4 translate-x-0.5 translate-y-0.5 rounded-sm bg-(--card-bg) ring-1 ring-neutral-300/55 shadow-[0_1px_2px_rgba(10,10,10,0.1)] [corner-shape:squircle] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-swift',
             showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0',
-            dedupeBadgesClosing && 'closing'
+            dedupeBadgesClosing && 'closing',
           )}
           aria-hidden="true"
         />
@@ -1148,7 +1148,7 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
           'chip-favicon-content relative z-2 grid size-4 place-items-center',
           chip.isApp && !chip.iconOnly && 'chip-app-favicon-ring h-full w-full place-content-center overflow-hidden rounded-lg border border-[rgba(115,115,115,0.32)] p-0.5 [corner-shape:squircle]',
           !chip.iconOnly && dupeCount > 1 && 'rounded-sm bg-(--card-bg) ring-1 ring-neutral-300/45 shadow-[0_1px_2px_rgba(10,10,10,0.08)] [corner-shape:squircle]',
-          showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0'
+          showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0',
         )}
         aria-hidden="true"
       >
@@ -1166,7 +1166,7 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
           data-pinned="true"
           className={cn(
             'chip-page-pin-badge pointer-events-none absolute -top-1.5 -right-1.5 z-3 inline-flex size-3.5 items-center justify-center rounded-full border border-tab-card bg-(--card-bg) text-muted-foreground opacity-0 shadow-[0_1px_2px_rgba(10,10,10,0.16)] data-[pinned=true]:opacity-100',
-            showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0'
+            showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0',
           )}
           aria-hidden="true"
         >
@@ -1216,7 +1216,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   const progressiveFoldedEnvResetKey = JSON.stringify([
     chip.sourceType,
     chipLayoutKey,
-    filter
+    filter,
   ])
   const variantCloseTargets = partitionVariantCloseTargets(titleVariantChips)
   const variantCloseCount = variantCloseTargets.historyUrls.length + variantCloseTargets.tabEnvs.length
@@ -1280,7 +1280,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     closeDelayMs: 0,
     onExpandedChange: setChipExpanded,
     shouldCancelClose: () => contextMenuOpenRef.current,
-    shouldIgnoreLaneSteal: () => contextMenuOpenRef.current
+    shouldIgnoreLaneSteal: () => contextMenuOpenRef.current,
   })
 
   const updateChipTextMeasurements = useCallback((textEl: HTMLElement | null) => {
@@ -1305,7 +1305,6 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   useEffect(() => {
     updateChipTextMeasurementsRef.current = updateChipTextMeasurements
   }, [updateChipTextMeasurements])
-
 
   // Truncated chips swap to captured-line rows so the tail fills to the box
   // edge under the fade (see the matching history-title clamp effect for the
@@ -1345,7 +1344,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       element: textEl,
       key: chipTextClampKey,
       masonryCardWidth: getChipTextMasonryCardWidth(textEl),
-      metrics: nextLayout.metrics
+      metrics: nextLayout.metrics,
     }
     setChipTextLayout((current) => chipTextLayoutEqual(current, nextLayout) ? current : nextLayout)
     // Resize-observer metrics carry width changes back through chipTextMetrics,
@@ -1371,11 +1370,11 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
             element: textEl,
             key: chipTextClampKey,
             masonryCardWidth,
-            metrics: nextLayout.metrics
+            metrics: nextLayout.metrics,
           }
           setChipTextLayout((current) => chipTextLayoutEqual(current, nextLayout) ? current : nextLayout)
         }
-      }
+      },
     })
     const validatePackedWidth = (): PageChipTextLayoutMeasurementJob | null => {
       if (chipTextRef.current !== textEl || chipExpandedRef.current) return null
@@ -1464,7 +1463,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
 
   async function focusChipUrl(
     targetUrl: string | undefined,
-    target?: { rawUrl?: string; tabId?: number | string }
+    target?: { rawUrl?: string, tabId?: number | string },
   ) {
     if (!targetUrl) return
     if (typeof target?.tabId === 'number') {
@@ -1474,7 +1473,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       const result = await focusExistingTabTargetResult({
         tabId: target.tabId,
         url: targetUrl,
-        ...(target.rawUrl === undefined ? {} : { rawUrl: target.rawUrl })
+        ...(target.rawUrl === undefined ? {} : { rawUrl: target.rawUrl }),
       })
       const message = tabFocusResultToastMessage(result.status)
       if (message) showToast(message)
@@ -1503,7 +1502,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       retainedPageIdentity?: string
       retainedPageClosureToken?: string
     },
-    focusOrigin?: EventTarget | null
+    focusOrigin?: EventTarget | null,
   ) {
     if (!targetUrl && sourceType !== 'retained-page') return
     await setPreview('')
@@ -1522,7 +1521,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     const activationResult = await performDashboardItemActivation(mode, {
       tabUrl: targetUrl,
       ...(target?.tabId === undefined ? {} : { tabId: target.tabId }),
-      ...(target?.rawUrl === undefined ? {} : { rawUrl: target.rawUrl })
+      ...(target?.rawUrl === undefined ? {} : { rawUrl: target.rawUrl }),
     })
     if (activationResult === 'unhandled') await focusChipUrl(targetUrl, target)
   }
@@ -1651,7 +1650,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   function captureContextMenuFocusRecovery() {
     contextMenuFocusRecoveryRef.current?.cancel()
     contextMenuFocusRecoveryRef.current = capturePageChipFocusRecovery(
-      document.activeElement
+      document.activeElement,
     )
   }
 
@@ -1861,7 +1860,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       envs: isFolded ? foldedCloseTargets : envs,
       onAfterClose: () => {
         setPreview('')
-      }
+      },
     })
   }
 
@@ -1884,7 +1883,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     void setChipTargetMuted({
       tabUrl: chip.tabUrl,
       envs: chip.envs,
-      muted: nextMutedForAudioState(chip.audioState)
+      muted: nextMutedForAudioState(chip.audioState),
     })
   }
 
@@ -1908,7 +1907,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     target: Pick<
       DashboardChipData,
       'retainedPageIdentity' | 'retainedPageClosureToken'
-    >
+    >,
   ) {
     e.stopPropagation()
     const focusRecovery = contextMenuFocusRecoveryRef.current
@@ -1929,7 +1928,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
         title: chip.actionTitle || chip.title || chip.tooltip,
         favIconUrl: chip.actionFaviconUrl || chip.faviconUrl,
         isTabOut: false,
-        isApp: chip.isApp
+        isApp: chip.isApp,
       })
     }
     setPreview('')
@@ -2009,7 +2008,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     if (variant.sourceType === 'history') {
       await deleteHistoryUrls({
         urls: [variant.tabUrl].filter(Boolean),
-        onAfterDelete: async () => setPreview('')
+        onAfterDelete: async () => setPreview(''),
       })
       return
     }
@@ -2019,7 +2018,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       ...(variant.tabId === undefined ? {} : { tabId: variant.tabId }),
       ...(variant.chromePinned === undefined ? {} : { expectedPinned: variant.chromePinned }),
       ...(variant.chromeGroupId === undefined ? {} : { expectedGroupId: variant.chromeGroupId }),
-      onAfterClose: async () => setPreview('')
+      onAfterClose: async () => setPreview(''),
     })
   }
 
@@ -2047,7 +2046,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
         requestedTabCount: tabEnvs.length,
         tabResult,
         requestedHistoryCount: historyUrls.length,
-        historyResult
+        historyResult,
       })
     ) {
       startPageChipCloseAnimation(chipEl, onLayoutChange, undefined, focusWasInsideClosingChip)
@@ -2066,7 +2065,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
         title: variant.actionTitle || variant.title || variant.tooltip,
         favIconUrl: variant.actionFaviconUrl || variant.faviconUrl,
         isTabOut: false,
-        isApp: variant.isApp
+        isApp: variant.isApp,
       })
     }
     setPreview('')
@@ -2091,7 +2090,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
         title: env.actionTitle || env.title || chip.actionTitle || chip.title || chip.tooltip,
         favIconUrl: env.actionFaviconUrl || env.faviconUrl || chip.actionFaviconUrl || chip.faviconUrl,
         isTabOut: false,
-        isApp: !!env.isApp
+        isApp: !!env.isApp,
       })
     }
     setPreview('')
@@ -2107,7 +2106,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     titleVariantGroup: isTitleVariantGroup,
     iconOnly: !!chip.iconOnly,
     isApp: !!chip.isApp,
-    expanded: chipExpanded ? { grewTaller: chipExpansionGeometry.grewTaller, y: chipExpansionGeometry.y } : null
+    expanded: chipExpanded ? { grewTaller: chipExpansionGeometry.grewTaller, y: chipExpansionGeometry.y } : null,
   })
   const dupeCount = chip.sourceType === 'retained-page' ? 1 : (chip.dupeCount || 1)
   const duplicateLabel = dupeCount > 1 ? `${dupeCount} open copies` : ''
@@ -2132,7 +2131,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     canRemoveRetained,
     canToggleSaved: canToggleSavedPage,
     canUseChromeTabActions,
-    showSavedHint
+    showSavedHint,
   } = pageChipTargetActionPolicy(chip, { interactive: parentInteractive })
   const canTogglePagePin = !!chip.pagePinId && typeof onTogglePinnedPageChip === 'function'
   // Unlike the other can* flags, canShowSuspend intentionally does NOT gate on
@@ -2154,14 +2153,14 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     '--chip-interaction-bg': trim.styleVars.interactionBg,
     '--chip-target-interaction-bg': PAGE_CHIP_TARGET_INTERACTION_BG,
     '--chip-rest-bg': trim.styleVars.restBg,
-    ...(chip.isGrouped ? { '--group-color': chip.groupDotColor ?? undefined } : {})
+    ...(chip.isGrouped ? { '--group-color': chip.groupDotColor ?? undefined } : {}),
   }
   const hasTitleSuppressionMarkers = suppressedTitleParts.length > 0 || chip.displaySegments.some(isTitleSuppressionSegment)
   const hasStructuralPlaceholders = chip.displaySegments.some((segment) => isStructuralPlaceholderSegment(segment) && !!(segment.label || chip.pathGroupLabel))
   const shouldExpandChip = !chip.iconOnly && (hasExpandableContent || hasTitleSuppressionMarkers || hasStructuralPlaceholders)
   const chipSlotStyle: CSSVariableProperties | undefined = chipExpanded && chipSlotSize.width > 0 && chipSlotSize.height > 0 ? {
     height: `${chipSlotSize.height}px`,
-    width: `${chipSlotSize.width}px`
+    width: `${chipSlotSize.width}px`,
   } : undefined
   const chipExpandedMaxWidth = chipExpansionGeometry.maxWidth > 0 ? `${chipExpansionGeometry.maxWidth}px` : 'calc(100vw - 16px)'
   const chipExpandedWidth = chipExpansionGeometry.width > 0 ? `${chipExpansionGeometry.width}px` : chipExpandedMaxWidth
@@ -2171,20 +2170,20 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       '--page-chip-expanded-max-width': chipExpandedMaxWidth,
       '--page-chip-expanded-width': chipExpandedWidth,
       maxWidth: chipExpandedMaxWidth,
-      width: chipExpandedWidth
-    } : {})
+      width: chipExpandedWidth,
+    } : {}),
   }
   const chipTooltipStyle: CSSVariableProperties = {
     '--page-chip-tooltip-max-width': 'calc(100vw - 16px)',
-    maxWidth: 'min(var(--page-chip-tooltip-max-width), calc(100vw - 16px))'
+    maxWidth: 'min(var(--page-chip-tooltip-max-width), calc(100vw - 16px))',
   }
   function filterResultTargetInteractionStyle(
-    target: Pick<DashboardChipEnv, 'sourceType' | 'closedSaved'>
+    target: Pick<DashboardChipEnv, 'sourceType' | 'closedSaved'>,
   ): CSSVariableProperties | undefined {
     const sourceType = target.sourceType ?? chip.sourceType
     const isClosedTarget = isReadOnlyDashboardSourceType(sourceType) || isClosedSavedDashboardTab({
       ...(sourceType === undefined ? {} : { sourceType }),
-      ...(target.closedSaved === undefined ? {} : { closedSaved: target.closedSaved })
+      ...(target.closedSaved === undefined ? {} : { closedSaved: target.closedSaved }),
     })
     if (!hasFilter || !isClosedTarget) return undefined
     return { '--chip-target-interaction-bg': trim.styleVars.closedInteractionBg }
@@ -2202,7 +2201,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
         className={cn(
           'chip-title-suppression-marker inline-flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-[7px] border border-transparent bg-[rgba(115,115,115,0.08)] px-0.75 text-[12px] leading-3 text-muted-foreground align-middle [corner-shape:squircle] group-[.page-chip-expanded]/page-chip:h-auto group-[.page-chip-expanded]/page-chip:max-w-full group-[.page-chip-expanded]/page-chip:items-baseline group-[.page-chip-expanded]/page-chip:rounded-lg group-[.page-chip-expanded]/page-chip:border-0 group-[.page-chip-expanded]/page-chip:px-1 group-[.page-chip-expanded]/page-chip:leading-[inherit] group-[.page-chip-expanded]/page-chip:font-medium group-[.page-chip-expanded]/page-chip:align-baseline group-[.page-chip-expanded]/page-chip:[box-decoration-break:clone]',
           markerClassName,
-          titleSuppressionMarkerClass(tone, active)
+          titleSuppressionMarkerClass(tone, active),
         )}
         aria-label={label}
       >
@@ -2222,7 +2221,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
           className={cn(
             PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME,
             markerClassName,
-            titleSuppressionMarkerClass(tone, active)
+            titleSuppressionMarkerClass(tone, active),
           )}
           aria-label={label}
         >
@@ -2242,7 +2241,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
         isTitleSuppressionSegment(segment)
           ? [segment.titleSuppression.trim().toLowerCase()]
           : []
-      ))
+      )),
     )
     const trailingParts = targetSuppressedTitleParts.filter((part) => !inlineSuppressedTitleKeys.has(part.trim().toLowerCase()))
 
@@ -2252,7 +2251,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
         part,
         mode,
         `${keyPrefix}-trailing-title-suppression-marker-${part}`,
-        markerSpacingClass
+        markerSpacingClass,
       )
 
       if (mode === 'tooltip') {
@@ -2268,7 +2267,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     })
   }
 
-  function structuralPlaceholderNode(segment: { placeholder: true; label?: string }, mode: ChipTextRenderMode, key: string, fallbackLabelArg?: string) {
+  function structuralPlaceholderNode(segment: { placeholder: true, label?: string }, mode: ChipTextRenderMode, key: string, fallbackLabelArg?: string) {
     const fallbackLabel = fallbackLabelArg !== undefined ? fallbackLabelArg : chip.pathGroupLabel
     const hiddenLabel = segment.label || fallbackLabel
     const marker = (
@@ -2305,7 +2304,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     const envSourceType = env.sourceType || chip.sourceType || 'tab'
     const envClosed = isClosedSavedDashboardTab({
       sourceType: envSourceType,
-      closedSaved: !!env.closedSaved
+      closedSaved: !!env.closedSaved,
     })
     const envLabel = envClosed
       ? `Open ${env.prefix} closed page`
@@ -2315,7 +2314,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       canRemoveRetained: canRemoveRetainedEnv,
       canToggleSaved: canToggleSavedEnv,
       canUseChromeTabActions: envCanUseChromeTabActions,
-      showSavedHint: showSavedEnvHint
+      showSavedHint: showSavedEnvHint,
     } = pageChipTargetActionPolicy(env)
     const envTitleText = titleTextForEnv(env, chip)
     const envKey = env.rawUrl || env.tabUrl
@@ -2324,7 +2323,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       "chip-env inline-flex items-center rounded-lg border-0 bg-neutral-500/4.5 px-1.5 text-xs leading-[inherit] font-medium text-muted-foreground [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.']",
       isFolded && 'h-6 rounded-[7px] px-2',
       mode === 'chip' && 'clickable cursor-default transition-[background,color,box-shadow] duration-150 ease-[ease] hover:bg-(--chip-target-interaction-bg) hover:text-tab-live focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber) data-[tabout-filter-result-selected=true]:bg-(--chip-target-interaction-bg) data-[tabout-filter-result-selected=true]:outline-1 data-[tabout-filter-result-selected=true]:outline-offset-1 data-[tabout-filter-result-selected=true]:outline-(--accent-amber) [&.page-chip-context-menu-open]:bg-(--chip-target-interaction-bg) [&.page-chip-context-menu-open]:text-tab-live',
-      env.activeInOtherWindow && 'bg-neutral-600/7.5 text-tab-live shadow-[inset_0_0_0_1px_rgba(115,115,115,0.22)]'
+      env.activeInOtherWindow && 'bg-neutral-600/7.5 text-tab-live shadow-[inset_0_0_0_1px_rgba(115,115,115,0.22)]',
     )
 
     if (mode === 'tooltip') {
@@ -2411,10 +2410,10 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
             // the tuned break-normal path so short words never break awkwardly.
             return isUrlLikeTitle(seg)
               ? (
-                <span key={`${keyPrefix}-url-${seg}`} className="chip-url-title wrap-break-word">
-                  {highlightedTextNodes(seg, highlightTerms, `${keyPrefix}-segment-${index}`)}
-                </span>
-              )
+                  <span key={`${keyPrefix}-url-${seg}`} className="chip-url-title wrap-break-word">
+                    {highlightedTextNodes(seg, highlightTerms, `${keyPrefix}-segment-${index}`)}
+                  </span>
+                )
               : highlightedTextNodes(seg, highlightTerms, `${keyPrefix}-segment-${index}`, createBionicTitleTextRenderer(seg))
           }
           if (isTitleSuppressionSegment(seg)) return suppressionMarkerNode(seg.titleSuppression, mode, `${keyPrefix}-inline-title-suppression-${index}`)
@@ -2430,7 +2429,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
                 'chip-path font-normal text-muted-foreground',
                 mode === 'chip'
                   ? 'inline-block whitespace-nowrap group-[.page-chip-expanded]/page-chip:max-w-full group-[.page-chip-expanded]/page-chip:whitespace-normal group-[.page-chip-expanded]/page-chip:wrap-break-word'
-                  : 'inline-block max-w-[calc(100%-6px)] whitespace-normal break-normal w-max wrap-break-word'
+                  : 'inline-block max-w-[calc(100%-6px)] whitespace-normal break-normal w-max wrap-break-word',
               )}
             >
               {highlightedTextNodes(target.pathSuffix, highlightTerms, `${keyPrefix}-path`)}
@@ -2462,7 +2461,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       canRemoveRetained: variantCanRemoveRetained,
       canToggleSaved: variantCanToggleSaved,
       canUseChromeTabActions: variantCanUseChromeTabActions,
-      showSavedHint: variantShowSavedHint
+      showSavedHint: variantShowSavedHint,
     } = pageChipTargetActionPolicy(variant)
     const variantActionCount = (variantShowSavedHint ? 1 : 0) + (variantCanClose ? 1 : 0)
     const variantPagePinOwnSlot = !!variant.pagePinned && !variantCanClose
@@ -2510,7 +2509,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
           '[&.page-chip-context-menu-open]:bg-(--chip-target-interaction-bg) [&.page-chip-context-menu-open]:text-tab-live',
           variantActive && 'bg-neutral-600/7.5 text-tab-live',
           variantCurrent && 'bg-neutral-100 text-tab-live shadow-[inset_2px_0_0_0_var(--accent-amber)]',
-          variantHoverMatched && 'bg-(--chip-target-interaction-bg) text-tab-live'
+          variantHoverMatched && 'bg-(--chip-target-interaction-bg) text-tab-live',
         )}
         aria-label={variantLabel}
         onClick={(e) => onTitleVariantFocus(e, variant)}
@@ -2566,8 +2565,9 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
           <span className={cn(
             'chip-title-variant-actions group/title-variant-actions absolute top-0 bottom-0 z-2 my-auto flex h-4.75 items-center gap-0.5',
             variantActionSlotCount === 1 && 'left-[-25.5px]',
-            variantActionSlotCount > 1 && 'left-[-46.5px]'
-          )}>
+            variantActionSlotCount > 1 && 'left-[-46.5px]',
+          )}
+          >
             {variantShowSavedHint && (
               <span
                 className="chip-title-variant-saved-hint pointer-events-none inline-flex size-4.75 cursor-default items-center justify-center rounded-full border-0 bg-transparent p-0 text-(--accent-amber) opacity-0 group-hover/title-variant-actions:pointer-events-auto group-hover/title-variant-actions:opacity-100"
@@ -2601,8 +2601,9 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
             {variant.pagePinned && (
               <span className={cn(
                 'chip-title-variant-page-pin-slot pointer-events-none inline-flex size-4.75 shrink-0 items-center justify-center',
-                variantCanClose && 'absolute top-0 right-0 group-hover/title-variant-actions:opacity-0 group-focus-within/title-variant-actions:opacity-0'
-              )}>
+                variantCanClose && 'absolute top-0 right-0 group-hover/title-variant-actions:opacity-0 group-focus-within/title-variant-actions:opacity-0',
+              )}
+              >
                 <span
                   data-tabout-part="variant-page-pin"
                   data-pinned="true"
@@ -2630,7 +2631,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     if (!chipExpanded || chipExpansionGeometry.lineHtml.length === 0) return null
     return expansionLineNodesFromHtml(
       chipExpansionLineMarkup(chipExpansionGeometry.lineHtml, chipExpansionGeometry.viewportConstrained),
-      keyPrefix
+      keyPrefix,
     )
   }
 
@@ -2684,7 +2685,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       return clampedTitleLineNodes(
         chipTextClamp.lineHtml,
         'chip-text',
-        hasTitleSuppressionMarkers ? rebuildClampedChipMarker : undefined
+        hasTitleSuppressionMarkers ? rebuildClampedChipMarker : undefined,
       )
     }
 
@@ -2708,8 +2709,8 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     <span
       className={cn(
         "chip-text block min-w-0 max-w-[calc(100vw-32px)] hyphens-auto break-normal text-[13px] leading-tight text-tab-live font-[inherit] [hyphenate-character:'']",
-        "whitespace-normal wrap-break-word",
-        hasFilter && 'text-[color-mix(in_srgb,var(--color-tab-live)_72%,var(--color-muted-foreground))]'
+        'whitespace-normal wrap-break-word',
+        hasFilter && 'text-[color-mix(in_srgb,var(--color-tab-live)_72%,var(--color-muted-foreground))]',
       )}
     >
       {chipTextContentNode('tooltip')}
@@ -2781,7 +2782,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
         chip.pathSuffix && 'max-h-[calc(3lh)]',
         isTitleVariantGroup && 'max-h-none overflow-visible!',
         isFolded && 'max-h-none',
-        chipExpanded && 'max-h-none! max-w-none! flex-1! overflow-visible! mask-none! whitespace-normal wrap-break-word'
+        chipExpanded && 'max-h-none! max-w-none! flex-1! overflow-visible! mask-none! whitespace-normal wrap-break-word',
       )}
       ref={chipTextRef}
       onPointerEnter={onChipTextPointerEnter}
@@ -2812,7 +2813,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
         onMouseEnter: onChipMouseEnter,
         onMouseLeave: onChipMouseLeave,
         onFocus: onChipFocus,
-        onBlur: onChipBlur
+        onBlur: onChipBlur,
       } as const
     : {}
 
@@ -2831,46 +2832,46 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
         onMouseDown: onVariantGroupChipMouseDown,
         onMouseEnter: onVariantGroupChipMouseEnter,
         onMouseMove: onVariantGroupChipMouseMove,
-        onMouseLeave: onVariantGroupChipMouseLeave
+        onMouseLeave: onVariantGroupChipMouseLeave,
       } as const
     : {}
 
   const chipElement = (
-      <div
-        role={parentInteractive ? 'button' : 'group'}
-        id={hasFilter && parentInteractive ? chipFilterResultCandidate.domId : undefined}
-        data-tabout="page-chip"
-        data-tabout-retained-page-identity={chip.sourceType === 'retained-page' ? chip.retainedPageIdentity : undefined}
-        data-tabout-retained-page-closure-token={chip.sourceType === 'retained-page' ? chip.retainedPageClosureToken : undefined}
-        data-tabout-filter-result={hasFilter && parentInteractive ? '' : undefined}
-        data-tabout-filter-result-key={hasFilter && parentInteractive ? chipFilterResultCandidate.key : undefined}
-        data-expanded={chipExpanded ? 'true' : undefined}
-        data-loading={chip.loading ? 'true' : undefined}
-        className={cn(
-          "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-1.25 pr-1 pl-3 text-left text-[13px] leading-tight text-tab-live font-[inherit] [corner-shape:squircle] transition-[color] duration-100 before:pointer-events-none before:absolute before:top-1.75 before:bottom-1.75 before:left-1 before:w-0.5 before:rounded-[1px] before:bg-(--group-color,transparent) before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-(--chip-hover-fade-width) after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_34%,var(--chip-hover-fade-bg)_100%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transform-[scale(0.96)] motion-reduce:[&.closing]:transform-none",
-          !chip.iconOnly && 'w-full',
-          parentInteractive && 'clickable cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--accent-amber) data-[tabout-filter-result-selected=true]:bg-(--chip-interaction-bg) data-[tabout-filter-result-selected=true]:outline-1 data-[tabout-filter-result-selected=true]:outline-offset-2 data-[tabout-filter-result-selected=true]:outline-(--accent-amber)',
-          chipTooltipOpen && CHIP_TRIM_TOKENS.tooltipOpen,
-          chipExpanded && 'page-chip-expanded absolute z-30 min-w-0 max-w-(--page-chip-expanded-max-width) overflow-visible! transition-none! w-(--page-chip-expanded-width) [&.page-chip-expanded]:shadow-[0_3px_10px_rgba(10,10,10,0.055)]',
-          chipExpanded && 'left-0',
-          chipExpanded && (chipExpansionGeometry.y === 'up' ? 'bottom-0' : 'top-0'),
-          trim.chipClasses,
-          isTitleVariantGroup && 'cursor-default',
-          isFolded && `${CHIP_TRIM_TOKENS.folded} cursor-default after:hidden`,
-          chip.saved && 'page-chip-saved',
-          hoverMatched && `${CHIP_TRIM_TOKENS.hoverMatch} outline-1 outline-offset-1 outline-(--accent-amber)`,
-          suppressionHighlighted && cn('page-chip-suppression-highlighted', titleSuppressionChipHighlightClass(activeSuppressionTone)),
-          chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 rounded-xl bg-transparent p-0 [corner-shape:squircle] before:hidden after:hidden',
-          trim.iconChipClasses
-        )}
-        aria-label={chipLabel}
-        aria-busy={chip.loading ? true : undefined}
-        style={chipStyle}
-        onPointerEnter={onChipPointerEnter}
-        onPointerMove={onChipPointerMove}
-        onPointerLeave={onChipPointerLeave}
-        {...chipInteractionProps}
-      >
+    <div
+      role={parentInteractive ? 'button' : 'group'}
+      id={hasFilter && parentInteractive ? chipFilterResultCandidate.domId : undefined}
+      data-tabout="page-chip"
+      data-tabout-retained-page-identity={chip.sourceType === 'retained-page' ? chip.retainedPageIdentity : undefined}
+      data-tabout-retained-page-closure-token={chip.sourceType === 'retained-page' ? chip.retainedPageClosureToken : undefined}
+      data-tabout-filter-result={hasFilter && parentInteractive ? '' : undefined}
+      data-tabout-filter-result-key={hasFilter && parentInteractive ? chipFilterResultCandidate.key : undefined}
+      data-expanded={chipExpanded ? 'true' : undefined}
+      data-loading={chip.loading ? 'true' : undefined}
+      className={cn(
+        "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-1.25 pr-1 pl-3 text-left text-[13px] leading-tight text-tab-live font-[inherit] [corner-shape:squircle] transition-[color] duration-100 before:pointer-events-none before:absolute before:top-1.75 before:bottom-1.75 before:left-1 before:w-0.5 before:rounded-[1px] before:bg-(--group-color,transparent) before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-(--chip-hover-fade-width) after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_34%,var(--chip-hover-fade-bg)_100%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transform-[scale(0.96)] motion-reduce:[&.closing]:transform-none",
+        !chip.iconOnly && 'w-full',
+        parentInteractive && 'clickable cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--accent-amber) data-[tabout-filter-result-selected=true]:bg-(--chip-interaction-bg) data-[tabout-filter-result-selected=true]:outline-1 data-[tabout-filter-result-selected=true]:outline-offset-2 data-[tabout-filter-result-selected=true]:outline-(--accent-amber)',
+        chipTooltipOpen && CHIP_TRIM_TOKENS.tooltipOpen,
+        chipExpanded && 'page-chip-expanded absolute z-30 min-w-0 max-w-(--page-chip-expanded-max-width) overflow-visible! transition-none! w-(--page-chip-expanded-width) [&.page-chip-expanded]:shadow-[0_3px_10px_rgba(10,10,10,0.055)]',
+        chipExpanded && 'left-0',
+        chipExpanded && (chipExpansionGeometry.y === 'up' ? 'bottom-0' : 'top-0'),
+        trim.chipClasses,
+        isTitleVariantGroup && 'cursor-default',
+        isFolded && `${CHIP_TRIM_TOKENS.folded} cursor-default after:hidden`,
+        chip.saved && 'page-chip-saved',
+        hoverMatched && `${CHIP_TRIM_TOKENS.hoverMatch} outline-1 outline-offset-1 outline-(--accent-amber)`,
+        suppressionHighlighted && cn('page-chip-suppression-highlighted', titleSuppressionChipHighlightClass(activeSuppressionTone)),
+        chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 rounded-xl bg-transparent p-0 [corner-shape:squircle] before:hidden after:hidden',
+        trim.iconChipClasses,
+      )}
+      aria-label={chipLabel}
+      aria-busy={chip.loading ? true : undefined}
+      style={chipStyle}
+      onPointerEnter={onChipPointerEnter}
+      onPointerMove={onChipPointerMove}
+      onPointerLeave={onChipPointerLeave}
+      {...chipInteractionProps}
+    >
       {trim.expandedFill && (
         <span
           aria-hidden="true"
@@ -2878,7 +2879,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
           style={{
             top: trim.expandedFill.top,
             bottom: trim.expandedFill.bottom,
-            backgroundColor: trim.expandedFill.background
+            backgroundColor: trim.expandedFill.background,
           }}
         />
       )}
@@ -2924,7 +2925,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
           </span>
         </div>
       )}
-      </div>
+    </div>
   )
   const chipElementWithContextMenu = !chip.iconOnly && (canToggleSavedPage || canRemoveRetained || canTogglePagePin || canUseChromeTabActions || canShowSuspend || canUseCopyContextMenu) ? (
     <PageChipContextMenu

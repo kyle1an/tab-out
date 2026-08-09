@@ -14,19 +14,19 @@ test('dashboard avoids eager tooltip measurement surfaces', async ({ page }) => 
 })
 
 test('toast renderer stays off startup and loads for the first notification', async ({
-  page
+  page,
 }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html', {
-    waitUntil: 'networkidle'
+    waitUntil: 'networkidle',
   })
 
   const startupScripts = await page.evaluate(() =>
     performance
       .getEntriesByType('resource')
-      .map((entry) => entry.name.split('/').pop() ?? '')
+      .map((entry) => entry.name.split('/').pop() ?? ''),
   )
   expect(startupScripts.some((name) => name.startsWith('mountToast-'))).toBe(
-    false
+    false,
   )
 
   await page
@@ -38,10 +38,10 @@ test('toast renderer stays off startup and loads for the first notification', as
   const interactionScripts = await page.evaluate(() =>
     performance
       .getEntriesByType('resource')
-      .map((entry) => entry.name.split('/').pop() ?? '')
+      .map((entry) => entry.name.split('/').pop() ?? ''),
   )
   expect(
-    interactionScripts.some((name) => name.startsWith('mountToast-'))
+    interactionScripts.some((name) => name.startsWith('mountToast-')),
   ).toBe(true)
 })
 
@@ -68,7 +68,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
       numericLocaleCompareCalls: 0,
       pathgroupLabelSizeReads: 0,
       titleTemplateCreates: 0,
-      layoutShift: 0
+      layoutShift: 0,
     }
     const benchmarkWindow = window as typeof window & {
       __tabOutFirstPaintMeasurements: typeof counts
@@ -79,7 +79,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
     String.prototype.localeCompare = function getInstrumentedLocaleCompare(
       compareString: string,
       locales?: Intl.LocalesArgument,
-      options?: Intl.CollatorOptions
+      options?: Intl.CollatorOptions,
     ) {
       if (options?.numeric === true) counts.numericLocaleCompareCalls += 1
       return localeCompare.call(this, compareString, locales, options)
@@ -89,7 +89,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
     Document.prototype.createElement = function createInstrumentedElement(
       this: Document,
       qualifiedName: string,
-      options?: ElementCreationOptions
+      options?: ElementCreationOptions,
     ) {
       if (qualifiedName.toLowerCase() === 'template') counts.titleTemplateCreates += 1
       return createElement.call(this, qualifiedName, options)
@@ -169,7 +169,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
             }
           }
           return getSize.call(this)
-        }
+        },
       })
     }
 
@@ -245,7 +245,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
       chipCount: document.querySelectorAll('[data-tabout="page-chip"]').length,
       domainCardCount: document.querySelectorAll('[data-tabout="domain-card"]').length,
       historyTitleCount: document.querySelectorAll('.history-entry-title').length,
-      pathgroupLabelCount: document.querySelectorAll('.pathgroup-header .chip-pathgroup').length
+      pathgroupLabelCount: document.querySelectorAll('.pathgroup-header .chip-pathgroup').length,
     }
   })
 
@@ -309,7 +309,7 @@ test('Activation History paints title fades and a content frame before scrollbar
             scrollbarGeometryReads += 1
           }
           return getSize.call(this)
-        }
+        },
       })
     }
 
@@ -319,7 +319,7 @@ test('Activation History paints title fades and a content frame before scrollbar
       const historyTitleCount = document.querySelectorAll('.history-entry-title').length
       if (historyTitleCount > 0) {
         const truncatedTitles = Array.from(document.querySelectorAll<HTMLElement>(
-          '.history-entry-title-truncated'
+          '.history-entry-title-truncated',
         ))
         paintWindow.__tabOutFirstHistoryContentFrame = {
           historyTitleCount,
@@ -327,13 +327,13 @@ test('Activation History paints title fades and a content frame before scrollbar
           scrollbarMounted: !!document.querySelector('[data-tabout-part="history-scrollbar"]'),
           truncatedTitleCount: truncatedTitles.length,
           truncatedTitleFadeCount: truncatedTitles.filter(
-            (title) => getComputedStyle(title).maskImage !== 'none'
-          ).length
+            (title) => getComputedStyle(title).maskImage !== 'none',
+          ).length,
         }
         requestAnimationFrame(() => {
           paintWindow.__tabOutAfterFirstHistoryPaint = {
             scrollbarGeometryReads,
-            scrollbarMounted: !!document.querySelector('[data-tabout-part="history-scrollbar"]')
+            scrollbarMounted: !!document.querySelector('[data-tabout-part="history-scrollbar"]'),
           }
         })
         return
@@ -417,7 +417,7 @@ test('long Page Chip paints its final truncation treatment on the first refresh 
           hasFade: text.classList.contains('chip-text-truncated'),
           maskImage: getComputedStyle(text).maskImage,
           width: text.getBoundingClientRect().width,
-          verticalOverflow: text.scrollHeight - text.clientHeight
+          verticalOverflow: text.scrollHeight - text.clientHeight,
         })
       }
       if (frameCount < 120) requestAnimationFrame(captureFrame)

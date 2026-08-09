@@ -6,7 +6,7 @@ import {
   type OpenSurfaceInventory,
   type OpenSurfaceInventoryEntry,
   type OpenSurfaceInventoryOptions,
-  type OpenSurfaceObservation
+  type OpenSurfaceObservation,
 } from './open-surface-inventory.js'
 
 export type OpenSurfaceReconciliationMode =
@@ -31,7 +31,7 @@ export interface ReconcileOpenSurfacesResult {
 async function reconcileAgainstCurrent(
   basis: OpenSurfaceInventory,
   current: readonly OpenSurfaceObservation[],
-  options: OpenSurfaceInventoryOptions
+  options: OpenSurfaceInventoryOptions,
 ): Promise<ReconcileOpenSurfacesResult> {
   const liveTabIds = new Set(current.map((observation) => observation.tabId))
   const inferredClosures: OpenSurfaceInventoryEntry[] = []
@@ -50,19 +50,19 @@ async function reconcileAgainstCurrent(
 }
 
 export async function reconcileOpenSurfaces(
-  input: ReconcileOpenSurfacesInput
+  input: ReconcileOpenSurfacesInput,
 ): Promise<ReconcileOpenSurfacesResult> {
   const options = input.options || {}
   if (input.mode === 'first-install') {
     return {
       inventory: await seedOpenSurfaceInventory(input.current, options),
-      inferredClosures: []
+      inferredClosures: [],
     }
   }
   if (input.mode === 'browser-startup') {
     return {
       inventory: await seedOpenSurfaceInventory(input.current, options),
-      inferredClosures: Object.values(input.durable?.entries || {})
+      inferredClosures: Object.values(input.durable?.entries || {}),
     }
   }
 

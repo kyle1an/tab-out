@@ -6,13 +6,13 @@ import { Effect } from 'effect'
 import {
   RETAINED_PAGES_EXPIRY_ALARM,
   earliestRetainedPageExpiry,
-  scheduleRetainedPagesExpiryAlarm
+  scheduleRetainedPagesExpiryAlarm,
 } from '../src/extension/background/retained-pages-expiry-alarm.js'
 import {
   emptyRetainedPageLedger,
   RETAINED_PAGE_LIFETIME_MS,
   type RetainedPageLedger,
-  type RetainedPageRecord
+  type RetainedPageRecord,
 } from '../src/extension/retained-pages-ledger.js'
 
 function page(identityDigest: string, closedAt: number): RetainedPageRecord {
@@ -23,14 +23,14 @@ function page(identityDigest: string, closedAt: number): RetainedPageRecord {
     url: `https://${identityDigest}.example.test/`,
     title: identityDigest,
     closedAt,
-    closureToken: `lifetime-${identityDigest}`
+    closureToken: `lifetime-${identityDigest}`,
   }
 }
 
 function ledgerWith(...pages: RetainedPageRecord[]): RetainedPageLedger {
   return {
     ...emptyRetainedPageLedger(),
-    pages: Object.fromEntries(pages.map((record) => [record.identityDigest, record]))
+    pages: Object.fromEntries(pages.map((record) => [record.identityDigest, record])),
   }
 }
 
@@ -38,17 +38,17 @@ test('earliestRetainedPageExpiry selects the earliest visible-page expiry determ
   const ledger = ledgerWith(
     page('later', 30_000),
     page('earliest', 10_000),
-    page('middle', 20_000)
+    page('middle', 20_000),
   )
 
   assert.equal(
     earliestRetainedPageExpiry(ledger),
-    10_000 + RETAINED_PAGE_LIFETIME_MS
+    10_000 + RETAINED_PAGE_LIFETIME_MS,
   )
 })
 
 test('expiry scheduling creates exactly one deterministic alarm at the earliest expiry', async () => {
-  const creates: Array<{ name: string; info: chrome.alarms.AlarmCreateInfo }> = []
+  const creates: Array<{ name: string, info: chrome.alarms.AlarmCreateInfo }> = []
   const clears: string[] = []
   const ledger = ledgerWith(page('later', 30_000), page('earliest', 10_000))
 
@@ -57,18 +57,18 @@ test('expiry scheduling creates exactly one deterministic alarm at the earliest 
     clear: async (name) => {
       clears.push(name)
       return true
-    }
+    },
   }, ledger))
 
   assert.deepEqual(creates, [{
     name: RETAINED_PAGES_EXPIRY_ALARM,
-    info: { when: 10_000 + RETAINED_PAGE_LIFETIME_MS }
+    info: { when: 10_000 + RETAINED_PAGE_LIFETIME_MS },
   }])
   assert.deepEqual(clears, [])
 })
 
 test('expiry scheduling clears the named alarm when no retained pages remain', async () => {
-  const creates: Array<{ name: string; info: chrome.alarms.AlarmCreateInfo }> = []
+  const creates: Array<{ name: string, info: chrome.alarms.AlarmCreateInfo }> = []
   const clears: string[] = []
 
   await Effect.runPromise(scheduleRetainedPagesExpiryAlarm({
@@ -76,7 +76,7 @@ test('expiry scheduling clears the named alarm when no retained pages remain', a
     clear: async (name) => {
       clears.push(name)
       return false
-    }
+    },
   }, emptyRetainedPageLedger()))
 
   assert.deepEqual(creates, [])
@@ -91,9 +91,9 @@ test('invisible removal boundaries do not keep the visible-page expiry alarm ali
       'removed-lifetime': {
         identityDigest: 'removed',
         closureToken: 'removed-lifetime',
-        expiresAt: 1_000 + RETAINED_PAGE_LIFETIME_MS
-      }
-    }
+        expiresAt: 1_000 + RETAINED_PAGE_LIFETIME_MS,
+      },
+    },
   }
 
   assert.equal(earliestRetainedPageExpiry(ledger), null)
@@ -102,7 +102,7 @@ test('invisible removal boundaries do not keep the visible-page expiry alarm ali
     clear: async (name) => {
       clears.push(name)
       return true
-    }
+    },
   }, ledger))
   assert.deepEqual(clears, [RETAINED_PAGES_EXPIRY_ALARM])
 })
@@ -110,7 +110,7 @@ test('invisible removal boundaries do not keep the visible-page expiry alarm ali
 test('alarm transport failures stay typed for service-owned recovery policy', async () => {
   const failure = await Effect.runPromiseExit(scheduleRetainedPagesExpiryAlarm({
     create: async () => { throw new Error('alarm unavailable') },
-    clear: async () => true
+    clear: async () => true,
   }, ledgerWith(page('example', 1_000))))
 
   assert.equal(failure._tag, 'Failure')

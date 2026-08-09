@@ -15,7 +15,7 @@ test('hover store notifies only old and new matches across hundreds of leaf sele
       const count = notifications[index]
       assert.ok(count !== undefined)
       notifications[index] = count + 1
-    }
+    },
   ))
   const urlAt = (index: number): string => {
     const url = urls[index]
@@ -26,7 +26,7 @@ test('hover store notifies only old and new matches across hundreds of leaf sele
   store.setSnapshot({
     url: urlAt(173),
     urls: [urlAt(173)],
-    source: 'history'
+    source: 'history',
   })
   assert.equal(notifications.reduce((total, count) => total + count, 0), 1)
   assert.equal(notifications[173], 1)
@@ -34,7 +34,7 @@ test('hover store notifies only old and new matches across hundreds of leaf sele
   store.setSnapshot({
     url: urlAt(318),
     urls: [urlAt(318)],
-    source: 'history'
+    source: 'history',
   })
   assert.equal(notifications.reduce((total, count) => total + count, 0), 3)
   assert.equal(notifications[173], 2)
@@ -68,7 +68,7 @@ test('url preview updates independently and preserves the delayed hide contract'
     controller.setUrlPreview('https://example.test/first')
     assert.deepEqual(controller.store.getSnapshot(), {
       url: 'https://example.test/first',
-      visible: true
+      visible: true,
     })
     assert.equal(notifications, 1)
 
@@ -81,7 +81,7 @@ test('url preview updates independently and preserves the delayed hide contract'
     clock.tick(URL_PREVIEW_HIDE_DELAY_MS)
     assert.deepEqual(controller.store.getSnapshot(), {
       url: 'https://example.test/second',
-      visible: true
+      visible: true,
     })
     assert.equal(notifications, 2)
 
@@ -89,7 +89,7 @@ test('url preview updates independently and preserves the delayed hide contract'
     clock.tick(URL_PREVIEW_HIDE_DELAY_MS)
     assert.deepEqual(controller.store.getSnapshot(), {
       url: 'https://example.test/second',
-      visible: false
+      visible: false,
     })
     assert.equal(notifications, 3)
 

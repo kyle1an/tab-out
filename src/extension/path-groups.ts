@@ -61,7 +61,7 @@ const BUILT_IN_PATH_GROUPERS: PathGroupRule[] = [
       else if (sub === 'commits' || sub === 'commit') category = 'commit'
       else if (sub === 'blob' || sub === 'tree') category = 'code'
       return { key: label, label, category }
-    }
+    },
   },
 
   // Atlassian Jira: /browse/PROJ-N → group by project key prefix.
@@ -84,7 +84,7 @@ const BUILT_IN_PATH_GROUPERS: PathGroupRule[] = [
       const project = m?.[1]
       if (!project) return null
       return { key: `jira:${project}`, label: project, alwaysCluster: true }
-    }
+    },
   },
 
   // Atlassian Confluence: /wiki/spaces/<SPACE>/... → group by space.
@@ -95,7 +95,7 @@ const BUILT_IN_PATH_GROUPERS: PathGroupRule[] = [
       const space = m?.[1]
       if (!space) return null
       return { key: `wiki:${space}`, label: space }
-    }
+    },
   },
 
   // Contentful: /spaces/<SPACE>/environments/<ENV>/... → group by env.
@@ -112,7 +112,7 @@ const BUILT_IN_PATH_GROUPERS: PathGroupRule[] = [
       const environment = m?.[2]
       if (!space || !environment) return null
       return { key: `${space}/${environment}`, label: environment, alwaysCluster: true }
-    }
+    },
   },
 
   // Figma: /design/<fileId>/<decodedName> (and /file/ for legacy).
@@ -132,7 +132,7 @@ const BUILT_IN_PATH_GROUPERS: PathGroupRule[] = [
         label = encodedName
       }
       return { key: fileId, label: label || fileId }
-    }
+    },
   },
 
   // Reddit: /r/<subreddit>/... → group by subreddit.
@@ -143,7 +143,7 @@ const BUILT_IN_PATH_GROUPERS: PathGroupRule[] = [
       const subreddit = m?.[1]
       if (!subreddit) return null
       return { key: `r/${subreddit}`, label: `r/${subreddit}` }
-    }
+    },
   },
 
   // Google Search deliberately stays out of path groups. The common

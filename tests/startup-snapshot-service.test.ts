@@ -11,7 +11,7 @@ import {
   STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_INTERVAL_MS,
   STARTUP_SNAPSHOT_MAX_WAIT_MS,
   StartupSnapshot,
-  startupSnapshotStorageChangesRequireRefresh
+  startupSnapshotStorageChangesRequireRefresh,
 } from '../src/extension/background/startup-snapshot-service.js'
 import { BrowserTabs } from '../src/extension/browser-tabs-service.js'
 import type { CapturedDashboardServiceState } from '../src/extension/dashboard-service-messages.js'
@@ -21,12 +21,12 @@ import { PAGE_CHIP_PIN_STORAGE_KEY } from '../src/extension/page-chip-pins.js'
 import {
   SAVED_PAGES_STORAGE_KEY,
   addSavedPageToStore,
-  emptySavedPagesStore
+  emptySavedPagesStore,
 } from '../src/extension/saved-pages.js'
 import { SECTION_PIN_STORAGE_KEY } from '../src/extension/section-pins.js'
 import {
   DASHBOARD_STARTUP_SEED_CACHE_KEY,
-  type DashboardStartupSeed
+  type DashboardStartupSeed,
 } from '../src/extension/startup-snapshot.js'
 import { parseDashboardStartupSeedBoundary } from '../src/extension/startup-snapshot-schema.js'
 import type { WorkingSetActivityStore } from '../src/extension/types'
@@ -42,14 +42,14 @@ const emptyTabHistory = {
   activeTabId: null,
   activeWindowId: 1,
   activeWasInserted: false,
-  entries: []
+  entries: [],
 }
 
 const emptyActivity: WorkingSetActivityStore = { version: 1, records: {} }
 
 function dashboardServiceState(
   tabs: chrome.tabs.Tab[],
-  workingSetActivity = emptyActivity
+  workingSetActivity = emptyActivity,
 ): CapturedDashboardServiceState {
   return {
     tabHistory: emptyTabHistory,
@@ -63,9 +63,9 @@ function dashboardServiceState(
         focused: true,
         type: 'normal',
         alwaysOnTop: false,
-        incognito: false
-      }]
-    }
+        incognito: false,
+      }],
+    },
   }
 }
 
@@ -77,14 +77,14 @@ function createStartupSnapshotService(
       create: (name: string, alarmInfo: chrome.alarms.AlarmCreateInfo) => Promise<void>
       get: (name: string) => Promise<chrome.alarms.Alarm | undefined>
     }
-  }
+  },
 ) {
   const runtime = ManagedRuntime.make(StartupSnapshot.layer({
     ...(options.alarms ? { alarms: options.alarms } : {}),
     getDashboardServiceState: Effect.tryPromise({
       try: options.getDashboardServiceState,
-      catch: (cause) => cause
-    })
+      catch: (cause) => cause,
+    }),
   }).pipe(Layer.provideMerge(BrowserTabs.layer())))
   runtime.runSync(Effect.void)
   const service = runtime.runSync(StartupSnapshot)
@@ -93,7 +93,7 @@ function createStartupSnapshotService(
     refreshNow: () => runtime.runPromise(service.refreshNow()),
     scheduleRefresh: () => runtime.runPromise(service.scheduleRefresh()),
     sessionsChanged: () => runtime.runPromise(service.sessionsChanged()),
-    promoteDurableCheckpoint: () => runtime.runPromise(service.promoteDurableCheckpoint())
+    promoteDurableCheckpoint: () => runtime.runPromise(service.promoteDurableCheckpoint()),
   }
 }
 
@@ -106,7 +106,7 @@ function installWorkerChrome(
     localValues?: StorageValues
     localGet?: (keys: string | string[]) => Promise<StorageValues>
     sessionGet?: (keys: string | string[]) => Promise<StorageValues>
-  } = {}
+  } = {},
 ) {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'chrome')
   const sessionValues = options.sessionValues ?? {}
@@ -119,7 +119,7 @@ function installWorkerChrome(
     value: {
       runtime: {
         id: 'tab-out',
-        getURL: (path: string) => `chrome-extension://tab-out/${path}`
+        getURL: (path: string) => `chrome-extension://tab-out/${path}`,
       },
       tabGroups: { query: async () => [] },
       storage: {
@@ -129,7 +129,7 @@ function installWorkerChrome(
             sessionWrites += 1
             Object.assign(sessionValues, values)
           },
-          remove: async (key: string) => { delete sessionValues[key] }
+          remove: async (key: string) => { delete sessionValues[key] },
         },
         local: {
           get: options.localGet ?? (async () => ({ ...localValues })),
@@ -138,10 +138,10 @@ function installWorkerChrome(
             if (Object.hasOwn(values, SAVED_PAGES_STORAGE_KEY)) savedPagesWrites += 1
             Object.assign(localValues, values)
           },
-          remove: async (key: string) => { delete localValues[key] }
-        }
-      }
-    }
+          remove: async (key: string) => { delete localValues[key] },
+        },
+      },
+    },
   })
   t.after(() => {
     if (previous) Object.defineProperty(globalThis, 'chrome', previous)
@@ -152,7 +152,7 @@ function installWorkerChrome(
     localValues,
     sessionWrites: () => sessionWrites,
     durableWrites: () => durableWrites,
-    savedPagesWrites: () => savedPagesWrites
+    savedPagesWrites: () => savedPagesWrites,
   }
 }
 
@@ -179,20 +179,20 @@ test('worker writes compact Warm and Durable seeds while preserving pinned and s
     title: 'Saved report',
     favIconUrl: '',
     isTabOut: false,
-    isApp: false
+    isApp: false,
   }, 10)
   const storage = installWorkerChrome(t, {
     localValues: {
       [DOMAIN_PIN_STORAGE_KEY]: ['example.test'],
-      [SAVED_PAGES_STORAGE_KEY]: savedPages
-    }
+      [SAVED_PAGES_STORAGE_KEY]: savedPages,
+    },
   })
   const tabs = [
     makeChromeTab(1, 'https://example.com/docs', 'Example Docs'),
-    makeChromeTab(2, 'https://example.test/report', 'Example Report')
+    makeChromeTab(2, 'https://example.test/report', 'Example Report'),
   ]
   const service = createStartupSnapshotService(t, {
-    getDashboardServiceState: async () => dashboardServiceState(tabs)
+    getDashboardServiceState: async () => dashboardServiceState(tabs),
   })
 
   await service.refreshNow()
@@ -202,7 +202,7 @@ test('worker writes compact Warm and Durable seeds while preserving pinned and s
   assert.deepEqual(warm?.cardOrder, [
     'domain-example.test',
     'domain-example.com',
-    'domain-saved.example'
+    'domain-saved.example',
   ])
   assert.deepEqual(durable?.cardOrder, warm?.cardOrder)
   assert.equal(durable?.titleRetention, undefined)
@@ -229,8 +229,8 @@ test('service schedules one non-sliding Durable promotion and promotes the newes
       create: async (name, alarmInfo) => {
         alarmCreates.push(alarmInfo)
         pendingAlarm = { name, scheduledTime: alarmInfo.when ?? Date.now() }
-      }
-    }
+      },
+    },
   })
 
   await service.refreshNow()
@@ -265,15 +265,15 @@ test('a transient cache read failure retries once before performing browser work
       sessionReads += 1
       if (sessionReads === 1) throw new Error('session storage unavailable')
       return {}
-    }
+    },
   })
   const service = createStartupSnapshotService(t, {
     getDashboardServiceState: async () => {
       stateReads += 1
       return dashboardServiceState([
-        makeChromeTab(1, 'https://example.test/docs', 'Example')
+        makeChromeTab(1, 'https://example.test/docs', 'Example'),
       ])
-    }
+    },
   })
 
   await service.refreshNow()
@@ -291,7 +291,7 @@ test('unknown pin input preserves the prior Warm seed', async (t) => {
     savedAt: 10,
     captureStartedAt: 10,
     cardOrder: ['domain-prior.test'],
-    workingSetPriority: { epoch: 10, keys: [] }
+    workingSetPriority: { epoch: 10, keys: [] },
   }
   const sessionValues: StorageValues = { [DASHBOARD_STARTUP_SEED_CACHE_KEY]: prior }
   const storage = installWorkerChrome(t, {
@@ -299,12 +299,12 @@ test('unknown pin input preserves the prior Warm seed', async (t) => {
     localGet: async (keys) => {
       if (keys === DOMAIN_PIN_STORAGE_KEY) throw new Error('pin storage unavailable')
       return {}
-    }
+    },
   })
   const service = createStartupSnapshotService(t, {
     getDashboardServiceState: async () => dashboardServiceState([
-      makeChromeTab(1, 'https://new.test/docs', 'New')
-    ])
+      makeChromeTab(1, 'https://new.test/docs', 'New'),
+    ]),
   })
 
   await service.refreshNow()
@@ -320,7 +320,7 @@ test('session changes no longer rebuild a seed that does not contain recently cl
     getDashboardServiceState: async () => {
       stateReads += 1
       return dashboardServiceState([])
-    }
+    },
   })
 
   await service.refreshNow()
@@ -338,7 +338,7 @@ test('seed scheduling uses a sliding quiet window with a fixed maximum wait', as
     getDashboardServiceState: async () => {
       stateReads += 1
       return dashboardServiceState([])
-    }
+    },
   })
 
   await service.scheduleRefresh()
@@ -367,7 +367,7 @@ test('a refresh requested during an active seed flight runs once as a trailing r
         await releaseFirstRead.promise
       }
       return dashboardServiceState([])
-    }
+    },
   })
 
   const active = service.refreshNow()
@@ -389,9 +389,9 @@ test('a completed seed-flight failure does not block a later refresh', async (t)
       stateReads += 1
       if (stateReads === 1) throw new Error('worker read unavailable')
       return dashboardServiceState([
-        makeChromeTab(1, 'https://recovered.example/docs', 'Recovered')
+        makeChromeTab(1, 'https://recovered.example/docs', 'Recovered'),
       ])
-    }
+    },
   })
 
   await service.refreshNow()
@@ -399,6 +399,6 @@ test('a completed seed-flight failure does not block a later refresh', async (t)
 
   assert.equal(stateReads, 2)
   assert.deepEqual(storedSeed(storage.sessionValues)?.cardOrder, [
-    'domain-recovered.example'
+    'domain-recovered.example',
   ])
 })

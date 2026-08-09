@@ -1,0 +1,7 @@
+* text=auto eol=lf
+
+*.png binary
+
+extension/dist/** linguist-generated=true
+extension/index.html linguist-generated=true
+extension/manifest.json linguist-generated=true

@@ -3,10 +3,10 @@ import test from 'node:test'
 
 import {
   animateIntraCardMoves,
-  prepareIntraCardMoveAnimation
+  prepareIntraCardMoveAnimation,
 } from '../src/extension/intra-card-move-animation.js'
 
-type Rect = { left: number; top: number; width?: number; height?: number }
+type Rect = { left: number, top: number, width?: number, height?: number }
 
 function fakeLayoutElement(key: string, scope: string, rect: Rect) {
   const classes = new Set<string>()
@@ -14,21 +14,21 @@ function fakeLayoutElement(key: string, scope: string, rect: Rect) {
   const element = {
     dataset: {
       taboutLayoutKey: key,
-      taboutLayoutScope: scope
+      taboutLayoutScope: scope,
     },
     classList: {
       add: (...names: string[]) => names.forEach((name) => classes.add(name)),
-      remove: (...names: string[]) => names.forEach((name) => classes.delete(name))
+      remove: (...names: string[]) => names.forEach((name) => classes.delete(name)),
     },
     style: {} as Record<string, string>,
     getBoundingClientRect: () => ({
       left: state.rect.left,
       top: state.rect.top,
       width: state.rect.width ?? 120,
-      height: state.rect.height ?? 36
+      height: state.rect.height ?? 36,
     }),
     addEventListener() {},
-    removeEventListener() {}
+    removeEventListener() {},
   }
   return {
     classes,
@@ -36,7 +36,7 @@ function fakeLayoutElement(key: string, scope: string, rect: Rect) {
     moveTo(next: Rect) {
       state.rect = next
     },
-    style: element.style
+    style: element.style,
   }
 }
 
@@ -48,7 +48,7 @@ test('intra-card move animation keeps a pinned item and its siblings visually co
   const items = [target, sibling, unrelated]
   const root = {
     querySelectorAll: () => items.map((item) => item.element),
-    getBoundingClientRect: () => ({ left: 0, top: 0, width: 360, height: 500 })
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 360, height: 500 }),
   } as unknown as HTMLElement
   ;(target.element as unknown as { closest: () => HTMLElement }).closest = () => root
 
@@ -72,7 +72,7 @@ test('intra-card move animation can use a nested variant as the anchor for a rec
       if (selector.includes('layout-anchor')) return snapshotPhase ? [variantAnchor.element] : []
       return snapshotPhase ? [] : [recreatedChip.element]
     },
-    getBoundingClientRect: () => ({ left: 0, top: 0, width: 360, height: 500 })
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 360, height: 500 }),
   } as unknown as HTMLElement
   ;(variantAnchor.element as unknown as { closest: () => HTMLElement }).closest = () => root
 
@@ -87,13 +87,13 @@ test('reduced-motion pinning settles the destination with opacity only', () => {
   const previousWindow = globalThis.window
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
-    value: { matchMedia: () => ({ matches: true }) }
+    value: { matchMedia: () => ({ matches: true }) },
   })
 
   try {
     const scope = 'page-chip:scope-alpha'
     const target = fakeLayoutElement('page-alpha', scope, { left: 24, top: 120 })
-    const animations: Array<{ frames: Keyframe[]; options: KeyframeAnimationOptions }> = []
+    const animations: Array<{ frames: Keyframe[], options: KeyframeAnimationOptions }> = []
     ;(target.element as unknown as {
       animate: (frames: Keyframe[], options: KeyframeAnimationOptions) => void
     }).animate = (frames, options) => {
@@ -101,7 +101,7 @@ test('reduced-motion pinning settles the destination with opacity only', () => {
     }
     const root = {
       querySelectorAll: () => [target.element],
-      getBoundingClientRect: () => ({ left: 0, top: 0, width: 360, height: 500 })
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 360, height: 500 }),
     } as unknown as HTMLElement
     ;(target.element as unknown as { closest: () => HTMLElement }).closest = () => root
 
@@ -111,13 +111,13 @@ test('reduced-motion pinning settles the destination with opacity only', () => {
 
     assert.deepEqual(animations, [{
       frames: [{ opacity: 0.9 }, { opacity: 1 }],
-      options: { duration: 120, easing: 'linear' }
+      options: { duration: 120, easing: 'linear' },
     }])
     assert.equal(target.style.transform ?? '', '')
   } finally {
     Object.defineProperty(globalThis, 'window', {
       configurable: true,
-      value: previousWindow
+      value: previousWindow,
     })
   }
 })

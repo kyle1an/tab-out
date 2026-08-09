@@ -9,8 +9,8 @@ test('dashboard service state distinguishes a transport failure from valid empty
     runtime: {
       sendMessage: async () => {
         throw new Error('Service worker unavailable')
-      }
-    }
+      },
+    },
   } as unknown as typeof globalThis.chrome
 
   const result = await fetchDashboardServiceStateResult()
@@ -27,14 +27,14 @@ test('dashboard service state treats an explicit successful empty response as kn
         ok: true,
         openTabsSnapshot: {
           tabs: [{ id: 1, windowId: 1, url: 'https://example.test/' }],
-          windows: [{ id: 1, focused: true, type: 'normal' }]
+          windows: [{ id: 1, focused: true, type: 'normal' }],
         },
         tabHistory: { entries: [], maxSize: 48 },
         workingSetActivity: { version: 1, records: {} },
         retainedPages: await encodeDashboardRetainedPagesWire([]),
-        retentionHealth: null
-      })
-    }
+        retentionHealth: null,
+      }),
+    },
   } as unknown as typeof globalThis.chrome
 
   const result = await fetchDashboardServiceStateResult()
@@ -49,8 +49,8 @@ test('dashboard service state treats an explicit successful empty response as kn
 test('dashboard service state rejects malformed successful responses instead of clearing known state', async () => {
   globalThis.chrome = {
     runtime: {
-      sendMessage: async () => ({ ok: true })
-    }
+      sendMessage: async () => ({ ok: true }),
+    },
   } as unknown as typeof globalThis.chrome
 
   const result = await fetchDashboardServiceStateResult()
@@ -70,9 +70,9 @@ test('dashboard service state rejects otherwise-valid responses without an atomi
           tabHistory: { entries: [], maxSize: 48 },
           workingSetActivity: { version: 1, records: {} },
           retainedPages: await encodeDashboardRetainedPagesWire([]),
-          retentionHealth: null
-        })
-      }
+          retentionHealth: null,
+        }),
+      },
     } as unknown as typeof globalThis.chrome
 
     const result = await fetchDashboardServiceStateResult()
@@ -88,14 +88,14 @@ test('dashboard service state rejects malformed serialized browser rows', async 
         ok: true,
         openTabsSnapshot: {
           tabs: [{ id: 1, windowId: 'not-a-window', url: 'https://example.test/' }],
-          windows: [{ id: 1, focused: true, type: 'normal' }]
+          windows: [{ id: 1, focused: true, type: 'normal' }],
         },
         tabHistory: { entries: [] },
         workingSetActivity: { version: 1, records: {} },
         retainedPages: await encodeDashboardRetainedPagesWire([]),
-        retentionHealth: null
-      })
-    }
+        retentionHealth: null,
+      }),
+    },
   } as unknown as typeof globalThis.chrome
 
   const result = await fetchDashboardServiceStateResult()
@@ -119,10 +119,10 @@ test('dashboard service state rejects a health record containing page metadata',
           retryState: 'exhausted-after-one-retry',
           startedAt: 100,
           lastFailedAt: 100,
-          url: 'https://example.test/private'
-        }
-      })
-    }
+          url: 'https://example.test/private',
+        },
+      }),
+    },
   } as unknown as typeof globalThis.chrome
 
   const result = await fetchDashboardServiceStateResult()
@@ -143,11 +143,11 @@ test('dashboard service state rejects a corrupt retained projection as a whole r
           schemaVersion: 1,
           identityVersion: 1,
           encoding: 'gzip-base64-json-v1',
-          data: 'not-base64!'
+          data: 'not-base64!',
         },
-        retentionHealth: null
-      })
-    }
+        retentionHealth: null,
+      }),
+    },
   } as unknown as typeof globalThis.chrome
 
   const result = await fetchDashboardServiceStateResult()

@@ -13,12 +13,12 @@ export const toastManager: typeof baseToastManager = {
     markToastManagerReady?.()
     markToastManagerReady = null
     return unsubscribe
-  }
+  },
 }
 
 export async function showToastInMountedRoot(
   title: string,
-  action: ToastAction | null
+  action: ToastAction | null,
 ): Promise<void> {
   await toastManagerReady
   const toastId = toastManager.add({
@@ -31,8 +31,8 @@ export async function showToastInMountedRoot(
           onClick: () => {
             toastManager.close(toastId)
             void action.onClick()
-          }
+          },
         }
-      : undefined
+      : undefined,
   })
 }

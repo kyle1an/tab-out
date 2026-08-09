@@ -35,7 +35,7 @@ test('watch workflow debounces changes and coalesces one trailing build', async 
   const debounce = Effect.callback<void>((resume) => {
     const control: DebounceControl = {
       complete: () => resume(Effect.void),
-      interrupted: false
+      interrupted: false,
     }
     debounceControls.push(control)
     return Effect.sync(() => {
@@ -51,13 +51,13 @@ test('watch workflow debounces changes and coalesces one trailing build', async 
       }),
       () => Effect.sync(() => {
         subscriptionReleased = true
-      })
+      }),
     ),
     runBuild: (reason) => Effect.callback<string>((resume) => {
       buildReasons.push(reason)
       const result = `result ${buildReasons.length}`
       const control: BuildControl = {
-        complete: () => resume(Effect.succeed(result))
+        complete: () => resume(Effect.succeed(result)),
       }
       buildControls.push(control)
       return Effect.void
@@ -65,7 +65,7 @@ test('watch workflow debounces changes and coalesces one trailing build', async 
     awaitShutdown: Deferred.await(shutdown),
     onBuildSuccess: (result) => {
       buildResults.push(result)
-    }
+    },
   }))
 
   try {
@@ -77,7 +77,7 @@ test('watch workflow debounces changes and coalesces one trailing build', async 
     onChange('src/latest.ts')
     await waitFor(
       () => debounceControls.length === 2 && debounceControls[0]?.interrupted === true,
-      'latest change did not replace the first debounce'
+      'latest change did not replace the first debounce',
     )
     debounceControls[1]?.complete()
     await setImmediate()
@@ -118,7 +118,7 @@ test('watch workflow reports a typed build failure and continues watching', asyn
       Effect.sync(() => {
         onChange = listener
       }),
-      () => Effect.void
+      () => Effect.void,
     ),
     runBuild: (reason) => {
       buildReasons.push(reason)
@@ -130,7 +130,7 @@ test('watch workflow reports a typed build failure and continues watching', asyn
     },
     onBuildSuccess: (result) => {
       successes.push(result)
-    }
+    },
   }))
 
   try {
@@ -159,7 +159,7 @@ test('watch workflow interrupts the active build and releases subscriptions on s
       Effect.void,
       () => Effect.sync(() => {
         subscriptionReleased = true
-      })
+      }),
     ),
     runBuild: () => Effect.acquireUseRelease(
       Effect.sync(() => {
@@ -168,9 +168,9 @@ test('watch workflow interrupts the active build and releases subscriptions on s
       () => Effect.never,
       () => Effect.sync(() => {
         buildReleased = true
-      })
+      }),
     ),
-    awaitShutdown: Deferred.await(shutdown)
+    awaitShutdown: Deferred.await(shutdown),
   }))
 
   await waitFor(() => buildAcquired, 'initial build did not acquire its resource')

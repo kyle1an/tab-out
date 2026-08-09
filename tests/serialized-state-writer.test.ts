@@ -8,13 +8,13 @@ test('operation writer returns the authoritative persisted value', async () => {
   const writer = createSerializedStateWriter<string>([], async (operation) => ({
     ok: true,
     previousValue: [],
-    value: ['remote', operation]
+    value: ['remote', operation],
   }))
 
   assert.deepEqual(await writer.write('local'), {
     ok: true,
     isLatest: true,
-    value: ['remote', 'local']
+    value: ['remote', 'local'],
   })
 })
 
@@ -41,7 +41,7 @@ test('the latest write failure rolls back to the value read inside the transacti
   const writer = createSerializedStateWriter<string>(['cached'], async () => ({
     ok: false,
     currentValue: ['remote'],
-    error: new Error('latest write failed')
+    error: new Error('latest write failed'),
   }))
 
   const failed = await writer.write('next')
@@ -57,7 +57,7 @@ test('a read failure preserves the reconciled cache as the rollback value', asyn
   const writer = createSerializedStateWriter<string>(['cached'], async () => ({
     ok: false,
     currentValue: null,
-    error: new Error('read failed')
+    error: new Error('read failed'),
   }))
   writer.replacePersisted(['live'])
 
@@ -78,7 +78,7 @@ test('a newer storage event wins over a different in-flight write result', async
   assert.deepEqual(await write, {
     ok: true,
     isLatest: true,
-    value: ['external']
+    value: ['external'],
   })
 })
 
@@ -93,7 +93,7 @@ test('a matching storage event acknowledges its in-flight write result', async (
   assert.deepEqual(await write, {
     ok: true,
     isLatest: true,
-    value: ['local']
+    value: ['local'],
   })
 })
 

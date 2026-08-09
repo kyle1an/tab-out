@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  parseWorkingSetStorageBenchmarkResponse
+  parseWorkingSetStorageBenchmarkResponse,
 } from './extension/working-set-storage-benchmark-protocol.js'
 
 test('the benchmark protocol carries storage-read timing and mutation diagnostics', () => {
@@ -11,19 +11,19 @@ test('the benchmark protocol carries storage-read timing and mutation diagnostic
     operation: 'storage-read',
     timings: {
       listenerToCommitMs: 14,
-      storageReadMs: 13
+      storageReadMs: 13,
     },
     diagnostics: {
       variant: 'idb',
       ownedStorage: {
         kind: 'indexed-db',
         database: 'benchmark-database',
-        objectStores: ['page-activity']
+        objectStores: ['page-activity'],
       },
       lastMutationLogicalBytes: 100,
       lastMutationPhysicalWrites: [],
-      writeInvocationCount: 0
-    }
+      writeInvocationCount: 0,
+    },
   }
 
   assert.deepEqual(parseWorkingSetStorageBenchmarkResponse(response), response)
@@ -31,7 +31,7 @@ test('the benchmark protocol carries storage-read timing and mutation diagnostic
     ...response,
     diagnostics: {
       ...response.diagnostics,
-      lastMutationLogicalBytes: -1
-    }
+      lastMutationLogicalBytes: -1,
+    },
   }), null)
 })

@@ -35,7 +35,7 @@ test('highlightedTextNodes preserves complete-word fixation across partial match
 
   assert.match(
     html,
-    /<span class="chip-title-fixation\b[^"]*">Ex<\/span><mark[^>]*><span class="chip-title-fixation\b[^"]*">am<\/span>p<\/mark>le <span class="chip-title-fixation\b[^"]*">re<\/span><mark[^>]*><span class="chip-title-fixation\b[^"]*">ad<\/span>i<\/mark>ng/
+    /<span class="chip-title-fixation\b[^"]*">Ex<\/span><mark[^>]*><span class="chip-title-fixation\b[^"]*">am<\/span>p<\/mark>le <span class="chip-title-fixation\b[^"]*">re<\/span><mark[^>]*><span class="chip-title-fixation\b[^"]*">ad<\/span>i<\/mark>ng/,
   )
   assert.equal((html.match(/chip-title-fixation/g) || []).length, 4)
 })
@@ -46,7 +46,7 @@ test('highlightedTextNodes keeps decomposed graphemes intact across fixation and
 
   assert.match(
     html,
-    /<span class="chip-title-fixation\b[^"]*">na<\/span><mark[^>]*><span class="chip-title-fixation\b[^"]*">ï<\/span><\/mark>ve/
+    /<span class="chip-title-fixation\b[^"]*">na<\/span><mark[^>]*><span class="chip-title-fixation\b[^"]*">ï<\/span><\/mark>ve/,
   )
   assert.equal((html.match(/chip-title-fixation/g) || []).length, 2)
 })

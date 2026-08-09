@@ -17,13 +17,13 @@ function createSharedLockManager() {
       const result = tail.then(task)
       tail = result.then(
         () => undefined,
-        () => undefined
+        () => undefined,
       )
       return result
     },
     async drain(): Promise<void> {
       await tail
-    }
+    },
   }
 }
 
@@ -58,7 +58,7 @@ test('buildSuspendUrl: round-trips through the unwrap helpers', () => {
 test('buildSuspendUrl: preserves the suspender base path and extra fragment params', () => {
   const built = buildSuspendUrl(
     { id: SUSPENDER_ID, template: TEMPLATE },
-    { url: 'https://new.example', title: 'New' }
+    { url: 'https://new.example', title: 'New' },
   )
   assert.ok(built.startsWith(`chrome-extension://${SUSPENDER_ID}/suspended.html#`))
   assert.ok(built.includes('pos=0'))
@@ -86,7 +86,7 @@ test('getSuspendTarget: a slow stored read cannot overwrite a target learned fro
       return storedRead
     },
     runExclusive: (task) => task(),
-    write: async () => {}
+    write: async () => {},
   })
 
   const pendingStoredTarget = store.get()
@@ -105,13 +105,13 @@ test('getSuspendTarget: rejects malformed persisted targets at the storage bound
     'not-a-target',
     { id: '', template: TEMPLATE },
     { id: SUSPENDER_ID, template: '' },
-    { id: SUSPENDER_ID, template: 42 }
+    { id: SUSPENDER_ID, template: 42 },
   ]) {
     const store = createSuspendTargetStore({
       now: () => 1_000,
       read: async () => storedTarget,
       runExclusive: (task) => task(),
-      write: async () => {}
+      write: async () => {},
     })
 
     assert.equal(await store.get(), null)
@@ -125,7 +125,7 @@ test('suspend-target persistence treats a non-finite stored observation as unver
     now: () => 1_000,
     read: async () => ({ id: 'newer', template: TEMPLATE, observedAt: Number.POSITIVE_INFINITY }),
     runExclusive: (task) => lockManager.request('suspend-target', task),
-    write: async (value) => { writes.push(value) }
+    write: async (value) => { writes.push(value) },
   })
 
   store.rememberFromTabs([{ suspended: true, rawUrl: TEMPLATE }])
@@ -160,7 +160,7 @@ test('rememberSuspendTargetFromTabs: persistence keeps the newest target when an
       storedTarget = value
       completedWriteCount += 1
       if (completedWriteCount === 2) markWritesCompleted()
-    }
+    },
   })
 
   store.rememberFromTabs([{ suspended: true, rawUrl: olderTemplate }])
@@ -174,7 +174,7 @@ test('rememberSuspendTargetFromTabs: persistence keeps the newest target when an
     storedTarget && typeof storedTarget === 'object'
       ? { id: (storedTarget as Record<string, unknown>).id, template: (storedTarget as Record<string, unknown>).template }
       : storedTarget,
-    { id: newerId, template: newerTemplate }
+    { id: newerId, template: newerTemplate },
   )
   assert.equal(Number.isFinite((storedTarget as Record<string, unknown>).observedAt), true)
   assert.deepEqual(await store.get(), { id: newerId, template: newerTemplate })
@@ -187,7 +187,7 @@ test('suspend-target persistence does not write when the current generation cann
     now: () => 1_000,
     read: async () => { throw new Error('storage unavailable') },
     runExclusive: (task) => lockManager.request('suspend-target', task),
-    write: async () => { writeCount += 1 }
+    write: async () => { writeCount += 1 },
   })
 
   store.rememberFromTabs([{ suspended: true, rawUrl: TEMPLATE }])
@@ -204,7 +204,7 @@ test('suspend-target persistence keeps a newer stored observation', async () => 
     now: () => 1_000,
     read: async () => ({ id: 'newer', template: 'chrome-extension://newer/suspended.html', observedAt: 2_000 }),
     runExclusive: (task) => lockManager.request('suspend-target', task),
-    write: async () => { writeCount += 1 }
+    write: async () => { writeCount += 1 },
   })
 
   store.rememberFromTabs([{ suspended: true, rawUrl: TEMPLATE }])
@@ -216,7 +216,7 @@ test('suspend-target persistence keeps a newer stored observation', async () => 
 test('separate extension contexts cannot let an older trailing suspend target overwrite the newest observation', async () => {
   const lockManager = createSharedLockManager()
   let observationCount = 0
-  let storedTarget: { id: string; template: string; observedAt: number } | undefined
+  let storedTarget: { id: string, template: string, observedAt: number } | undefined
   const { promise: firstWriteGate, resolve: releaseFirstWrite } = Promise.withResolvers<void>()
   const { promise: firstWriteStarted, resolve: markFirstWriteStarted } = Promise.withResolvers<void>()
   let writeCount = 0
@@ -234,7 +234,7 @@ test('separate extension contexts cannot let an older trailing suspend target ov
         await firstWriteGate
       }
       storedTarget = value
-    }
+    },
   })
   const contextA = createStore()
   const contextB = createStore()
@@ -264,12 +264,12 @@ test('rememberSuspendTargetFromTabs: captures the first suspended tab; getSuspen
     now: () => 1_000,
     read: async () => null,
     runExclusive: (task) => task(),
-    write: async () => {}
+    write: async () => {},
   })
   const raw = `chrome-extension://${SUSPENDER_ID}/suspended.html#ttl=T&pos=0&uri=https://kept.example`
   store.rememberFromTabs([
     { suspended: false, rawUrl: 'https://live.example' },
-    { suspended: true, rawUrl: raw }
+    { suspended: true, rawUrl: raw },
   ])
   const target = await store.get()
   assert.deepEqual(target, { id: SUSPENDER_ID, template: raw })
@@ -280,7 +280,7 @@ test('rememberSuspendTargetFromTabs: ignores non-suspender and non-suspended tab
     now: () => 1_000,
     read: async () => null,
     runExclusive: (task) => task(),
-    write: async () => {}
+    write: async () => {},
   })
   const good = `chrome-extension://${SUSPENDER_ID}/suspended.html#ttl=T&pos=0&uri=https://good.example`
   store.rememberFromTabs([{ suspended: true, rawUrl: good }])
@@ -288,7 +288,7 @@ test('rememberSuspendTargetFromTabs: ignores non-suspender and non-suspended tab
   // tab) must NOT overwrite the previously-learned target.
   store.rememberFromTabs([
     { suspended: true, rawUrl: 'https://not-a-suspender.example' },
-    { suspended: false, rawUrl: 'https://live.example' }
+    { suspended: false, rawUrl: 'https://live.example' },
   ])
   assert.deepEqual(await store.get(), { id: SUSPENDER_ID, template: good })
 })
@@ -305,7 +305,7 @@ test('rememberSuspendTargetFromTabs: same-suspender template drift updates memor
     write: async (value) => {
       storedTarget = value
       setCalls.push(value)
-    }
+    },
   })
   const first = `chrome-extension://${otherId}/suspended.html#ttl=A&pos=10&uri=https://a.example`
   const second = `chrome-extension://${otherId}/suspended.html#ttl=B&pos=99&uri=https://b.example`
@@ -329,7 +329,7 @@ test('suspend actions report unknown without mutating or refreshing when live ta
     active: false,
     pinned: false,
     groupId: -1,
-    index: 0
+    index: 0,
   }] as chrome.tabs.Tab[]
   const api = createFakeChromeApi({ tabs })
   const updateCalls: number[] = []
@@ -364,14 +364,14 @@ test('suspend actions report unknown without mutating or refreshing when live ta
       pinned: false,
       groupId: -1,
       isTabOut: false,
-      isApp: false
+      isApp: false,
     }
     const domainResult = await suspendDomainTabs({
       group: { domain: 'example.test', tabs: [dashboardTab] },
-      filter: ''
+      filter: '',
     })
     const exactResult = await suspendExactTabTargets({
-      targets: [{ tabId: 7, tabUrl: url }]
+      targets: [{ tabId: 7, tabUrl: url }],
     })
     const chipResult = await suspendChipTarget({ tabUrl: url })
     const historyResult = await suspendHistoryEntry({ tabUrl: url })
@@ -401,7 +401,7 @@ test('suspend actions report failure without refreshing when every tab update fa
     active: false,
     pinned: false,
     groupId: -1,
-    index: 0
+    index: 0,
   }] as chrome.tabs.Tab[]
   const api = createFakeChromeApi({ tabs })
   let updateAttempts = 0
@@ -432,14 +432,14 @@ test('suspend actions report failure without refreshing when every tab update fa
       pinned: false,
       groupId: -1,
       isTabOut: false,
-      isApp: false
+      isApp: false,
     }
     const domainResult = await suspendDomainTabs({
       group: { domain: 'example.test', tabs: [dashboardTab] },
-      filter: ''
+      filter: '',
     })
     const exactResult = await suspendExactTabTargets({
-      targets: [{ tabId: 7, tabUrl: url }]
+      targets: [{ tabId: 7, tabUrl: url }],
     })
     const chipResult = await suspendChipTarget({ tabUrl: url })
 
@@ -462,7 +462,7 @@ test('suspendExactTabTargets preserves and refreshes confirmed partial updates',
   const secondUrl = 'https://example.test/second'
   const tabs = [
     { id: 7, url: firstUrl, title: 'First', windowId: 1, active: false, pinned: false, groupId: -1, index: 0 },
-    { id: 8, url: secondUrl, title: 'Second', windowId: 1, active: false, pinned: false, groupId: -1, index: 1 }
+    { id: 8, url: secondUrl, title: 'Second', windowId: 1, active: false, pinned: false, groupId: -1, index: 1 },
   ] as chrome.tabs.Tab[]
   const api = createFakeChromeApi({ tabs })
   const updateTab = api.tabs.update
@@ -485,8 +485,8 @@ test('suspendExactTabTargets preserves and refreshes confirmed partial updates',
     const result = await suspendExactTabTargets({
       targets: [
         { tabId: 7, tabUrl: firstUrl },
-        { tabId: 8, tabUrl: secondUrl }
-      ]
+        { tabId: 8, tabUrl: secondUrl },
+      ],
     })
 
     assert.deepEqual(result, { ok: false, suspendedCount: 1 })
@@ -508,7 +508,7 @@ test('suspendExactTabTargets skips a later target that navigates while earlier u
   const navigatedUrl = 'https://example.test/navigated'
   const tabs = [
     { id: 7, url: firstUrl, title: 'First', windowId: 1, active: false, pinned: false, groupId: -1, index: 0 },
-    { id: 8, url: secondUrl, title: 'Second', windowId: 1, active: false, pinned: false, groupId: -1, index: 1 }
+    { id: 8, url: secondUrl, title: 'Second', windowId: 1, active: false, pinned: false, groupId: -1, index: 1 },
   ] as chrome.tabs.Tab[]
   const api = createFakeChromeApi({ tabs })
   const updateTab = api.tabs.update
@@ -538,8 +538,8 @@ test('suspendExactTabTargets skips a later target that navigates while earlier u
     const result = await suspendExactTabTargets({
       targets: [
         { tabId: 7, tabUrl: firstUrl },
-        { tabId: 8, tabUrl: secondUrl }
-      ]
+        { tabId: 8, tabUrl: secondUrl },
+      ],
     })
 
     assert.deepEqual(result, { ok: false, suspendedCount: 1 })
@@ -561,7 +561,7 @@ test('suspendExactTabTargets skips a later target with an uncommitted navigation
   const pendingUrl = 'https://example.test/pending'
   const tabs = [
     { id: 7, url: firstUrl, title: 'First', windowId: 1, active: false, pinned: false, groupId: -1, index: 0 },
-    { id: 8, url: secondUrl, title: 'Second', windowId: 1, active: false, pinned: false, groupId: -1, index: 1 }
+    { id: 8, url: secondUrl, title: 'Second', windowId: 1, active: false, pinned: false, groupId: -1, index: 1 },
   ] as chrome.tabs.Tab[]
   const api = createFakeChromeApi({ tabs })
   const updateTab = api.tabs.update
@@ -591,8 +591,8 @@ test('suspendExactTabTargets skips a later target with an uncommitted navigation
     const result = await suspendExactTabTargets({
       targets: [
         { tabId: 7, tabUrl: firstUrl },
-        { tabId: 8, tabUrl: secondUrl }
-      ]
+        { tabId: 8, tabUrl: secondUrl },
+      ],
     })
 
     assert.deepEqual(result, { ok: false, suspendedCount: 1 })
@@ -619,7 +619,7 @@ test('suspendChipTarget resolves and mutates with one live-tab inventory read', 
     active: false,
     pinned: false,
     groupId: -1,
-    index: 0
+    index: 0,
   }] as chrome.tabs.Tab[]
   const api = createFakeChromeApi({ tabs })
   const queryTabs = api.tabs.query.bind(api.tabs)

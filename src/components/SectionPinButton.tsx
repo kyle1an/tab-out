@@ -36,7 +36,7 @@ export function SectionPinButton({ pinned, label, onClick, className }: SectionP
           pinned
             ? 'is-pinned opacity-100 text-foreground'
             : 'opacity-0 text-muted-foreground',
-          className
+          className,
         )}
         aria-label={title}
         aria-pressed={pinned ? 'true' : 'false'}
@@ -44,7 +44,7 @@ export function SectionPinButton({ pinned, label, onClick, className }: SectionP
       >
         <svg className="block size-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 17v5M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16h14v-.8a2 2 0 0 0-1.1-1.7l-1.8-.9a2 2 0 0 1-1.1-1.8V7h1a2 2 0 0 0 2-2V4H6v1a2 2 0 0 0 2 2h1v3.8Z" />
-      </svg>
+        </svg>
       </button>
     </TooltipAnchor>
   )

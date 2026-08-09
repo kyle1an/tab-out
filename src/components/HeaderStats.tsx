@@ -28,7 +28,7 @@ export function HeaderStats({
   hasCards,
   filtering,
   onDedupAll,
-  onCloseFiltered
+  onCloseFiltered,
 }: HeaderStatsProps) {
   if (!ready) {
     return <div data-tabout="header-stats" className="inline-flex min-h-(--header-control-height) min-w-0 items-center gap-2 text-[13px] font-normal tabular-nums text-muted-foreground" aria-hidden="true" />

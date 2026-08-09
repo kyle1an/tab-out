@@ -5,7 +5,7 @@ import {
   audioStateForTab,
   aggregateAudioState,
   mergeAudioStates,
-  nextMutedForAudioState
+  nextMutedForAudioState,
 } from '../src/extension/tab-audio.js'
 
 test('audioStateForTab: muted wins even when still audible', () => {
@@ -32,14 +32,14 @@ test('mergeAudioStates: playing beats muted beats null', () => {
 test('aggregateAudioState: any unmuted-audible tab makes the set playing', () => {
   assert.equal(
     aggregateAudioState([{ audible: true, muted: true }, { audible: true, muted: false }]),
-    'playing'
+    'playing',
   )
 })
 
 test('aggregateAudioState: muted when some muted and none unmuted-audible', () => {
   assert.equal(
     aggregateAudioState([{ audible: true, muted: true }, { audible: false, muted: false }]),
-    'muted'
+    'muted',
   )
 })
 

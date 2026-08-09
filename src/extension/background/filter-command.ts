@@ -2,7 +2,7 @@ import { Effect, Result } from 'effect'
 
 import {
   BackgroundCommandError,
-  createActiveTabInNormalWindowEffect
+  createActiveTabInNormalWindowEffect,
 } from './browser-window.js'
 import type { ChromeApi } from './chrome-api.js'
 
@@ -14,19 +14,19 @@ function filterFocusUrl(chromeApi: ChromeApi): string {
 }
 
 export const openFilterTabEffect = Effect.fn('backgroundCommand.openFilterTab')(
-  function*(chromeApi: ChromeApi = chrome) {
+  function* (chromeApi: ChromeApi = chrome) {
     const url = filterFocusUrl(chromeApi)
     if (yield* createActiveTabInNormalWindowEffect(chromeApi, { url })) return
 
     const windowResult = yield* Effect.result(Effect.tryPromise({
       try: () => chromeApi.windows.create({ type: 'normal', url, focused: true }),
-      catch: (cause) => BackgroundCommandError.make({ cause })
+      catch: (cause) => BackgroundCommandError.make({ cause }),
     }))
     if (Result.isSuccess(windowResult)) return
 
     yield* Effect.tryPromise({
       try: () => chromeApi.tabs.create({ url, active: true }),
-      catch: (cause) => BackgroundCommandError.make({ cause })
+      catch: (cause) => BackgroundCommandError.make({ cause }),
     })
-  }
+  },
 )

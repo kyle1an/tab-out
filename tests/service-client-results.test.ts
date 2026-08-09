@@ -9,8 +9,8 @@ test('history client distinguishes unavailable service state from a valid empty 
     runtime: {
       sendMessage: async () => {
         throw new Error('Service worker unavailable')
-      }
-    }
+      },
+    },
   } as unknown as typeof globalThis.chrome
 
   const failedHistory = await fetchTabHistorySnapshotResult()
@@ -18,8 +18,8 @@ test('history client distinguishes unavailable service state from a valid empty 
 
   globalThis.chrome = {
     runtime: {
-      sendMessage: async () => ({ ok: true, snapshot: { entries: [], maxSize: 48 } })
-    }
+      sendMessage: async () => ({ ok: true, snapshot: { entries: [], maxSize: 48 } }),
+    },
   } as unknown as typeof globalThis.chrome
 
   const emptyHistory = await fetchTabHistorySnapshotResult()
@@ -30,16 +30,16 @@ test('history client distinguishes unavailable service state from a valid empty 
 test('history client rejects malformed successful responses', async () => {
   globalThis.chrome = {
     runtime: {
-      sendMessage: async () => ({ ok: true, snapshot: {} })
-    }
+      sendMessage: async () => ({ ok: true, snapshot: {} }),
+    },
   } as unknown as typeof globalThis.chrome
 
   assert.equal((await fetchTabHistorySnapshotResult()).ok, false)
 
   globalThis.chrome = {
     runtime: {
-      sendMessage: async () => ({ ok: 1, snapshot: { entries: [] } })
-    }
+      sendMessage: async () => ({ ok: 1, snapshot: { entries: [] } }),
+    },
   } as unknown as typeof globalThis.chrome
 
   assert.equal((await fetchTabHistorySnapshotResult()).ok, false)

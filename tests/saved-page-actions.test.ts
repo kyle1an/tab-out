@@ -7,7 +7,7 @@ import {
   emptySavedPagesStore,
   savedPageKeyForUrl,
   type SavedPagesStore,
-  type SavedPagesStoreMutation
+  type SavedPagesStoreMutation,
 } from '../src/extension/saved-pages.js'
 import type { ToastAction } from '../src/extension/toast.js'
 
@@ -17,7 +17,7 @@ const target = {
   title: 'Example Article',
   favIconUrl: '',
   isTabOut: false,
-  isApp: false
+  isApp: false,
 }
 
 type Notice = {
@@ -56,7 +56,7 @@ function actionHarness(initialStore = emptySavedPagesStore()) {
     },
     notify: (title, action = null) => {
       notices.push({ title, action })
-    }
+    },
   })
 
   return {
@@ -76,7 +76,7 @@ function actionHarness(initialStore = emptySavedPagesStore()) {
     },
     get store() {
       return store
-    }
+    },
   }
 }
 
@@ -99,7 +99,7 @@ test('savePageTarget reports when persistence succeeds but refresh fails', async
   assert.ok(harness.store.pages[savedPageKeyForUrl(target.url)])
   assert.deepEqual(harness.notices, [{
     title: "Page saved, but couldn't refresh the dashboard",
-    action: null
+    action: null,
   }])
 })
 
@@ -131,7 +131,7 @@ test('removeSavedPageTarget handles a storage rejection with user feedback', asy
   assert.ok(harness.store.pages[savedPageKeyForUrl(target.url)])
   assert.deepEqual(harness.notices, [{
     title: "Couldn't remove the saved page",
-    action: null
+    action: null,
   }])
 })
 
@@ -162,7 +162,7 @@ test('Saved Page Undo handles a restore storage rejection with user feedback', a
   assert.equal(harness.refreshCalls, 1)
   assert.deepEqual(harness.notices.map(({ title }) => title), [
     'Saved page removed',
-    "Couldn't restore the saved page"
+    "Couldn't restore the saved page",
   ])
 })
 
@@ -178,6 +178,6 @@ test('Saved Page Undo reports when restore succeeds but refresh fails', async ()
   assert.ok(harness.store.pages[savedPageKeyForUrl(target.url)])
   assert.deepEqual(harness.notices.map(({ title }) => title), [
     'Saved page removed',
-    "Saved page restored, but couldn't refresh the dashboard"
+    "Saved page restored, but couldn't refresh the dashboard",
   ])
 })

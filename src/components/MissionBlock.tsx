@@ -18,21 +18,21 @@ type MissionBlockProps = {
   source: DashboardSource
 }
 
-function MissionsGrid({ className, empty = false, ref, ...props }: ComponentPropsWithoutRef<'div'> & { empty?: boolean | undefined; ref?: Ref<HTMLDivElement> | undefined }) {
+function MissionsGrid({ className, empty = false, ref, ...props }: ComponentPropsWithoutRef<'div'> & { empty?: boolean | undefined, ref?: Ref<HTMLDivElement> | undefined }) {
   return (
     <div
       ref={ref}
       className={cn(
         'missions relative mt-0 mb-0 [--masonry-gap:10px] [--masonry-ideal-col-width:304px] [--masonry-min-col-width:260px] max-[560px]:[--masonry-ideal-col-width:280px] max-[560px]:[--masonry-min-col-width:240px] min-[1200px]:[--masonry-ideal-col-width:340px] min-[1200px]:[--masonry-min-col-width:280px]',
         empty && 'missions-empty',
-        className
+        className,
       )}
       {...props}
     />
   )
 }
 
-function ProgressiveCardSentinel({ observationKey, onIntersect }: { observationKey: number; onIntersect: () => void }) {
+function ProgressiveCardSentinel({ observationKey, onIntersect }: { observationKey: number, onIntersect: () => void }) {
   const sentinelRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -46,7 +46,7 @@ function ProgressiveCardSentinel({ observationKey, onIntersect }: { observationK
       onIntersect()
     }, {
       root,
-      rootMargin: '0px 0px 480px 0px'
+      rootMargin: '0px 0px 480px 0px',
     })
     observer.observe(sentinel)
     return () => observer.disconnect()
@@ -85,7 +85,7 @@ function useProgressiveCards(cards: DashboardCardEntry[], resetKey: string) {
       if (current.resetKey === resetKey && current.count === nextCount) return current
       return {
         resetKey,
-        count: nextCount
+        count: nextCount,
       }
     })
   }, [cards.length, initialVisibleCount, resetKey])
@@ -94,7 +94,7 @@ function useProgressiveCards(cards: DashboardCardEntry[], resetKey: string) {
     appendNextChunk,
     cards: progressive ? cards.slice(0, visibleCount) : cards,
     hasMore: progressive && visibleCount < cards.length,
-    visibleCount
+    visibleCount,
   }
 }
 
@@ -111,7 +111,7 @@ export function MissionBlock({
   gridId,
   gridRef,
   showEmptyState,
-  source
+  source,
 }: MissionBlockProps) {
   // Tabs reorder whenever live browser state or pins change. Resetting from
   // their first/last identities would collapse chunks the user already saw.
@@ -120,7 +120,7 @@ export function MissionBlock({
     : `${source}:${filter}:${progressiveCardListKey(cards)}`
   const progressiveCards = useProgressiveCards(
     cards,
-    progressiveResetKey
+    progressiveResetKey,
   )
 
   return (

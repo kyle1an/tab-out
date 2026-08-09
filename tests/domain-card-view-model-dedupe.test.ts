@@ -11,7 +11,7 @@ test('two Jira URL forms of the same comment collapse into one closable duplicat
   const shortForm = 'https://example.atlassian.net/browse/ABC-123?focusedCommentId=100&sourceType=mention'
   const group: DomainGroup = {
     domain: 'example.atlassian.net',
-    tabs: [makeDashboardTab({ id: 1, url: longForm }), makeDashboardTab({ id: 2, url: shortForm })]
+    tabs: [makeDashboardTab({ id: 1, url: longForm }), makeDashboardTab({ id: 2, url: shortForm })],
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
@@ -27,8 +27,8 @@ test('different focused comments on the same issue are not treated as duplicates
     domain: 'example.atlassian.net',
     tabs: [
       makeDashboardTab({ id: 1, url: 'https://example.atlassian.net/browse/ABC-123?focusedCommentId=100' }),
-      makeDashboardTab({ id: 2, url: 'https://example.atlassian.net/browse/ABC-123?focusedCommentId=200' })
-    ]
+      makeDashboardTab({ id: 2, url: 'https://example.atlassian.net/browse/ABC-123?focusedCommentId=200' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
@@ -53,7 +53,7 @@ test('multiple exact Saved targets sharing one canonical identity remain indepen
         sourceType: 'saved-page',
         saved: true,
         closedSaved: true,
-        savedPageKey: longForm
+        savedPageKey: longForm,
       }),
       makeDashboardTab({
         id: 'saved-short',
@@ -62,9 +62,9 @@ test('multiple exact Saved targets sharing one canonical identity remain indepen
         sourceType: 'saved-page',
         saved: true,
         closedSaved: true,
-        savedPageKey: shortForm
-      })
-    ]
+        savedPageKey: shortForm,
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -77,12 +77,12 @@ test('multiple exact Saved targets sharing one canonical identity remain indepen
   assert.deepEqual(
     chip.titleVariantChips.map((variant) => ({
       savedPageKey: variant.savedPageKey,
-      url: variant.tabUrl
+      url: variant.tabUrl,
     })).toSorted((left, right) => left.url.localeCompare(right.url)),
     [
       { savedPageKey: longForm, url: longForm },
-      { savedPageKey: shortForm, url: shortForm }
-    ].toSorted((left, right) => left.url.localeCompare(right.url))
+      { savedPageKey: shortForm, url: shortForm },
+    ].toSorted((left, right) => left.url.localeCompare(right.url)),
   )
 })
 
@@ -102,7 +102,7 @@ test('a closed Saved target does not inherit live state from a canonical-equival
         active: true,
         suspended: true,
         status: 'loading',
-        audible: true
+        audible: true,
       }),
       makeDashboardTab({
         id: 'saved-exact',
@@ -111,15 +111,15 @@ test('a closed Saved target does not inherit live state from a canonical-equival
         sourceType: 'saved-page',
         saved: true,
         closedSaved: true,
-        savedPageKey: savedUrl
-      })
-    ]
+        savedPageKey: savedUrl,
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
   const [groupedChip] = collectDashboardChips(vm)
   const savedVariant = groupedChip?.titleVariantChips?.find(
-    (variant) => variant.savedPageKey === savedUrl
+    (variant) => variant.savedPageKey === savedUrl,
   )
   assert.ok(savedVariant)
 
@@ -144,9 +144,9 @@ test('a retained row is one unique closed item without a duplicate count', () =>
         sourceType: 'retained-page',
         closedSaved: true,
         retainedPageIdentity: 'identity-example',
-        retainedPageClosureToken: 'lifetime-example'
-      })
-    ]
+        retainedPageClosureToken: 'lifetime-example',
+      }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group)
@@ -169,13 +169,13 @@ test('card removal targets include only exact retained snapshots in the matched 
       makeDashboardTab({
         id: 1,
         url: 'https://example.test/live',
-        title: 'Live page'
+        title: 'Live page',
       }),
       makeDashboardTab({
         id: 2,
         url: 'https://example.test/grouped',
         title: 'Grouped live page',
-        groupId: 42
+        groupId: 42,
       }),
       makeDashboardTab({
         id: 'saved-page',
@@ -184,7 +184,7 @@ test('card removal targets include only exact retained snapshots in the matched 
         sourceType: 'saved-page',
         saved: true,
         closedSaved: true,
-        savedPageKey: 'https://example.test/saved'
+        savedPageKey: 'https://example.test/saved',
       }),
       makeDashboardTab({
         id: 'retained-alpha',
@@ -193,7 +193,7 @@ test('card removal targets include only exact retained snapshots in the matched 
         sourceType: 'retained-page',
         closedSaved: true,
         retainedPageIdentity: 'identity-alpha',
-        retainedPageClosureToken: 'lifetime-alpha'
+        retainedPageClosureToken: 'lifetime-alpha',
       }),
       makeDashboardTab({
         id: 'retained-bravo',
@@ -202,21 +202,21 @@ test('card removal targets include only exact retained snapshots in the matched 
         sourceType: 'retained-page',
         closedSaved: true,
         retainedPageIdentity: 'identity-bravo',
-        retainedPageClosureToken: 'lifetime-bravo'
-      })
-    ]
+        retainedPageClosureToken: 'lifetime-bravo',
+      }),
+    ],
   }
 
   const unfiltered = computeDomainCardViewModel(group)
   assert.deepEqual(unfiltered.retainedPageRemovalTargets, [
     {
       retainedPageIdentity: 'identity-alpha',
-      retainedPageClosureToken: 'lifetime-alpha'
+      retainedPageClosureToken: 'lifetime-alpha',
     },
     {
       retainedPageIdentity: 'identity-bravo',
-      retainedPageClosureToken: 'lifetime-bravo'
-    }
+      retainedPageClosureToken: 'lifetime-bravo',
+    },
   ])
   assert.equal(unfiltered.retainedPageRemovalLabel, 'Remove 2 from Tabs')
   assert.equal(unfiltered.closableCount, 1)
@@ -229,7 +229,7 @@ test('card removal targets include only exact retained snapshots in the matched 
   const filtered = computeDomainCardViewModel(group, { filter: 'alpha' })
   assert.deepEqual(filtered.retainedPageRemovalTargets, [{
     retainedPageIdentity: 'identity-alpha',
-    retainedPageClosureToken: 'lifetime-alpha'
+    retainedPageClosureToken: 'lifetime-alpha',
   }])
   assert.equal(filtered.retainedPageRemovalLabel, 'Remove from Tabs')
 
@@ -249,15 +249,15 @@ test('the Apps card exposes exact retained app snapshots for batch removal', () 
       closedSaved: true,
       retainedPageIdentity: 'identity-app',
       retainedPageClosureToken: 'lifetime-app',
-      isApp: true
-    })]
+      isApp: true,
+    })],
   }
 
   const vm = computeDomainCardViewModel(group)
 
   assert.deepEqual(vm.retainedPageRemovalTargets, [{
     retainedPageIdentity: 'identity-app',
-    retainedPageClosureToken: 'lifetime-app'
+    retainedPageClosureToken: 'lifetime-app',
   }])
   assert.equal(vm.retainedPageRemovalLabel, 'Remove from Tabs')
   assert.equal(vm.closableCount, 0)
@@ -269,8 +269,8 @@ test('GitHub repository root slash variants collapse into one closable duplicate
     domain: 'github.com',
     tabs: [
       makeDashboardTab({ id: 1, url: repository, title: 'example/repo' }),
-      makeDashboardTab({ id: 2, url: `${repository}/`, title: 'example/repo' })
-    ]
+      makeDashboardTab({ id: 2, url: `${repository}/`, title: 'example/repo' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
@@ -293,8 +293,8 @@ test('dashboards with different filter params collapse into one closable Tab Out
       domain: '__tab-out__',
       tabs: [
         makeDashboardTab({ id: 1, url: `${base}?filter=github`, title: 'Tab Out', windowId: 1, active: true, isTabOut: true }),
-        makeDashboardTab({ id: 2, url: `${base}?filter=docs`, title: 'Tab Out', windowId: 1, isTabOut: true })
-      ]
+        makeDashboardTab({ id: 2, url: `${base}?filter=docs`, title: 'Tab Out', windowId: 1, isTabOut: true }),
+      ],
     }
 
     const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
@@ -318,8 +318,8 @@ test('current and ordinary Tab Out aliases share one closable identity while sta
       domain: '__tab-out__',
       tabs: [
         makeDashboardTab({ id: 1, url: base, title: 'Tab Out', windowId: 1, active: true, isTabOut: true }),
-        makeDashboardTab({ id: 2, url: newTab, title: 'New Tab', windowId: 1, isTabOut: true })
-      ]
+        makeDashboardTab({ id: 2, url: newTab, title: 'New Tab', windowId: 1, isTabOut: true }),
+      ],
     }
 
     const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
@@ -347,8 +347,8 @@ test('ordinary Tab Out aliases collapse into one stacked display chip', () => {
       domain: '__tab-out__',
       tabs: [
         makeDashboardTab({ id: 1, url: base, title: 'Tab Out', windowId: 2, isTabOut: true }),
-        makeDashboardTab({ id: 2, url: 'chrome://newtab/', title: 'New Tab', windowId: 2, isTabOut: true })
-      ]
+        makeDashboardTab({ id: 2, url: 'chrome://newtab/', title: 'New Tab', windowId: 2, isTabOut: true }),
+      ],
     }
 
     const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
@@ -373,14 +373,14 @@ test('an ordinary Tab Out bucket keeps its render identity when its representati
     const newTab = 'chrome://newtab/'
     const makeGroup = (tabs: DomainGroup['tabs']): DomainGroup => ({
       domain: '__tab-out__',
-      tabs
+      tabs,
     })
     const before = collectDashboardChips(computeDomainCardViewModel(makeGroup([
       makeDashboardTab({ id: 20, url: base, title: 'Tab Out', windowId: 2, isTabOut: true }),
-      makeDashboardTab({ id: 21, url: newTab, title: 'New Tab', windowId: 2, isTabOut: true })
+      makeDashboardTab({ id: 21, url: newTab, title: 'New Tab', windowId: 2, isTabOut: true }),
     ]), { currentWindowId: 1 }))[0]
     const after = collectDashboardChips(computeDomainCardViewModel(makeGroup([
-      makeDashboardTab({ id: 21, url: newTab, title: 'New Tab', windowId: 2, isTabOut: true })
+      makeDashboardTab({ id: 21, url: newTab, title: 'New Tab', windowId: 2, isTabOut: true }),
     ]), { currentWindowId: 1 }))[0]
 
     assert.ok(before)

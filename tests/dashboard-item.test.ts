@@ -26,7 +26,7 @@ test('makeDashboardItem: explicit fields win over the baseline', () => {
     windowId: 0,
     saved: true,
     closedSaved: true,
-    savedPageKey: 'https://example.com/b'
+    savedPageKey: 'https://example.com/b',
   })
   assert.equal(item.windowId, 0)
   assert.equal(item.favIconUrl, 'https://example.com/icon.png')

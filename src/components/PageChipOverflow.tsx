@@ -40,7 +40,7 @@ function chipMatchesActiveHover(chip: DashboardChipData, state: HoverState): boo
 }
 
 export function pageChipRenderKey(
-  chip: Pick<DashboardChipData, 'rawUrl' | 'renderKey' | 'pagePinId'>
+  chip: Pick<DashboardChipData, 'rawUrl' | 'renderKey' | 'pagePinId'>,
 ): string {
   return chip.renderKey ?? chip.pagePinId ?? `url:${chip.rawUrl}`
 }
@@ -52,8 +52,8 @@ export function usePageChipOverflow({
   filter = '',
   suppressedTitleToneByText,
   overflowContainerClassName,
-  overflowButtonClassName
-}: PageChipOverflowOptions): { expanded: boolean; pageChips: ReactNode } {
+  overflowButtonClassName,
+}: PageChipOverflowOptions): { expanded: boolean, pageChips: ReactNode } {
   const [expansionPhase, setExpansionPhase] = useState<'collapsed' | 'fading' | 'expanded'>('collapsed')
   const layoutScope = `page-chip:${useId()}`
   const expanded = expansionPhase === 'expanded'
@@ -123,14 +123,14 @@ export function usePageChipOverflow({
             expansionPhase === 'fading' && 'pointer-events-none opacity-0',
             hiddenHoverMatched && 'page-chip-overflow-hover-match outline-1 outline-offset-1 outline-(--accent-amber)',
             hiddenSuppressionCoversAll && cn('page-chip-overflow-suppression-highlighted', titleSuppressionOverflowHighlightClass(activeSuppressionTone)),
-            overflowButtonClassName
+            overflowButtonClassName,
           )}
           onClick={onExpand}
           onTransitionEnd={onExpanderTransitionEnd}
         >
           <span className="chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal text-[13px] max-h-[calc(2lh)] [hyphenate-character:'']">+{hiddenCount} more</span>
           {hiddenSuppressionMatchCount > 0 && (
-            <span className={cn("page-chip-overflow-suppression-badge relative z-2 inline-flex h-4 min-w-4 items-center justify-center rounded-lg border border-transparent px-1 text-xs leading-none font-semibold text-foreground [corner-shape:squircle]", titleSuppressionBadgeClass(activeSuppressionTone))}>
+            <span className={cn('page-chip-overflow-suppression-badge relative z-2 inline-flex h-4 min-w-4 items-center justify-center rounded-lg border border-transparent px-1 text-xs leading-none font-semibold text-foreground [corner-shape:squircle]', titleSuppressionBadgeClass(activeSuppressionTone))}>
               {TITLE_SUPPRESSION_MARKER_SYMBOL}{hiddenSuppressionMatchCount}
             </span>
           )}

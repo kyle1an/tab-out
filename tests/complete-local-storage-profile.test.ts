@@ -13,7 +13,7 @@ import {
   COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS,
   COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_KEYS,
   COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_LIVE_MUTABLE_KEYS,
-  COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_STABLE_KEYS
+  COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_STABLE_KEYS,
 } from './helpers/complete-local-storage-profile.js'
 import { CLOSED_GHOST_DISMISSAL_STORAGE_KEY } from '../src/extension/closed-ghost-dismissals.js'
 import { DOMAIN_PIN_STORAGE_KEY } from '../src/extension/domain-pins.js'
@@ -24,11 +24,11 @@ import { SECTION_PIN_STORAGE_KEY } from '../src/extension/section-pins.js'
 import { DASHBOARD_STARTUP_SEED_CACHE_KEY } from '../src/extension/startup-snapshot.js'
 import {
   createSuspendTargetStore,
-  SUSPEND_TARGET_STORAGE_KEY
+  SUSPEND_TARGET_STORAGE_KEY,
 } from '../src/extension/suspension.js'
 import { WORKING_SET_ACTIVITY_KEY } from '../src/extension/background/working-set-service.js'
 import {
-  canonicalizeGlobalHistory
+  canonicalizeGlobalHistory,
 } from '../src/extension/background/tab-history-state.js'
 import { TAB_HISTORY_STORAGE_KEY } from '../src/extension/background/tab-history-service.js'
 
@@ -41,18 +41,18 @@ test('complete representative local profile v1 is deterministic and covers every
   assert.deepEqual(first, second)
   assert.deepEqual(
     Object.keys(first).toSorted(),
-    [...COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_KEYS].toSorted()
+    [...COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_KEYS].toSorted(),
   )
   assert.deepEqual(
     [
       ...COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_LIVE_MUTABLE_KEYS,
-      ...COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_STABLE_KEYS
+      ...COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_STABLE_KEYS,
     ].toSorted(),
-    [...COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_KEYS].toSorted()
+    [...COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_KEYS].toSorted(),
   )
   assert.deepEqual(
     [...COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_LIVE_MUTABLE_KEYS].toSorted(),
-    [DASHBOARD_STARTUP_SEED_CACHE_KEY, TAB_HISTORY_STORAGE_KEY].toSorted()
+    [DASHBOARD_STARTUP_SEED_CACHE_KEY, TAB_HISTORY_STORAGE_KEY].toSorted(),
   )
 })
 
@@ -62,44 +62,44 @@ test('complete representative local profile v1 round-trips through current norma
   assert.equal(savedPages.ok, true)
   assert.equal(
     Object.keys(savedPages.value.pages).length,
-    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.savedPages
+    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.savedPages,
   )
   assert.equal(
     normalizePinnedDomains(profile[DOMAIN_PIN_STORAGE_KEY]).length,
-    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.pinnedDomains
+    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.pinnedDomains,
   )
   assert.equal(
     normalizePinnedSections(profile[SECTION_PIN_STORAGE_KEY]).length,
-    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.pinnedSections
+    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.pinnedSections,
   )
   assert.equal(
     normalizePinnedPageChips(profile[PAGE_CHIP_PIN_STORAGE_KEY]).length,
-    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.pinnedPageChips
+    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.pinnedPageChips,
   )
   assert.equal(
     normalizeClosedGhostDismissals(
       profile[CLOSED_GHOST_DISMISSAL_STORAGE_KEY],
-      now
+      now,
     ).size,
-    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.closedGhostDismissals
+    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.closedGhostDismissals,
   )
   assert.equal(
     Object.keys(
-      normalizeWorkingSetActivity(profile[WORKING_SET_ACTIVITY_KEY], now).records
+      normalizeWorkingSetActivity(profile[WORKING_SET_ACTIVITY_KEY], now).records,
     ).length,
-    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.workingSetRecords
+    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.workingSetRecords,
   )
 
   const startupSeed = parseDashboardStartupSeedBoundary(
-    profile[DASHBOARD_STARTUP_SEED_CACHE_KEY]
+    profile[DASHBOARD_STARTUP_SEED_CACHE_KEY],
   )
   assert.equal(
     startupSeed?.cardOrder.length,
-    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.startupCardOrder
+    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.startupCardOrder,
   )
   assert.equal(
     startupSeed?.workingSetPriority.keys.length,
-    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.startupWorkingSetPriority
+    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.startupWorkingSetPriority,
   )
 
   const storedHistory = profile[TAB_HISTORY_STORAGE_KEY] as Parameters<
@@ -109,11 +109,11 @@ test('complete representative local profile v1 round-trips through current norma
   assert.equal(canonicalHistory.changed, false)
   assert.equal(
     canonicalHistory.history.stack.length,
-    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.globalHistoryEntries
+    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.globalHistoryEntries,
   )
   assert.equal(
     canonicalHistory.history.pending.length,
-    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.globalHistoryPendingEntries
+    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.globalHistoryPendingEntries,
   )
 
   assert.equal(profile[HISTORY_RANGE_STORAGE_KEY], 'all')
@@ -121,7 +121,7 @@ test('complete representative local profile v1 round-trips through current norma
     now: () => now,
     read: async () => profile[SUSPEND_TARGET_STORAGE_KEY],
     runExclusive: (task) => task(),
-    write: async () => undefined
+    write: async () => undefined,
   }).get()
   assert.equal(suspendTarget?.id, 'a'.repeat(32))
   assert.equal(suspendTarget?.template.length, 2_048)

@@ -31,7 +31,7 @@ function installFakeChrome(initialTabs: chrome.tabs.Tab[]) {
     restore() {
       setChromeTabsApi(null)
     },
-    tabs
+    tabs,
   }
 }
 
@@ -45,14 +45,14 @@ function fakeTab(id: number, url: string): chrome.tabs.Tab {
     active: false,
     pinned: false,
     groupId: -1,
-    index: id
+    index: id,
   } as chrome.tabs.Tab
 }
 
 test('reloadTabTarget reloads the exact represented tab from a duplicate set', async (t) => {
   const chromeMock = installFakeChrome([
     fakeTab(1, 'https://example.test/docs'),
-    fakeTab(2, 'https://example.test/docs')
+    fakeTab(2, 'https://example.test/docs'),
   ])
   const unregisterRefresh = replaceDashboardRefreshForTesting(() => {})
   t.after(() => {
@@ -68,7 +68,7 @@ test('reloadTabTarget reloads the exact represented tab from a duplicate set', a
 test('duplicateTabTarget duplicates the exact represented tab and refreshes the dashboard', async (t) => {
   const chromeMock = installFakeChrome([
     fakeTab(1, 'https://example.test/docs'),
-    fakeTab(2, 'https://example.test/docs')
+    fakeTab(2, 'https://example.test/docs'),
   ])
   let refreshCount = 0
   const unregisterRefresh = replaceDashboardRefreshForTesting(() => {

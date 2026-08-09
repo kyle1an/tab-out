@@ -6,7 +6,7 @@ import type {
   ReorderPinnedDomainHandler,
   TogglePinnedDomainHandler,
   TogglePinnedPageChipHandler,
-  TogglePinnedSectionHandler
+  TogglePinnedSectionHandler,
 } from './types'
 
 // Volatile hover state shared across the dashboard. The provider carries a stable
@@ -27,7 +27,7 @@ export type HoverStateStore = {
   subscribeSelector: <Selection>(
     selector: HoverStateSelector<Selection>,
     listener: () => void,
-    equal?: (left: Selection, right: Selection) => boolean
+    equal?: (left: Selection, right: Selection) => boolean,
   ) => () => void
 }
 
@@ -52,7 +52,7 @@ export type DashboardActions = {
 const defaultHoverState: HoverState = {
   url: '',
   urls: [],
-  source: null
+  source: null,
 }
 
 function sameHoverState(left: HoverState, right: HoverState): boolean {
@@ -71,13 +71,13 @@ export function createHoverStateStore(initialState: HoverState = defaultHoverSta
   function subscribeSelector<Selection>(
     selector: HoverStateSelector<Selection>,
     listener: () => void,
-    equal: (left: Selection, right: Selection) => boolean = Object.is
+    equal: (left: Selection, right: Selection) => boolean = Object.is,
   ) {
     const subscription: HoverSelectorSubscription = {
       equal: (left, right) => equal(left as Selection, right as Selection),
       listener,
       selected: selector(state),
-      selector
+      selector,
     }
     subscriptions.add(subscription)
     return () => {
@@ -99,7 +99,7 @@ export function createHoverStateStore(initialState: HoverState = defaultHoverSta
         subscription.listener()
       }
     },
-    subscribeSelector
+    subscribeSelector,
   }
 }
 
@@ -109,7 +109,7 @@ const defaultDashboardActions: DashboardActions = {
   onTogglePinnedDomain: () => {},
   onReorderPinnedDomain: () => {},
   onTogglePinnedSection: () => {},
-  onTogglePinnedPageChip: () => {}
+  onTogglePinnedPageChip: () => {},
 }
 
 const defaultHoverStateStore = createHoverStateStore()
@@ -140,7 +140,7 @@ export function useHoverStateSelector<Selection>(selector: HoverStateSelector<Se
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
-export function DashboardActionsProvider({ value, children }: { value: DashboardActions; children?: ReactNode }) {
+export function DashboardActionsProvider({ value, children }: { value: DashboardActions, children?: ReactNode }) {
   return <DashboardActionsContext.Provider value={value}>{children}</DashboardActionsContext.Provider>
 }
 

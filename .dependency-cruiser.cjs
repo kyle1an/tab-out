@@ -7,44 +7,44 @@ module.exports = {
       severity: 'warn',
       from: {
         orphan: true,
-        pathNot: ['[.]d[.]ts$', '[.]d[.][^.]+[.]ts$', '^src/extension/(?:filter-focus-boot|manifest)[.]ts$', '^src/index-html[.]tsx$']
+        pathNot: ['[.]d[.]ts$', '[.]d[.][^.]+[.]ts$', '^src/extension/(?:filter-focus-boot|manifest)[.]ts$', '^src/index-html[.]tsx$'],
       },
-      to: {}
+      to: {},
     },
     {
       name: 'source-does-not-depend-on-tests',
       severity: 'error',
       from: { path: '^src/' },
-      to: { path: '^tests/' }
+      to: { path: '^tests/' },
     },
     {
       name: 'extension-does-not-depend-on-ui',
       severity: 'error',
       from: { path: '^src/extension/' },
-      to: { path: '^src/(?:components|hooks)/' }
+      to: { path: '^src/(?:components|hooks)/' },
     },
     {
       name: 'library-does-not-depend-on-ui',
       severity: 'error',
       from: { path: '^src/lib/' },
-      to: { path: '^src/(?:components|hooks)/' }
+      to: { path: '^src/(?:components|hooks)/' },
     },
     {
       name: 'hooks-do-not-depend-on-components',
       severity: 'error',
       from: { path: '^src/hooks/' },
-      to: { path: '^src/components/' }
-    }
+      to: { path: '^src/components/' },
+    },
   ],
   options: {
     enhancedResolveOptions: {
       exportsFields: ['exports'],
-      conditionNames: ['import', 'require', 'node', 'default', 'types']
+      conditionNames: ['import', 'require', 'node', 'default', 'types'],
     },
     tsConfig: {
-      fileName: 'tsconfig.json'
+      fileName: 'tsconfig.json',
     },
     tsPreCompilationDeps: true,
-    skipAnalysisNotInRules: true
-  }
+    skipAnalysisNotInRules: true,
+  },
 }

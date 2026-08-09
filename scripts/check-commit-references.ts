@@ -44,12 +44,12 @@ export type GitRunner = (args: readonly string[]) => string
 
 const commitReferencePolicyEnvelopeSchema = Schema.Struct({
   customAutolinks: Schema.Array(Schema.Unknown),
-  customAutolinksAudited: Schema.Boolean
+  customAutolinksAudited: Schema.Boolean,
 })
 
 const customAutolinkSchema = Schema.Struct({
   isAlphanumeric: Schema.Boolean,
-  keyPrefix: Schema.String.check(Schema.isMinLength(1))
+  keyPrefix: Schema.String.check(Schema.isMinLength(1)),
 })
 
 const isCommitReferencePolicyEnvelope = Schema.is(commitReferencePolicyEnvelopeSchema)
@@ -64,7 +64,7 @@ function lineAndColumn(message: string, index: number): Pick<CommitReferenceFind
   const lastLineBreak = before.lastIndexOf('\n')
   return {
     line: before.split('\n').length,
-    column: index - lastLineBreak
+    column: index - lastLineBreak,
   }
 }
 
@@ -79,7 +79,7 @@ function appendMatches(
   findings: CommitReferenceFinding[],
   message: string,
   pattern: RegExp,
-  kindForToken: CommitReferenceKind | ((token: string) => CommitReferenceKind)
+  kindForToken: CommitReferenceKind | ((token: string) => CommitReferenceKind),
 ): void {
   for (const match of message.matchAll(pattern)) {
     if (match.index === undefined) continue
@@ -89,7 +89,7 @@ function appendMatches(
       ...lineAndColumn(message, match.index),
       index: match.index,
       kind,
-      token
+      token,
     })
   }
 }
@@ -97,7 +97,7 @@ function appendMatches(
 export function parseCommitReferencePolicy(value: unknown): CommitReferencePolicy {
   if (!isCommitReferencePolicyEnvelope(value)) {
     throw new Error(
-      'commit-reference policy must define customAutolinksAudited and customAutolinks'
+      'commit-reference policy must define customAutolinksAudited and customAutolinks',
     )
   }
 
@@ -110,7 +110,7 @@ export function parseCommitReferencePolicy(value: unknown): CommitReferencePolic
 
   return {
     customAutolinksAudited: value.customAutolinksAudited,
-    customAutolinks
+    customAutolinks,
   }
 }
 
@@ -118,8 +118,8 @@ export function findCommitReferenceFindings(
   message: string,
   policy: CommitReferencePolicy = {
     customAutolinksAudited: false,
-    customAutolinks: []
-  }
+    customAutolinks: [],
+  },
 ): CommitReferenceFinding[] {
   const findings: CommitReferenceFinding[] = []
   const issueReferences = /https?:\/\/(?:www\.)?github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/(?:issues|pull)\/[0-9]+|[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+#[0-9]+\b|\bGH-[0-9]+\b|#[0-9]+\b/giu
@@ -132,7 +132,7 @@ export function findCommitReferenceFindings(
     const identifier = customAutolink.isAlphanumeric ? '[A-Za-z0-9]+' : '[0-9]+'
     const pattern = new RegExp(
       `(?<![A-Za-z0-9])${RegExp.escape(customAutolink.keyPrefix)}${identifier}(?![A-Za-z0-9])`,
-      'giu'
+      'giu',
     )
     appendMatches(findings, message, pattern, 'custom-autolink')
   }
@@ -165,7 +165,7 @@ export function parsePrePushUpdates(input: string): PrePushUpdate[] {
 
 export function outgoingRevisionArguments(
   update: PrePushUpdate,
-  remoteName: string
+  remoteName: string,
 ): readonly string[] | null {
   if (ZERO_OBJECT_ID.test(update.localObjectId)) return null
   if (!ZERO_OBJECT_ID.test(update.remoteObjectId)) {
@@ -180,7 +180,7 @@ export function outgoingRevisionArguments(
 function runGit(args: readonly string[]): string {
   return execFileSync('git', [...args], {
     encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: ['ignore', 'pipe', 'pipe'],
   })
 }
 
@@ -197,12 +197,12 @@ function findingDescription(kind: CommitReferenceKind): string {
 
 function reportFindings(
   source: string,
-  findings: readonly CommitReferenceFinding[]
+  findings: readonly CommitReferenceFinding[],
 ): void {
   for (const finding of findings) {
     console.error(
       `${source}:${finding.line}:${finding.column}: ` +
-      `${findingDescription(finding.kind)} ${JSON.stringify(finding.token)}`
+      `${findingDescription(finding.kind)} ${JSON.stringify(finding.token)}`,
     )
   }
 }
@@ -210,7 +210,7 @@ function reportFindings(
 function reportGuidance(): void {
   console.error(
     'Use reference-free prose such as "image 11", "issue 42", or "CSS property at-rule". ' +
-    'Put intentional GitHub references and mentions in a reviewed issue or pull-request conversation.'
+    'Put intentional GitHub references and mentions in a reviewed issue or pull-request conversation.',
   )
 }
 
@@ -229,7 +229,7 @@ function revisionCommitIds(revisionArguments: readonly string[], git: GitRunner)
 function checkCommits(
   commitIds: Iterable<string>,
   policy: CommitReferencePolicy,
-  git: GitRunner
+  git: GitRunner,
 ): boolean {
   let valid = true
   for (const commitId of new Set(commitIds)) {
@@ -243,7 +243,7 @@ function checkPrePush(
   input: string,
   remoteName: string,
   policy: CommitReferencePolicy,
-  git: GitRunner
+  git: GitRunner,
 ): boolean {
   const updates = parsePrePushUpdates(input)
   const blockedRefs = updates
@@ -267,13 +267,13 @@ function checkPrePush(
 function usage(): void {
   console.error(
     'Usage: check-commit-references.ts ' +
-    '<--message-file PATH | --pre-push REMOTE | --range REVISION>'
+    '<--message-file PATH | --pre-push REMOTE | --range REVISION>',
   )
 }
 
 export function commitReferencesMain(
   argv = process.argv.slice(2),
-  git: GitRunner = runGit
+  git: GitRunner = runGit,
 ): number {
   try {
     const args = argv[0] === '--' ? argv.slice(1) : argv

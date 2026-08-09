@@ -23,7 +23,7 @@ function ContextMenu({
     if (open) {
       setActiveContextMenu({
         id,
-        close: () => actionsRef.current?.close()
+        close: () => actionsRef.current?.close(),
       })
     } else {
       clearActiveContextMenu(id)
@@ -77,7 +77,7 @@ function ContextMenuContent({
           data-slot="context-menu-content"
           className={cn(
             menuPopupClassName,
-            className
+            className,
           )}
           {...props}
         >
@@ -99,7 +99,7 @@ function ContextMenuItem({
       data-slot="context-menu-item"
       className={cn(
         menuItemClassName,
-        className
+        className,
       )}
       {...props}
     >
@@ -112,5 +112,5 @@ export {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuTrigger
+  ContextMenuTrigger,
 }

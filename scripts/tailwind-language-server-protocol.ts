@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
 
 const jsonRpcErrorSchema = Schema.Struct({
-  message: Schema.String
+  message: Schema.String,
 })
 
 const jsonRpcMessageSchema = Schema.Struct({
@@ -9,30 +9,30 @@ const jsonRpcMessageSchema = Schema.Struct({
   method: Schema.optionalKey(Schema.String),
   params: Schema.optionalKey(Schema.Unknown),
   result: Schema.optionalKey(Schema.Unknown),
-  error: Schema.optionalKey(jsonRpcErrorSchema)
+  error: Schema.optionalKey(jsonRpcErrorSchema),
 })
 
 const configurationParamsSchema = Schema.Struct({
   items: Schema.Array(Schema.Struct({
-    section: Schema.optionalKey(Schema.String)
-  }))
+    section: Schema.optionalKey(Schema.String),
+  })),
 })
 
 const diagnosticSchema = Schema.Struct({
   range: Schema.Struct({
     start: Schema.Struct({
       line: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-      character: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
-    })
+      character: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+    }),
   }),
   severity: Schema.optionalKey(Schema.Int),
   code: Schema.optionalKey(Schema.Union([Schema.String, Schema.Number])),
-  message: Schema.String
+  message: Schema.String,
 })
 
 const publishedDiagnosticsParamsSchema = Schema.Struct({
   uri: Schema.String,
-  diagnostics: Schema.Array(diagnosticSchema)
+  diagnostics: Schema.Array(diagnosticSchema),
 })
 
 const unknownRecordSchema = Schema.Record(Schema.String, Schema.Unknown)

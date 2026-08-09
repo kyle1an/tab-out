@@ -1,7 +1,7 @@
 const NON_NAVIGABLE_PROTOCOLS = new Set([
   'chrome-untrusted:',
   'devtools:',
-  'javascript:'
+  'javascript:',
 ])
 
 // Chromium's internal destructive/debug destinations are not pages Tab Out
@@ -28,7 +28,7 @@ const DESTRUCTIVE_CHROME_HOSTS = new Set([
   'quit-with-apps',
   'restart',
   'shorthang',
-  'uithreadhang'
+  'uithreadhang',
 ])
 
 /**

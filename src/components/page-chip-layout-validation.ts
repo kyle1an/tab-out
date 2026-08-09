@@ -9,7 +9,7 @@ const pageChipTextLayoutValidationCallbacks = new WeakMap<
 
 export function registerPageChipTextLayoutValidation(
   textEl: HTMLElement,
-  validate: () => PageChipTextLayoutMeasurementJob | null
+  validate: () => PageChipTextLayoutMeasurementJob | null,
 ) {
   pageChipTextLayoutValidationCallbacks.set(textEl, validate)
   return () => {

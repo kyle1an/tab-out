@@ -29,7 +29,7 @@ const PIN_KIND_FIELD_COUNTS: Record<string, number> = {
   [PIN_KIND_WEBSITE_PATH]: 3,
   [`${PIN_KIND_WEBSITE_PATH}${PIN_KIND_V2_SUFFIX}`]: 3,
   [PIN_KIND_PATHGROUP]: 4,
-  [`${PIN_KIND_PATHGROUP}${PIN_KIND_V2_SUFFIX}`]: 4
+  [`${PIN_KIND_PATHGROUP}${PIN_KIND_V2_SUFFIX}`]: 4,
 }
 
 function encodePinField(field: string): string {
@@ -58,7 +58,7 @@ export function pathgroupPinId(
   domain: string,
   subdomainKey: string,
   websitePathKey: string,
-  pathgroupKey: string
+  pathgroupKey: string,
 ): string {
   return buildPinId(PIN_KIND_PATHGROUP, [domain, subdomainKey, websitePathKey, pathgroupKey])
 }

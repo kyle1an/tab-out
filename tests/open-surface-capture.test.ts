@@ -5,7 +5,7 @@ import {
   captureOpenSurfaceCheckpoint,
   captureCurrentOpenSurfaceObservations,
   captureOpenSurfaceObservation,
-  openSurfaceObservationFromTab
+  openSurfaceObservationFromTab,
 } from '../src/extension/background/open-surface-capture.js'
 
 test('Chrome tab capture preserves app context and unwraps suspended metadata', () => {
@@ -25,7 +25,7 @@ test('Chrome tab capture preserves app context and unwraps suspended metadata', 
     frozen: false,
     groupId: -1,
     url: suspendedUrl,
-    title: 'Suspender wrapper'
+    title: 'Suspender wrapper',
   }, 'app')
 
   assert.deepEqual(observation, {
@@ -33,7 +33,7 @@ test('Chrome tab capture preserves app context and unwraps suspended metadata', 
     surfaceKind: 'app',
     url: exactUrl,
     rawUrl: suspendedUrl,
-    title: 'Example article'
+    title: 'Example article',
   })
 })
 
@@ -53,7 +53,7 @@ test('Chrome tab capture uses the pending navigation as the newest effective tar
     groupId: -1,
     url: 'https://example.test/original',
     pendingUrl: 'https://example.test/newest-target',
-    title: 'Navigating'
+    title: 'Navigating',
   }, 'normal')
 
   assert.equal(observation?.url, 'https://example.test/newest-target')
@@ -74,7 +74,7 @@ test('Chrome tab capture rejects private surfaces before producing an observatio
     frozen: false,
     groupId: -1,
     url: 'chrome-extension://suspender-id/suspended.html#uri=private-value',
-    title: 'Private title'
+    title: 'Private title',
   }, 'normal'), null)
 })
 
@@ -93,7 +93,7 @@ test('Chrome tab capture does not guess a normal-tab identity when window type i
     frozen: false,
     groupId: -1,
     url: 'https://example.test/app',
-    title: 'Example app'
+    title: 'Example app',
   } satisfies chrome.tabs.Tab
 
   assert.equal(openSurfaceObservationFromTab(tab), null)
@@ -101,8 +101,8 @@ test('Chrome tab capture does not guess a normal-tab identity when window type i
     windows: {
       get: async () => {
         throw new Error('window disappeared')
-      }
-    }
+      },
+    },
   } as never, tab), null)
 })
 
@@ -121,20 +121,20 @@ test('checkpoint capture distinguishes a disappearing window from an ineligible 
     frozen: false,
     groupId: -1,
     url: 'https://example.test/preserve-prior-lifetime',
-    title: 'Preserve prior lifetime'
+    title: 'Preserve prior lifetime',
   } satisfies chrome.tabs.Tab
 
   const unavailable = await captureOpenSurfaceCheckpoint({
     windows: {
       get: async () => {
         throw new Error('window disappeared during physical close')
-      }
-    }
+      },
+    },
   } as never, tab)
   const ineligible = await captureOpenSurfaceCheckpoint({
     windows: {
-      get: async () => ({ id: 8, type: 'normal' })
-    }
+      get: async () => ({ id: 8, type: 'normal' }),
+    },
   } as never, { ...tab, incognito: true })
 
   assert.deepEqual(unavailable, { status: 'unavailable' })
@@ -158,12 +158,12 @@ test('current-surface capture omits tabs whose window metadata is missing', asyn
         frozen: false,
         groupId: -1,
         url: 'https://example.test/unknown-window',
-        title: 'Unknown window'
-      }]
+        title: 'Unknown window',
+      }],
     },
     windows: {
-      getAll: async () => [{ id: 1, type: 'normal' }]
-    }
+      getAll: async () => [{ id: 1, type: 'normal' }],
+    },
   } as never)
 
   assert.deepEqual(observations, [])

@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import {
   createRetainedPageActions,
-  retainedPageActivationDisposition
+  retainedPageActivationDisposition,
 } from '../src/extension/retained-page-actions.js'
 import {
   RETAINED_PAGE_ACTIVATE_MESSAGE,
@@ -11,12 +11,12 @@ import {
   parseRetainedPageActivateMessage,
   parseRetainedPageActivationResponse,
   parseRetainedPagesRemovalResponse,
-  parseRetainedPagesRemoveMessage
+  parseRetainedPagesRemoveMessage,
 } from '../src/extension/runtime-messages.js'
 
 const target = {
   retainedPageIdentity: 'identity-example',
-  retainedPageClosureToken: 'lifetime-example'
+  retainedPageClosureToken: 'lifetime-example',
 }
 
 function actionHarness(response: unknown = { ok: true, outcome: 'activated' }) {
@@ -40,7 +40,7 @@ function actionHarness(response: unknown = { ok: true, outcome: 'activated' }) {
     },
     notify: (title) => {
       notices.push(title)
-    }
+    },
   })
 
   return {
@@ -56,7 +56,7 @@ function actionHarness(response: unknown = { ok: true, outcome: 'activated' }) {
     },
     get refreshCalls() {
       return refreshCalls
-    }
+    },
   }
 }
 
@@ -65,14 +65,14 @@ test('retained-page runtime messages require the exact snapshot fields', () => {
     type: RETAINED_PAGE_ACTIVATE_MESSAGE,
     identityDigest: 'identity-example',
     closureToken: 'lifetime-example',
-    disposition: 'background-tab'
+    disposition: 'background-tab',
   } as const
   const batchRemoval = {
     type: RETAINED_PAGES_REMOVE_MESSAGE,
     snapshots: [
       { identityDigest: 'identity-example', closureToken: 'lifetime-example' },
-      { identityDigest: 'identity-second', closureToken: 'lifetime-second' }
-    ]
+      { identityDigest: 'identity-second', closureToken: 'lifetime-second' },
+    ],
   } as const
 
   assert.deepEqual(parseRetainedPageActivateMessage(activation), activation)
@@ -81,18 +81,18 @@ test('retained-page runtime messages require the exact snapshot fields', () => {
   assert.equal(parseRetainedPageActivateMessage({ ...activation, disposition: 'current-tab' }), null)
   assert.equal(parseRetainedPagesRemoveMessage({
     ...batchRemoval,
-    snapshots: [{ identityDigest: '', closureToken: 'lifetime-example' }]
+    snapshots: [{ identityDigest: '', closureToken: 'lifetime-example' }],
   }), null)
   assert.equal(parseRetainedPagesRemoveMessage({
     type: RETAINED_PAGES_REMOVE_MESSAGE,
-    snapshots: []
+    snapshots: [],
   }), null)
   assert.equal(parseRetainedPagesRemoveMessage({
     type: RETAINED_PAGES_REMOVE_MESSAGE,
     snapshots: Array.from({ length: 501 }, (_, index) => ({
       identityDigest: `identity-${index}`,
-      closureToken: `lifetime-${index}`
-    }))
+      closureToken: `lifetime-${index}`,
+    })),
   }), null)
 })
 
@@ -102,21 +102,21 @@ test('retained-page response parsers accept only known successful outcomes', () 
     'activated-newer-retained',
     'activated-unconsumed',
     'stale',
-    'failed'
+    'failed',
   ] as const) {
     assert.deepEqual(
       parseRetainedPageActivationResponse({ ok: true, outcome }),
-      { ok: true, outcome }
+      { ok: true, outcome },
     )
   }
   assert.equal(parseRetainedPageActivationResponse({ ok: true, outcome: 'opened' }), null)
   assert.equal(parseRetainedPageActivationResponse({ ok: false, outcome: 'failed' }), null)
   assert.deepEqual(parseRetainedPagesRemovalResponse({
     ok: true,
-    outcomes: ['removed', 'already-absent', 'stale']
+    outcomes: ['removed', 'already-absent', 'stale'],
   }), {
     ok: true,
-    outcomes: ['removed', 'already-absent', 'stale']
+    outcomes: ['removed', 'already-absent', 'stale'],
   })
   assert.equal(parseRetainedPagesRemovalResponse({ ok: true, outcomes: [] }), null)
 })
@@ -137,7 +137,7 @@ test('retained activation sends only the exact snapshot and requested dispositio
     type: RETAINED_PAGE_ACTIVATE_MESSAGE,
     identityDigest: 'identity-example',
     closureToken: 'lifetime-example',
-    disposition: 'background-tab'
+    disposition: 'background-tab',
   }])
   assert.equal(harness.refreshCalls, 1)
   assert.deepEqual(harness.refreshOptions, [{ animateCards: true }])
@@ -211,8 +211,8 @@ test('single retained removal sends one exact snapshot through the batch boundar
       type: RETAINED_PAGES_REMOVE_MESSAGE,
       snapshots: [{
         identityDigest: 'identity-example',
-        closureToken: 'lifetime-example'
-      }]
+        closureToken: 'lifetime-example',
+      }],
     }])
     assert.equal(harness.refreshCalls, 1)
     assert.deepEqual(harness.notices, ['Removed from Tabs'])
@@ -225,7 +225,7 @@ test('retained removal never retries and uses one failure message for stale or u
   const targetDisappears = await stale.actions.removeRetainedPageTarget(target)
   assert.equal(stale.messages.length, 1)
   assert.equal(stale.refreshCalls, 1)
-  assert.deepEqual(stale.notices, ["Couldn’t remove from Tabs"])
+  assert.deepEqual(stale.notices, ['Couldn’t remove from Tabs'])
   assert.equal(targetDisappears, false)
 
   const unavailable = actionHarness()
@@ -233,7 +233,7 @@ test('retained removal never retries and uses one failure message for stale or u
   await assert.doesNotReject(unavailable.actions.removeRetainedPageTarget(target))
   assert.equal(unavailable.messages.length, 1)
   assert.equal(unavailable.refreshCalls, 1)
-  assert.deepEqual(unavailable.notices, ["Couldn’t remove from Tabs"])
+  assert.deepEqual(unavailable.notices, ['Couldn’t remove from Tabs'])
 })
 
 test('retained removal preserves a durable success message when dashboard refresh fails', async () => {
@@ -250,23 +250,23 @@ test('retained removal preserves a durable success message when dashboard refres
 test('retained batch removal sends exact snapshots once and reports one successful refresh', async () => {
   const harness = actionHarness({
     ok: true,
-    outcomes: ['removed', 'already-absent']
+    outcomes: ['removed', 'already-absent'],
   })
 
   const completedCount = await harness.actions.removeRetainedPageTargets([
     target,
     {
       retainedPageIdentity: 'identity-second',
-      retainedPageClosureToken: 'lifetime-second'
-    }
+      retainedPageClosureToken: 'lifetime-second',
+    },
   ])
 
   assert.deepEqual(harness.messages, [{
     type: RETAINED_PAGES_REMOVE_MESSAGE,
     snapshots: [
       { identityDigest: 'identity-example', closureToken: 'lifetime-example' },
-      { identityDigest: 'identity-second', closureToken: 'lifetime-second' }
-    ]
+      { identityDigest: 'identity-second', closureToken: 'lifetime-second' },
+    ],
   }])
   assert.equal(harness.refreshCalls, 1)
   assert.deepEqual(harness.refreshOptions, [{ animateCards: true }])
@@ -281,8 +281,8 @@ test('retained batch removal reports partial stale completion truthfully', async
     target,
     {
       retainedPageIdentity: 'identity-newer',
-      retainedPageClosureToken: 'lifetime-stale'
-    }
+      retainedPageClosureToken: 'lifetime-stale',
+    },
   ])
 
   assert.equal(harness.messages.length, 1)
@@ -296,7 +296,7 @@ test('retained batch removal rejects malformed targets before sending', async ()
 
   const completedCount = await harness.actions.removeRetainedPageTargets([
     target,
-    { retainedPageIdentity: 'identity-missing-token' }
+    { retainedPageIdentity: 'identity-missing-token' },
   ])
 
   assert.deepEqual(harness.messages, [])
@@ -318,8 +318,8 @@ test('retained batch removal contains worker and response-shape failures', async
     target,
     {
       retainedPageIdentity: 'identity-second',
-      retainedPageClosureToken: 'lifetime-second'
-    }
+      retainedPageClosureToken: 'lifetime-second',
+    },
   ])
   assert.equal(incomplete.messages.length, 1)
   assert.equal(incomplete.refreshCalls, 1)
@@ -330,7 +330,7 @@ test('retained batch removal contains worker and response-shape failures', async
 test('retained removal treats malformed and explicit failure responses as failures', async () => {
   for (const response of [
     { ok: true, outcomes: ['unexpected'] },
-    { ok: false }
+    { ok: false },
   ]) {
     const harness = actionHarness(response)
 
@@ -338,7 +338,7 @@ test('retained removal treats malformed and explicit failure responses as failur
 
     assert.equal(harness.messages.length, 1)
     assert.equal(harness.refreshCalls, 1)
-    assert.deepEqual(harness.notices, ["Couldn’t remove from Tabs"])
+    assert.deepEqual(harness.notices, ['Couldn’t remove from Tabs'])
   }
 })
 
@@ -353,13 +353,13 @@ test('worker and refresh failures remain contained by the action boundary', asyn
   removal.rejectMessage()
   removal.rejectRefresh()
   await assert.doesNotReject(removal.actions.removeRetainedPageTarget(target))
-  assert.deepEqual(removal.notices, ["Couldn’t remove from Tabs"])
+  assert.deepEqual(removal.notices, ['Couldn’t remove from Tabs'])
 })
 
 test('missing retained snapshot data refreshes the stale UI without sending a message', async () => {
   const activation = actionHarness()
   await activation.actions.activateRetainedPageTarget({
-    retainedPageIdentity: 'identity-example'
+    retainedPageIdentity: 'identity-example',
   }, 'focus')
   assert.deepEqual(activation.messages, [])
   assert.equal(activation.refreshCalls, 1)
@@ -367,9 +367,9 @@ test('missing retained snapshot data refreshes the stale UI without sending a me
 
   const removal = actionHarness()
   await removal.actions.removeRetainedPageTarget({
-    retainedPageClosureToken: 'lifetime-example'
+    retainedPageClosureToken: 'lifetime-example',
   })
   assert.deepEqual(removal.messages, [])
   assert.equal(removal.refreshCalls, 1)
-  assert.deepEqual(removal.notices, ["Couldn’t remove from Tabs"])
+  assert.deepEqual(removal.notices, ['Couldn’t remove from Tabs'])
 })

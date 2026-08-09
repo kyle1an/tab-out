@@ -19,7 +19,7 @@ function tab(id: number, overrides: Partial<DashboardTab> = {}): DashboardTab {
     groupId: -1,
     isTabOut: false,
     isApp: false,
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -32,26 +32,26 @@ test('domain card removal animation never hides eligible tabs that settle into r
     closableCount: 2,
     filter: '',
     group: group([tab(1), tab(2)]),
-    removedCount: 2
+    removedCount: 2,
   }), false)
   assert.equal(domainCardCloseRemovesAllItems({
     closableCount: 2,
     filter: '',
     group: group([tab(1), tab(2)]),
-    removedCount: 1
+    removedCount: 1,
   }), false)
   assert.equal(domainCardCloseRemovesAllItems({
     closableCount: 1,
     filter: '',
     group: group([tab(1), tab(2, { groupId: 4 })]),
-    removedCount: 1
+    removedCount: 1,
   }), false)
 
   assert.equal(domainCardCloseRemovesAllItems({
     closableCount: 1,
     filter: '',
     group: group([tab(1, { url: 'blob:https://example.test/temporary', rawUrl: 'blob:https://example.test/temporary' })]),
-    removedCount: 1
+    removedCount: 1,
   }), true)
 })
 
@@ -60,21 +60,21 @@ test('domain card removal animation preserves filtered and Saved Page surfaces',
     closableCount: 1,
     filter: 'example',
     group: group([tab(1)]),
-    removedCount: 1
+    removedCount: 1,
   }), false)
   assert.equal(domainCardCloseRemovesAllItems({
     closableCount: 1,
     filter: '',
     group: group([tab(1, { saved: true })]),
-    removedCount: 1
+    removedCount: 1,
   }), false)
   assert.equal(domainCardCloseRemovesAllItems({
     closableCount: 1,
     filter: '',
     group: group([
       tab(1),
-      tab(2, { sourceType: 'saved-page', closedSaved: true, saved: true })
+      tab(2, { sourceType: 'saved-page', closedSaved: true, saved: true }),
     ]),
-    removedCount: 1
+    removedCount: 1,
   }), false)
 })

@@ -8,16 +8,16 @@ export const WORKING_SET_STORAGE_BENCHMARK_MESSAGE =
   '__TAB_OUT_WORKING_SET_STORAGE_BENCHMARK__'
 
 const nonNegativeIntSchema = Schema.Int.check(
-  Schema.isGreaterThanOrEqualTo(0)
+  Schema.isGreaterThanOrEqualTo(0),
 )
 const nonNegativeFiniteSchema = Schema.Finite.check(
-  Schema.isGreaterThanOrEqualTo(0)
+  Schema.isGreaterThanOrEqualTo(0),
 )
 const nonEmptyStringSchema = Schema.String.check(Schema.isMinLength(1))
 
 const activityEventSchema = Schema.Struct({
   kind: Schema.Literals(['activation', 'navigation']),
-  at: Schema.Finite
+  at: Schema.Finite,
 })
 
 const activityRecordSchema = Schema.Struct({
@@ -30,12 +30,12 @@ const activityRecordSchema = Schema.Struct({
   lastNavigatedAt: Schema.optionalKey(Schema.Finite),
   dismissedAt: Schema.optionalKey(Schema.Finite),
   dismissedUntil: Schema.optionalKey(Schema.Finite),
-  events: Schema.mutable(Schema.Array(activityEventSchema))
+  events: Schema.mutable(Schema.Array(activityEventSchema)),
 })
 
 export const workingSetActivityStoreMessageSchema = Schema.Struct({
   version: Schema.Literals([1]),
-  records: Schema.Record(Schema.String, activityRecordSchema)
+  records: Schema.Record(Schema.String, activityRecordSchema),
 }) satisfies Schema.Schema<WorkingSetActivityStore>
 
 export const workingSetStorageBenchmarkEventSchema = Schema.Struct({
@@ -44,7 +44,7 @@ export const workingSetStorageBenchmarkEventSchema = Schema.Struct({
   tabId: nonNegativeIntSchema,
   windowId: Schema.Int,
   url: nonEmptyStringSchema,
-  title: Schema.String
+  title: Schema.String,
 })
 
 export type WorkingSetStorageBenchmarkEvent =
@@ -62,7 +62,7 @@ const benchmarkOperationSchema = Schema.Literals([
   'fail-next-mutation',
   'corrupt',
   'reset',
-  'diagnostics'
+  'diagnostics',
 ])
 
 export type WorkingSetStorageBenchmarkOperation =
@@ -72,63 +72,63 @@ const seedProfileMessageSchema = Schema.Struct({
   type: Schema.Literals([WORKING_SET_STORAGE_BENCHMARK_MESSAGE]),
   operation: Schema.Literals(['seed-profile']),
   profile: workingSetStorageProfileNameSchema,
-  now: Schema.Finite
+  now: Schema.Finite,
 })
 
 const replaceMessageSchema = Schema.Struct({
   type: Schema.Literals([WORKING_SET_STORAGE_BENCHMARK_MESSAGE]),
   operation: Schema.Literals(['replace']),
-  activity: workingSetActivityStoreMessageSchema
+  activity: workingSetActivityStoreMessageSchema,
 })
 
 const storageReadMessageSchema = Schema.Struct({
   type: Schema.Literals([WORKING_SET_STORAGE_BENCHMARK_MESSAGE]),
-  operation: Schema.Literals(['storage-read'])
+  operation: Schema.Literals(['storage-read']),
 })
 
 const serviceReadMessageSchema = Schema.Struct({
   type: Schema.Literals([WORKING_SET_STORAGE_BENCHMARK_MESSAGE]),
-  operation: Schema.Literals(['service-read'])
+  operation: Schema.Literals(['service-read']),
 })
 
 const domainMutationMessageSchema = Schema.Struct({
   type: Schema.Literals([WORKING_SET_STORAGE_BENCHMARK_MESSAGE]),
   operation: Schema.Literals(['domain-mutation']),
-  event: workingSetStorageBenchmarkEventSchema
+  event: workingSetStorageBenchmarkEventSchema,
 })
 
 const storageMutationMessageSchema = Schema.Struct({
   type: Schema.Literals([WORKING_SET_STORAGE_BENCHMARK_MESSAGE]),
   operation: Schema.Literals(['storage-mutation']),
-  event: workingSetStorageBenchmarkEventSchema
+  event: workingSetStorageBenchmarkEventSchema,
 })
 
 const navigationMessageSchema = Schema.Struct({
   type: Schema.Literals([WORKING_SET_STORAGE_BENCHMARK_MESSAGE]),
   operation: Schema.Literals(['navigation']),
-  event: workingSetStorageBenchmarkEventSchema
+  event: workingSetStorageBenchmarkEventSchema,
 })
 
 const burstMessageSchema = Schema.Struct({
   type: Schema.Literals([WORKING_SET_STORAGE_BENCHMARK_MESSAGE]),
   operation: Schema.Literals(['burst']),
-  events: Schema.mutable(Schema.Array(workingSetStorageBenchmarkEventSchema))
+  events: Schema.mutable(Schema.Array(workingSetStorageBenchmarkEventSchema)),
 })
 
 const resetMessageSchema = Schema.Struct({
   type: Schema.Literals([WORKING_SET_STORAGE_BENCHMARK_MESSAGE]),
-  operation: Schema.Literals(['reset'])
+  operation: Schema.Literals(['reset']),
 })
 
 const failNextMutationMessageSchema = Schema.Struct({
   type: Schema.Literals([WORKING_SET_STORAGE_BENCHMARK_MESSAGE]),
-  operation: Schema.Literals(['fail-next-mutation'])
+  operation: Schema.Literals(['fail-next-mutation']),
 })
 
 export const workingSetStorageBenchmarkCorruptionSchema = Schema.Literals([
   'row',
   'outer-version',
-  'missing-required-store'
+  'missing-required-store',
 ])
 
 export type WorkingSetStorageBenchmarkCorruption =
@@ -137,12 +137,12 @@ export type WorkingSetStorageBenchmarkCorruption =
 const corruptMessageSchema = Schema.Struct({
   type: Schema.Literals([WORKING_SET_STORAGE_BENCHMARK_MESSAGE]),
   operation: Schema.Literals(['corrupt']),
-  corruption: workingSetStorageBenchmarkCorruptionSchema
+  corruption: workingSetStorageBenchmarkCorruptionSchema,
 })
 
 const diagnosticsMessageSchema = Schema.Struct({
   type: Schema.Literals([WORKING_SET_STORAGE_BENCHMARK_MESSAGE]),
-  operation: Schema.Literals(['diagnostics'])
+  operation: Schema.Literals(['diagnostics']),
 })
 
 export const workingSetStorageBenchmarkMessageSchema = Schema.Union([
@@ -157,7 +157,7 @@ export const workingSetStorageBenchmarkMessageSchema = Schema.Union([
   failNextMutationMessageSchema,
   corruptMessageSchema,
   resetMessageSchema,
-  diagnosticsMessageSchema
+  diagnosticsMessageSchema,
 ])
 
 export type WorkingSetStorageBenchmarkMessage =
@@ -165,14 +165,14 @@ export type WorkingSetStorageBenchmarkMessage =
 
 export type WorkingSetStorageBenchmarkOwnedStorage =
   | {
-      readonly kind: 'chrome-storage'
-      readonly keys: readonly string[]
-    }
+    readonly kind: 'chrome-storage'
+    readonly keys: readonly string[]
+  }
   | {
-      readonly kind: 'indexed-db'
-      readonly database: string
-      readonly objectStores: readonly string[]
-    }
+    readonly kind: 'indexed-db'
+    readonly database: string
+    readonly objectStores: readonly string[]
+  }
 
 export interface WorkingSetStorageBenchmarkBackend {
   readonly variant: string
@@ -183,7 +183,7 @@ export interface WorkingSetStorageBenchmarkBackend {
   readonly failNextMutation: () => void
   readonly corrupt: (
     kind: WorkingSetStorageBenchmarkCorruption,
-    chromeApi: ChromeApi
+    chromeApi: ChromeApi,
   ) => Promise<void>
   readonly reset: (chromeApi: ChromeApi) => Promise<void>
   readonly close: () => void | Promise<void>
@@ -191,24 +191,24 @@ export interface WorkingSetStorageBenchmarkBackend {
 
 const ownedChromeStorageSchema = Schema.Struct({
   kind: Schema.Literals(['chrome-storage']),
-  keys: Schema.Array(Schema.String)
+  keys: Schema.Array(Schema.String),
 })
 
 const ownedIndexedDbStorageSchema = Schema.Struct({
   kind: Schema.Literals(['indexed-db']),
   database: nonEmptyStringSchema,
-  objectStores: Schema.Array(nonEmptyStringSchema)
+  objectStores: Schema.Array(nonEmptyStringSchema),
 })
 
 export const workingSetStorageBenchmarkDiagnosticsSchema = Schema.Struct({
   variant: nonEmptyStringSchema,
   ownedStorage: Schema.Union([
     ownedChromeStorageSchema,
-    ownedIndexedDbStorageSchema
+    ownedIndexedDbStorageSchema,
   ]),
   lastMutationLogicalBytes: nonNegativeFiniteSchema,
   lastMutationPhysicalWrites: Schema.Array(Schema.String),
-  writeInvocationCount: nonNegativeIntSchema
+  writeInvocationCount: nonNegativeIntSchema,
 })
 
 export type WorkingSetStorageBenchmarkDiagnostics =
@@ -220,7 +220,7 @@ const timingsSchema = Schema.Struct({
   storageCommitMs: Schema.optionalKey(nonNegativeFiniteSchema),
   storageReadMs: Schema.optionalKey(nonNegativeFiniteSchema),
   serviceReadMs: Schema.optionalKey(nonNegativeFiniteSchema),
-  fullAppMutationMs: Schema.optionalKey(nonNegativeFiniteSchema)
+  fullAppMutationMs: Schema.optionalKey(nonNegativeFiniteSchema),
 })
 
 export type WorkingSetStorageBenchmarkTimings = typeof timingsSchema.Type
@@ -230,7 +230,7 @@ const successResponseSchema = Schema.Struct({
   operation: benchmarkOperationSchema,
   timings: timingsSchema,
   diagnostics: workingSetStorageBenchmarkDiagnosticsSchema,
-  activity: Schema.optionalKey(workingSetActivityStoreMessageSchema)
+  activity: Schema.optionalKey(workingSetActivityStoreMessageSchema),
 })
 
 const failureResponseSchema = Schema.Struct({
@@ -239,8 +239,8 @@ const failureResponseSchema = Schema.Struct({
   listenerToFailureMs: nonNegativeFiniteSchema,
   error: Schema.Struct({
     name: nonEmptyStringSchema,
-    message: nonEmptyStringSchema
-  })
+    message: nonEmptyStringSchema,
+  }),
 })
 
 export type WorkingSetStorageBenchmarkSuccessResponse =
@@ -250,27 +250,27 @@ export type WorkingSetStorageBenchmarkFailureResponse =
 
 export const workingSetStorageBenchmarkResponseSchema = Schema.Union([
   successResponseSchema,
-  failureResponseSchema
+  failureResponseSchema,
 ])
 
 export type WorkingSetStorageBenchmarkResponse =
   typeof workingSetStorageBenchmarkResponseSchema.Type
 
 const isWorkingSetStorageBenchmarkMessage = Schema.is(
-  workingSetStorageBenchmarkMessageSchema
+  workingSetStorageBenchmarkMessageSchema,
 )
 const isWorkingSetStorageBenchmarkResponse = Schema.is(
-  workingSetStorageBenchmarkResponseSchema
+  workingSetStorageBenchmarkResponseSchema,
 )
 
 export function parseWorkingSetStorageBenchmarkMessage(
-  value: unknown
+  value: unknown,
 ): WorkingSetStorageBenchmarkMessage | null {
   return isWorkingSetStorageBenchmarkMessage(value) ? value : null
 }
 
 export function parseWorkingSetStorageBenchmarkResponse(
-  value: unknown
+  value: unknown,
 ): WorkingSetStorageBenchmarkResponse | null {
   return isWorkingSetStorageBenchmarkResponse(value) ? value : null
 }

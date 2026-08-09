@@ -1,8 +1,8 @@
 import type { StorageListMutationAttempt } from './storage-list-mutations.js'
 
 type SerializedStateWriteResult =
-  | { ok: true; isLatest: boolean; value: string[] }
-  | { ok: false; isLatest: boolean; rollbackValue: string[]; error: unknown }
+  | { ok: true, isLatest: boolean, value: string[] }
+  | { ok: false, isLatest: boolean, rollbackValue: string[], error: unknown }
 
 type SerializedStateWriter<Operation> = {
   replacePersisted(value: string[]): void
@@ -16,7 +16,7 @@ type SerializedStateWriter<Operation> = {
  */
 export function createSerializedStateWriter<Operation>(
   initialPersistedValue: string[],
-  mutate: (operation: Operation) => Promise<StorageListMutationAttempt>
+  mutate: (operation: Operation) => Promise<StorageListMutationAttempt>,
 ): SerializedStateWriter<Operation> {
   let latestRevision = 0
   let persistedValue = initialPersistedValue
@@ -48,7 +48,7 @@ export function createSerializedStateWriter<Operation>(
           // is newer cross-context state and must win over this in-flight result.
           value: persistedChangedWhileWriting && !sameOrder(persistedValue, result.value)
             ? persistedValue
-            : result.value
+            : result.value,
         }
       }
       const persistedChangedWhileWriting = persistedGeneration !== startingPersistedGeneration
@@ -63,8 +63,8 @@ export function createSerializedStateWriter<Operation>(
         rollbackValue: persistedChangedWhileWriting
           ? persistedValue
           : result.currentValue ?? persistedValue,
-        error: result.error
+        error: result.error,
       }
-    }
+    },
   }
 }

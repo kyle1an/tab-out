@@ -9,7 +9,7 @@ import {
   parseRetainedPagesRemovalResponse,
   type RetainedPageActivateMessage,
   type RetainedPageActivationDisposition,
-  type RetainedPagesRemoveMessage
+  type RetainedPagesRemoveMessage,
 } from './runtime-messages.js'
 import type { ChipActivationMode } from './tab-activation.js'
 import { showToast } from './toast.js'
@@ -29,12 +29,12 @@ type RetainedPageActionDependencies = {
 
 class RetainedPageMessageError extends Schema.TaggedErrorClass<RetainedPageMessageError>()(
   'RetainedPageMessageError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 class RetainedPageRefreshError extends Schema.TaggedErrorClass<RetainedPageRefreshError>()(
   'RetainedPageRefreshError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 type RetainedPageSnapshot = {
@@ -43,7 +43,7 @@ type RetainedPageSnapshot = {
 }
 
 function exactRetainedPageSnapshot(
-  target: RetainedPageActionTarget
+  target: RetainedPageActionTarget,
 ): RetainedPageSnapshot | null {
   const identityDigest = target.retainedPageIdentity
   const closureToken = target.retainedPageClosureToken
@@ -59,7 +59,7 @@ function exactRetainedPageSnapshot(
 }
 
 function exactRetainedPageSnapshots(
-  targets: readonly RetainedPageActionTarget[]
+  targets: readonly RetainedPageActionTarget[],
 ): RetainedPageSnapshot[] | null {
   const snapshots: RetainedPageSnapshot[] = []
   const seen = new Set<string>()
@@ -75,7 +75,7 @@ function exactRetainedPageSnapshots(
 }
 
 export function retainedPageActivationDisposition(
-  mode: ChipActivationMode
+  mode: ChipActivationMode,
 ): RetainedPageActivationDisposition {
   switch (mode) {
     case 'focus':
@@ -97,30 +97,30 @@ export function retainedPageActivationDisposition(
 export function createRetainedPageActions({
   sendMessage,
   refresh,
-  notify
+  notify,
 }: RetainedPageActionDependencies) {
   function send(
-    message: RetainedPageActionMessage
+    message: RetainedPageActionMessage,
   ): Effect.Effect<unknown, RetainedPageMessageError> {
     return Effect.tryPromise({
       try: () => sendMessage(message),
-      catch: (cause) => RetainedPageMessageError.make({ cause })
+      catch: (cause) => RetainedPageMessageError.make({ cause }),
     })
   }
 
   const refreshDashboard = Effect.fn('retainedPageActions.refreshDashboard')(
-    function*() {
+    function* () {
       const result = yield* Effect.result(Effect.tryPromise({
         try: () => refresh({ animateCards: true }),
-        catch: (cause) => RetainedPageRefreshError.make({ cause })
+        catch: (cause) => RetainedPageRefreshError.make({ cause }),
       }))
       return Result.isSuccess(result)
-    }
+    },
   )
 
   const runActivateRetainedPageTarget = Effect.fn(
-    'retainedPageActions.activateRetainedPageTarget'
-  )(function*(target: RetainedPageActionTarget, mode: ChipActivationMode) {
+    'retainedPageActions.activateRetainedPageTarget',
+  )(function* (target: RetainedPageActionTarget, mode: ChipActivationMode) {
     const snapshot = exactRetainedPageSnapshot(target)
     if (!snapshot) {
       yield* refreshDashboard()
@@ -131,7 +131,7 @@ export function createRetainedPageActions({
     const responseResult = yield* Effect.result(send({
       type: RETAINED_PAGE_ACTIVATE_MESSAGE,
       ...snapshot,
-      disposition: retainedPageActivationDisposition(mode)
+      disposition: retainedPageActivationDisposition(mode),
     }))
     const response = Result.isSuccess(responseResult)
       ? parseRetainedPageActivationResponse(responseResult.success)
@@ -165,8 +165,8 @@ export function createRetainedPageActions({
   })
 
   const runRemoveRetainedPageTargets = Effect.fn(
-    'retainedPageActions.removeRetainedPageTargets'
-  )(function*(targets: readonly RetainedPageActionTarget[]) {
+    'retainedPageActions.removeRetainedPageTargets',
+  )(function* (targets: readonly RetainedPageActionTarget[]) {
     const snapshots = exactRetainedPageSnapshots(targets)
     if (!snapshots) {
       yield* refreshDashboard()
@@ -176,7 +176,7 @@ export function createRetainedPageActions({
 
     const responseResult = yield* Effect.result(send({
       type: RETAINED_PAGES_REMOVE_MESSAGE,
-      snapshots
+      snapshots,
     }))
     const response = Result.isSuccess(responseResult)
       ? parseRetainedPagesRemovalResponse(responseResult.success)
@@ -203,7 +203,7 @@ export function createRetainedPageActions({
 
   function activateRetainedPageTarget(
     target: RetainedPageActionTarget,
-    mode: ChipActivationMode
+    mode: ChipActivationMode,
   ): Promise<boolean> {
     return getAppRuntime().runPromise(runActivateRetainedPageTarget(target, mode))
   }
@@ -213,7 +213,7 @@ export function createRetainedPageActions({
   }
 
   function removeRetainedPageTargets(
-    targets: readonly RetainedPageActionTarget[]
+    targets: readonly RetainedPageActionTarget[],
   ): Promise<number> {
     return getAppRuntime().runPromise(runRemoveRetainedPageTargets(targets))
   }
@@ -221,7 +221,7 @@ export function createRetainedPageActions({
   return {
     activateRetainedPageTarget,
     removeRetainedPageTarget,
-    removeRetainedPageTargets
+    removeRetainedPageTargets,
   }
 }
 
@@ -233,11 +233,11 @@ const retainedPageActions = createRetainedPageActions({
     return chrome.runtime.sendMessage(message)
   },
   refresh: requestDashboardRefresh,
-  notify: showToast
+  notify: showToast,
 })
 
 export const {
   activateRetainedPageTarget,
   removeRetainedPageTarget,
-  removeRetainedPageTargets
+  removeRetainedPageTargets,
 } = retainedPageActions

@@ -56,21 +56,21 @@ test('foldedTabCloseTargets excludes closed Saved and retained envs in either di
     prefix: 'open',
     tabUrl: 'https://open.example.test/page',
     rawUrl: 'https://open.example.test/page',
-    sourceType: 'tab' as const
+    sourceType: 'tab' as const,
   }
   const saved = {
     prefix: 'saved',
     tabUrl: 'https://saved.example.test/page',
     rawUrl: 'https://saved.example.test/page',
     sourceType: 'saved-page' as const,
-    closedSaved: true
+    closedSaved: true,
   }
   const retained = {
     prefix: 'retained',
     tabUrl: 'https://retained.example.test/page',
     rawUrl: 'https://retained.example.test/page',
     sourceType: 'retained-page' as const,
-    closedSaved: true
+    closedSaved: true,
   }
 
   assert.deepEqual(foldedTabCloseTargets([saved, open, retained]), [open])
@@ -98,24 +98,24 @@ test('titleVariantGroupRemovalConfirmed requires every requested tab and history
     requestedTabCount: 2,
     tabResult: { ok: true, shouldAnimateRemoval: true },
     requestedHistoryCount: 2,
-    historyResult: { deletedCount: 2 }
+    historyResult: { deletedCount: 2 },
   }), true)
   assert.equal(titleVariantGroupRemovalConfirmed({
     requestedTabCount: 2,
     tabResult: { ok: true, shouldAnimateRemoval: false },
     requestedHistoryCount: 2,
-    historyResult: { deletedCount: 2 }
+    historyResult: { deletedCount: 2 },
   }), false)
   assert.equal(titleVariantGroupRemovalConfirmed({
     requestedTabCount: 2,
     tabResult: { ok: false, shouldAnimateRemoval: false },
     requestedHistoryCount: 2,
-    historyResult: { deletedCount: 2 }
+    historyResult: { deletedCount: 2 },
   }), false)
   assert.equal(titleVariantGroupRemovalConfirmed({
     requestedTabCount: 2,
     tabResult: { ok: true, shouldAnimateRemoval: true },
     requestedHistoryCount: 2,
-    historyResult: { deletedCount: 1 }
+    historyResult: { deletedCount: 1 },
   }), false)
 })

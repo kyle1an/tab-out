@@ -11,8 +11,8 @@ test('deleteHistoryUrls preserves confirmed partial deletion and reports the req
       async deleteUrl({ url }: { url: string }) {
         if (url.endsWith('/unavailable')) throw new Error('History deletion unavailable')
         deletedUrls.push(url)
-      }
-    }
+      },
+    },
   }
   let refreshCount = 0
   const unregisterRefresh = replaceDashboardRefreshForTesting(() => {
@@ -25,7 +25,7 @@ test('deleteHistoryUrls preserves confirmed partial deletion and reports the req
       urls: ['https://example.test/deleted', 'https://example.test/unavailable'],
       onAfterDelete: (callbackResult) => {
         callbackResults.push(callbackResult)
-      }
+      },
     })
 
     assert.deepEqual(result, { ok: false, deletedCount: 1 })

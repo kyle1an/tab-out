@@ -15,7 +15,7 @@ export function startPointerPositionTracking(): void {
       lastPointerPosition.x = event.clientX
       lastPointerPosition.y = event.clientY
     },
-    { capture: true, passive: true }
+    { capture: true, passive: true },
   )
 }
 
@@ -26,7 +26,7 @@ interface RectBounds {
   bottom: number
 }
 
-export function pointWithinRect(point: { x: number; y: number }, rect: RectBounds | null | undefined): boolean {
+export function pointWithinRect(point: { x: number, y: number }, rect: RectBounds | null | undefined): boolean {
   if (!rect) return false
   return point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom
 }

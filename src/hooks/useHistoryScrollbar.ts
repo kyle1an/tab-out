@@ -34,7 +34,7 @@ export interface HistoryScrollbar {
 const DEFAULT_HISTORY_SCROLLBAR_METRICS: HistoryScrollbarMetrics = {
   thumbHeight: 0,
   thumbTop: 0,
-  visible: false
+  visible: false,
 }
 
 function roundedCssPixel(value: number): number {
@@ -57,7 +57,7 @@ function getHistoryScrollbarMetrics(listEl: HTMLElement | null): HistoryScrollba
 
   const thumbHeight = Math.min(
     trackHeight,
-    Math.max(HISTORY_ENTRY_SCROLLBAR_MIN_THUMB_HEIGHT_PX, trackHeight * (clientHeight / scrollHeight))
+    Math.max(HISTORY_ENTRY_SCROLLBAR_MIN_THUMB_HEIGHT_PX, trackHeight * (clientHeight / scrollHeight)),
   )
   const maxThumbTop = Math.max(0, trackHeight - thumbHeight)
   const thumbTop = maxThumbTop <= 0 ? 0 : (scrollTop / maxScrollTop) * maxThumbTop
@@ -65,7 +65,7 @@ function getHistoryScrollbarMetrics(listEl: HTMLElement | null): HistoryScrollba
   return {
     thumbHeight: roundedCssPixel(thumbHeight),
     thumbTop: roundedCssPixel(thumbTop),
-    visible: true
+    visible: true,
   }
 }
 
@@ -93,7 +93,7 @@ function readTrackGeometry(listEl: HTMLElement, trackEl: HTMLElement): TrackGeom
     trackTop: trackRect.top,
     thumbHeight,
     maxThumbTop: Math.max(0, trackRect.height - thumbHeight),
-    maxScrollTop: Math.max(0, listEl.scrollHeight - listEl.clientHeight)
+    maxScrollTop: Math.max(0, listEl.scrollHeight - listEl.clientHeight),
   }
 }
 
@@ -108,7 +108,7 @@ function readTrackGeometry(listEl: HTMLElement, trackEl: HTMLElement): TrackGeom
  * list and its content, so the caller only needs to pass the list ref.
  */
 export function useHistoryScrollbar(
-  listRef: RefObject<HTMLDivElement | null>
+  listRef: RefObject<HTMLDivElement | null>,
 ): HistoryScrollbar {
   const trackRef = useRef<HTMLDivElement | null>(null)
   const [metrics, setMetrics] = useState(DEFAULT_HISTORY_SCROLLBAR_METRICS)
@@ -159,7 +159,7 @@ export function useHistoryScrollbar(
     }
     function scheduleScrollbarUpdate(
       deferUntilAfterPaint: boolean,
-      replacePending = false
+      replacePending = false,
     ) {
       if (frameId !== 0) {
         if (!replacePending) return
@@ -291,6 +291,6 @@ export function useHistoryScrollbar(
     onThumbPointerDown,
     onTrackPointerDown,
     onPointerEnter,
-    onPointerLeave
+    onPointerLeave,
   }
 }

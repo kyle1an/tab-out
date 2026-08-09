@@ -48,7 +48,7 @@ export function liveTabMatchesIdentity(tab: MatchableTab, target: LiveTabIdentit
 
 export function liveTabByValidatedId<T extends MatchableTab & { id?: number | undefined }>(
   tabs: readonly T[],
-  target: LiveTabIdentityTarget
+  target: LiveTabIdentityTarget,
 ): T | null {
   if (typeof target.tabId !== 'number') return null
   const match = tabs.find((tab) => tab.id === target.tabId)

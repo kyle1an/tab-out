@@ -32,7 +32,7 @@ export function flattenHistoryItems(items: HistoryItemLike[]): DashboardTab[] {
       id: item.id || `history-${index}`,
       url: item.url,
       title: item.title || '',
-      sourceType: 'history'
+      sourceType: 'history',
     }))
 }
 

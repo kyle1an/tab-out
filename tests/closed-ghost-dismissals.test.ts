@@ -8,7 +8,7 @@ import {
   isClosedGhostDismissed,
   loadClosedGhostDismissalsResult,
   normalizeClosedGhostDismissals,
-  restoreClosedGhost
+  restoreClosedGhost,
 } from '../src/extension/closed-ghost-dismissals.js'
 
 function createExclusiveRunner() {
@@ -17,7 +17,7 @@ function createExclusiveRunner() {
     const result = queue.then(task)
     queue = result.then(
       () => undefined,
-      () => undefined
+      () => undefined,
     )
     return result
   }
@@ -25,7 +25,7 @@ function createExclusiveRunner() {
 
 function installClosedGhostStorage(
   initial: Record<string, number> = {},
-  options: { getFailures?: number } = {}
+  options: { getFailures?: number } = {},
 ) {
   let stored = structuredClone(initial)
   let getAttempts = 0
@@ -45,9 +45,9 @@ function installClosedGhostStorage(
         },
         async set(value: Record<string, unknown>) {
           stored = structuredClone(value.tabOutDismissedClosedGhostsV1 as Record<string, number>)
-        }
-      }
-    }
+        },
+      },
+    },
   } as unknown as typeof chrome
 
   return {
@@ -56,7 +56,7 @@ function installClosedGhostStorage(
     restore() {
       if (previousChrome) root.chrome = previousChrome
       else delete root.chrome
-    }
+    },
   }
 }
 
@@ -93,9 +93,9 @@ test('normalizeClosedGhostDismissals drops invalid and expired records', () => {
     {
       keep: now - 1000,
       expired: now - 8 * 24 * 60 * 60 * 1000,
-      bad: 'nope'
+      bad: 'nope',
     },
-    now
+    now,
   )
 
   assert.equal(normalized.get('keep'), now - 1000)
@@ -151,7 +151,7 @@ test('independent mutation stores preserve concurrent dismissals for distinct pa
     write: async (value: Record<string, number>) => {
       stored = structuredClone(value)
     },
-    runExclusive: createExclusiveRunner()
+    runExclusive: createExclusiveRunner(),
   }
   const firstContext = createClosedGhostDismissalMutationStore(adapter)
   const secondContext = createClosedGhostDismissalMutationStore(adapter)
@@ -160,12 +160,12 @@ test('independent mutation stores preserve concurrent dismissals for distinct pa
 
   await Promise.all([
     firstContext.dismiss(first, 1000),
-    secondContext.dismiss(second, 2000)
+    secondContext.dismiss(second, 2000),
   ])
 
   assert.deepEqual(stored, {
     [closedGhostDismissalKey(first)]: 1000,
-    [closedGhostDismissalKey(second)]: 2000
+    [closedGhostDismissalKey(second)]: 2000,
   })
 })
 
@@ -175,7 +175,7 @@ test('dismiss keeps the latest timestamp for the same page', async () => {
     read: async () => structuredClone(stored),
     write: async (value) => {
       stored = structuredClone(value)
-    }
+    },
   })
   const entry = { url: 'https://example.test/article', lastClosedAt: 5000 }
   const key = closedGhostDismissalKey(entry)
@@ -195,7 +195,7 @@ test('a failed dismissal write rejects without returning false state and does no
     write: async (value) => {
       if (shouldFail) throw new Error('storage write failed')
       stored = structuredClone(value)
-    }
+    },
   })
   const entry = { url: 'https://example.test/article', lastClosedAt: 100 }
   const key = closedGhostDismissalKey(entry)
@@ -222,7 +222,7 @@ test('a rejected dismissal lock preserves the failure and releases local seriali
       lockAttempts += 1
       if (lockAttempts === 1) throw lockFailure
       return task()
-    }
+    },
   })
   const entry = { url: 'https://example.test/article', lastClosedAt: 100 }
 

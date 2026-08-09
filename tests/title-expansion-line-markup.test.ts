@@ -8,7 +8,7 @@ const CLASSES: ExpansionLineClasses = {
   wrapper: 'lines-wrap',
   line: 'line-normal',
   constrainedLine: 'line-constrained',
-  tailLine: 'line-tail'
+  tailLine: 'line-tail',
 }
 
 test('wraps captured lines and marks only the last as the tail', () => {
@@ -17,10 +17,10 @@ test('wraps captured lines and marks only the last as the tail', () => {
   assert.equal(
     markup,
     '<span class="lines-wrap">' +
-      '<span class="line-normal">first</span>' +
-      '<span class="line-normal">second</span>' +
-      '<span class="line-tail">third <mark>hit</mark></span>' +
-      '</span>'
+    '<span class="line-normal">first</span>' +
+    '<span class="line-normal">second</span>' +
+    '<span class="line-tail">third <mark>hit</mark></span>' +
+    '</span>',
   )
 })
 
@@ -30,9 +30,9 @@ test('viewport-constrained switches earlier lines to the constrained class, tail
   assert.equal(
     markup,
     '<span class="lines-wrap">' +
-      '<span class="line-constrained">first</span>' +
-      '<span class="line-tail">second</span>' +
-      '</span>'
+    '<span class="line-constrained">first</span>' +
+    '<span class="line-tail">second</span>' +
+    '</span>',
   )
 })
 

@@ -25,19 +25,19 @@ import {
   restoreSession,
   updateTab,
   type BrowserReadResult,
-  type RemoveTabsOptions
+  type RemoveTabsOptions,
 } from './browser-tabs-gateway.js'
 
 export class BrowserTabs extends Context.Service<BrowserTabs, {
   readonly createTab: (
-    createProperties: chrome.tabs.CreateProperties
+    createProperties: chrome.tabs.CreateProperties,
   ) => Effect.Effect<chrome.tabs.Tab | null>
   readonly createTabWithFallbackUrl: (
     createProperties: chrome.tabs.CreateProperties,
-    fallbackUrl: string
+    fallbackUrl: string,
   ) => Effect.Effect<chrome.tabs.Tab | null>
   readonly createWindow: (
-    createData: chrome.windows.CreateData
+    createData: chrome.windows.CreateData,
   ) => Effect.Effect<chrome.windows.Window | null>
   readonly duplicateTab: (tabId: number) => Effect.Effect<chrome.tabs.Tab | null>
   readonly focusWindow: (windowId: number) => Effect.Effect<boolean>
@@ -50,7 +50,7 @@ export class BrowserTabs extends Context.Service<BrowserTabs, {
     BrowserReadResult<chrome.windows.Window | null>
   >
   readonly getRecentlyClosedResult: (
-    filter?: chrome.sessions.Filter
+    filter?: chrome.sessions.Filter,
   ) => Effect.Effect<BrowserReadResult<chrome.sessions.Session[]>>
   readonly getTab: (tabId: number) => Effect.Effect<chrome.tabs.Tab | null>
   readonly getWindow: (windowId: number) => Effect.Effect<chrome.windows.Window | null>
@@ -58,28 +58,28 @@ export class BrowserTabs extends Context.Service<BrowserTabs, {
   readonly highlightTabs: (windowId: number, tabIndexes: number[]) => Effect.Effect<boolean>
   readonly moveTab: (
     tabId: number,
-    moveProperties: chrome.tabs.MoveProperties
+    moveProperties: chrome.tabs.MoveProperties,
   ) => Effect.Effect<chrome.tabs.Tab | chrome.tabs.Tab[] | null>
   readonly queryAllTabsResult: () => Effect.Effect<BrowserReadResult<chrome.tabs.Tab[]>>
   readonly queryTabGroupsResult: () => Effect.Effect<
     BrowserReadResult<chrome.tabGroups.TabGroup[]>
   >
   readonly queryTabsInWindowResult: (
-    windowId: number
+    windowId: number,
   ) => Effect.Effect<BrowserReadResult<chrome.tabs.Tab[]>>
   readonly reloadTab: (tabId: number) => Effect.Effect<boolean>
   readonly removeTabs: (
     tabIds: number[],
-    options?: RemoveTabsOptions
+    options?: RemoveTabsOptions,
   ) => Effect.Effect<number[]>
   readonly requestExternalUnsuspend: (
     extensionId: string,
-    tabId: number
+    tabId: number,
   ) => Effect.Effect<boolean>
   readonly restoreSession: (sessionId?: string) => Effect.Effect<boolean>
   readonly updateTab: (
     tabId: number,
-    updateProperties: chrome.tabs.UpdateProperties
+    updateProperties: chrome.tabs.UpdateProperties,
   ) => Effect.Effect<chrome.tabs.Tab | null>
 }>()('@tab-out/app/BrowserTabs') {
   static layer(): Layer.Layer<BrowserTabs> {
@@ -113,7 +113,7 @@ export class BrowserTabs extends Context.Service<BrowserTabs, {
         Effect.promise(() => requestExternalUnsuspend(extensionId, tabId)),
       restoreSession: (sessionId) => Effect.promise(() => restoreSession(sessionId)),
       updateTab: (tabId, updateProperties) =>
-        Effect.promise(() => updateTab(tabId, updateProperties))
+        Effect.promise(() => updateTab(tabId, updateProperties)),
     }))
   }
 }

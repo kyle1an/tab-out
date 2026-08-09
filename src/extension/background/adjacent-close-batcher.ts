@@ -16,7 +16,7 @@ export interface AdjacentCloseBatcherOptions {
  */
 export function createAdjacentCloseBatcher(
   drainBatch: (tabIds: readonly number[]) => void | PromiseLike<void>,
-  options: AdjacentCloseBatcherOptions = {}
+  options: AdjacentCloseBatcherOptions = {},
 ): AdjacentCloseBatcher {
   const schedule = options.schedule ?? queueMicrotask
   const pending = new Set<number>()
@@ -72,7 +72,7 @@ export function createAdjacentCloseBatcher(
     if (result && typeof result.then === 'function') {
       void Promise.resolve(result).then(
         () => finishDrain(tabIds),
-        () => finishDrain(tabIds)
+        () => finishDrain(tabIds),
       )
       return
     }

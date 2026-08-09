@@ -19,9 +19,9 @@ test('a dupe stack with one live copy is not suspended', () => {
   const chip = dashboardChipFor(
     [
       makeDashboardTab({ id: 1, url: 'https://example.com/a', suspended: true }),
-      makeDashboardTab({ id: 2, url: 'https://example.com/a', windowId: 2 })
+      makeDashboardTab({ id: 2, url: 'https://example.com/a', windowId: 2 }),
     ],
-    'https://example.com/a'
+    'https://example.com/a',
   )
   assert.ok(chip)
   assert.equal(chip.dupeCount, 2)
@@ -32,9 +32,9 @@ test('a dupe stack of only suspended copies is suspended', () => {
   const chip = dashboardChipFor(
     [
       makeDashboardTab({ id: 1, url: 'https://example.com/a', suspended: true }),
-      makeDashboardTab({ id: 2, url: 'https://example.com/a', windowId: 2, suspended: true })
+      makeDashboardTab({ id: 2, url: 'https://example.com/a', windowId: 2, suspended: true }),
     ],
-    'https://example.com/a'
+    'https://example.com/a',
   )
   assert.ok(chip)
   assert.equal(chip.dupeCount, 2)
@@ -44,7 +44,7 @@ test('a dupe stack of only suspended copies is suspended', () => {
 test('a closed saved page chip is not suspended', () => {
   const chip = dashboardChipFor(
     [makeDashboardTab({ id: 'saved:1', url: 'https://example.com/a', windowId: 0, sourceType: 'saved-page', saved: true, closedSaved: true })],
-    'https://example.com/a'
+    'https://example.com/a',
   )
   assert.ok(chip)
   assert.ok(!chip.suspended)
@@ -54,9 +54,9 @@ test('a title-variant group with a live variant is not suspended', () => {
   const chip = dashboardChipFor(
     [
       makeDashboardTab({ id: 1, url: 'https://example.com/a', title: 'Same Title', suspended: true }),
-      makeDashboardTab({ id: 2, url: 'https://example.com/b', title: 'Same Title' })
+      makeDashboardTab({ id: 2, url: 'https://example.com/b', title: 'Same Title' }),
     ],
-    'https://example.com/a'
+    'https://example.com/a',
   )
   assert.ok(chip)
   assert.equal(chip.titleVariantChips?.length, 2)
@@ -67,9 +67,9 @@ test('a title-variant group of suspended variants is suspended', () => {
   const chip = dashboardChipFor(
     [
       makeDashboardTab({ id: 1, url: 'https://example.com/a', title: 'Same Title', suspended: true }),
-      makeDashboardTab({ id: 2, url: 'https://example.com/b', title: 'Same Title', suspended: true })
+      makeDashboardTab({ id: 2, url: 'https://example.com/b', title: 'Same Title', suspended: true }),
     ],
-    'https://example.com/a'
+    'https://example.com/a',
   )
   assert.ok(chip)
   assert.equal(chip.titleVariantChips?.length, 2)
@@ -80,9 +80,9 @@ test('a folded env chip with a live env is not suspended', () => {
   const chip = dashboardChipFor(
     [
       makeDashboardTab({ id: 1, url: 'https://dev.example.com/app', title: 'Example App', suspended: true }),
-      makeDashboardTab({ id: 2, url: 'https://qa.example.com/app', title: 'Example App' })
+      makeDashboardTab({ id: 2, url: 'https://qa.example.com/app', title: 'Example App' }),
     ],
-    'https://dev.example.com/app'
+    'https://dev.example.com/app',
   )
   assert.ok(chip)
   assert.equal(chip.envs?.length, 2)
@@ -93,9 +93,9 @@ test('a folded env chip of suspended envs is suspended', () => {
   const chip = dashboardChipFor(
     [
       makeDashboardTab({ id: 1, url: 'https://dev.example.com/app', title: 'Example App', suspended: true }),
-      makeDashboardTab({ id: 2, url: 'https://qa.example.com/app', title: 'Example App', suspended: true })
+      makeDashboardTab({ id: 2, url: 'https://qa.example.com/app', title: 'Example App', suspended: true }),
     ],
-    'https://dev.example.com/app'
+    'https://dev.example.com/app',
   )
   assert.ok(chip)
   assert.equal(chip.envs?.length, 2)

@@ -9,17 +9,17 @@ import {
   type SavedPageRecord,
   type SavedPageSurfaceKind,
   type SavedPagesStore,
-  type SavedPagesStoreLoadResult
+  type SavedPagesStoreLoadResult,
 } from './saved-pages.js'
 
 const savedPagesStoreEnvelopeV1Schema = Schema.Struct({
   version: Schema.Literals([1]),
-  pages: Schema.Record(Schema.String, Schema.Unknown)
+  pages: Schema.Record(Schema.String, Schema.Unknown),
 })
 
 const savedPagesStoreEnvelopeV2Schema = Schema.Struct({
   version: Schema.Literals([2]),
-  pages: Schema.Record(Schema.String, Schema.Unknown)
+  pages: Schema.Record(Schema.String, Schema.Unknown),
 })
 
 const savedPageRecordV1CandidateSchema = Schema.Struct({
@@ -29,7 +29,7 @@ const savedPageRecordV1CandidateSchema = Schema.Struct({
   favIconUrl: Schema.optionalKey(Schema.Unknown),
   savedAt: Schema.optionalKey(Schema.Unknown),
   updatedAt: Schema.optionalKey(Schema.Unknown),
-  lastSeenOpenAt: Schema.optionalKey(Schema.Unknown)
+  lastSeenOpenAt: Schema.optionalKey(Schema.Unknown),
 })
 
 const savedPageRecordV2CandidateSchema = Schema.Struct({
@@ -40,7 +40,7 @@ const savedPageRecordV2CandidateSchema = Schema.Struct({
   favIconUrl: Schema.optionalKey(Schema.Unknown),
   savedAt: Schema.optionalKey(Schema.Unknown),
   updatedAt: Schema.optionalKey(Schema.Unknown),
-  lastSeenOpenAt: Schema.optionalKey(Schema.Unknown)
+  lastSeenOpenAt: Schema.optionalKey(Schema.Unknown),
 })
 
 type SavedPagesStoreEnvelopeV1 = typeof savedPagesStoreEnvelopeV1Schema.Type
@@ -53,7 +53,7 @@ const isSavedPageRecordV2Candidate = Schema.is(savedPageRecordV2CandidateSchema)
 
 class SavedPagesStoreReadError extends Schema.TaggedErrorClass<SavedPagesStoreReadError>()(
   'SavedPagesStoreReadError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 function finiteNumberOr(value: unknown, fallback: number): number {
@@ -72,7 +72,7 @@ type SavedPageRecordFields = {
 
 function normalizeSavedPageRecord(
   record: SavedPageRecordFields,
-  surfaceKind: SavedPageSurfaceKind
+  surfaceKind: SavedPageSurfaceKind,
 ): SavedPageRecord | null {
   const recordUrl = record.url || ''
   const key = savedPageKeyForUrl(recordUrl || record.key, surfaceKind)
@@ -89,7 +89,7 @@ function normalizeSavedPageRecord(
     updatedAt,
     ...(typeof record.lastSeenOpenAt === 'number' && Number.isFinite(record.lastSeenOpenAt)
       ? { lastSeenOpenAt: record.lastSeenOpenAt }
-      : {})
+      : {}),
   }
 }
 
@@ -132,11 +132,11 @@ function savedPagesStorageArea(): chrome.storage.StorageArea {
 }
 
 export const loadSavedPagesStoreResultEffect = Effect.fn(
-  'savedPages.loadStore'
-)(function*() {
+  'savedPages.loadStore',
+)(function* () {
   const stored = yield* Effect.result(Effect.tryPromise({
     try: () => savedPagesStorageArea().get(SAVED_PAGES_STORAGE_KEY),
-    catch: (cause) => SavedPagesStoreReadError.make({ cause })
+    catch: (cause) => SavedPagesStoreReadError.make({ cause }),
   }))
   if (Result.isFailure(stored)) {
     return { ok: false, value: emptySavedPagesStore() }
@@ -150,8 +150,8 @@ export function loadSavedPagesStoreResult(): Promise<SavedPagesStoreLoadResult> 
 
 /** Compatibility loader for optional consumers that intentionally accept empty fallback state. */
 export const loadSavedPagesStoreEffect = Effect.fn(
-  'savedPages.loadStoreValue'
-)(function*() {
+  'savedPages.loadStoreValue',
+)(function* () {
   return (yield* loadSavedPagesStoreResultEffect()).value
 })
 

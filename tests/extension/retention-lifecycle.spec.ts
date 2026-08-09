@@ -4,29 +4,29 @@ import { RETAINED_PAGES_EXPIRY_ALARM } from '../../src/extension/background/reta
 import {
   createClosureToken,
   createRetainedPageIdentity,
-  type RetainedPageSurfaceKind
+  type RetainedPageSurfaceKind,
 } from '../../src/extension/retained-page-identity.js'
 import {
   recordRetainedPageClosure,
-  RETAINED_PAGE_LIFETIME_MS
+  RETAINED_PAGE_LIFETIME_MS,
 } from '../../src/extension/retained-pages-ledger.js'
 import type {
   RetainedPageLedger,
-  RetainedPageRecord
+  RetainedPageRecord,
 } from '../../src/extension/retained-pages-ledger.js'
 import {
   decodeRetainedPageLedgerStorageValue,
   encodeRetainedPageLedgerStorageValue,
   parseRetainedPageLedgerValue,
-  RETAINED_PAGES_STORAGE_KEY
+  RETAINED_PAGES_STORAGE_KEY,
 } from '../../src/extension/retained-pages-storage.js'
 import {
-  RETAINED_PAGES_REMOVE_MESSAGE
+  RETAINED_PAGES_REMOVE_MESSAGE,
 } from '../../src/extension/runtime-messages.js'
 import {
   expect,
   test,
-  type InstalledExtension
+  type InstalledExtension,
 } from './installed-extension.js'
 
 const DURABLE_INVENTORY_STORAGE_KEY = 'tabOutOpenSurfacesDurableV1'
@@ -50,7 +50,7 @@ async function findTabId(worker: Worker, url: string): Promise<number> {
 async function waitForDurableInventoryEntry(
   worker: Worker,
   tabId: number,
-  url: string
+  url: string,
 ): Promise<void> {
   await expect.poll(() => worker.evaluate(async ({ key, nextTabId, targetUrl }) => {
     const stored = await chrome.storage.local.get(key)
@@ -61,20 +61,20 @@ async function waitForDurableInventoryEntry(
   }, {
     key: DURABLE_INVENTORY_STORAGE_KEY,
     nextTabId: tabId,
-    targetUrl: url
+    targetUrl: url,
   })).toBe(true)
 }
 
 async function retainedPageForUrl(
   worker: Worker,
-  url: string
+  url: string,
 ): Promise<InstalledRetainedPage | null> {
   const raw = await worker.evaluate(async (key) => {
     const stored = await chrome.storage.local.get(key)
     return stored[key] as unknown
   }, RETAINED_PAGES_STORAGE_KEY)
   const parsed = parseRetainedPageLedgerValue(
-    await decodeRetainedPageLedgerStorageValue(raw)
+    await decodeRetainedPageLedgerStorageValue(raw),
   )
   if (parsed.status !== 'valid') return null
   return Object.values(parsed.ledger.pages).find((page) => page.url === url) ?? null
@@ -83,14 +83,14 @@ async function retainedPageForUrl(
 async function writeRetainedPageClosureTime(
   worker: Worker,
   url: string,
-  closedAt: number
+  closedAt: number,
 ): Promise<InstalledRetainedPage> {
   const raw = await worker.evaluate(async (key) => {
     const stored = await chrome.storage.local.get(key)
     return stored[key] as unknown
   }, RETAINED_PAGES_STORAGE_KEY)
   const parsed = parseRetainedPageLedgerValue(
-    await decodeRetainedPageLedgerStorageValue(raw)
+    await decodeRetainedPageLedgerStorageValue(raw),
   )
   if (parsed.status !== 'valid') {
     throw new Error(`Cannot rewrite ${url}: retained ledger is ${parsed.status}`)
@@ -103,8 +103,8 @@ async function writeRetainedPageClosureTime(
     ...parsed.ledger,
     pages: {
       ...parsed.ledger.pages,
-      [identityDigest]: { ...page, closedAt }
-    }
+      [identityDigest]: { ...page, closedAt },
+    },
   }
   const encoded = await encodeRetainedPageLedgerStorageValue(rewritten)
   await worker.evaluate(async ({ key, value }) => {
@@ -119,15 +119,15 @@ async function seedRetainedPages(
     surfaceKind: RetainedPageSurfaceKind
     title: string
     url: string
-  }[]
+  }[],
 ): Promise<readonly InstalledRetainedPage[]> {
   const { runtimeId, stored } = await worker.evaluate(async (key) => ({
     runtimeId: chrome.runtime.id,
-    stored: (await chrome.storage.local.get(key))[key] as unknown
+    stored: (await chrome.storage.local.get(key))[key] as unknown,
   }), RETAINED_PAGES_STORAGE_KEY)
   const seededAt = Date.now()
   const parsed = parseRetainedPageLedgerValue(
-    await decodeRetainedPageLedgerStorageValue(stored)
+    await decodeRetainedPageLedgerStorageValue(stored),
   )
   if (parsed.status !== 'valid' && parsed.status !== 'missing') {
     throw new Error(`Cannot seed retained pages: retained ledger is ${parsed.status}`)
@@ -145,7 +145,7 @@ async function seedRetainedPages(
       url: identity.url,
       title: candidate.title,
       closedAt: seededAt - candidates.length + index,
-      closureToken: createClosureToken()
+      closureToken: createClosureToken(),
     }
     const transition = recordRetainedPageClosure(ledger, record)
     if (!transition.changed || transition.outcome !== 'inserted') {
@@ -164,8 +164,8 @@ async function seedRetainedPages(
 
 async function closePageAndWaitForRetentionDetails(
   installedExtension: InstalledExtension,
-  targetUrl: string
-): Promise<{ retainedPage: InstalledRetainedPage; tabId: number }> {
+  targetUrl: string,
+): Promise<{ retainedPage: InstalledRetainedPage, tabId: number }> {
   const target = await installedExtension.context.newPage()
   await target.goto(targetUrl, { waitUntil: 'domcontentloaded' })
   await expect(target).toHaveURL(targetUrl)
@@ -176,11 +176,11 @@ async function closePageAndWaitForRetentionDetails(
 
   await expect.poll(() => retainedPageForUrl(
     installedExtension.serviceWorker,
-    targetUrl
+    targetUrl,
   )).not.toBeNull()
   const retainedPage = await retainedPageForUrl(
     installedExtension.serviceWorker,
-    targetUrl
+    targetUrl,
   )
   if (!retainedPage) throw new Error(`Closed internal page was not retained: ${targetUrl}`)
   return { retainedPage, tabId }
@@ -188,28 +188,28 @@ async function closePageAndWaitForRetentionDetails(
 
 async function closePageAndWaitForRetention(
   installedExtension: InstalledExtension,
-  targetUrl: string
+  targetUrl: string,
 ): Promise<InstalledRetainedPage> {
   return (await closePageAndWaitForRetentionDetails(
     installedExtension,
-    targetUrl
+    targetUrl,
   )).retainedPage
 }
 
 test('real chrome APIs retain, present, and remove a closed internal page', async ({
-  installedExtension
+  installedExtension,
 }) => {
   const targetUrl = 'chrome://settings/privacy'
   const retainedPage = await closePageAndWaitForRetention(
     installedExtension,
-    targetUrl
+    targetUrl,
   )
   expect(retainedPage.title).not.toBe('')
 
   const dashboard = await installedExtension.context.newPage()
   await dashboard.goto(
     `chrome-extension://${installedExtension.extensionId}/index.html`,
-    { waitUntil: 'domcontentloaded' }
+    { waitUntil: 'domcontentloaded' },
   )
   const chip = dashboard.locator('[data-tabout="page-chip"]')
     .filter({ hasText: retainedPage.title })
@@ -231,40 +231,40 @@ test('real chrome APIs retain, present, and remove a closed internal page', asyn
   await expect(dashboard.getByRole('button', { name: 'Undo' })).toHaveCount(0)
   await expect.poll(() => retainedPageForUrl(
     installedExtension.serviceWorker,
-    targetUrl
+    targetUrl,
   )).toBeNull()
   await expect(chip).toHaveCount(0)
   await dashboard.close()
 })
 
 test('a real Domain Card menu removes two retained pages in one batch', async ({
-  installedExtension
+  installedExtension,
 }) => {
   const firstUrl = 'chrome://settings/privacy'
   const secondUrl = 'chrome://settings/languages'
   const firstRetainedPage = await closePageAndWaitForRetention(
     installedExtension,
-    firstUrl
+    firstUrl,
   )
   const secondRetainedPage = await closePageAndWaitForRetention(
     installedExtension,
-    secondUrl
+    secondUrl,
   )
 
   const dashboard = await installedExtension.context.newPage()
   await dashboard.goto(
     `chrome-extension://${installedExtension.extensionId}/index.html`,
-    { waitUntil: 'domcontentloaded' }
+    { waitUntil: 'domcontentloaded' },
   )
   const firstChip = dashboard.locator(
-    `[data-tabout="page-chip"][data-tabout-retained-page-identity="${firstRetainedPage.identityDigest}"]`
+    `[data-tabout="page-chip"][data-tabout-retained-page-identity="${firstRetainedPage.identityDigest}"]`,
   )
   const secondChip = dashboard.locator(
-    `[data-tabout="page-chip"][data-tabout-retained-page-identity="${secondRetainedPage.identityDigest}"]`
+    `[data-tabout="page-chip"][data-tabout-retained-page-identity="${secondRetainedPage.identityDigest}"]`,
   )
   await Promise.all([
     expect(firstChip).toBeVisible(),
-    expect(secondChip).toBeVisible()
+    expect(secondChip).toBeVisible(),
   ])
   const card = dashboard.locator('[data-tabout="domain-card"]', { has: firstChip })
   await expect(card).toContainText('2 closed')
@@ -278,14 +278,14 @@ test('a real Domain Card menu removes two retained pages in one batch', async ({
     expect(dashboard.getByText('Removed 2 from Tabs', { exact: true })).toBeVisible(),
     expect.poll(() => retainedPageForUrl(
       installedExtension.serviceWorker,
-      firstUrl
+      firstUrl,
     )).toBeNull(),
     expect.poll(() => retainedPageForUrl(
       installedExtension.serviceWorker,
-      secondUrl
+      secondUrl,
     )).toBeNull(),
     expect(firstChip).toHaveCount(0),
-    expect(secondChip).toHaveCount(0)
+    expect(secondChip).toHaveCount(0),
   ])
   await expect(card).toHaveCount(0)
   await expect(dashboard.getByRole('button', { name: 'Undo' })).toHaveCount(0)
@@ -295,7 +295,7 @@ test('a real Domain Card menu removes two retained pages in one batch', async ({
 })
 
 test('two live dashboards converge after physical retention and exact removal', async ({
-  installedExtension
+  installedExtension,
 }) => {
   const dashboardUrl =
     `chrome-extension://${installedExtension.extensionId}/index.html`
@@ -303,11 +303,11 @@ test('two live dashboards converge after physical retention and exact removal', 
   const secondDashboard = await installedExtension.context.newPage()
   await Promise.all([
     firstDashboard.goto(dashboardUrl, { waitUntil: 'domcontentloaded' }),
-    secondDashboard.goto(dashboardUrl, { waitUntil: 'domcontentloaded' })
+    secondDashboard.goto(dashboardUrl, { waitUntil: 'domcontentloaded' }),
   ])
   await Promise.all([
     expect(firstDashboard.locator('[data-tabout="dashboard-shell"]')).toBeVisible(),
-    expect(secondDashboard.locator('[data-tabout="dashboard-shell"]')).toBeVisible()
+    expect(secondDashboard.locator('[data-tabout="dashboard-shell"]')).toBeVisible(),
   ])
   await firstDashboard.evaluate(() => {
     ;(window as typeof window & { __retentionConvergenceDocument?: string })
@@ -321,7 +321,7 @@ test('two live dashboards converge after physical retention and exact removal', 
   const targetUrl = 'chrome://settings/languages'
   const retainedPage = await closePageAndWaitForRetention(
     installedExtension,
-    targetUrl
+    targetUrl,
   )
   const firstChip = firstDashboard.locator('[data-tabout="page-chip"]')
     .filter({ hasText: retainedPage.title })
@@ -331,13 +331,13 @@ test('two live dashboards converge after physical retention and exact removal', 
     .first()
   await Promise.all([
     expect(firstChip).toBeVisible(),
-    expect(secondChip).toBeVisible()
+    expect(secondChip).toBeVisible(),
   ])
   await Promise.all([
     expect(firstDashboard.locator('[data-tabout="domain-card"]', { has: firstChip }))
       .toContainText('1 closed'),
     expect(secondDashboard.locator('[data-tabout="domain-card"]', { has: secondChip }))
-      .toContainText('1 closed')
+      .toContainText('1 closed'),
   ])
 
   await firstChip.click({ button: 'right' })
@@ -347,14 +347,14 @@ test('two live dashboards converge after physical retention and exact removal', 
     expect(firstDashboard.getByText('Removed from Tabs', { exact: true })).toBeVisible(),
     expect.poll(() => retainedPageForUrl(
       installedExtension.serviceWorker,
-      targetUrl
+      targetUrl,
     )).toBeNull(),
     expect(firstChip).toHaveCount(0),
-    expect(secondChip).toHaveCount(0)
+    expect(secondChip).toHaveCount(0),
   ])
   await Promise.all([
     expect(firstDashboard.getByRole('button', { name: 'Undo' })).toHaveCount(0),
-    expect(secondDashboard.getByRole('button', { name: 'Undo' })).toHaveCount(0)
+    expect(secondDashboard.getByRole('button', { name: 'Undo' })).toHaveCount(0),
   ])
   expect(await firstDashboard.evaluate(() => (
     window as typeof window & { __retentionConvergenceDocument?: string }
@@ -370,7 +370,7 @@ test('two live dashboards converge after physical retention and exact removal', 
 })
 
 test('the production earliest-expiry alarm durably prunes a retained page', async ({
-  installedExtension
+  installedExtension,
 }) => {
   const dashboardUrl =
     `chrome-extension://${installedExtension.extensionId}/index.html`
@@ -385,7 +385,7 @@ test('the production earliest-expiry alarm durably prunes a retained page', asyn
   const targetUrl = 'chrome://downloads/'
   const { retainedPage } = await closePageAndWaitForRetentionDetails(
     installedExtension,
-    targetUrl
+    targetUrl,
   )
   const chip = dashboard.locator('[data-tabout="page-chip"]')
     .filter({ hasText: retainedPage.title })
@@ -398,7 +398,7 @@ test('the production earliest-expiry alarm durably prunes a retained page', asyn
   const rewritten = await writeRetainedPageClosureTime(
     installedExtension.serviceWorker,
     targetUrl,
-    expiresAt - RETAINED_PAGE_LIFETIME_MS
+    expiresAt - RETAINED_PAGE_LIFETIME_MS,
   )
   await expect.poll(async () => (
     await retainedPageForUrl(installedExtension.serviceWorker, targetUrl)
@@ -410,11 +410,11 @@ test('the production earliest-expiry alarm durably prunes a retained page', asyn
       type: messageType,
       snapshots: [{
         identityDigest: 'absent-expiry-synchronization',
-        closureToken: 'absent-expiry-synchronization'
-      }]
+        closureToken: 'absent-expiry-synchronization',
+      }],
     })
   ), {
-    messageType: RETAINED_PAGES_REMOVE_MESSAGE
+    messageType: RETAINED_PAGES_REMOVE_MESSAGE,
   })
   expect(synchronization).toEqual({ ok: true, outcomes: ['already-absent'] })
 
@@ -425,15 +425,15 @@ test('the production earliest-expiry alarm durably prunes a retained page', asyn
       : null
   }, RETAINED_PAGES_EXPIRY_ALARM)).toEqual({
     name: RETAINED_PAGES_EXPIRY_ALARM,
-    scheduledTime: expiresAt
+    scheduledTime: expiresAt,
   })
 
   await expect.poll(() => retainedPageForUrl(
     installedExtension.serviceWorker,
-    targetUrl
+    targetUrl,
   ), {
     timeout: 10_000,
-    intervals: [50, 100, 200, 500]
+    intervals: [50, 100, 200, 500],
   }).toBeNull()
   await expect(chip).toHaveCount(0)
   await expect.poll(() => installedExtension.serviceWorker.evaluate(async (name) => (
@@ -451,7 +451,7 @@ test('the production earliest-expiry alarm durably prunes a retained page', asyn
 })
 
 test('an app retained snapshot falls back to one exact ordinary tab', async ({
-  installedExtension
+  installedExtension,
 }) => {
   const targetUrl = 'chrome://settings/accessibility'
   const companionUrl = 'chrome://settings/system'
@@ -461,14 +461,14 @@ test('an app retained snapshot falls back to one exact ordinary tab', async ({
       {
         surfaceKind: 'app',
         title: 'Example App Target',
-        url: targetUrl
+        url: targetUrl,
       },
       {
         surfaceKind: 'app',
         title: 'Example App Companion',
-        url: companionUrl
-      }
-    ]
+        url: companionUrl,
+      },
+    ],
   )
   if (!targetRecord || !companionRecord) {
     throw new Error('App retained fixtures were not seeded')
@@ -477,7 +477,7 @@ test('an app retained snapshot falls back to one exact ordinary tab', async ({
   const dashboard = await installedExtension.context.newPage()
   await dashboard.goto(
     `chrome-extension://${installedExtension.extensionId}/index.html`,
-    { waitUntil: 'domcontentloaded' }
+    { waitUntil: 'domcontentloaded' },
   )
   const targetChip = dashboard.locator('[data-tabout="page-chip"]')
     .filter({ hasText: targetRecord.title })
@@ -487,7 +487,7 @@ test('an app retained snapshot falls back to one exact ordinary tab', async ({
     .first()
   await Promise.all([
     expect(targetChip).toBeVisible(),
-    expect(companionChip).toBeVisible()
+    expect(companionChip).toBeVisible(),
   ])
   await expect(dashboard.locator('[data-tabout="domain-card"]', { has: targetChip }))
     .toContainText('2 closed')
@@ -500,19 +500,19 @@ test('an app retained snapshot falls back to one exact ordinary tab', async ({
   await expect.poll(() => installedExtension.serviceWorker.evaluate(async (url) => {
     const tabs = (await chrome.tabs.query({})).filter((tab) => tab.url === url)
     const windowTypes = new Map(
-      (await chrome.windows.getAll()).map((window) => [window.id, window.type])
+      (await chrome.windows.getAll()).map((window) => [window.id, window.type]),
     )
     return tabs.map((tab) => ({
       url: tab.url,
-      windowType: windowTypes.get(tab.windowId)
+      windowType: windowTypes.get(tab.windowId),
     }))
   }, targetUrl)).toEqual([{
     url: targetUrl,
-    windowType: 'normal'
+    windowType: 'normal',
   }])
   await expect.poll(() => retainedPageForUrl(
     installedExtension.serviceWorker,
-    targetUrl
+    targetUrl,
   )).toBeNull()
   await expect.poll(async () => (
     await retainedPageForUrl(installedExtension.serviceWorker, companionUrl)
@@ -529,7 +529,7 @@ test('an app retained snapshot falls back to one exact ordinary tab', async ({
   await dashboard.getByRole('menuitem', { name: 'Remove from Tabs' }).click()
   await expect.poll(() => retainedPageForUrl(
     installedExtension.serviceWorker,
-    companionUrl
+    companionUrl,
   )).toBeNull()
 
   await installedExtension.serviceWorker.evaluate(async (tabId) => {
@@ -543,7 +543,7 @@ test('an app retained snapshot falls back to one exact ordinary tab', async ({
     return Object.hasOwn(inventory?.entries ?? {}, String(tabId))
   }, {
     key: DURABLE_INVENTORY_STORAGE_KEY,
-    tabId: targetTabId
+    tabId: targetTabId,
   })).toBe(false)
   await installedExtension.serviceWorker.evaluate(async (tabId) => {
     await chrome.tabs.remove(tabId)
@@ -553,28 +553,28 @@ test('an app retained snapshot falls back to one exact ordinary tab', async ({
   ), targetTabId)).toBe(false)
   await expect.poll(() => retainedPageForUrl(
     installedExtension.serviceWorker,
-    targetUrl
+    targetUrl,
   )).toBeNull()
   expect(installedExtension.runtimeErrors()).toEqual([])
   await dashboard.close()
 })
 
 test('real chrome APIs reopen the exact retained target and consume its snapshot', async ({
-  installedExtension
+  installedExtension,
 }) => {
   const targetUrl = 'chrome://settings/appearance'
   const retainedPage = await closePageAndWaitForRetention(
     installedExtension,
-    targetUrl
+    targetUrl,
   )
   expect(
-    installedExtension.context.pages().some((page) => page.url() === targetUrl)
+    installedExtension.context.pages().some((page) => page.url() === targetUrl),
   ).toBe(false)
 
   const dashboard = await installedExtension.context.newPage()
   await dashboard.goto(
     `chrome-extension://${installedExtension.extensionId}/index.html`,
-    { waitUntil: 'domcontentloaded' }
+    { waitUntil: 'domcontentloaded' },
   )
   const chip = dashboard.locator('[data-tabout="page-chip"]')
     .filter({ hasText: retainedPage.title })
@@ -587,7 +587,7 @@ test('real chrome APIs reopen the exact retained target and consume its snapshot
   ), targetUrl)).toBe(true)
   await expect.poll(() => retainedPageForUrl(
     installedExtension.serviceWorker,
-    targetUrl
+    targetUrl,
   )).toBeNull()
 
   await dashboard.bringToFront()

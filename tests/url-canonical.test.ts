@@ -15,8 +15,8 @@ const projectKeyArbitrary = fc
     uppercaseLetterArbitrary,
     fc.array(fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), {
       minLength: 1,
-      maxLength: 8
-    })
+      maxLength: 8,
+    }),
   )
   .map(([first, rest]) => `${first}${rest.join('')}`)
 
@@ -37,13 +37,13 @@ test('Jira comment canonicalization holds across generated issue and comment ids
 
         assert.equal(
           canonicalDedupeKey(
-            `${issue}?focusedCommentId=${commentId}&sourceType=mention&page=comment-panel#comment-${commentId}`
+            `${issue}?focusedCommentId=${commentId}&sourceType=mention&page=comment-panel#comment-${commentId}`,
           ),
-          expected
+          expected,
         )
         assert.equal(canonicalDedupeKey(`${issue}#comment-${commentId}`), expected)
-      }
-    )
+      },
+    ),
   )
 })
 
@@ -82,9 +82,9 @@ test('GitHub repository root canonicalization holds across generated identities'
 
       assert.equal(
         canonicalDedupeKey(`${repository}/${suffix}`),
-        canonicalDedupeKey(`${repository}${suffix}`)
+        canonicalDedupeKey(`${repository}${suffix}`),
       )
-    })
+    }),
   )
 })
 
@@ -122,7 +122,7 @@ test('canonical URL keys are idempotent for arbitrary input', () => {
     fc.property(fc.string(), (url) => {
       const canonicalUrl = canonicalDedupeKey(url)
       assert.equal(canonicalDedupeKey(canonicalUrl), canonicalUrl)
-    })
+    }),
   )
 })
 
@@ -152,7 +152,7 @@ test('chrome://newtab/ folds into the Tab Out dashboard key', () => {
   withExtensionId('tab-out', () => {
     assert.equal(
       canonicalDedupeKey('chrome://newtab/'),
-      'chrome-extension://tab-out/index.html'
+      'chrome-extension://tab-out/index.html',
     )
   })
 })
@@ -161,7 +161,7 @@ test('other Chrome new-tab implementation URLs remain exact', () => {
   withExtensionId('tab-out', () => {
     for (const url of [
       'chrome-search://local-ntp/local-ntp.html',
-      'chrome-untrusted://new-tab-page/'
+      'chrome-untrusted://new-tab-page/',
     ]) {
       assert.equal(canonicalDedupeKey(url), url)
     }

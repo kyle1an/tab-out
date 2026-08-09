@@ -13,52 +13,52 @@ import type { DashboardChipData } from './types'
 export {
   emptyTitleSuppressionToneScope,
   titleSuppressionKey,
-  titleSuppressionToneForText
+  titleSuppressionToneForText,
 } from '../extension/title-suppression-tones.js'
 export type { TitleSuppressionTone, TitleSuppressionToneScope } from '../extension/title-suppression-tones.js'
 
 export const TITLE_SUPPRESSION_MARKER_SYMBOL = '˷'
 
-const TITLE_SUPPRESSION_TOKEN_TONES: Record<TitleSuppressionTone, { base: string; marker: string; active: string }> = {
+const TITLE_SUPPRESSION_TOKEN_TONES: Record<TitleSuppressionTone, { base: string, marker: string, active: string }> = {
   amber: {
     base: 'title-suppression-token-tone-amber border-yellow-50 bg-yellow-50 text-muted-foreground hover:border-yellow-100 hover:bg-yellow-50 hover:text-foreground focus-visible:outline-yellow-200',
     marker: 'title-suppression-token-tone-amber border-yellow-50 bg-yellow-50 text-muted-foreground',
-    active: 'border-yellow-100 bg-yellow-50 text-foreground ring-1 ring-inset ring-yellow-50'
+    active: 'border-yellow-100 bg-yellow-50 text-foreground ring-1 ring-inset ring-yellow-50',
   },
   teal: {
     base: 'title-suppression-token-tone-teal border-teal-50 bg-teal-50 text-muted-foreground hover:border-teal-100 hover:bg-teal-50 hover:text-foreground focus-visible:outline-teal-200',
     marker: 'title-suppression-token-tone-teal border-teal-50 bg-teal-50 text-muted-foreground',
-    active: 'border-teal-100 bg-teal-50 text-foreground ring-1 ring-inset ring-teal-50'
+    active: 'border-teal-100 bg-teal-50 text-foreground ring-1 ring-inset ring-teal-50',
   },
   sky: {
     base: 'title-suppression-token-tone-sky border-sky-50 bg-sky-50 text-muted-foreground hover:border-sky-100 hover:bg-sky-50 hover:text-foreground focus-visible:outline-sky-200',
     marker: 'title-suppression-token-tone-sky border-sky-50 bg-sky-50 text-muted-foreground',
-    active: 'border-sky-100 bg-sky-50 text-foreground ring-1 ring-inset ring-sky-50'
+    active: 'border-sky-100 bg-sky-50 text-foreground ring-1 ring-inset ring-sky-50',
   },
   rose: {
     base: 'title-suppression-token-tone-rose border-rose-50 bg-rose-50 text-muted-foreground hover:border-rose-100 hover:bg-rose-50 hover:text-foreground focus-visible:outline-rose-200',
     marker: 'title-suppression-token-tone-rose border-rose-50 bg-rose-50 text-muted-foreground',
-    active: 'border-rose-100 bg-rose-50 text-foreground ring-1 ring-inset ring-rose-50'
-  }
+    active: 'border-rose-100 bg-rose-50 text-foreground ring-1 ring-inset ring-rose-50',
+  },
 }
 
-const TITLE_SUPPRESSION_HIGHLIGHT_TONES: Record<TitleSuppressionTone, { chip: string; badge: string }> = {
+const TITLE_SUPPRESSION_HIGHLIGHT_TONES: Record<TitleSuppressionTone, { chip: string, badge: string }> = {
   amber: {
     chip: 'bg-yellow-50 ring-1 ring-inset ring-yellow-50',
-    badge: 'border-yellow-50 bg-yellow-50'
+    badge: 'border-yellow-50 bg-yellow-50',
   },
   teal: {
     chip: 'bg-teal-50 ring-1 ring-inset ring-teal-50',
-    badge: 'border-teal-50 bg-teal-50'
+    badge: 'border-teal-50 bg-teal-50',
   },
   sky: {
     chip: 'bg-sky-50 ring-1 ring-inset ring-sky-50',
-    badge: 'border-sky-50 bg-sky-50'
+    badge: 'border-sky-50 bg-sky-50',
   },
   rose: {
     chip: 'bg-rose-50 ring-1 ring-inset ring-rose-50',
-    badge: 'border-rose-50 bg-rose-50'
-  }
+    badge: 'border-rose-50 bg-rose-50',
+  },
 }
 
 export function titleSuppressionTokenToneClass(index: number, enabled: boolean, active: boolean) {

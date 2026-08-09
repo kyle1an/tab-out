@@ -20,7 +20,7 @@ export type DashboardLocalStateLoadResult = {
 export const DASHBOARD_LOCAL_STORAGE_KEYS = [
   DOMAIN_PIN_STORAGE_KEY,
   SECTION_PIN_STORAGE_KEY,
-  PAGE_CHIP_PIN_STORAGE_KEY
+  PAGE_CHIP_PIN_STORAGE_KEY,
 ] as const
 
 const dashboardLocalStoragePinValueSchema = Schema.UndefinedOr(Schema.Array(Schema.Unknown))
@@ -28,7 +28,7 @@ const dashboardLocalStoragePinValueSchema = Schema.UndefinedOr(Schema.Array(Sche
 const storedDashboardLocalStateSchema = Schema.Struct({
   [DOMAIN_PIN_STORAGE_KEY]: Schema.optionalKey(dashboardLocalStoragePinValueSchema),
   [SECTION_PIN_STORAGE_KEY]: Schema.optionalKey(dashboardLocalStoragePinValueSchema),
-  [PAGE_CHIP_PIN_STORAGE_KEY]: Schema.optionalKey(dashboardLocalStoragePinValueSchema)
+  [PAGE_CHIP_PIN_STORAGE_KEY]: Schema.optionalKey(dashboardLocalStoragePinValueSchema),
 })
 
 type StoredDashboardLocalState = typeof storedDashboardLocalStateSchema.Type
@@ -38,7 +38,7 @@ const isStoredDashboardLocalStoragePinValue = Schema.is(dashboardLocalStoragePin
 
 class DashboardLocalStateReadError extends Schema.TaggedErrorClass<DashboardLocalStateReadError>()(
   'DashboardLocalStateReadError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 export function isDashboardLocalStoragePinValue(value: unknown): boolean {
@@ -50,7 +50,7 @@ export function emptyDashboardLocalState(loaded = false): DashboardLocalState {
     loaded,
     pinnedDomains: [],
     pinnedSectionIds: [],
-    pinnedPageChipIds: []
+    pinnedPageChipIds: [],
   }
 }
 
@@ -59,7 +59,7 @@ function dashboardLocalStateFromStorage(stored: StoredDashboardLocalState): Dash
     loaded: true,
     pinnedDomains: normalizePinnedDomains(stored[DOMAIN_PIN_STORAGE_KEY]),
     pinnedSectionIds: normalizePinnedSections(stored[SECTION_PIN_STORAGE_KEY]),
-    pinnedPageChipIds: normalizePinnedPageChips(stored[PAGE_CHIP_PIN_STORAGE_KEY])
+    pinnedPageChipIds: normalizePinnedPageChips(stored[PAGE_CHIP_PIN_STORAGE_KEY]),
   }
 }
 
@@ -70,14 +70,14 @@ export function validDashboardLocalStateFromStorage(stored: unknown): DashboardL
 }
 
 export const loadDashboardLocalStateResultEffect = Effect.fn(
-  'dashboardLocalState.load'
-)(function*() {
+  'dashboardLocalState.load',
+)(function* () {
   if (typeof chrome === 'undefined' || !chrome.storage?.local) {
     return { ok: true, state: emptyDashboardLocalState(true) }
   }
   const stored = yield* Effect.result(Effect.tryPromise({
     try: () => chrome.storage.local.get([...DASHBOARD_LOCAL_STORAGE_KEYS]),
-    catch: (cause) => DashboardLocalStateReadError.make({ cause })
+    catch: (cause) => DashboardLocalStateReadError.make({ cause }),
   }))
   if (Result.isFailure(stored)) {
     return { ok: false, state: emptyDashboardLocalState(true) }
@@ -93,8 +93,8 @@ export function loadDashboardLocalStateResult(): Promise<DashboardLocalStateLoad
 }
 
 export const loadDashboardLocalStateEffect = Effect.fn(
-  'dashboardLocalState.loadValue'
-)(function*() {
+  'dashboardLocalState.loadValue',
+)(function* () {
   return (yield* loadDashboardLocalStateResultEffect()).state
 })
 
@@ -108,7 +108,7 @@ export function sameStringOrder(left: readonly string[], right: readonly string[
 
 export function sameDashboardLocalState(
   left: DashboardLocalState | null,
-  right: DashboardLocalState
+  right: DashboardLocalState,
 ): boolean {
   return left?.loaded === right.loaded &&
     sameStringOrder(left.pinnedDomains, right.pinnedDomains) &&

@@ -6,7 +6,7 @@ const CARD_MENU_TRIGGER_SELECTOR = '[data-tabout-part="card-menu"]'
 function focusCanStillTransfer(
   ownerDocument: Document,
   capturedCard: HTMLElement,
-  capturedTrigger: HTMLElement | null
+  capturedTrigger: HTMLElement | null,
 ): 'ready' | 'wait' | 'cancel' {
   const activeElement = ownerDocument.activeElement
   if (
@@ -29,7 +29,7 @@ function focusCanStillTransfer(
 
 /** Keep keyboard focus useful when a card-menu mutation removes its whole card. */
 export function captureDomainCardFocusRecovery(
-  capturedCard: HTMLElement | null
+  capturedCard: HTMLElement | null,
 ) {
   if (!capturedCard) return null
   const domainCard = capturedCard
@@ -57,7 +57,7 @@ export function captureDomainCardFocusRecovery(
     const transferState = focusCanStillTransfer(
       ownerDocument,
       domainCard,
-      capturedTrigger
+      capturedTrigger,
     )
     if (transferState === 'wait') return
     if (transferState === 'cancel') {
@@ -69,7 +69,7 @@ export function captureDomainCardFocusRecovery(
       ownerDocument,
       domainCard,
       missionGridId,
-      domain
+      domain,
     )
     if (card) {
       const trigger = card.querySelector<HTMLElement>(CARD_MENU_TRIGGER_SELECTOR)

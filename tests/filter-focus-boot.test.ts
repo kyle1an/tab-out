@@ -13,7 +13,7 @@ test('filter bootstrap never activates a Chrome window from the page', async () 
     URLSearchParams,
     window: { location: { search: '?focusWindow=1&newPage=1' } },
     document: {
-      querySelector: () => null
+      querySelector: () => null,
     },
     chrome: {
       windows: {
@@ -22,7 +22,7 @@ test('filter bootstrap never activates a Chrome window from the page', async () 
         },
         update: async () => {
           windowsApiUsed = true
-        }
+        },
       },
       tabs: {
         getCurrent: async () => {
@@ -33,9 +33,9 @@ test('filter bootstrap never activates a Chrome window from the page', async () 
         },
         remove: async () => {
           tabsApiUsed = true
-        }
-      }
-    }
+        },
+      },
+    },
   })
 
   await new Promise((resolve) => setImmediate(resolve))
@@ -50,7 +50,7 @@ test('filter bootstrap still focuses and seeds the in-page filter', () => {
     addEventListener() {},
     focus() {
       this.focused = true
-    }
+    },
   }
 
   vm.runInNewContext(bootSource, {
@@ -58,8 +58,8 @@ test('filter bootstrap still focuses and seeds the in-page filter', () => {
     window: { location: { search: '?focusFilter=1&filter=qa+env' } },
     document: {
       documentElement: { dataset: {} },
-      querySelector: () => input
-    }
+      querySelector: () => input,
+    },
   })
 
   assert.equal(input.value, 'qa env')
@@ -74,7 +74,7 @@ test('filter bootstrap seeds a URL query without taking focus', () => {
     removeEventListener() {},
     focus() {
       this.focused = true
-    }
+    },
   }
 
   vm.runInNewContext(bootSource, {
@@ -82,8 +82,8 @@ test('filter bootstrap seeds a URL query without taking focus', () => {
     window: { location: { search: '?filter=qa+env' } },
     document: {
       documentElement: { dataset: {} },
-      querySelector: () => input
-    }
+      querySelector: () => input,
+    },
   })
 
   assert.equal(input.value, 'qa env')

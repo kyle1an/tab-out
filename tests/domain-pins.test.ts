@@ -7,21 +7,21 @@ import {
   isPinnableDomain,
   movePinnedDomainInList,
   normalizePinnedDomains,
-  reorderPinnedDomainInList
+  reorderPinnedDomainInList,
 } from '../src/extension/domain-pins.js'
 
 const pinnedDomainsArbitrary = (minimumLength: number) =>
   fc
     .uniqueArray(fc.integer({ min: 0, max: 100_000 }), {
       minLength: minimumLength,
-      maxLength: 20
+      maxLength: 20,
     })
     .map((ids) => ids.map((id) => `domain-${id}.test`))
 
 test('normalizePinnedDomains preserves order, removes invalid entries, and allows pinnable utility cards', () => {
   assert.deepEqual(
     normalizePinnedDomains(['example.com', '__private__', 'example.com', '__tab-out__', null, '__standalone-apps__']),
-    ['example.com', '__tab-out__', '__standalone-apps__']
+    ['example.com', '__tab-out__', '__standalone-apps__'],
   )
 })
 
@@ -31,14 +31,14 @@ test('normalizePinnedDomains satisfies its invariants for arbitrary stored value
       const normalized = normalizePinnedDomains(storedValue)
       const expected = Array.isArray(storedValue)
         ? storedValue.filter(
-            (candidate, index) => isPinnableDomain(candidate) && storedValue.indexOf(candidate) === index
+            (candidate, index) => isPinnableDomain(candidate) && storedValue.indexOf(candidate) === index,
           )
         : []
 
       assert.deepEqual(normalized, expected)
       assert.deepEqual(normalizePinnedDomains(normalized), normalized)
       assert.equal(new Set(normalized).size, normalized.length)
-    })
+    }),
   )
 })
 
@@ -61,9 +61,9 @@ test('applyPinnedDomainMutation changes only the selected generated domain', () 
       assert.deepEqual(applyPinnedDomainMutation(domains, {
         type: 'set-pinned',
         domain,
-        pinned: !domains.includes(domain)
+        pinned: !domains.includes(domain),
       }), expected)
-    })
+    }),
   )
 })
 
@@ -72,11 +72,11 @@ test('reorderPinnedDomainInList moves a pinned domain before or after another pi
 
   assert.deepEqual(
     reorderPinnedDomainInList(domains, 'delta.test', 'bravo.test', 'before'),
-    ['alpha.test', 'delta.test', 'bravo.test', 'charlie.test']
+    ['alpha.test', 'delta.test', 'bravo.test', 'charlie.test'],
   )
   assert.deepEqual(
     reorderPinnedDomainInList(domains, 'alpha.test', 'charlie.test', 'after'),
-    ['bravo.test', 'charlie.test', 'alpha.test', 'delta.test']
+    ['bravo.test', 'charlie.test', 'alpha.test', 'delta.test'],
   )
 })
 
@@ -120,10 +120,10 @@ test('reorderPinnedDomainInList preserves generated membership and requested adj
         assert.equal(new Set(reordered).size, domains.length)
         assert.equal(
           reordered.indexOf(domain),
-          reordered.indexOf(targetDomain) + (position === 'before' ? -1 : 1)
+          reordered.indexOf(targetDomain) + (position === 'before' ? -1 : 1),
         )
-      }
-    )
+      },
+    ),
   )
 })
 
@@ -151,18 +151,18 @@ test('moving an interior generated domain and reversing the move restores the li
         movePinnedDomainInList(
           movePinnedDomainInList(domains, domain, 'previous'),
           domain,
-          'next'
+          'next',
         ),
-        domains
+        domains,
       )
       assert.deepEqual(
         movePinnedDomainInList(
           movePinnedDomainInList(domains, domain, 'next'),
           domain,
-          'previous'
+          'previous',
         ),
-        domains
+        domains,
       )
-    })
+    }),
   )
 })

@@ -35,7 +35,7 @@ const DASHBOARD_MATERIAL_TAB_UPDATE_KEYS = [
   'discarded',
   'audible',
   'mutedInfo',
-  'status'
+  'status',
 ] as const satisfies readonly (keyof DashboardTabUpdate)[]
 
 /**
@@ -47,7 +47,7 @@ const DASHBOARD_MATERIAL_TAB_UPDATE_KEYS = [
 export function dashboardTabUpdateRefreshOptions(
   changeInfo: DashboardTabUpdate,
   tab: Pick<chrome.tabs.Tab, 'pendingUrl' | 'url'>,
-  runtimeId: string | null | undefined = globalThis.chrome?.runtime?.id
+  runtimeId: string | null | undefined = globalThis.chrome?.runtime?.id,
 ): DashboardRefreshOptions | null {
   const targetUrl = changeInfo.url ?? tab.pendingUrl ?? tab.url
   if (!DASHBOARD_MATERIAL_TAB_UPDATE_KEYS.some((key) => (
@@ -58,12 +58,12 @@ export function dashboardTabUpdateRefreshOptions(
       (changeInfo.url !== undefined && !isTabOutDashboardUrl(targetUrl, runtimeId)) ||
       changeInfo.groupId !== undefined ||
       changeInfo.pinned !== undefined ||
-      changeInfo.discarded !== undefined
+      changeInfo.discarded !== undefined,
   }
 }
 
 export function createDashboardPageRefreshScheduler(
-  deps: DashboardPageRefreshSchedulerDeps
+  deps: DashboardPageRefreshSchedulerDeps,
 ): DashboardPageRefreshScheduler {
   let timer: ReturnType<typeof setTimeout> | null = null
   let scheduledOptions: DashboardRefreshOptions = {}

@@ -7,7 +7,7 @@ import { Deferred, Effect, Result } from 'effect'
 
 import {
   DebugServerError,
-  runDashboardDebugServer
+  runDashboardDebugServer,
 } from '../scripts/serve.js'
 
 function serverPort(server: Server): number {
@@ -27,7 +27,7 @@ test('debug server serves the dashboard fixture and closes with its scope', asyn
   const running = Effect.runPromise(runDashboardDebugServer({
     port: 0,
     awaitShutdown: Deferred.await(shutdown),
-    onListening: listening.resolve
+    onListening: listening.resolve,
   }))
   const port = await listening.promise
   const url = `http://127.0.0.1:${port}/tests/fixtures/dashboard-resize.html`
@@ -60,7 +60,7 @@ test('debug server reports a typed port-binding failure', async () => {
 
   const result = await Effect.runPromise(Effect.result(runDashboardDebugServer({
     port,
-    awaitShutdown: Effect.never
+    awaitShutdown: Effect.never,
   })))
   assert.equal(Result.isFailure(result), true)
   if (Result.isSuccess(result)) throw new Error('occupied port unexpectedly started a second server')

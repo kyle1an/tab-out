@@ -13,8 +13,8 @@ test('CardActionsMenu renders a kebab trigger and hides the close item until ope
     React.createElement(CardActionsMenu, {
       displayName: 'google.com',
       label: 'Close all 5 tabs',
-      onClose: () => {}
-    })
+      onClose: () => {},
+    }),
   )
 
   // Trigger is present in the at-rest markup.
@@ -42,7 +42,7 @@ function makeClosableCardVM(overrides: Partial<DashboardCardVM> = {}): Dashboard
     closableSuspendedCountLabel: 'Close all 2 suspended tabs',
     suppressedTitleParts: [],
     sections: [],
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -103,7 +103,7 @@ test('DomainCard keeps close suspended visible and disables it at zero', () => {
 test('DomainCard keeps a pin-only actions menu when there is nothing closable', () => {
   const group: DomainGroup = { domain: 'google.com', tabs: [] }
   const html = renderToStaticMarkup(
-    React.createElement(DomainCard, { group, vm: makeClosableCardVM({ closableCount: 0 }) })
+    React.createElement(DomainCard, { group, vm: makeClosableCardVM({ closableCount: 0 }) }),
   )
 
   assert.match(html, /data-tabout-part="card-menu"/)
@@ -113,7 +113,7 @@ test('DomainCard keeps a pin-only actions menu when there is nothing closable', 
 test('DomainCard renders no actions menu when the card is neither mutable nor pinnable', () => {
   const group: DomainGroup = { domain: '__private__', tabs: [] }
   const html = renderToStaticMarkup(
-    React.createElement(DomainCard, { group, vm: makeClosableCardVM({ closableCount: 0 }) })
+    React.createElement(DomainCard, { group, vm: makeClosableCardVM({ closableCount: 0 }) }),
   )
 
   assert.doesNotMatch(html, /data-tabout-part="card-menu"/)
@@ -128,11 +128,11 @@ test('DomainCard gives a retained-only non-pinnable card a batch-removal menu', 
         closableCount: 0,
         retainedPageRemovalTargets: [{
           retainedPageIdentity: 'identity-example',
-          retainedPageClosureToken: 'lifetime-example'
+          retainedPageClosureToken: 'lifetime-example',
         }],
-        retainedPageRemovalLabel: 'Remove from Tabs'
-      })
-    })
+        retainedPageRemovalLabel: 'Remove from Tabs',
+      }),
+    }),
   )
 
   assert.match(html, /data-tabout-part="card-menu"/)
@@ -152,8 +152,8 @@ test('DomainCard replaces saved badge copy with the saved-page menu icon', () =>
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm: makeClosableCardVM({ tabCountLabel: '9 +5 saved' })
-    })
+      vm: makeClosableCardVM({ tabCountLabel: '9 +5 saved' }),
+    }),
   )
 
   assert.match(html, /tab-count-badge-saved/)
@@ -169,8 +169,8 @@ test('DomainCard shows only the saved count and icon when there are no open tabs
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm: makeClosableCardVM({ tabCountLabel: '0 +5 saved' })
-    })
+      vm: makeClosableCardVM({ tabCountLabel: '0 +5 saved' }),
+    }),
   )
   const badgeHtml = html.match(/<span class="open-tabs-badge[^"]*">[\s\S]*?<span class="sr-only"> saved<\/span><\/span><\/span>/)?.[0] ?? ''
 
@@ -185,8 +185,8 @@ test('DomainCard formats a filtered saved-only count as a fraction with its save
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm: makeClosableCardVM({ tabCountLabel: '2/4 saved' })
-    })
+      vm: makeClosableCardVM({ tabCountLabel: '2/4 saved' }),
+    }),
   )
   const badgeHtml = html.match(/<span class="open-tabs-badge[^"]*">[\s\S]*?<span class="sr-only"> saved<\/span><\/span><\/span>/)?.[0] ?? ''
 
@@ -203,8 +203,8 @@ test('DomainCard formats a filtered saved count as a fraction alongside open tab
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm: makeClosableCardVM({ tabCountLabel: '2/10 +2/4 saved' })
-    })
+      vm: makeClosableCardVM({ tabCountLabel: '2/10 +2/4 saved' }),
+    }),
   )
   const badgeHtml = html.match(/<span class="open-tabs-badge[^"]*">[\s\S]*?<span class="sr-only"> saved<\/span><\/span><\/span>/)?.[0] ?? ''
   const savedBadgeHtml = badgeHtml.slice(badgeHtml.indexOf('tab-count-badge-saved-count'))
@@ -221,14 +221,14 @@ test('DomainCard shows a header pin marker only after the card is pinned', () =>
   const unpinnedHtml = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group: { domain: 'example.com', tabs: [] },
-      vm: makeClosableCardVM()
-    })
+      vm: makeClosableCardVM(),
+    }),
   )
   const pinnedHtml = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group: { domain: 'example.com', tabs: [], pinned: true },
-      vm: makeClosableCardVM()
-    })
+      vm: makeClosableCardVM(),
+    }),
   )
 
   assert.doesNotMatch(unpinnedHtml, /data-tabout-part="pin-indicator"/)

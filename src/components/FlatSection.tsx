@@ -21,7 +21,7 @@ export function FlatSection({ visibleChips, hiddenChips, hiddenCount, afterSepar
     filter,
     suppressedTitleToneByText,
     overflowContainerClassName: ({ expanded }) => cn(iconOnly && 'w-full', iconOnly && expanded && 'flex flex-wrap gap-2.5'),
-    overflowButtonClassName: iconOnly ? 'pl-1' : 'pl-3'
+    overflowButtonClassName: iconOnly ? 'pl-1' : 'pl-3',
   })
 
   return (
@@ -29,7 +29,7 @@ export function FlatSection({ visibleChips, hiddenChips, hiddenCount, afterSepar
       className={cn(
         'flat-section flex flex-col',
         afterSeparator && 'mt-1.5',
-        iconOnly && 'flat-section-icons flex-row flex-wrap gap-2.5'
+        iconOnly && 'flat-section-icons flex-row flex-wrap gap-2.5',
       )}
       data-expanded={expanded ? 'true' : undefined}
     >

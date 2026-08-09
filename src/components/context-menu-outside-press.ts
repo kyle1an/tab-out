@@ -8,7 +8,7 @@ export type ContextMenuChangeEventDetails = ContextMenuRootChangeEventDetails
 // provide their current live interaction surface for the coordinate check.
 export function isOutsidePressInsideElement(
   details: ContextMenuChangeEventDetails,
-  element: Element | null | undefined
+  element: Element | null | undefined,
 ): boolean {
   if (details.reason !== 'outside-press') return false
   const { event } = details

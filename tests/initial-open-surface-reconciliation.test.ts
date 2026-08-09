@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import {
   createInitialOpenSurfaceReconciliationCoordinator,
-  type DeferredTaskScheduler
+  type DeferredTaskScheduler,
 } from '../src/extension/background/initial-open-surface-reconciliation.js'
 import type { OpenSurfaceReconciliationMode } from '../src/extension/open-surface-reconciliation.js'
 
@@ -20,7 +20,7 @@ function createManualScheduler() {
     scheduler,
     flush() {
       if (!cancelled) task?.()
-    }
+    },
   }
 }
 
@@ -31,7 +31,7 @@ test('browser startup claims initial reconciliation before the deferred worker-r
     reconcile: async (mode) => {
       modes.push(mode)
     },
-    defer: scheduled.scheduler
+    defer: scheduled.scheduler,
   })
 
   const startup = coordinator.claim('browser-startup')
@@ -49,7 +49,7 @@ test('installation and update select their explicit initial reconciliation modes
       reconcile: async (selectedMode) => {
         modes.push(selectedMode)
       },
-      defer: scheduled.scheduler
+      defer: scheduled.scheduler,
     })
 
     const reconciliation = coordinator.claim(mode)
@@ -67,7 +67,7 @@ test('ordinary worker resume owns initial reconciliation only after one deferred
     reconcile: async (mode) => {
       modes.push(mode)
     },
-    defer: scheduled.scheduler
+    defer: scheduled.scheduler,
   })
 
   assert.deepEqual(modes, [])
@@ -84,14 +84,14 @@ test('late lifecycle claims join the already-selected initial reconciliation', a
     reconcile: async (mode) => {
       modes.push(mode)
     },
-    defer: scheduled.scheduler
+    defer: scheduled.scheduler,
   })
 
   scheduled.flush()
   await Promise.all([
     coordinator.whenReady(),
     coordinator.claim('browser-startup'),
-    coordinator.claim('extension-reload')
+    coordinator.claim('extension-reload'),
   ])
 
   assert.deepEqual(modes, ['worker-resume'])
@@ -100,7 +100,7 @@ test('late lifecycle claims join the already-selected initial reconciliation', a
 test('browser startup outranks an extension reload when both callbacks arrive before reconciliation', async () => {
   for (const claims of [
     ['extension-reload', 'browser-startup'],
-    ['browser-startup', 'extension-reload']
+    ['browser-startup', 'extension-reload'],
   ] as const) {
     const scheduled = createManualScheduler()
     const modes: OpenSurfaceReconciliationMode[] = []
@@ -108,7 +108,7 @@ test('browser startup outranks an extension reload when both callbacks arrive be
       reconcile: async (mode) => {
         modes.push(mode)
       },
-      defer: scheduled.scheduler
+      defer: scheduled.scheduler,
     })
 
     const pending = claims.map((mode) => coordinator.claim(mode))
@@ -126,12 +126,12 @@ test('first install remains seed-only when another lifecycle callback is co-deli
     reconcile: async (mode) => {
       modes.push(mode)
     },
-    defer: scheduled.scheduler
+    defer: scheduled.scheduler,
   })
 
   const pending = [
     coordinator.claim('browser-startup'),
-    coordinator.claim('first-install')
+    coordinator.claim('first-install'),
   ]
   scheduled.flush()
   await Promise.all(pending)
@@ -149,7 +149,7 @@ test('failed reconciliation rejects only that readiness attempt and whenReady re
       attempts += 1
       if (attempts === 1) throw new Error('inventory unavailable')
     },
-    defer: scheduled.scheduler
+    defer: scheduled.scheduler,
   })
 
   const firstAttempt = coordinator.whenReady()
@@ -171,7 +171,7 @@ test('concurrent claims share one retry after failed reconciliation', async () =
       attempts += 1
       if (attempts === 1) throw new Error('inventory unavailable')
     },
-    defer: scheduled.scheduler
+    defer: scheduled.scheduler,
   })
 
   const firstAttempt = coordinator.claim('browser-startup')
@@ -181,7 +181,7 @@ test('concurrent claims share one retry after failed reconciliation', async () =
   await Promise.all([
     coordinator.claim('browser-startup'),
     coordinator.whenReady(),
-    coordinator.claim('extension-reload')
+    coordinator.claim('extension-reload'),
   ])
 
   assert.deepEqual(modes, ['browser-startup', 'browser-startup'])

@@ -19,7 +19,7 @@ function makeStats(overrides: Partial<DashboardStats> = {}): DashboardStats {
     filteredCloseCount: 0,
     hasCards: false,
     filtering: false,
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -28,8 +28,8 @@ function renderHeaderStats(stats: DashboardStats): string {
     React.createElement(HeaderStats, {
       ...stats,
       onDedupAll: () => {},
-      onCloseFiltered: () => {}
-    })
+      onCloseFiltered: () => {},
+    }),
   )
 }
 
@@ -59,7 +59,7 @@ test('HeaderStats renders accessible counts and text-only actions', () => {
     dedupCount: 1,
     filteredCloseCount: 2,
     hasCards: true,
-    filtering: true
+    filtering: true,
   }))
 
   assert.match(html, />2\/3 tabs<\/span>/)

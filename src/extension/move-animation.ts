@@ -18,7 +18,7 @@
    one scrolling container (working-set grid).
    ================================================================ */
 
-export type MovePosition = { left: number; top: number; width: number; height: number }
+export type MovePosition = { left: number, top: number, width: number, height: number }
 export type MovePositionMap = Map<string, MovePosition[]>
 
 export type MoveAnimatorHooks = {
@@ -90,7 +90,7 @@ export function createMoveAnimator(config: MoveAnimatorConfig): MoveAnimator {
     return Array.from(root.querySelectorAll<HTMLElement>(selector))
   }
 
-  function originOf(root: HTMLElement): { left: number; top: number } {
+  function originOf(root: HTMLElement): { left: number, top: number } {
     if (config.coordinateSpace === 'root') {
       const rect = root.getBoundingClientRect()
       return { left: rect.left, top: rect.top }
@@ -98,13 +98,13 @@ export function createMoveAnimator(config: MoveAnimatorConfig): MoveAnimator {
     return { left: 0, top: 0 }
   }
 
-  function positionOf(item: HTMLElement, origin: { left: number; top: number }): MovePosition {
+  function positionOf(item: HTMLElement, origin: { left: number, top: number }): MovePosition {
     const rect = item.getBoundingClientRect()
     return {
       left: roundPosition(rect.left - origin.left),
       top: roundPosition(rect.top - origin.top),
       width: roundPosition(rect.width),
-      height: roundPosition(rect.height)
+      height: roundPosition(rect.height),
     }
   }
 
@@ -256,7 +256,7 @@ export function createMoveAnimator(config: MoveAnimatorConfig): MoveAnimator {
         frameId: 0,
         timeoutId: 0,
         onTransitionEnd,
-        cancel: cancelActiveMove
+        cancel: cancelActiveMove,
       }
 
       item.addEventListener('transitionend', onTransitionEnd)

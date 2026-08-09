@@ -13,7 +13,7 @@ const ENV_B_SUSPENDED = 'chrome-extension://marvellous/suspended.html#ttl=Dash&u
 
 type Row = {
   name: string
-  tabs: Array<{ id: number; url?: string; pendingUrl?: string }>
+  tabs: Array<{ id: number, url?: string, pendingUrl?: string }>
   target: LiveTabMatchTarget
   expected: number[]
 }
@@ -24,105 +24,105 @@ const table: Row[] = [
     tabs: [
       { id: 1, url: DOCS },
       { id: 2, url: DOCS },
-      { id: 3, url: OTHER }
+      { id: 3, url: OTHER },
     ],
     target: { tabUrl: DOCS },
-    expected: [1, 2]
+    expected: [1, 2],
   },
   {
     name: 'a suspended live tab matches its effective page target',
     tabs: [
       { id: 1, url: DOCS_SUSPENDED },
-      { id: 2, url: OTHER }
+      { id: 2, url: OTHER },
     ],
     target: { tabUrl: DOCS },
-    expected: [1]
+    expected: [1],
   },
   {
     name: 'a suspended target matches the live unsuspended tab',
     tabs: [
       { id: 1, url: DOCS },
-      { id: 2, url: OTHER }
+      { id: 2, url: OTHER },
     ],
     target: { tabUrl: DOCS_SUSPENDED },
-    expected: [1]
+    expected: [1],
   },
   {
     name: 'suspended target and suspended tab meet at the effective URL',
     tabs: [{ id: 1, url: DOCS_SUSPENDED }],
     target: { tabUrl: DOCS_SUSPENDED },
-    expected: [1]
+    expected: [1],
   },
   {
     name: 'no match returns empty',
     tabs: [{ id: 1, url: OTHER }],
     target: { tabUrl: DOCS },
-    expected: []
+    expected: [],
   },
   {
     name: 'tabs without a URL never match',
     tabs: [{ id: 1 }, { id: 2, url: '' }],
     target: { tabUrl: DOCS },
-    expected: []
+    expected: [],
   },
   {
     name: 'an empty target never matches a URL-less tab',
     tabs: [{ id: 1 }, { id: 2, url: '' }],
     target: { tabUrl: '' },
-    expected: []
+    expected: [],
   },
   {
     name: 'an empty folded target never matches a URL-less tab',
     tabs: [{ id: 1 }, { id: 2, url: '' }],
     target: { tabUrl: '', envs: [{ tabUrl: '' }] },
-    expected: []
+    expected: [],
   },
   {
     name: 'a pending navigation replaces the committed URL for matching',
     tabs: [
       { id: 1, url: DOCS, pendingUrl: OTHER },
-      { id: 2, url: OTHER, pendingUrl: DOCS }
+      { id: 2, url: OTHER, pendingUrl: DOCS },
     ],
     target: { tabUrl: DOCS },
-    expected: [2]
+    expected: [2],
   },
   {
     name: 'folded chips match every variant URL and ignore non-members',
     tabs: [
       { id: 1, url: ENV_A },
       { id: 2, url: ENV_B },
-      { id: 3, url: OTHER }
+      { id: 3, url: OTHER },
     ],
     target: { tabUrl: ENV_A, envs: [{ tabUrl: ENV_A }, { tabUrl: ENV_B }] },
-    expected: [1, 2]
+    expected: [1, 2],
   },
   {
     name: 'folded chips match a suspended variant through its effective URL',
     tabs: [
       { id: 1, url: ENV_A },
-      { id: 2, url: ENV_B_SUSPENDED }
+      { id: 2, url: ENV_B_SUSPENDED },
     ],
     target: { tabUrl: ENV_A, envs: [{ tabUrl: ENV_A }, { tabUrl: ENV_B }] },
-    expected: [1, 2]
+    expected: [1, 2],
   },
   {
     name: 'folded env list may itself carry a suspended variant URL',
     tabs: [
       { id: 1, url: ENV_B },
-      { id: 2, url: OTHER }
+      { id: 2, url: OTHER },
     ],
     target: { tabUrl: ENV_A, envs: [{ tabUrl: ENV_B_SUSPENDED }] },
-    expected: [1]
+    expected: [1],
   },
   {
     name: 'an empty folded env list falls back to single-target matching',
     tabs: [
       { id: 1, url: DOCS },
-      { id: 2, url: OTHER }
+      { id: 2, url: OTHER },
     ],
     target: { tabUrl: DOCS, envs: [] },
-    expected: [1]
-  }
+    expected: [1],
+  },
 ]
 
 for (const row of table) {
@@ -135,7 +135,7 @@ for (const row of table) {
 test('live-tab identity validation rejects a reused id with an unrelated URL', () => {
   const tabs = [
     { id: 7, url: OTHER },
-    { id: 8, url: DOCS_SUSPENDED }
+    { id: 8, url: DOCS_SUSPENDED },
   ]
 
   assert.equal(liveTabByValidatedId(tabs, { tabId: 7, tabUrl: DOCS }), null)

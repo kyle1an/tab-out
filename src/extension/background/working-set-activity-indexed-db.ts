@@ -3,21 +3,21 @@ import {
   deleteDB,
   openDB,
   type DBSchema,
-  type IDBPDatabase
+  type IDBPDatabase,
 } from 'idb'
 
 import {
-  pageIdentityForWorkingSet
+  pageIdentityForWorkingSet,
 } from '../working-set.js'
 import type {
   WorkingSetActivityEvent,
   WorkingSetActivityRecord,
-  WorkingSetActivityStore
+  WorkingSetActivityStore,
 } from '../types'
 import {
   workingSetActivityGenerationManifestSchema,
   type WorkingSetActivityGenerationManifest,
-  type WorkingSetActivityIndexedDbAuthorityPort
+  type WorkingSetActivityIndexedDbAuthorityPort,
 } from './working-set-activity-authority.js'
 import type { WorkingSetActivityWrite } from './working-set-activity-storage.js'
 
@@ -33,7 +33,7 @@ const ACTIVITY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
 const compactActivityEventSchema = Schema.Tuple([
   Schema.Literals([0, 1]),
-  Schema.Finite
+  Schema.Finite,
 ])
 
 export const indexedDbActivityValueSchema = Schema.Struct({
@@ -41,7 +41,7 @@ export const indexedDbActivityValueSchema = Schema.Struct({
   dismissedAt: Schema.optionalKey(Schema.Finite),
   dismissedUntil: Schema.optionalKey(Schema.Finite),
   events: Schema.Array(compactActivityEventSchema),
-  lastEventAt: Schema.Finite
+  lastEventAt: Schema.Finite,
 })
 
 const indexedDbStoredActivityValueSchema = Schema.Struct({
@@ -49,11 +49,11 @@ const indexedDbStoredActivityValueSchema = Schema.Struct({
   dismissedAt: Schema.optionalKey(Schema.Finite),
   dismissedUntil: Schema.optionalKey(Schema.Finite),
   events: Schema.Array(Schema.Unknown),
-  lastEventAt: Schema.Finite
+  lastEventAt: Schema.Finite,
 })
 
 const generationSchema = Schema.String.check(
-  Schema.isPattern(/^v1:[0-9a-f]{64}$/)
+  Schema.isPattern(/^v1:[0-9a-f]{64}$/),
 )
 
 export { workingSetActivityGenerationManifestSchema }
@@ -85,10 +85,10 @@ class InvalidWorkingSetActivityDatabaseStructureError extends Error {}
 const isCompactActivityEvent = Schema.is(compactActivityEventSchema)
 const isIndexedDbActivityValue = Schema.is(indexedDbActivityValueSchema)
 const isIndexedDbStoredActivityValue = Schema.is(
-  indexedDbStoredActivityValueSchema
+  indexedDbStoredActivityValueSchema,
 )
 const isGenerationManifest = Schema.is(
-  workingSetActivityGenerationManifestSchema
+  workingSetActivityGenerationManifestSchema,
 )
 const isGeneration = Schema.is(generationSchema)
 
@@ -123,7 +123,7 @@ WorkingSetActivityIndexedDbAuthorityPort {
   }
 
   const database = async (
-    manifest: WorkingSetActivityGenerationManifest
+    manifest: WorkingSetActivityGenerationManifest,
   ): Promise<WorkingSetActivityDatabaseConnection> => {
     assertManifest(manifest)
     const databaseName = databaseNameForGeneration(manifest.generation)
@@ -141,7 +141,7 @@ WorkingSetActivityIndexedDbAuthorityPort {
       manifest,
       () => {
         if (cachedConnection?.token === token) cachedConnection = undefined
-      }
+      },
     ).then(async (opened) => {
       try {
         await sweepExpiredRows(opened)
@@ -155,7 +155,7 @@ WorkingSetActivityIndexedDbAuthorityPort {
       databaseName,
       manifest: { ...manifest },
       promise: pending,
-      token
+      token,
     }
     cachedConnection = next
     void pending.catch(() => {
@@ -166,7 +166,7 @@ WorkingSetActivityIndexedDbAuthorityPort {
 
   const stage = async (
     manifest: WorkingSetActivityGenerationManifest,
-    activity: WorkingSetActivityStore
+    activity: WorkingSetActivityStore,
   ): Promise<void> => {
     assertManifest(manifest)
     await close()
@@ -175,13 +175,13 @@ WorkingSetActivityIndexedDbAuthorityPort {
     try {
       const transaction = opened.transaction([
         WORKING_SET_ACTIVITY_RECORDS_STORE,
-        WORKING_SET_ACTIVITY_MANIFEST_STORE
+        WORKING_SET_ACTIVITY_MANIFEST_STORE,
       ], 'readwrite', { durability: 'strict' })
       const records = transaction.objectStore(
-        WORKING_SET_ACTIVITY_RECORDS_STORE
+        WORKING_SET_ACTIVITY_RECORDS_STORE,
       )
       const manifests = transaction.objectStore(
-        WORKING_SET_ACTIVITY_MANIFEST_STORE
+        WORKING_SET_ACTIVITY_MANIFEST_STORE,
       )
       const entries = Object.values(activity.records)
         .toSorted((left, right) => left.key.localeCompare(right.key))
@@ -190,7 +190,7 @@ WorkingSetActivityIndexedDbAuthorityPort {
         records.clear(),
         manifests.clear(),
         ...entries.map(([key, value]) => records.put(value, key)),
-        manifests.put({ ...manifest }, WORKING_SET_ACTIVITY_MANIFEST_KEY)
+        manifests.put({ ...manifest }, WORKING_SET_ACTIVITY_MANIFEST_KEY),
       ]
       await settleTransaction(requests, transaction.done)
     } finally {
@@ -199,7 +199,7 @@ WorkingSetActivityIndexedDbAuthorityPort {
   }
 
   const verify = async (
-    manifest: WorkingSetActivityGenerationManifest
+    manifest: WorkingSetActivityGenerationManifest,
   ): Promise<WorkingSetActivityStore> => {
     assertManifest(manifest)
     await close()
@@ -207,12 +207,12 @@ WorkingSetActivityIndexedDbAuthorityPort {
     try {
       const transaction = opened.transaction(
         WORKING_SET_ACTIVITY_RECORDS_STORE,
-        'readonly'
+        'readonly',
       )
       const [keys, values] = await Promise.all([
         transaction.store.getAllKeys(),
         transaction.store.getAll(),
-        transaction.done
+        transaction.done,
       ])
       if (keys.length !== values.length || keys.length !== manifest.recordCount) {
         throw new Error('Working Set activity generation record count is inconsistent')
@@ -222,7 +222,7 @@ WorkingSetActivityIndexedDbAuthorityPort {
       for (const [index, key] of keys.entries()) {
         const record = decodeWorkingSetActivityIndexedDbEntryStrict(
           key,
-          values[index]
+          values[index],
         )
         if (record.events.some((event) => event.at < manifest.retainedAfter)) {
           throw new Error('Working Set activity generation exceeds retention')
@@ -240,23 +240,23 @@ WorkingSetActivityIndexedDbAuthorityPort {
   }
 
   const read = async (
-    manifest: WorkingSetActivityGenerationManifest
+    manifest: WorkingSetActivityGenerationManifest,
   ): Promise<WorkingSetActivityStore> => {
     const opened = await database(manifest)
     const transaction = opened.transaction(
       WORKING_SET_ACTIVITY_RECORDS_STORE,
-      'readonly'
+      'readonly',
     )
     const retained = transaction.store.index(
-      WORKING_SET_ACTIVITY_LAST_EVENT_INDEX
+      WORKING_SET_ACTIVITY_LAST_EVENT_INDEX,
     )
     const retainedRange = IDBKeyRange.lowerBound(
-      Date.now() - ACTIVITY_RETENTION_MS
+      Date.now() - ACTIVITY_RETENTION_MS,
     )
     const [keys, values] = await Promise.all([
       retained.getAllKeys(retainedRange),
       retained.getAll(retainedRange),
-      transaction.done
+      transaction.done,
     ])
     if (keys.length !== values.length) {
       throw new Error('Working Set activity index returned inconsistent rows')
@@ -266,7 +266,7 @@ WorkingSetActivityIndexedDbAuthorityPort {
       try {
         const record = decodeWorkingSetActivityIndexedDbEntryForRead(
           key,
-          values[index]
+          values[index],
         )
         recordsByKey.set(record.key, record)
       } catch {
@@ -275,13 +275,13 @@ WorkingSetActivityIndexedDbAuthorityPort {
     }
     return {
       version: 1,
-      records: Object.fromEntries(recordsByKey)
+      records: Object.fromEntries(recordsByKey),
     }
   }
 
   const write = async (
     manifest: WorkingSetActivityGenerationManifest,
-    change: WorkingSetActivityWrite
+    change: WorkingSetActivityWrite,
   ): Promise<void> => {
     const upsertEntry = change.upsert === null
       ? null
@@ -291,10 +291,10 @@ WorkingSetActivityIndexedDbAuthorityPort {
     const transaction = opened.transaction(
       WORKING_SET_ACTIVITY_RECORDS_STORE,
       'readwrite',
-      { durability: 'relaxed' }
+      { durability: 'relaxed' },
     )
     const requests: Array<Promise<unknown>> = change.deleteKeys.map((key) =>
-      transaction.store.delete(key)
+      transaction.store.delete(key),
     )
     if (upsertEntry !== null) {
       const [key, value] = upsertEntry
@@ -305,20 +305,20 @@ WorkingSetActivityIndexedDbAuthorityPort {
 
   const replace = async (
     manifest: WorkingSetActivityGenerationManifest,
-    activity: WorkingSetActivityStore
+    activity: WorkingSetActivityStore,
   ): Promise<void> => {
     const opened = await database(manifest)
     const transaction = opened.transaction(
       WORKING_SET_ACTIVITY_RECORDS_STORE,
       'readwrite',
-      { durability: 'strict' }
+      { durability: 'strict' },
     )
     const entries = Object.values(activity.records)
       .toSorted((left, right) => left.key.localeCompare(right.key))
       .map(encodeWorkingSetActivityIndexedDbEntry)
     const requests: Array<Promise<unknown>> = [transaction.store.clear()]
     requests.push(...entries.map(([key, value]) =>
-      transaction.store.put(value, key)
+      transaction.store.put(value, key),
     ))
     await settleTransaction(requests, transaction.done)
   }
@@ -327,7 +327,7 @@ WorkingSetActivityIndexedDbAuthorityPort {
 }
 
 export function encodeWorkingSetActivityIndexedDbEntry(
-  record: WorkingSetActivityRecord
+  record: WorkingSetActivityRecord,
 ): readonly [string, IndexedDbActivityValue] {
   if (pageIdentityForWorkingSet(record.key) !== record.key) {
     throw new Error('Working Set activity row key is not a page identity')
@@ -342,29 +342,29 @@ export function encodeWorkingSetActivityIndexedDbEntry(
       : { dismissedUntil: record.dismissedUntil }),
     events: record.events.map((event) => [
       event.kind === 'activation' ? 0 : 1,
-      event.at
+      event.at,
     ]),
-    lastEventAt: latestEventAt(record.events)
+    lastEventAt: latestEventAt(record.events),
   }]
 }
 
 export function decodeWorkingSetActivityIndexedDbEntry(
   key: unknown,
-  value: unknown
+  value: unknown,
 ): WorkingSetActivityRecord {
   return decodeIndexedDbEntry(key, value, true, true)
 }
 
 function decodeWorkingSetActivityIndexedDbEntryStrict(
   key: unknown,
-  value: unknown
+  value: unknown,
 ): WorkingSetActivityRecord {
   return decodeIndexedDbEntry(key, value, true, false)
 }
 
 function decodeWorkingSetActivityIndexedDbEntryForRead(
   key: unknown,
-  value: unknown
+  value: unknown,
 ): WorkingSetActivityRecord {
   return decodeIndexedDbEntry(key, value, false, true)
 }
@@ -373,7 +373,7 @@ function decodeIndexedDbEntry(
   key: unknown,
   value: unknown,
   requireCanonicalKey: boolean,
-  allowMalformedEvents: boolean
+  allowMalformedEvents: boolean,
 ): WorkingSetActivityRecord {
   if (
     typeof key !== 'string' ||
@@ -434,7 +434,7 @@ function decodeIndexedDbEntry(
     ...(stored.dismissedUntil === undefined
       ? {}
       : { dismissedUntil: stored.dismissedUntil }),
-    events
+    events,
   }
 }
 
@@ -443,7 +443,7 @@ function latestEventAt(events: readonly WorkingSetActivityEvent[]): number {
     (maximum, event) => maximum === undefined
       ? event.at
       : Math.max(maximum, event.at),
-    undefined
+    undefined,
   )
   if (latest === undefined) {
     throw new Error('IndexedDB Working Set rows require an event')
@@ -452,7 +452,7 @@ function latestEventAt(events: readonly WorkingSetActivityEvent[]): number {
 }
 
 function assertManifest(
-  manifest: WorkingSetActivityGenerationManifest
+  manifest: WorkingSetActivityGenerationManifest,
 ): void {
   if (
     !isGenerationManifest(manifest) ||
@@ -464,7 +464,7 @@ function assertManifest(
 
 function manifestsEqual(
   left: WorkingSetActivityGenerationManifest,
-  right: WorkingSetActivityGenerationManifest
+  right: WorkingSetActivityGenerationManifest,
 ): boolean {
   return left.schemaVersion === right.schemaVersion &&
     left.generation === right.generation &&
@@ -476,12 +476,12 @@ function manifestsEqual(
 
 async function openExistingDatabase(
   manifest: WorkingSetActivityGenerationManifest,
-  onInvalidated: () => void = () => {}
+  onInvalidated: () => void = () => {},
 ): Promise<WorkingSetActivityDatabaseConnection> {
   const database = await openPhysicalDatabase(
     manifest.generation,
     false,
-    onInvalidated
+    onInvalidated,
   )
   try {
     await validateDatabase(database, manifest)
@@ -493,7 +493,7 @@ async function openExistingDatabase(
 }
 
 async function openStagingDatabase(
-  generation: string
+  generation: string,
 ): Promise<WorkingSetActivityDatabaseConnection> {
   const opened = await openPhysicalDatabase(generation, true)
   try {
@@ -523,7 +523,7 @@ async function openStagingDatabase(
 async function openPhysicalDatabase(
   generation: string,
   allowCreate: boolean,
-  onInvalidated: () => void = () => {}
+  onInvalidated: () => void = () => {},
 ): Promise<WorkingSetActivityDatabaseConnection> {
   const name = databaseNameForGeneration(generation)
   let opened: WorkingSetActivityDatabaseConnection | undefined
@@ -547,7 +547,7 @@ async function openPhysicalDatabase(
       blocked() {
         blocked = true
         rejectBlocked(new Error(
-          `Opening Working Set activity database ${name} was blocked`
+          `Opening Working Set activity database ${name} was blocked`,
         ))
       },
       blocking() {
@@ -556,8 +556,8 @@ async function openPhysicalDatabase(
       },
       terminated() {
         onInvalidated()
-      }
-    }
+      },
+    },
   )
   void opening.then((database) => {
     opened = database
@@ -567,20 +567,20 @@ async function openPhysicalDatabase(
 }
 
 function createDatabaseSchema(
-  database: WorkingSetActivityDatabaseConnection
+  database: WorkingSetActivityDatabaseConnection,
 ): void {
   const records = database.createObjectStore(
-    WORKING_SET_ACTIVITY_RECORDS_STORE
+    WORKING_SET_ACTIVITY_RECORDS_STORE,
   )
   records.createIndex(
     WORKING_SET_ACTIVITY_LAST_EVENT_INDEX,
-    'lastEventAt'
+    'lastEventAt',
   )
   database.createObjectStore(WORKING_SET_ACTIVITY_MANIFEST_STORE)
 }
 
 async function deleteStaleCandidateDatabases(
-  targetGeneration: string
+  targetGeneration: string,
 ): Promise<void> {
   const targetName = databaseNameForGeneration(targetGeneration)
   const databaseNamePrefix = `${WORKING_SET_ACTIVITY_DATABASE_PREFIX}:`
@@ -605,37 +605,37 @@ async function deleteCandidateDatabase(name: string): Promise<void> {
   const deleting = deleteDB(name, {
     blocked() {
       rejectBlocked(new Error(
-        `Deleting stale Working Set activity database ${name} was blocked`
+        `Deleting stale Working Set activity database ${name} was blocked`,
       ))
-    }
+    },
   })
   await Promise.race([deleting, blocked])
 }
 
 async function assertDatabaseStructure(
-  database: WorkingSetActivityDatabaseConnection
+  database: WorkingSetActivityDatabaseConnection,
 ): Promise<void> {
   if (
     !database.objectStoreNames.contains(WORKING_SET_ACTIVITY_RECORDS_STORE) ||
     !database.objectStoreNames.contains(WORKING_SET_ACTIVITY_MANIFEST_STORE)
   ) {
     throw new InvalidWorkingSetActivityDatabaseStructureError(
-      'Working Set activity database is missing a required store'
+      'Working Set activity database is missing a required store',
     )
   }
   const transaction = database.transaction([
     WORKING_SET_ACTIVITY_RECORDS_STORE,
-    WORKING_SET_ACTIVITY_MANIFEST_STORE
+    WORKING_SET_ACTIVITY_MANIFEST_STORE,
   ], 'readonly')
   const records = transaction.objectStore(WORKING_SET_ACTIVITY_RECORDS_STORE)
   const manifests = transaction.objectStore(
-    WORKING_SET_ACTIVITY_MANIFEST_STORE
+    WORKING_SET_ACTIVITY_MANIFEST_STORE,
   )
   if (!hasExpectedDatabaseLayout(records, manifests)) {
     transaction.abort()
     await transaction.done.catch(() => undefined)
     throw new InvalidWorkingSetActivityDatabaseStructureError(
-      'Working Set activity database has an incompatible physical layout'
+      'Working Set activity database has an incompatible physical layout',
     )
   }
   await transaction.done
@@ -643,37 +643,37 @@ async function assertDatabaseStructure(
 
 async function validateDatabase(
   database: WorkingSetActivityDatabaseConnection,
-  manifest: WorkingSetActivityGenerationManifest
+  manifest: WorkingSetActivityGenerationManifest,
 ): Promise<void> {
   if (
     !database.objectStoreNames.contains(WORKING_SET_ACTIVITY_RECORDS_STORE) ||
     !database.objectStoreNames.contains(WORKING_SET_ACTIVITY_MANIFEST_STORE)
   ) {
     throw new InvalidWorkingSetActivityDatabaseStructureError(
-      'Working Set activity database is missing a required store'
+      'Working Set activity database is missing a required store',
     )
   }
   const transaction = database.transaction(
     [
       WORKING_SET_ACTIVITY_RECORDS_STORE,
-      WORKING_SET_ACTIVITY_MANIFEST_STORE
+      WORKING_SET_ACTIVITY_MANIFEST_STORE,
     ],
-    'readonly'
+    'readonly',
   )
   const records = transaction.objectStore(WORKING_SET_ACTIVITY_RECORDS_STORE)
   const manifests = transaction.objectStore(
-    WORKING_SET_ACTIVITY_MANIFEST_STORE
+    WORKING_SET_ACTIVITY_MANIFEST_STORE,
   )
   if (!hasExpectedDatabaseLayout(records, manifests)) {
     transaction.abort()
     await transaction.done.catch(() => undefined)
     throw new InvalidWorkingSetActivityDatabaseStructureError(
-      'Working Set activity database has an incompatible physical layout'
+      'Working Set activity database has an incompatible physical layout',
     )
   }
   const [storedManifest] = await Promise.all([
     manifests.get(WORKING_SET_ACTIVITY_MANIFEST_KEY),
-    transaction.done
+    transaction.done,
   ])
   if (
     storedManifest === undefined ||
@@ -690,7 +690,7 @@ function hasExpectedDatabaseLayout(
     readonly indexNames: DOMStringList
     readonly keyPath: string | string[] | null
     readonly index: (
-      name: typeof WORKING_SET_ACTIVITY_LAST_EVENT_INDEX
+      name: typeof WORKING_SET_ACTIVITY_LAST_EVENT_INDEX,
     ) => {
       readonly keyPath: string | string[]
       readonly multiEntry: boolean
@@ -701,7 +701,7 @@ function hasExpectedDatabaseLayout(
     readonly autoIncrement: boolean
     readonly indexNames: DOMStringList
     readonly keyPath: string | string[] | null
-  }
+  },
 ): boolean {
   if (
     records.keyPath !== null ||
@@ -721,20 +721,20 @@ function hasExpectedDatabaseLayout(
 }
 
 async function sweepExpiredRows(
-  database: WorkingSetActivityDatabaseConnection
+  database: WorkingSetActivityDatabaseConnection,
 ): Promise<void> {
   const scan = database.transaction(
     WORKING_SET_ACTIVITY_RECORDS_STORE,
-    'readonly'
+    'readonly',
   )
   const expiredRange = IDBKeyRange.upperBound(
     Date.now() - ACTIVITY_RETENTION_MS,
-    true
+    true,
   )
   const [expiredKeys] = await Promise.all([
     scan.store.index(WORKING_SET_ACTIVITY_LAST_EVENT_INDEX)
       .getAllKeys(expiredRange),
-    scan.done
+    scan.done,
   ])
   if (expiredKeys.length === 0) return
 
@@ -742,11 +742,11 @@ async function sweepExpiredRows(
     const transaction = database.transaction(
       WORKING_SET_ACTIVITY_RECORDS_STORE,
       'readwrite',
-      { durability: 'relaxed' }
+      { durability: 'relaxed' },
     )
     await settleTransaction(
       expiredKeys.map((key) => transaction.store.delete(key)),
-      transaction.done
+      transaction.done,
     )
   } catch {
     // Expiry is also enforced by the retained index range on semantic reads.
@@ -755,7 +755,7 @@ async function sweepExpiredRows(
 
 async function settleTransaction(
   requests: readonly Promise<unknown>[],
-  done: Promise<unknown>
+  done: Promise<unknown>,
 ): Promise<void> {
   const results = await Promise.allSettled([...requests, done])
   const failed = results.find((result) => result.status === 'rejected')

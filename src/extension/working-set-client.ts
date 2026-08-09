@@ -2,7 +2,7 @@ import { Schema } from 'effect'
 
 import {
   WORKING_SET_DEFAULT_LIMIT,
-  WORKING_SET_EXPANDED_LIMIT
+  WORKING_SET_EXPANDED_LIMIT,
 } from './working-set.js'
 import type { WorkingSetItem, WorkingSetSnapshot } from './types'
 import { focusExistingTabTargetResult, type ExistingTabFocusResult } from './tab-focus.js'
@@ -10,7 +10,7 @@ import { focusExistingTabTargetResult, type ExistingTabFocusResult } from './tab
 const workingSetSnapshotCandidateSchema = Schema.Struct({
   defaultLimit: Schema.optionalKey(Schema.Unknown),
   expandedLimit: Schema.optionalKey(Schema.Unknown),
-  items: Schema.Array(Schema.Unknown)
+  items: Schema.Array(Schema.Unknown),
 })
 
 const workingSetItemCandidateSchema = Schema.Struct({
@@ -27,7 +27,7 @@ const workingSetItemCandidateSchema = Schema.Struct({
   activeInOtherWindow: Schema.optionalKey(Schema.Unknown),
   loading: Schema.optionalKey(Schema.Unknown),
   score: Schema.optionalKey(Schema.Unknown),
-  lastActivatedAt: Schema.optionalKey(Schema.Unknown)
+  lastActivatedAt: Schema.optionalKey(Schema.Unknown),
 })
 
 const isWorkingSetSnapshotCandidate = Schema.is(workingSetSnapshotCandidateSchema)
@@ -37,7 +37,7 @@ function emptyWorkingSetSnapshot(): WorkingSetSnapshot {
   return {
     defaultLimit: WORKING_SET_DEFAULT_LIMIT,
     expandedLimit: WORKING_SET_EXPANDED_LIMIT,
-    items: []
+    items: [],
   }
 }
 
@@ -65,7 +65,7 @@ export function normalizeWorkingSetSnapshot(value: unknown): WorkingSetSnapshot 
         activeInOtherWindow: !!item.activeInOtherWindow,
         loading: !!item.loading,
         score: typeof item.score === 'number' ? item.score : 0,
-        lastActivatedAt: typeof item.lastActivatedAt === 'number' ? item.lastActivatedAt : 0
+        lastActivatedAt: typeof item.lastActivatedAt === 'number' ? item.lastActivatedAt : 0,
       }
     })
     .filter((item): item is WorkingSetItem => !!item)
@@ -77,6 +77,6 @@ export async function focusWorkingSetItemResult(item: Pick<WorkingSetItem, 'tabI
     tabId: item.tabId,
     windowId: item.windowId,
     url: item.tabUrl,
-    rawUrl: item.rawUrl
+    rawUrl: item.rawUrl,
   })
 }

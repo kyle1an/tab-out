@@ -4,12 +4,12 @@ import {
   mkdtemp,
   readFile,
   rm,
-  writeFile
+  writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import {
   join,
-  resolve
+  resolve,
 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -17,47 +17,47 @@ import {
   expect,
   test,
   type Page,
-  type TestInfo
+  type TestInfo,
 } from '@playwright/test'
 
 import {
   buildWorkingSetStorageBenchmarkArtifacts,
   sha256Directory,
   sha256File,
-  type WorkingSetBenchmarkArtifactSidecar
+  type WorkingSetBenchmarkArtifactSidecar,
 } from '../../scripts/build-working-set-storage-benchmark.js'
 import {
-  workingSetBenchmarkBackendModulePath
+  workingSetBenchmarkBackendModulePath,
 } from '../../scripts/working-set-benchmark-build-config.js'
 import {
-  WORKING_SET_ACTIVITY_AUTHORITY_KEY
+  WORKING_SET_ACTIVITY_AUTHORITY_KEY,
 } from '../../src/extension/background/working-set-activity-authority.js'
 import {
   WORKING_SET_ACTIVITY_DATABASE_PREFIX,
   WORKING_SET_ACTIVITY_MANIFEST_KEY,
-  WORKING_SET_ACTIVITY_MANIFEST_STORE
+  WORKING_SET_ACTIVITY_MANIFEST_STORE,
 } from '../../src/extension/background/working-set-activity-indexed-db.js'
 import {
-  WORKING_SET_ACTIVITY_KEY
+  WORKING_SET_ACTIVITY_KEY,
 } from '../../src/extension/background/working-set-activity-storage.js'
 import { chromeSupportPolicy } from '../../src/extension/chrome-support.js'
 import {
-  DASHBOARD_SERVICE_STATE_GET_MESSAGE
+  DASHBOARD_SERVICE_STATE_GET_MESSAGE,
 } from '../../src/extension/runtime-messages.js'
 import type { WorkingSetActivityStore } from '../../src/extension/types'
 import {
-  makeWorkingSetStorageProfile
+  makeWorkingSetStorageProfile,
 } from '../helpers/working-set-storage-profile.js'
 import {
   launchInstalledExtensionFromArtifact,
-  type LaunchedInstalledExtension
+  type LaunchedInstalledExtension,
 } from './installed-extension.js'
 import {
-  terminateServiceWorkerAndProveAbsent
+  terminateServiceWorkerAndProveAbsent,
 } from './service-worker-cdp.js'
 import {
   parseWorkingSetStorageBenchmarkResponse,
-  WORKING_SET_STORAGE_BENCHMARK_MESSAGE
+  WORKING_SET_STORAGE_BENCHMARK_MESSAGE,
 } from './working-set-storage-benchmark-protocol.js'
 
 const PROBE_TIMEOUT_MS = 30 * 60_000
@@ -154,14 +154,14 @@ function chromeVersionFromUserAgent(userAgent: string): string | null {
 function configuredCount(
   environmentName: string,
   fallback: number,
-  minimum: number
+  minimum: number,
 ): number {
   const raw = process.env[environmentName]
   if (raw === undefined) return fallback
   const parsed = Number(raw)
   if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > 100) {
     throw new Error(
-      `${environmentName} must be an integer from ${String(minimum)} to 100`
+      `${environmentName} must be an integer from ${String(minimum)} to 100`,
     )
   }
   return parsed
@@ -170,12 +170,12 @@ function configuredCount(
 const WARMUP_RUNS = configuredCount(
   'TAB_OUT_WORKING_SET_PRODUCTION_COLD_READ_WARMUPS',
   5,
-  0
+  0,
 )
 const MEASURED_RUNS = configuredCount(
   'TAB_OUT_WORKING_SET_PRODUCTION_COLD_READ_RUNS',
   30,
-  1
+  1,
 )
 
 function percentile(values: readonly number[], fraction: number): number {
@@ -191,7 +191,7 @@ function distribution(values: readonly number[]): Distribution | null {
     min: Math.min(...values),
     p50: percentile(values, 0.5),
     p95: percentile(values, 0.95),
-    max: Math.max(...values)
+    max: Math.max(...values),
   }
 }
 
@@ -209,12 +209,12 @@ function canonicalActivitySha256(activity: WorkingSetActivityStore): string {
       record.lastNavigatedAt ?? null,
       record.dismissedAt ?? null,
       record.dismissedUntil ?? null,
-      record.events.map((event) => [event.kind, event.at])
+      record.events.map((event) => [event.kind, event.at]),
     ]
   })
   return createHash('sha256').update(JSON.stringify([
     activity.version,
-    records
+    records,
   ])).digest('hex')
 }
 
@@ -228,18 +228,18 @@ function phaseAndIteration(cycle: number): {
 }
 
 function currentArtifact(
-  artifacts: readonly WorkingSetBenchmarkArtifactSidecar[]
+  artifacts: readonly WorkingSetBenchmarkArtifactSidecar[],
 ): WorkingSetBenchmarkArtifactSidecar {
   const artifact = artifacts.find((candidate) => candidate.variant === 'current')
   invariant(artifact !== undefined, 'Benchmark build omitted current artifact')
   invariant(
     artifact.instrumentation === 'none',
-    'Frozen current artifact unexpectedly enabled instrumentation'
+    'Frozen current artifact unexpectedly enabled instrumentation',
   )
   invariant(
     artifact.selectedBackendModule ===
-      workingSetBenchmarkBackendModulePath(repositoryRoot, 'current'),
-    'Frozen current artifact did not select its owned Chrome-envelope backend'
+    workingSetBenchmarkBackendModulePath(repositoryRoot, 'current'),
+    'Frozen current artifact did not select its owned Chrome-envelope backend',
   )
   return artifact
 }
@@ -248,24 +248,24 @@ async function makeDisposableProductionArtifact(): Promise<
   DisposableProductionArtifact
 > {
   const exactProductionTreeSha256 = await sha256Directory(
-    productionExtensionDirectory
+    productionExtensionDirectory,
   )
   const backgroundBundleSha256 = await sha256File(resolve(
     productionExtensionDirectory,
-    'dist/background.js'
+    'dist/background.js',
   ))
   const backgroundBundle = await readFile(resolve(
     productionExtensionDirectory,
-    'dist/background.js'
+    'dist/background.js',
   ), 'utf8')
   invariant(
     !backgroundBundle.includes(BENCHMARK_SENTINEL),
-    'Production background bundle contains benchmark instrumentation'
+    'Production background bundle contains benchmark instrumentation',
   )
 
   const temporaryDirectory = await mkdtemp(join(
     tmpdir(),
-    'tab-out-production-idb-cold-read-'
+    'tab-out-production-idb-cold-read-',
   ))
   const directory = resolve(temporaryDirectory, 'extension')
   let disposed = false
@@ -273,12 +273,12 @@ async function makeDisposableProductionArtifact(): Promise<
     await cp(productionExtensionDirectory, directory, {
       errorOnExist: true,
       force: false,
-      recursive: true
+      recursive: true,
     })
     const controllerPath = resolve(directory, PRODUCTION_CONTROLLER_PAGE)
     await writeFile(controllerPath, controllerHtml, {
       encoding: 'utf8',
-      flag: 'wx'
+      flag: 'wx',
     })
     const controllerSha256 = createHash('sha256')
       .update(controllerHtml)
@@ -296,10 +296,10 @@ async function makeDisposableProductionArtifact(): Promise<
         backgroundBundleSha256,
         controllerSha256,
         exactProductionTreeSha256,
-        probeTreeSha256
+        probeTreeSha256,
       },
       dispose,
-      [Symbol.asyncDispose]: dispose
+      [Symbol.asyncDispose]: dispose,
     }
   } catch (cause) {
     await rm(temporaryDirectory, { force: true, recursive: true })
@@ -310,16 +310,16 @@ async function makeDisposableProductionArtifact(): Promise<
 async function launchVariant(
   variant: Variant,
   extensionDirectory: string,
-  controllerPage: string
+  controllerPage: string,
 ): Promise<RunningVariant> {
   const installed = await launchInstalledExtensionFromArtifact(
-    extensionDirectory
+    extensionDirectory,
   )
   try {
     const controller = await installed.context.newPage()
     await controller.goto(
       `chrome-extension://${installed.extensionId}/${controllerPage}`,
-      { waitUntil: 'domcontentloaded' }
+      { waitUntil: 'domcontentloaded' },
     )
     const userAgent = await controller.evaluate(() => navigator.userAgent)
     const actualChromeVersion = chromeVersionFromUserAgent(userAgent)
@@ -329,7 +329,7 @@ async function launchVariant(
     invariant(
       actualChromeMajor === chromeSupportPolicy.minimumMajor,
       `${variant} ran Chrome ${String(actualChromeVersion)}; expected major ` +
-        String(chromeSupportPolicy.minimumMajor)
+      String(chromeSupportPolicy.minimumMajor),
     )
     return {
       browser: {
@@ -338,12 +338,12 @@ async function launchVariant(
         declaredMinimumChromeMajor: chromeSupportPolicy.minimumMajor,
         matchesDeclaredMinimum:
           actualChromeMajor === chromeSupportPolicy.minimumMajor,
-        userAgent
+        userAgent,
       },
       variant,
       controller,
       installed,
-      workerUrl: installed.serviceWorker.url()
+      workerUrl: installed.serviceWorker.url(),
     }
   } catch (cause) {
     await installed.dispose().catch(() => undefined)
@@ -352,14 +352,14 @@ async function launchVariant(
 }
 
 async function sendDashboardServiceRead(
-  controller: Page
+  controller: Page,
 ): Promise<DashboardReadResult> {
   return controller.evaluate(async (messageType) => {
     let directInvocationCount = 0
     const startedAt = performance.now()
     directInvocationCount += 1
     const response: unknown = await chrome.runtime.sendMessage({
-      type: messageType
+      type: messageType,
     })
     // Stop the measured boundary as soon as the service-state Promise settles.
     // Canonical semantic hashing below is deliberately untimed.
@@ -403,19 +403,19 @@ async function sendDashboardServiceRead(
             throw new Error('Dashboard service-state row contained a bad event')
           }
           return [Reflect.get(event, 'kind'), Reflect.get(event, 'at')]
-        })
+        }),
       ]
     })
     const digest = await crypto.subtle.digest(
       'SHA-256',
       new TextEncoder().encode(JSON.stringify([
         Reflect.get(activity, 'version'),
-        canonicalRecords
-      ]))
+        canonicalRecords,
+      ])),
     )
     const canonicalActivitySha256 = Array.from(
       new Uint8Array(digest),
-      (byte) => byte.toString(16).padStart(2, '0')
+      (byte) => byte.toString(16).padStart(2, '0'),
     ).join('')
     if (directInvocationCount !== 1) {
       throw new Error('Dashboard harness invoked sendMessage more than once')
@@ -426,47 +426,47 @@ async function sendDashboardServiceRead(
       durationMs,
       eventCount,
       explicitSuccess,
-      recordCount: values.length
+      recordCount: values.length,
     }
   }, DASHBOARD_SERVICE_STATE_GET_MESSAGE)
 }
 
 function assertExpectedRead(
   variant: Variant,
-  result: DashboardReadResult
+  result: DashboardReadResult,
 ): void {
   invariant(result.explicitSuccess, `${variant} did not return explicit success`)
   invariant(
     result.directInvocationCount === 1,
-    `${variant} harness invoked sendMessage more than once`
+    `${variant} harness invoked sendMessage more than once`,
   )
   invariant(
     result.recordCount === EXPECTED_RECORD_COUNT,
-    `${variant} returned ${String(result.recordCount)} records; expected 500`
+    `${variant} returned ${String(result.recordCount)} records; expected 500`,
   )
   invariant(
     result.eventCount === EXPECTED_EVENT_COUNT,
-    `${variant} returned ${String(result.eventCount)} events; expected 10000`
+    `${variant} returned ${String(result.eventCount)} events; expected 10000`,
   )
 }
 
 async function seedFrozenCurrent(
   running: RunningVariant,
-  now: number
+  now: number,
 ): Promise<DashboardReadResult> {
   const raw: unknown = await running.controller.evaluate(async ({
     messageType,
     now,
-    profile
+    profile,
   }) => chrome.runtime.sendMessage({
     type: messageType,
     operation: 'seed-profile',
     profile,
-    now
+    now,
   }), {
     messageType: WORKING_SET_STORAGE_BENCHMARK_MESSAGE,
     now,
-    profile: PROFILE
+    profile: PROFILE,
   })
   const response = parseWorkingSetStorageBenchmarkResponse(raw)
   invariant(response !== null, 'Frozen current seed returned an invalid response')
@@ -474,7 +474,7 @@ async function seedFrozenCurrent(
   invariant(response.operation === 'seed-profile', 'Frozen current seed changed operation')
   invariant(
     response.diagnostics.variant === 'current',
-    'Frozen current artifact reported a different backend'
+    'Frozen current artifact reported a different backend',
   )
   // The shared WorkingSet service may have cached an initial empty read while
   // the extension was loading. Restart before the unmeasured verification so
@@ -483,7 +483,7 @@ async function seedFrozenCurrent(
   await terminateServiceWorkerAndProveAbsent(
     running.installed.context,
     running.controller,
-    running.workerUrl
+    running.workerUrl,
   )
   const setupRead = await sendDashboardServiceRead(running.controller)
   assertExpectedRead('current-frozen', setupRead)
@@ -496,7 +496,7 @@ async function deleteDatabase(controller: Page, databaseName: string): Promise<v
       const request = indexedDB.deleteDatabase(name)
       request.onerror = () => reject(request.error)
       request.onblocked = () => reject(new Error(
-        `IndexedDB deletion was blocked: ${name}`
+        `IndexedDB deletion was blocked: ${name}`,
       ))
       request.onsuccess = () => resolvePromise()
     })
@@ -505,7 +505,7 @@ async function deleteDatabase(controller: Page, databaseName: string): Promise<v
 
 async function seedAndMigrateProduction(
   running: RunningVariant,
-  activity: WorkingSetActivityStore
+  activity: WorkingSetActivityStore,
 ): Promise<{
   readonly authorityProof: unknown
   readonly setupRead: DashboardReadResult
@@ -518,7 +518,7 @@ async function seedAndMigrateProduction(
   const seeded = await running.controller.evaluate(async ({
     activity,
     authorityKey,
-    legacyKey
+    legacyKey,
   }) => {
     await chrome.storage.local.remove(authorityKey)
     await chrome.storage.local.set({ [legacyKey]: activity })
@@ -526,15 +526,15 @@ async function seedAndMigrateProduction(
   }, {
     activity,
     authorityKey: WORKING_SET_ACTIVITY_AUTHORITY_KEY,
-    legacyKey: WORKING_SET_ACTIVITY_KEY
+    legacyKey: WORKING_SET_ACTIVITY_KEY,
   })
   invariant(
     Reflect.get(seeded, WORKING_SET_ACTIVITY_AUTHORITY_KEY) === undefined,
-    'Production seed unexpectedly retained an authority marker'
+    'Production seed unexpectedly retained an authority marker',
   )
   invariant(
     Reflect.get(seeded, WORKING_SET_ACTIVITY_KEY) !== undefined,
-    'Production seed omitted the legacy activity envelope'
+    'Production seed omitted the legacy activity envelope',
   )
 
   // Marker removal cannot change the already-live authority coordinator.
@@ -542,7 +542,7 @@ async function seedAndMigrateProduction(
   await terminateServiceWorkerAndProveAbsent(
     running.installed.context,
     running.controller,
-    running.workerUrl
+    running.workerUrl,
   )
   const existingDatabases = await running.controller.evaluate(async (prefix) =>
     (await indexedDB.databases()).flatMap((database) =>
@@ -559,11 +559,11 @@ async function seedAndMigrateProduction(
   invariant(authorityProof.markerBackend === 'idb', 'Migration did not select IDB')
   invariant(
     authorityProof.markerRecordCount === EXPECTED_RECORD_COUNT,
-    'Migration marker has the wrong record count'
+    'Migration marker has the wrong record count',
   )
   invariant(
     authorityProof.markerEventCount === EXPECTED_EVENT_COUNT,
-    'Migration marker has the wrong event count'
+    'Migration marker has the wrong event count',
   )
   invariant(authorityProof.manifestMatchesMarker, 'IDB manifest differs from marker')
   return { authorityProof, setupRead: migrationRead }
@@ -574,7 +574,7 @@ async function readProductionAuthorityProof(controller: Page) {
     authorityKey,
     databasePrefix,
     manifestKey,
-    manifestStore
+    manifestStore,
   }) => {
     const stored = await chrome.storage.local.get(authorityKey)
     const marker: unknown = stored[authorityKey]
@@ -597,7 +597,7 @@ async function readProductionAuthorityProof(controller: Page) {
       const request = indexedDB.open(databaseName)
       request.onerror = () => reject(request.error)
       request.onblocked = () => reject(new Error(
-        `IndexedDB authority proof was blocked: ${databaseName}`
+        `IndexedDB authority proof was blocked: ${databaseName}`,
       ))
       request.onupgradeneeded = () => {
         request.transaction?.abort()
@@ -618,7 +618,7 @@ async function readProductionAuthorityProof(controller: Page) {
         sourceDigest: Reflect.get(marker, 'sourceDigest'),
         recordCount: markerRecordCount,
         eventCount: markerEventCount,
-        retainedAfter: Reflect.get(marker, 'retainedAfter')
+        retainedAfter: Reflect.get(marker, 'retainedAfter'),
       }
       return {
         databaseName,
@@ -626,7 +626,7 @@ async function readProductionAuthorityProof(controller: Page) {
           JSON.stringify(manifest) === JSON.stringify(markerManifest),
         markerBackend,
         markerEventCount,
-        markerRecordCount
+        markerRecordCount,
       }
     } finally {
       database.close()
@@ -635,17 +635,17 @@ async function readProductionAuthorityProof(controller: Page) {
     authorityKey: WORKING_SET_ACTIVITY_AUTHORITY_KEY,
     databasePrefix: WORKING_SET_ACTIVITY_DATABASE_PREFIX,
     manifestKey: WORKING_SET_ACTIVITY_MANIFEST_KEY,
-    manifestStore: WORKING_SET_ACTIVITY_MANIFEST_STORE
+    manifestStore: WORKING_SET_ACTIVITY_MANIFEST_STORE,
   })
 }
 
 async function measureColdRead(
-  running: RunningVariant
+  running: RunningVariant,
 ): Promise<DashboardReadResult> {
   await terminateServiceWorkerAndProveAbsent(
     running.installed.context,
     running.controller,
-    running.workerUrl
+    running.workerUrl,
   )
   const result = await sendDashboardServiceRead(running.controller)
   assertExpectedRead(running.variant, result)
@@ -661,12 +661,12 @@ async function measureFreshVariant(
   order: number,
   profile: ReturnType<typeof makeWorkingSetStorageProfile>,
   expectedCanonicalActivitySha256: string,
-  cleanupErrors: string[]
+  cleanupErrors: string[],
 ): Promise<ColdReadSample> {
   const running = await launchVariant(
     variant,
     extensionDirectory,
-    controllerPage
+    controllerPage,
   )
   try {
     let productionAuthorityBefore: unknown
@@ -676,20 +676,20 @@ async function measureFreshVariant(
     } else {
       const migrated = await seedAndMigrateProduction(
         running,
-        profile.activity
+        profile.activity,
       )
       setupRead = migrated.setupRead
       productionAuthorityBefore = migrated.authorityProof
     }
     invariant(
       setupRead.canonicalActivitySha256 === expectedCanonicalActivitySha256,
-      `${variant} unmeasured setup read changed canonical 500x20 activity`
+      `${variant} unmeasured setup read changed canonical 500x20 activity`,
     )
 
     const measured = await measureColdRead(running)
     invariant(
       measured.canonicalActivitySha256 === expectedCanonicalActivitySha256,
-      `${variant} measured cold read changed canonical 500x20 activity`
+      `${variant} measured cold read changed canonical 500x20 activity`,
     )
     const productionAuthorityAfter = variant === 'production-idb'
       ? await readProductionAuthorityProof(running.controller)
@@ -697,8 +697,8 @@ async function measureFreshVariant(
     if (variant === 'production-idb') {
       invariant(
         JSON.stringify(productionAuthorityAfter) ===
-          JSON.stringify(productionAuthorityBefore),
-        'Cold production read changed the authority marker or manifest'
+        JSON.stringify(productionAuthorityBefore),
+        'Cold production read changed the authority marker or manifest',
       )
     }
     return {
@@ -717,7 +717,7 @@ async function measureFreshVariant(
         : { productionAuthorityBefore }),
       setupCanonicalActivitySha256: setupRead.canonicalActivitySha256,
       variant,
-      workerAbsentBeforeRequest: true
+      workerAbsentBeforeRequest: true,
     }
   } finally {
     try {
@@ -725,7 +725,7 @@ async function measureFreshVariant(
     } catch (cause) {
       cleanupErrors.push(
         `${variant}/${phase}/${String(iteration)}: ` +
-          `${cause instanceof Error ? cause.message : String(cause)}`
+        `${cause instanceof Error ? cause.message : String(cause)}`,
       )
     }
   }
@@ -734,7 +734,7 @@ async function measureFreshVariant(
 function summarizeSamples(samples: readonly ColdReadSample[]) {
   return Object.fromEntries(([
     'current-frozen',
-    'production-idb'
+    'production-idb',
   ] as const).map((variant) => {
     const measured = samples.filter((sample) =>
       sample.phase === 'measured' && sample.variant === variant)
@@ -750,7 +750,7 @@ function summarizeSamples(samples: readonly ColdReadSample[]) {
       expectedCanonicalActivitySha256: [...new Set(measured.map((sample) =>
         sample.expectedCanonicalActivitySha256))],
       browserVersions: [...new Set(measured.map((sample) =>
-        sample.browser.actualChromeVersion))]
+        sample.browser.actualChromeVersion))],
     }]
   }))
 }
@@ -758,7 +758,7 @@ function summarizeSamples(samples: readonly ColdReadSample[]) {
 function summarizeBrowserEvidence(samples: readonly ColdReadSample[]) {
   return Object.fromEntries(([
     'current-frozen',
-    'production-idb'
+    'production-idb',
   ] as const).map((variant) => {
     const browser = samples.find((sample) => sample.variant === variant)?.browser
     invariant(browser !== undefined, `${variant} omitted browser evidence`)
@@ -768,7 +768,7 @@ function summarizeBrowserEvidence(samples: readonly ColdReadSample[]) {
 
 function measuredSamples(
   samples: readonly ColdReadSample[],
-  variant: Variant
+  variant: Variant,
 ): readonly ColdReadSample[] {
   return samples.filter((sample) =>
     sample.phase === 'measured' && sample.variant === variant)
@@ -786,10 +786,10 @@ function makeRandom(seed: number): () => number {
 
 function pairedColdBootstrap(
   currentSamples: readonly ColdReadSample[],
-  productionSamples: readonly ColdReadSample[]
+  productionSamples: readonly ColdReadSample[],
 ) {
   const currentByIteration = new Map(
-    currentSamples.map((sample) => [sample.iteration, sample])
+    currentSamples.map((sample) => [sample.iteration, sample]),
   )
   const pairs = productionSamples.flatMap((production) => {
     const current = currentByIteration.get(production.iteration)
@@ -809,7 +809,7 @@ function pairedColdBootstrap(
     }
     p95Deltas.push(
       percentile(sampledProduction, 0.95) -
-        percentile(sampledCurrent, 0.95)
+      percentile(sampledCurrent, 0.95),
     )
   }
   return {
@@ -817,7 +817,7 @@ function pairedColdBootstrap(
     repetitions: BOOTSTRAP_REPETITIONS,
     seed: BOOTSTRAP_SEED,
     lower95Ms: percentile(p95Deltas, 0.025),
-    upper95Ms: percentile(p95Deltas, 0.975)
+    upper95Ms: percentile(p95Deltas, 0.975),
   }
 }
 
@@ -829,7 +829,7 @@ function evaluateColdReadBudget(samples: readonly ColdReadSample[]) {
   const currentP95Ms = percentile(current.map((sample) => sample.durationMs), 0.95)
   const productionP95Ms = percentile(
     production.map((sample) => sample.durationMs),
-    0.95
+    0.95,
   )
   const pointRegressionMs = productionP95Ms - currentP95Ms
   const allowedRegressionMs = Math.max(currentP95Ms * 0.1, 5)
@@ -859,7 +859,7 @@ function evaluateColdReadBudget(samples: readonly ColdReadSample[]) {
     pointWithinBudget,
     pairedBootstrapP95Delta: bootstrap,
     bootstrapUpperWithinBudget,
-    provisionalUpperBoundPass: pointWithinBudget && bootstrapUpperWithinBudget
+    provisionalUpperBoundPass: pointWithinBudget && bootstrapUpperWithinBudget,
   }
 }
 
@@ -868,7 +868,7 @@ async function writeReport(testInfo: TestInfo, report: unknown): Promise<string>
   await writeFile(path, `${JSON.stringify(report, null, 2)}\n`)
   await testInfo.attach(`${REPORT_KIND}.json`, {
     path,
-    contentType: 'application/json'
+    contentType: 'application/json',
   })
   return path
 }
@@ -879,7 +879,7 @@ test('probes frozen current against the migrated production IDB cold read', asyn
   testInfo.annotations.push({
     type: 'non-selection performance probe',
     description:
-      'This paired production-validation probe cannot select or reject a backend.'
+      'This paired production-validation probe cannot select or reject a backend.',
   })
 
   await using benchmarkBuild = await buildWorkingSetStorageBenchmarkArtifacts()
@@ -895,7 +895,7 @@ test('probes frozen current against the migrated production IDB cold read', asyn
     invariant(profile.liveRecordCount === EXPECTED_RECORD_COUNT, 'Fixture changed record count')
     invariant(profile.eventsPerRecord === 20, 'Fixture changed events per record')
     const expectedCanonicalActivitySha256 = canonicalActivitySha256(
-      profile.activity
+      profile.activity,
     )
     const order: readonly Variant[] = cycle % 2 === 0
       ? ['current-frozen', 'production-idb']
@@ -908,15 +908,15 @@ test('probes frozen current against the migrated production IDB cold read', asyn
         ? frozenCurrent.controllerPage
         : productionArtifact.controllerPage
       collected.push(await measureFreshVariant(
-          variant,
-          extensionDirectory,
-          controllerPage,
-          phase,
-          iteration,
-          orderIndex,
-          profile,
-          expectedCanonicalActivitySha256,
-          cleanupErrors
+        variant,
+        extensionDirectory,
+        controllerPage,
+        phase,
+        iteration,
+        orderIndex,
+        profile,
+        expectedCanonicalActivitySha256,
+        cleanupErrors,
       ))
     }
   }
@@ -943,7 +943,7 @@ test('probes frozen current against the migrated production IDB cold read', asyn
       defaultCounts: { warmupRuns: 5, measuredRuns: 30 },
       countEnvironment: {
         warmups: 'TAB_OUT_WORKING_SET_PRODUCTION_COLD_READ_WARMUPS',
-        measured: 'TAB_OUT_WORKING_SET_PRODUCTION_COLD_READ_RUNS'
+        measured: 'TAB_OUT_WORKING_SET_PRODUCTION_COLD_READ_RUNS',
       },
       pairing:
         'Each cycle measures both artifacts with the exact same fixture and reverses their order on the next cycle.',
@@ -963,9 +963,9 @@ test('probes frozen current against the migrated production IDB cold read', asyn
         repetitions: BOOTSTRAP_REPETITIONS,
         seed: BOOTSTRAP_SEED,
         method:
-          'Deterministic paired resampling by measured iteration, recomputing production-current cold request p95 delta.'
+          'Deterministic paired resampling by measured iteration, recomputing production-current cold request p95 delta.',
       },
-      selectionAuthority: false
+      selectionAuthority: false,
     },
     artifacts: {
       frozenCurrent: {
@@ -973,24 +973,24 @@ test('probes frozen current against the migrated production IDB cold read', asyn
         instrumentation: frozenCurrent.instrumentation,
         selectedBackendModule: frozenCurrent.selectedBackendModule,
         moduleGraphPath: frozenCurrent.moduleGraphPath,
-        hashes: frozenCurrent.hashes
+        hashes: frozenCurrent.hashes,
       },
       production: {
         sourceDirectory: productionExtensionDirectory,
         aliasing: false,
         instrumentation: 'none',
         inertControllerAddedOutsideRepository: PRODUCTION_CONTROLLER_PAGE,
-        hashes: productionArtifact.hashes
+        hashes: productionArtifact.hashes,
       },
       trackedExtensionUnchangedByBenchmarkBuild:
-        benchmarkBuild.sidecar.trackedExtension
+        benchmarkBuild.sidecar.trackedExtension,
     },
     samples,
     summaries: summarizeSamples(samples),
     browserEvidence: summarizeBrowserEvidence(samples),
     coldReadBudget,
     failures: [],
-    cleanupErrors
+    cleanupErrors,
   }
   const reportPath = await writeReport(testInfo, report)
   console.log(JSON.stringify({
@@ -1001,7 +1001,7 @@ test('probes frozen current against the migrated production IDB cold read', asyn
     reportPath,
     summaries: report.summaries,
     coldReadBudget: report.coldReadBudget,
-    cleanupErrors
+    cleanupErrors,
   }))
 
   expect(cleanupErrors).toEqual([])

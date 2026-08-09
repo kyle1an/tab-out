@@ -98,7 +98,7 @@ async function probeDirectPointerEntry(
   action: Locator,
   ownerSelector: string,
   enterAtEdge = false,
-  repositionPointer = true
+  repositionPointer = true,
 ): Promise<DirectPointerEntry> {
   await action.scrollIntoViewIfNeeded()
 
@@ -125,7 +125,7 @@ async function probeDirectPointerEntry(
       const target = event.target
       fixtureWindow.__tabOutDirectPointerEntry = {
         cursor: target instanceof Element ? getComputedStyle(target).cursor : '',
-        ownerMatched: target instanceof Element && !!target.closest(nextOwnerSelector)
+        ownerMatched: target instanceof Element && !!target.closest(nextOwnerSelector),
       }
     }
     document.addEventListener('pointerover', onPointerOver, { capture: true, once: true })
@@ -159,7 +159,7 @@ async function expectStablePointerEntry({
   owner,
   ownerSelector,
   page,
-  repositionPointer = true
+  repositionPointer = true,
 }: {
   action: Locator
   enterAtEdge?: boolean
@@ -184,7 +184,7 @@ async function expectStablePointerEntry({
 
   expect(
     await probeDirectPointerEntry(page, action, ownerSelector, enterAtEdge, repositionPointer),
-    `${label} close reveal region should keep the pointer stable on first entry`
+    `${label} close reveal region should keep the pointer stable on first entry`,
   ).toEqual({ actionMatchedAfterReveal: true, cursor: 'pointer', ownerMatched: true })
   await expect(action).toHaveCSS('opacity', '1')
   await expect(action).toHaveCSS('pointer-events', 'auto')
@@ -207,7 +207,7 @@ async function expectKeyboardOnlyReveal(page: Page, action: Locator, label: stri
 async function installBookmarkFetchGate(
   page: Page,
   replacementTree: BookmarkTreeFixture[] | null = null,
-  bookmarkCount = 1
+  bookmarkCount = 1,
 ) {
   await page.evaluate(({ nextTree, nextBookmarkCount }) => {
     const fixtureWindow = window as typeof window & {
@@ -223,7 +223,7 @@ async function installBookmarkFetchGate(
       completedCount: 0,
       release,
       started: false,
-      startedAt: null
+      startedAt: null,
     }
     fixtureWindow.__tabOutBookmarkFetchGate = gate
     window.chrome.bookmarks.getTree = async () => {
@@ -279,7 +279,7 @@ test('bookmark companion hydration starts before the coalesced History search', 
   ))).not.toBeNull()
   await expect(page.locator('[data-tabout="history-search-status"]')).toHaveAttribute(
     'data-tabout-history-phase',
-    'ready'
+    'ready',
   )
 
   const timing = await page.evaluate(() => {
@@ -289,7 +289,7 @@ test('bookmark companion hydration starts before the coalesced History search', 
     }
     return {
       bookmark: state.__tabOutBookmarkFetchGate?.startedAt ?? null,
-      history: state.__tabOutHistorySearchStartedAt
+      history: state.__tabOutHistorySearchStartedAt,
     }
   })
   expect(timing.bookmark).not.toBeNull()
@@ -310,7 +310,7 @@ async function collapsedTitleFadeState(title: Locator, truncatedClass: string) {
       clamped: titleElement.querySelectorAll('.clamped-title-line').length > 1,
       fadeAtEdge: Number.isFinite(fadeEnd) && Math.abs(fadeEnd - width) <= 0.1,
       masked: getComputedStyle(titleElement).maskImage !== 'none',
-      truncated: titleElement.classList.contains(className)
+      truncated: titleElement.classList.contains(className),
     }
   }, truncatedClass)
 }
@@ -319,7 +319,7 @@ const RESTORED_TITLE_FADE_STATE = {
   clamped: true,
   fadeAtEdge: true,
   masked: true,
-  truncated: true
+  truncated: true,
 }
 
 async function expectCollapsedTitleFade(title: Locator, truncatedClass: string, message?: string) {
@@ -347,7 +347,7 @@ async function measureDashboard(page: Page, width: number): Promise<DashboardGeo
   }), {
     message: `masonry should finish repacking at ${width}px`,
     timeout: 5_000,
-    intervals: [50, 100, 150]
+    intervals: [50, 100, 150],
   }).toBe(true)
 
   const readGeometry = () => page.evaluate(() => {
@@ -364,7 +364,7 @@ async function measureDashboard(page: Page, width: number): Promise<DashboardGeo
       firstWidth: Math.round(rects[0]?.width || 0),
       headerControlsRight: headerControlsRect ? round(headerControlsRect.right) : null,
       missionsRight: missionsRect ? round(missionsRect.right) : null,
-      sourceSwitchRight: sourceSwitchRect ? round(sourceSwitchRect.right) : null
+      sourceSwitchRight: sourceSwitchRect ? round(sourceSwitchRect.right) : null,
     }
   })
 
@@ -379,7 +379,7 @@ async function measureDashboard(page: Page, width: number): Promise<DashboardGeo
   }, {
     message: `dashboard geometry should settle at ${width}px`,
     timeout: 5_000,
-    intervals: [50, 100, 150]
+    intervals: [50, 100, 150],
   }).toBe(true)
 
   return latest
@@ -466,7 +466,7 @@ test('header stats keep counts and actions compact and accessible', async ({ pag
         Number.parseFloat(getComputedStyle(windowCount).fontSize),
       iconGap: iconRect.left - countRect.right,
       iconVisible: getComputedStyle(icon).maskImage !== 'none',
-      secondaryGap: domainRect.left - windowRect.right
+      secondaryGap: domainRect.left - windowRect.right,
     }
   })
 
@@ -489,7 +489,7 @@ test('header stats keep counts and actions compact and accessible', async ({ pag
 for (const scenario of [
   { label: 'wide', width: 1420, height: 900, reducedMotion: 'no-preference' as const },
   { label: 'narrow', width: 760, height: 700, reducedMotion: 'no-preference' as const },
-  { label: 'reduced motion', width: 760, height: 700, reducedMotion: 'reduce' as const }
+  { label: 'reduced motion', width: 760, height: 700, reducedMotion: 'reduce' as const },
 ]) {
   test(`native header shadow follows the dashboard scroll position at ${scenario.label} layout`, async ({ page }) => {
     await page.addInitScript(() => {
@@ -521,7 +521,7 @@ for (const scenario of [
         animationDuration: style.animationDuration,
         animationTimeline: style.getPropertyValue('animation-timeline'),
         animationTrigger: style.getPropertyValue('animation-trigger'),
-        opacity: Number(style.opacity)
+        opacity: Number(style.opacity),
       }
     })
 
@@ -530,12 +530,12 @@ for (const scenario of [
       animationDuration: '0.2s',
       animationTimeline: 'auto',
       animationTrigger: '--dashboard-scrolled play-forwards play-backwards',
-      opacity: 0
+      opacity: 0,
     })
 
     if (scenario.label === 'wide') {
       const slowAnimationStyle = await page.addStyleTag({
-        content: '.dashboard-main > .pinned-top::after { animation-duration: 1s !important; }'
+        content: '.dashboard-main > .pinned-top::after { animation-duration: 1s !important; }',
       })
       await expect.poll(async () => (await readShadow()).animationDuration).toBe('1s')
       await scrollRegion.evaluate((element) => { element.scrollTop = 1 })
@@ -589,7 +589,7 @@ test('cardless domain headers align with their mission content', async ({ page }
     return {
       contentLeftDelta: Math.abs(headerFlowRect.left - missionPagesRect.left),
       paddingLeftDelta: Math.abs(Number.parseFloat(headerStyle.paddingLeft) - Number.parseFloat(missionStyle.paddingLeft)),
-      paddingRightDelta: Math.abs(Number.parseFloat(headerStyle.paddingRight) - Number.parseFloat(missionStyle.paddingRight))
+      paddingRightDelta: Math.abs(Number.parseFloat(headerStyle.paddingRight) - Number.parseFloat(missionStyle.paddingRight)),
     }
   }))
 
@@ -630,7 +630,7 @@ test('pinned same-title URL variants stay unified with a close-slot pin marker',
   ))
   expect(restingLabelStyles).toEqual([
     { flexGrow: '0', textAlign: 'left' },
-    { flexGrow: '0', textAlign: 'left' }
+    { flexGrow: '0', textAlign: 'left' },
   ])
 
   const firstVariantPinId = await variantRows.first().getAttribute('data-tabout-layout-key')
@@ -641,10 +641,10 @@ test('pinned same-title URL variants stay unified with a close-slot pin marker',
     ;(window.chrome.storage.onChanged as typeof window.chrome.storage.onChanged & {
       dispatch: (
         changes: Record<string, chrome.storage.StorageChange>,
-        areaName: string
+        areaName: string,
       ) => void
     }).dispatch({
-      tabOutPinnedPageChipsV1: { newValue: [pinId] }
+      tabOutPinnedPageChipsV1: { newValue: [pinId] },
     }, 'local')
   }, firstVariantPinId)
 
@@ -671,7 +671,7 @@ test('pinned same-title URL variants stay unified with a close-slot pin marker',
       markerHeight: markerRect.height,
       markerRight: markerRect.right,
       markerWidth: markerRect.width,
-      rowLeft: rowRect?.left ?? 0
+      rowLeft: rowRect?.left ?? 0,
     }
   })
 
@@ -708,7 +708,7 @@ test('hover-revealed close actions keep a stable pointer on direct entry', async
   })
 
   const titleGroup = page.locator('[data-tabout="page-chip"]').filter({
-    has: page.locator('[data-tabout-removal-key="page:https://plain-title-variant.test/docs/example"]')
+    has: page.locator('[data-tabout-removal-key="page:https://plain-title-variant.test/docs/example"]'),
   }).first()
   const cases = [
     {
@@ -716,22 +716,22 @@ test('hover-revealed close actions keep a stable pointer on direct entry', async
       expectedSize: 20,
       label: 'Page Chip',
       owner: page.locator('#openTabsMissions [data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-01.com"] [data-tabout="page-chip"] [data-tabout-part="close-hit-owner"]').first(),
-      ownerSelector: '[data-tabout-part="close-hit-owner"]'
+      ownerSelector: '[data-tabout-part="close-hit-owner"]',
     },
     {
       action: page.locator('[data-tabout="activation-history-entry"][data-tabout-layout-key="stack:1:9101"] [data-tabout-part="close-button"]').first(),
       expectedSize: 20,
       label: 'Activation History',
       owner: page.locator('[data-tabout="activation-history-entry"][data-tabout-layout-key="stack:1:9101"] [data-tabout-part="close-hit-owner"]').first(),
-      ownerSelector: '[data-tabout-part="close-hit-owner"]'
+      ownerSelector: '[data-tabout-part="close-hit-owner"]',
     },
     {
       action: titleGroup.locator('[data-tabout-part="variant-close-button"]').first(),
       expectedSize: 19,
       label: 'same-title variant',
       owner: titleGroup.locator('[data-tabout-part="variant-close-hit-owner"]').first(),
-      ownerSelector: '[data-tabout-part="variant-close-hit-owner"]'
-    }
+      ownerSelector: '[data-tabout-part="variant-close-hit-owner"]',
+    },
   ]
 
   const [pageChipCase, activationHistoryCase, variantCase] = cases
@@ -759,7 +759,7 @@ test('hover-revealed close actions keep a stable pointer on direct entry', async
     const target = document.elementFromPoint(point.x, point.y)
     return {
       cursor: target instanceof Element ? getComputedStyle(target).cursor : '',
-      ownerMatched: target instanceof Element && !!target.closest('[data-tabout-part="variant-close-hit-owner"]')
+      ownerMatched: target instanceof Element && !!target.closest('[data-tabout-part="variant-close-hit-owner"]'),
     }
   }, { x: variantOwnerBox.x + 0.5, y: variantOwnerBox.y + 0.5 })
   expect(variantCorner).toEqual({ cursor: 'default', ownerMatched: false })
@@ -768,7 +768,7 @@ test('hover-revealed close actions keep a stable pointer on direct entry', async
 
   await page.goto('/tests/fixtures/dashboard-resize.html')
   const expandedHistoryRow = page.locator('[data-tabout="activation-history-entry"]').filter({
-    hasText: 'Low score history item with enough tooltip text'
+    hasText: 'Low score history item with enough tooltip text',
   }).first()
   await expandedHistoryRow.locator('.history-entry-title').first().hover()
   const expandedHistory = expandedHistoryRow.locator('.history-entry-expanded')
@@ -780,7 +780,7 @@ test('hover-revealed close actions keep a stable pointer on direct entry', async
     owner: expandedHistory.locator('[data-tabout-part="close-hit-owner"]'),
     ownerSelector: '[data-tabout-part="close-hit-owner"]',
     page,
-    repositionPointer: false
+    repositionPointer: false,
   })
 
   const appTitle = 'Inbox (417) - example.user@example.test'
@@ -794,15 +794,15 @@ test('hover-revealed close actions keep a stable pointer on direct entry', async
       expectedSize: 20,
       label: 'app Page Chip',
       owner: appChip.locator('[data-tabout-part="close-hit-owner"]'),
-      ownerSelector: '[data-tabout-part="close-hit-owner"]'
+      ownerSelector: '[data-tabout-part="close-hit-owner"]',
     },
     {
       action: appHistory.locator('[data-tabout-part="close-button"]').first(),
       expectedSize: 20,
       label: 'app Activation History',
       owner: appHistory.locator('[data-tabout-part="close-hit-owner"]').first(),
-      ownerSelector: '[data-tabout-part="close-hit-owner"]'
-    }
+      ownerSelector: '[data-tabout-part="close-hit-owner"]',
+    },
   ]) {
     await expectStablePointerEntry({ page, ...pointerCase })
   }
@@ -835,7 +835,7 @@ test('ordinary dashboard renders keep masonry observers attached', async ({ page
 
   const readDisconnects = () => page.evaluate(() => (
     (window as typeof window & {
-      __tabOutObserverDisconnects?: { mutationDisconnects: number; resizeDisconnects: number }
+      __tabOutObserverDisconnects?: { mutationDisconnects: number, resizeDisconnects: number }
     }).__tabOutObserverDisconnects
   ))
   const before = await readDisconnects()
@@ -861,10 +861,10 @@ test('Page Chip closes its expansion and interaction chrome as soon as the point
       root: {
         backgroundColor: style.backgroundColor,
         boxShadow: style.boxShadow,
-        outline: style.outline
+        outline: style.outline,
       },
       actionFadeOpacity: getComputedStyle(element, '::after').opacity,
-      expandedFillOpacity: expandedFill ? getComputedStyle(expandedFill).opacity : null
+      expandedFillOpacity: expandedFill ? getComputedStyle(expandedFill).opacity : null,
     }
   }
   const restingPaint = await chip.evaluate(readInteractionPaint)
@@ -885,14 +885,14 @@ test('Page Chip closes its expansion and interaction chrome as soon as the point
 
   await page.mouse.move(
     (expandedBounds?.x ?? 0) + (expandedBounds?.width ?? 0) + 2,
-    (expandedBounds?.y ?? 0) + (expandedBounds?.height ?? 0) / 2
+    (expandedBounds?.y ?? 0) + (expandedBounds?.height ?? 0) / 2,
   )
   expect(await chip.evaluate((element) => ({
     expanded: element.getAttribute('data-expanded'),
-    hovered: element.matches(':hover')
+    hovered: element.matches(':hover'),
   }))).toEqual({
     expanded: null,
-    hovered: false
+    hovered: false,
   })
   expect(await chip.evaluate(readInteractionPaint)).toEqual(restingPaint)
 })
@@ -938,8 +938,8 @@ test('Page Chip keeps hydrated title details and interaction chrome in one expan
         backgroundColor: style.backgroundColor,
         boxShadow: style.boxShadow,
         outline: style.outline,
-        expandedFillOpacity: expandedFill ? getComputedStyle(expandedFill).opacity : null
-      }
+        expandedFillOpacity: expandedFill ? getComputedStyle(expandedFill).opacity : null,
+      },
     }
   }
   const restingState = await chip.evaluate(readExpansionState)
@@ -969,7 +969,7 @@ test('Page Chip keeps hydrated title details and interaction chrome in one expan
         [rect.left + offset, rect.top + offset],
         [rect.right - offset, rect.top + offset],
         [rect.left + offset, rect.bottom - offset],
-        [rect.right - offset, rect.bottom - offset]
+        [rect.right - offset, rect.bottom - offset],
       ]
       for (const [x, y] of points) {
         const hit = document.elementFromPoint(x, y)
@@ -1008,17 +1008,17 @@ test('Page Chip keeps hydrated title details and interaction chrome in one expan
       color: style.outlineColor,
       offset: style.outlineOffset,
       width: style.outlineWidth,
-      accentColor
+      accentColor,
     }
   })
   expect({
     color: focusedOutline.color,
     offset: focusedOutline.offset,
-    width: focusedOutline.width
+    width: focusedOutline.width,
   }).toEqual({
     color: focusedOutline.accentColor,
     offset: '2px',
-    width: '2px'
+    width: '2px',
   })
 })
 
@@ -1066,7 +1066,7 @@ test('Page Chip preserves tall first-line glyph ink without changing its layout 
       titleHeight: titleRect.height,
       titleLeft: titleRect.left,
       titleTop: titleRect.top,
-      inkTop: baselineRect.top - glyphMetrics.actualBoundingBoxAscent
+      inkTop: baselineRect.top - glyphMetrics.actualBoundingBoxAscent,
     }
   })
   expect(geometry.inkTop).toBeLessThan(geometry.titleTop - 0.5)
@@ -1075,7 +1075,7 @@ test('Page Chip preserves tall first-line glyph ink without changing its layout 
     x: Math.floor(geometry.titleLeft - 2),
     y: Math.floor(geometry.titleTop - 4),
     width: 52,
-    height: Math.ceil(geometry.titleHeight + 8)
+    height: Math.ceil(geometry.titleHeight + 8),
   }
   const clippedScreenshot = await page.screenshot({ clip: screenshotClip, animations: 'disabled' })
   await title.evaluate((element) => {
@@ -1115,7 +1115,7 @@ test('Page Chip preserves tall first-line glyph ink without changing its layout 
   }, {
     clippedPng: clippedScreenshot.toBase64(),
     visiblePng: visibleScreenshot.toBase64(),
-    boundaryY: Math.round(geometry.titleTop - screenshotClip.y)
+    boundaryY: Math.round(geometry.titleTop - screenshotClip.y),
   })
 
   expect(changedPixelsAboveTitle).toBe(0)
@@ -1141,7 +1141,7 @@ test('measured dashboard titles share one document font listener', async ({ page
 
   const counts = await page.evaluate(() => (
     (window as typeof window & {
-      __tabOutFontListenerCounts?: { loadingdone: number; loadingerror: number }
+      __tabOutFontListenerCounts?: { loadingdone: number, loadingerror: number }
     }).__tabOutFontListenerCounts
   ))
   expect(counts).toEqual({ loadingdone: 1, loadingerror: 1 })
@@ -1156,7 +1156,7 @@ test('Path Group tooltip follows observer-driven label truncation', async ({ pag
   expect(labelText).not.toBe('')
 
   await page.addStyleTag({
-    content: '.pathgroup-header .chip-pathgroup { width: 20px !important; max-width: 20px !important; flex: 0 0 20px !important; }'
+    content: '.pathgroup-header .chip-pathgroup { width: 20px !important; max-width: 20px !important; flex: 0 0 20px !important; }',
   })
   await expect.poll(() => label.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true)
 
@@ -1169,7 +1169,7 @@ test('Activation History restores its title fade after hover expansion closes', 
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
 
   const title = page.locator('.history-entry-title').filter({
-    hasText: 'Low score history item with enough tooltip text'
+    hasText: 'Low score history item with enough tooltip text',
   }).first()
   await title.scrollIntoViewIfNeeded()
   await expectCollapsedTitleFade(title, 'history-entry-title-truncated')
@@ -1182,7 +1182,7 @@ test('Activation History restores its title fade after hover expansion closes', 
   await expectCollapsedTitleFade(
     title,
     'history-entry-title-truncated',
-    'collapsed Activation History title should restore its clamp and fade'
+    'collapsed Activation History title should restore its clamp and fade',
   )
 })
 
@@ -1191,7 +1191,7 @@ test('Activation History closes its title expansion as soon as the pointer leave
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
 
   const row = page.locator('[data-tabout="activation-history-entry"]').filter({
-    hasText: 'Low score history item with enough tooltip text'
+    hasText: 'Low score history item with enough tooltip text',
   }).first()
   const title = row.locator('.history-entry-title').first()
   await title.scrollIntoViewIfNeeded()
@@ -1205,7 +1205,7 @@ test('Activation History closes its title expansion as soon as the pointer leave
     collapsedSurface.dispatchEvent(new PointerEvent('pointerout', {
       bubbles: true,
       pointerType: 'mouse',
-      relatedTarget: outsideTarget
+      relatedTarget: outsideTarget,
     }))
     await new Promise((resolve) => requestAnimationFrame(resolve))
     return element.querySelector('.history-entry-expanded') === null
@@ -1219,7 +1219,7 @@ test('Activation History expands a faded two-line title on hover', async ({ page
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
 
   const row = page.locator('[data-tabout="activation-history-entry"]').filter({
-    hasText: 'Shop Glasses Accessories | Fast Shipping | Zenon Optical'
+    hasText: 'Shop Glasses Accessories | Fast Shipping | Zenon Optical',
   }).first()
   const title = row.locator('.history-entry-title')
   await title.scrollIntoViewIfNeeded()
@@ -1234,7 +1234,7 @@ test('Activation History marker stays aligned with the favicon and first title l
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
 
   const row = page.locator('[data-tabout="activation-history-entry"]').filter({
-    hasText: 'Low score history item with enough tooltip text'
+    hasText: 'Low score history item with enough tooltip text',
   }).first()
   const title = row.locator('.history-entry-title')
   await expect(row).toBeVisible()
@@ -1252,7 +1252,7 @@ test('Activation History marker stays aligned with the favicon and first title l
     return {
       faviconOffset: faviconRect.top - contentTop,
       markerOffset: markerRect.top - contentTop,
-      markerTop: markerRect.top
+      markerTop: markerRect.top,
     }
   })
 
@@ -1288,7 +1288,7 @@ test('loading indicators stay centered inside app favicon outlines', async ({ pa
       const indicatorRect = indicator.getBoundingClientRect()
       return {
         x: (indicatorRect.left + indicatorRect.right - outlineRect.left - outlineRect.right) / 2,
-        y: (indicatorRect.top + indicatorRect.bottom - outlineRect.top - outlineRect.bottom) / 2
+        y: (indicatorRect.top + indicatorRect.bottom - outlineRect.top - outlineRect.bottom) / 2,
       }
     })
 
@@ -1362,7 +1362,7 @@ test('context-menu triggers preserve keyboard focus on chips and history entries
 
   for (const trigger of [
     page.locator('[data-tabout="page-chip"][tabindex="0"]').first(),
-    page.locator('[data-tabout="activation-history-entry"] [data-tabout-part="focus-button"][tabindex="0"]').first()
+    page.locator('[data-tabout="activation-history-entry"] [data-tabout-part="focus-button"][tabindex="0"]').first(),
   ]) {
     await trigger.focus()
     await page.waitForTimeout(300)
@@ -1390,7 +1390,7 @@ test('the first right-click opens a Page Chip context menu immediately after ref
 
   const triggerPoint = {
     x: triggerBox.x + Math.min(30, triggerBox.width / 2),
-    y: triggerBox.y + triggerBox.height / 2
+    y: triggerBox.y + triggerBox.height / 2,
   }
   await page.mouse.move(triggerPoint.x, triggerPoint.y)
   await page.mouse.click(triggerPoint.x, triggerPoint.y, { button: 'right' })
@@ -1417,7 +1417,7 @@ test('the first right-click opens a title-suppression context menu immediately a
 
   const triggerPoint = {
     x: triggerBox.x + triggerBox.width / 2,
-    y: triggerBox.y + triggerBox.height / 2
+    y: triggerBox.y + triggerBox.height / 2,
   }
   await page.mouse.move(triggerPoint.x, triggerPoint.y)
   await page.mouse.click(triggerPoint.x, triggerPoint.y, { button: 'right' })
@@ -1439,14 +1439,14 @@ test('the first pointer click opens a card menu immediately after refresh', asyn
   })
 
   const trigger = page.locator(
-    '[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-02.com"] [data-tabout-part="card-menu"]'
+    '[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-02.com"] [data-tabout-part="card-menu"]',
   )
   const triggerBox = await trigger.boundingBox()
   if (!triggerBox) throw new Error('Card menu trigger geometry is unavailable')
 
   const triggerCenter = {
     x: triggerBox.x + triggerBox.width / 2,
-    y: triggerBox.y + triggerBox.height / 2
+    y: triggerBox.y + triggerBox.height / 2,
   }
   await page.mouse.move(triggerCenter.x, triggerCenter.y)
   await expect.poll(() => trigger.evaluate((element) => {
@@ -1465,7 +1465,7 @@ test('the first keyboard activation opens a card menu', async ({ page }) => {
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
 
   const trigger = page.locator(
-    '[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-02.com"] [data-tabout-part="card-menu"]'
+    '[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-02.com"] [data-tabout-part="card-menu"]',
   )
   await trigger.focus()
   await page.keyboard.press('Enter')
@@ -1485,7 +1485,7 @@ test('keyboard focus reveals section actions', async ({ page }) => {
     '.section-pin-btn:not(.is-pinned)',
     '.subdomain-close-btn',
     '.website-path-section-close-btn',
-    '.pathgroup-close-btn'
+    '.pathgroup-close-btn',
   ]) {
     const control = page.locator(selector).first()
     if (await control.count() === 0) continue
@@ -1494,7 +1494,6 @@ test('keyboard focus reveals section actions', async ({ page }) => {
     })
     await expect.poll(() => control.evaluate((element) => getComputedStyle(element).opacity)).toBe('1')
   }
-
 })
 
 test('meaningful secondary text avoids opacity layering and the dashboard exposes a main landmark', async ({ page }) => {
@@ -1516,14 +1515,14 @@ test('meaningful secondary text avoids opacity layering and the dashboard expose
       '.subdomain-header-count',
       '.website-path-section-header-count',
       '.pathgroup-header-count',
-      '.chip-path'
+      '.chip-path',
     ]
 
     return selectors.map((selector) => {
       const element = document.querySelector<HTMLElement>(selector)
       return {
         opacity: element ? getComputedStyle(element).opacity : null,
-        selector
+        selector,
       }
     })
   })
@@ -1542,7 +1541,7 @@ test('meaningful secondary text avoids opacity layering and the dashboard expose
 test('a favicon recovers after the same image node receives a valid source', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   const chip = page.locator('[data-tabout="page-chip"]').filter({
-    hasText: 'Short title'
+    hasText: 'Short title',
   }).first()
   const setFavicon = async (faviconUrl: string) => {
     await page.evaluate(async (url) => {
@@ -1564,7 +1563,7 @@ test('a favicon recovers after the same image node receives a valid source', asy
   await setFavicon('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="16" height="16"%3E%3Crect width="16" height="16" fill="%2300a86b"/%3E%3C/svg%3E')
   await expect.poll(() => favicon.evaluate((image) => ({
     display: getComputedStyle(image).display,
-    naturalWidth: (image as HTMLImageElement).naturalWidth
+    naturalWidth: (image as HTMLImageElement).naturalWidth,
   }))).toEqual({ display: 'block', naturalWidth: 16 })
 })
 
@@ -1616,7 +1615,7 @@ test('filter keyboard navigation starts in the input and selects the first true 
       selectedBackground: selectedStyle.backgroundColor,
       selectedOutline: selectedStyle.outlineColor,
       hoverBackground: paletteStyle.backgroundColor,
-      originalOutline: paletteStyle.outlineColor
+      originalOutline: paletteStyle.outlineColor,
     }
     paletteProbe.remove()
     return palette
@@ -1705,7 +1704,7 @@ test('filter Enter waits for the first matching companion result to mount', asyn
   await releaseBookmarkFetchGate(page)
   await expect.poll(() => page.evaluate(async () => {
     const target = (await window.chrome.tabs.query({})).find(
-      (tab) => tab.url === 'https://bookmark-smoke-0001.test/docs/1'
+      (tab) => tab.url === 'https://bookmark-smoke-0001.test/docs/1',
     )
     return target ? { active: target.active, url: target.url } : null
   })).toEqual({ active: true, url: 'https://bookmark-smoke-0001.test/docs/1' })
@@ -1760,6 +1759,7 @@ test('filter navigation only selects progressive bookmark results after they mou
           return true
         }
       }
+
       observe() {}
       disconnect() {}
     } as unknown as typeof IntersectionObserver
@@ -1812,6 +1812,7 @@ test('filter navigation only selects progressive Tabs results after they mount',
           return true
         }
       }
+
       observe() {}
       disconnect() {}
     } as unknown as typeof IntersectionObserver
@@ -1913,21 +1914,21 @@ test('large Tabs rendering stays bounded and retains mounted depth across card r
 
   const targetDomain = 'bulk-tab-0200.test'
   await page.evaluate((domain) => {
-    const moveEvents: Array<{ active: boolean; moving: boolean }> = []
+    const moveEvents: Array<{ active: boolean, moving: boolean }> = []
     const observer = new MutationObserver((records) => {
       for (const record of records) {
         const target = record.target
         if (!(target instanceof HTMLElement) || target.dataset.taboutDomain !== domain) continue
         moveEvents.push({
           active: target.classList.contains('layout-moving-active'),
-          moving: target.classList.contains('layout-moving')
+          moving: target.classList.contains('layout-moving'),
         })
       }
     })
     observer.observe(document.body, {
       attributes: true,
       attributeFilter: ['class'],
-      subtree: true
+      subtree: true,
     })
     ;(window as typeof window & {
       __progressiveTabsPinMove?: {
@@ -1998,7 +1999,7 @@ test('filter keyboard selection keeps its identity when a higher-priority compan
         backgroundMatchesClosed: selectedBackground === getComputedStyle(closedProbe).backgroundColor,
         backgroundMatchesOpen: selectedBackground === getComputedStyle(openProbe).backgroundColor,
         outlineMatchesOriginal: selectedStyle.outlineColor === getComputedStyle(outlineProbe).outlineColor,
-        outlineWidth: selectedStyle.outlineWidth
+        outlineWidth: selectedStyle.outlineWidth,
       }
       closedProbe.remove()
       openProbe.remove()
@@ -2008,7 +2009,7 @@ test('filter keyboard selection keeps its identity when a higher-priority compan
       backgroundMatchesClosed: true,
       backgroundMatchesOpen: false,
       outlineMatchesOriginal: true,
-      outlineWidth: '1px'
+      outlineWidth: '1px',
     })
   }
   await expectClosedSelectionPalette(bookmarkCandidate)
@@ -2017,7 +2018,7 @@ test('filter keyboard selection keeps its identity when a higher-priority compan
     window.chrome.history.search = async () => [{
       id: 'history-keyboard-result',
       title: 'Bookmark history candidate',
-      url: 'https://history-keyboard-result.test/docs'
+      url: 'https://history-keyboard-result.test/docs',
     }]
   })
   await page.getByRole('combobox', { name: 'History search range' }).click()
@@ -2067,7 +2068,7 @@ test('a replaced Chrome tab refreshes an already-open dashboard', async ({ page 
     Object.assign(replacedTab, {
       id: 2002,
       title: 'Prerender replacement',
-      url: 'https://prerender-replacement.test/ready'
+      url: 'https://prerender-replacement.test/ready',
     })
     ;(window.chrome.tabs.onReplaced as unknown as {
       dispatch: (addedTabId: number, removedTabId: number) => void
@@ -2075,7 +2076,7 @@ test('a replaced Chrome tab refreshes an already-open dashboard', async ({ page 
   })
 
   await expect(page.locator(
-    '[data-tabout="domain-card"][data-tabout-domain="prerender-replacement.test"]'
+    '[data-tabout="domain-card"][data-tabout-domain="prerender-replacement.test"]',
   )).toHaveCount(1)
   await expect(previousCard).toHaveCount(0)
 })
@@ -2145,7 +2146,7 @@ test('a pending filter Enter is cancelled when the selected source changes', asy
   await expect(page.locator('[data-tabout="domain-card"][data-tabout-domain="bookmark-smoke-0001.test"]')).toHaveCount(1)
   await expect.poll(() => page.evaluate(async () => (
     (await window.chrome.tabs.query({})).filter(
-      (tab) => tab.url === 'https://bookmark-smoke-0001.test/docs/1'
+      (tab) => tab.url === 'https://bookmark-smoke-0001.test/docs/1',
     ).length
   ))).toBe(0)
 })
@@ -2165,9 +2166,9 @@ test('a pending source switch rebuilds with the latest domain pins', async ({ pa
         id: 'same-domain-bookmark',
         syncing: false,
         title: 'Same domain bookmark',
-        url: 'https://tab-out-smoke-02.com/bookmark'
-      }]
-    }]
+        url: 'https://tab-out-smoke-02.com/bookmark',
+      }],
+    }],
   }])
 
   const bookmarksSource = page.getByRole('tab', { name: 'Bookmarks' })
@@ -2217,7 +2218,7 @@ test('Page Chip restores its title fade after hover expansion closes', async ({ 
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
 
   const chip = page.locator('[data-tabout="page-chip"]').filter({
-    hasText: 'Example 2 with enough tooltip text'
+    hasText: 'Example 2 with enough tooltip text',
   }).first()
   const title = chip.locator('.chip-text')
   await chip.scrollIntoViewIfNeeded()
@@ -2231,7 +2232,7 @@ test('Page Chip restores its title fade after hover expansion closes', async ({ 
   await expectCollapsedTitleFade(
     title,
     'chip-text-truncated',
-    'collapsed Page Chip title should restore its clamp and fade'
+    'collapsed Page Chip title should restore its clamp and fade',
   )
 })
 
@@ -2247,8 +2248,8 @@ test('filter result cards finish one move while companion results hydrate', asyn
 
   await page.evaluate(() => {
     const targetDomain = 'tab-out-smoke-20.com'
-    const moveEvents: Array<{ active: boolean; moving: boolean; time: number }> = []
-    const states = new WeakMap<HTMLElement, { active: boolean; moving: boolean }>()
+    const moveEvents: Array<{ active: boolean, moving: boolean, time: number }> = []
+    const states = new WeakMap<HTMLElement, { active: boolean, moving: boolean }>()
     const observer = new MutationObserver((records) => {
       for (const record of records) {
         const target = record.target
@@ -2265,7 +2266,7 @@ test('filter result cards finish one move while companion results hydrate', asyn
     observer.observe(document.body, {
       attributes: true,
       attributeFilter: ['class'],
-      subtree: true
+      subtree: true,
     })
     ;(window as unknown as {
       __filterMoveProbe: {
@@ -2280,7 +2281,7 @@ test('filter result cards finish one move while companion results hydrate', asyn
   await expect.poll(() => page.evaluate(() => {
     const events = (window as unknown as {
       __filterMoveProbe: {
-        events: Array<{ active: boolean; moving: boolean; time: number }>
+        events: Array<{ active: boolean, moving: boolean, time: number }>
       }
     }).__filterMoveProbe.events
     const firstStart = events.find((event) => event.active)
@@ -2290,7 +2291,7 @@ test('filter result cards finish one move while companion results hydrate', asyn
   const move = await page.evaluate(() => {
     const probe = (window as unknown as {
       __filterMoveProbe: {
-        events: Array<{ active: boolean; moving: boolean; time: number }>
+        events: Array<{ active: boolean, moving: boolean, time: number }>
         observer: MutationObserver
       }
     }).__filterMoveProbe
@@ -2302,7 +2303,7 @@ test('filter result cards finish one move while companion results hydrate', asyn
       : undefined
     return {
       activeDuration: firstStart && firstEnd ? firstEnd.time - firstStart.time : 0,
-      starts: starts.length
+      starts: starts.length,
     }
   })
 
@@ -2328,7 +2329,7 @@ test('global no-match state waits for a History-only result without shifting its
         state.__historyOnlySearch.release = () => resolve([{
           id: 'history-only-result',
           title: 'History Only Needle 7391',
-          url: 'https://history-only.example.test/needle-7391'
+          url: 'https://history-only.example.test/needle-7391',
         }])
       })
     }
@@ -2414,7 +2415,7 @@ test('history results do not show a previous query while the next query loads', 
         return [{
           id: 'history-example-20',
           title: 'Example 20 History',
-          url: 'https://history-example-20.test/docs/20'
+          url: 'https://history-example-20.test/docs/20',
         }]
       }
       if (text === 'Example') {
@@ -2422,13 +2423,13 @@ test('history results do not show a previous query while the next query loads', 
           {
             id: 'history-example-1',
             title: 'Example History One',
-            url: 'https://history-example-1.test/docs/1'
+            url: 'https://history-example-1.test/docs/1',
           },
           {
             id: 'history-example-2',
             title: 'Example History Two',
-            url: 'https://history-example-2.test/docs/2'
-          }
+            url: 'https://history-example-2.test/docs/2',
+          },
         ]
       }
       return []
@@ -2467,7 +2468,7 @@ test('history results do not show a previous query while the next query loads', 
       statusBorderWidth: status ? getComputedStyle(status).borderWidth : '',
       statusInGrid: !!grid?.contains(status ?? null),
       statusWidth: status?.getBoundingClientRect().width ?? 0,
-      titleBottom: title?.getBoundingClientRect().bottom ?? 0
+      titleBottom: title?.getBoundingClientRect().bottom ?? 0,
     }
   })
   expect(layout.statusInGrid).toBe(false)
@@ -2507,19 +2508,19 @@ test('history results stay visible while a new range loads for the same query', 
           {
             id: 'history-scope-week-one',
             title: 'Scope result week one',
-            url: 'https://history-scope-week-one.test/docs'
+            url: 'https://history-scope-week-one.test/docs',
           },
           {
             id: 'history-scope-week-two',
             title: 'Scope result week two',
-            url: 'https://history-scope-week-two.test/docs'
-          }
+            url: 'https://history-scope-week-two.test/docs',
+          },
         ]
       }
       return [{
         id: 'history-scope-day',
         title: 'Scope result day',
-        url: 'https://history-scope-day.test/docs'
+        url: 'https://history-scope-day.test/docs',
       }]
     }
   })
@@ -2561,7 +2562,7 @@ test('failed history searches show a retryable status without becoming no matche
       return [{
         id: 'history-retry-result',
         title: 'Retryable History result',
-        url: 'https://history-retry-result.test/docs'
+        url: 'https://history-retry-result.test/docs',
       }]
     }
   })
@@ -2604,7 +2605,7 @@ test('history range starts from the remembered preference', async ({ page }) => 
     return stored.tabOutHistoryRangeV1
   })).toBe('90d')
   await expect(
-    page.getByRole('combobox', { name: 'History search range' })
+    page.getByRole('combobox', { name: 'History search range' }),
   ).toContainText('Last 3 months')
 })
 
@@ -2620,7 +2621,7 @@ test('History off updates the build-time placeholder without a hydration mismatc
 
   await expect(page.locator('[data-tabout="filter-query"] input')).toHaveAttribute(
     'placeholder',
-    'Filter tabs and bookmarks…'
+    'Filter tabs and bookmarks…',
   )
   expect(hydrationErrors).toEqual([])
 })
@@ -2654,7 +2655,7 @@ test('history results stay cleared when re-enabled with a new range', async ({ p
         return [{
           id: 'history-scope-week',
           title: 'Scope result week',
-          url: 'https://history-scope-week.test/docs'
+          url: 'https://history-scope-week.test/docs',
         }]
       }
 
@@ -2666,7 +2667,7 @@ test('history results stay cleared when re-enabled with a new range', async ({ p
       return [{
         id: 'history-scope-day',
         title: 'Scope result day',
-        url: 'https://history-scope-day.test/docs'
+        url: 'https://history-scope-day.test/docs',
       }]
     }
   })
@@ -2708,7 +2709,7 @@ test('history layout collapses while off and restores its prior card width', asy
     window.chrome.history.search = async () => [{
       id: 'history-layout-result',
       title: 'Bookmark history result',
-      url: 'https://history-layout-result.test/docs'
+      url: 'https://history-layout-result.test/docs',
     }]
   })
 
@@ -2723,7 +2724,7 @@ test('history layout collapses while off and restores its prior card width', asy
     const card = element.querySelector<HTMLElement>('[data-tabout="domain-card"]')
     return {
       cardWidth: card?.getBoundingClientRect().width ?? 0,
-      containerWidth: element.getBoundingClientRect().width
+      containerWidth: element.getBoundingClientRect().width,
     }
   })
 
@@ -2744,17 +2745,17 @@ test('history layout collapses while off and restores its prior card width', asy
     const card = element.querySelector<HTMLElement>('[data-tabout="domain-card"]')
     return {
       cardWidth: card?.getBoundingClientRect().width ?? 0,
-      containerWidth: element.getBoundingClientRect().width
+      containerWidth: element.getBoundingClientRect().width,
     }
   })
 
   expect.soft(
     offHeight,
-    `History missions should collapse while disabled; measured ${offHeight}px`
+    `History missions should collapse while disabled; measured ${offHeight}px`,
   ).toBeLessThanOrEqual(1)
   expect(
     Math.abs(restoredGeometry.cardWidth - initialGeometry.cardWidth),
-    JSON.stringify({ initialGeometry, restoredGeometry }, null, 2)
+    JSON.stringify({ initialGeometry, restoredGeometry }, null, 2),
   ).toBeLessThanOrEqual(1)
 })
 
@@ -2766,7 +2767,7 @@ test('global filtered close keeps its retained result ahead of matching History'
     window.chrome.history.search = async () => [{
       id: 'history-example-2',
       title: 'Example 2 with enough tooltip text',
-      url: 'https://tab-out-smoke-02.com/docs/2'
+      url: 'https://tab-out-smoke-02.com/docs/2',
     }]
   })
 
@@ -2831,7 +2832,7 @@ test('a Tab Out filter URL update does not restart the current result-card move'
     const historyItems = (count: number, title: string) => Array.from({ length: count }, (_, index) => ({
       id: `history-example-${index + 1}`,
       title: `${title} ${index + 1}`,
-      url: `https://history-example-${index + 1}.test/docs/${index + 1}`
+      url: `https://history-example-${index + 1}.test/docs/${index + 1}`,
     }))
     window.chrome.history.search = async ({ text }) => {
       if (text === 'Example 20') {
@@ -2849,18 +2850,18 @@ test('a Tab Out filter URL update does not restart the current result-card move'
 
   await page.evaluate(() => {
     const targetDomain = 'tab-out-smoke-20.com'
-    const starts: Array<{ container: string; time: number }> = []
+    const starts: Array<{ container: string, time: number }> = []
     const originalAdd = DOMTokenList.prototype.add
     DOMTokenList.prototype.add = function (...tokens: string[]) {
       const result = Reflect.apply(originalAdd, this, tokens)
       if (tokens.includes('layout-moving-active')) {
         const target = Array.from(document.querySelectorAll<HTMLElement>(
-          `[data-tabout="domain-card"][data-tabout-domain="${targetDomain}"]`
+          `[data-tabout="domain-card"][data-tabout-domain="${targetDomain}"]`,
         )).find((candidate) => candidate.classList === this)
         if (target) {
           starts.push({
             container: target.closest('.missions')?.id || '',
-            time: performance.now()
+            time: performance.now(),
           })
         }
       }
@@ -2875,7 +2876,7 @@ test('a Tab Out filter URL update does not restart the current result-card move'
       restore: () => {
         DOMTokenList.prototype.add = originalAdd
       },
-      starts
+      starts,
     }
   })
 
@@ -2887,7 +2888,7 @@ test('a Tab Out filter URL update does not restart the current result-card move'
       dispatch: (tabId: number, changeInfo: { url?: string }, tab: unknown) => void
     }).dispatch(9999, { url: tabOutUrl }, {
       id: 9999,
-      url: tabOutUrl
+      url: tabOutUrl,
     })
   })
 
@@ -2899,7 +2900,7 @@ test('a Tab Out filter URL update does not restart the current result-card move'
     const probe = (window as unknown as {
       __filterSelfUrlMoveProbe: {
         restore: () => void
-        starts: Array<{ container: string; time: number }>
+        starts: Array<{ container: string, time: number }>
       }
     }).__filterSelfUrlMoveProbe
     probe.restore()
@@ -2950,7 +2951,7 @@ test('Page Chip overflow expansion fades the expander and reveals hidden chips t
           )),
           revealStartTimes: animations.map((animation) => (
             animation?.startTime == null ? null : Number(animation.startTime)
-          ))
+          )),
         })
       })
     })
@@ -3004,7 +3005,7 @@ test('revealed Page Chips share one trim line across the overflow boundary', asy
     const revealedRect = firstRevealed.getBoundingClientRect()
     return {
       gap: revealedRect.top - previousRect.bottom,
-      marginTop: getComputedStyle(firstRevealed).marginTop
+      marginTop: getComputedStyle(firstRevealed).marginTop,
     }
   })
 
@@ -3046,7 +3047,7 @@ test('Page Chip overflow expansion repacks downstream Domain Cards without overl
         return [{
           domain: candidate.dataset.taboutDomain || '',
           horizontalOverlap: Math.round(horizontalOverlap),
-          verticalOverlap: Math.round(verticalOverlap)
+          verticalOverlap: Math.round(verticalOverlap),
         }]
       })
   })
@@ -3082,7 +3083,7 @@ test('closing the last rendered Page Chip keeps the overflow layout and retains 
       resolve({
         closing: !!target?.classList.contains('closing'),
         connected: !!target?.isConnected,
-        display: target?.style.display ?? ''
+        display: target?.style.display ?? '',
       })
     })
   }))
@@ -3090,7 +3091,7 @@ test('closing the last rendered Page Chip keeps the overflow layout and retains 
   expect(firstFrame).toEqual({
     closing: false,
     connected: true,
-    display: ''
+    display: '',
   })
   await expect(slots).toHaveCount(visibleSlotCount)
   await expect(page.locator('[data-motion-target-slot]')).toBeVisible()
@@ -3102,7 +3103,7 @@ test('closing the last rendered Page Chip keeps the overflow layout and retains 
   const retainedChip = card.locator('[data-tabout="page-chip"]', { hasText: targetLabel || '' })
   await expect(retainedChip).toHaveAttribute(
     'data-tabout-retained-page-identity',
-    /\S+/
+    /\S+/,
   )
 })
 
@@ -3127,16 +3128,16 @@ test('pinning an intra-card section keeps the moved section and its siblings con
   }, scope), {
     message: 'section pin should FLIP the local sibling scope',
     timeout: 1_000,
-    intervals: [16, 32, 50]
+    intervals: [16, 32, 50],
   }).not.toEqual([])
 
   await expect.poll(() => target.evaluate((element) => ({
     moving: element.classList.contains('intra-card-layout-moving'),
-    top: element.getBoundingClientRect().top
+    top: element.getBoundingClientRect().top,
   })), {
     message: 'pinned section should settle at its promoted position',
     timeout: 1_000,
-    intervals: [50, 100]
+    intervals: [50, 100],
   }).toEqual(expect.objectContaining({ moving: false }))
   const afterTop = await target.evaluate((element) => element.getBoundingClientRect().top)
   expect(afterTop).toBeLessThan(beforeTop)
@@ -3249,7 +3250,7 @@ test('retained Page Chip actions hand focus to next, previous, then Filter Query
 test('retained card removal falls back to Filter Query when a surviving card loses its menu', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html?retainedFocus=1&retainedMixedFocus=1')
   const card = page.locator(
-    '[data-tabout="domain-card"][data-tabout-domain="__hostless-pages__"]'
+    '[data-tabout="domain-card"][data-tabout-domain="__hostless-pages__"]',
   )
   await expect(card).toContainText('Retained Hostless Page')
   await expect(card).toContainText('Saved Hostless Page')
@@ -3270,7 +3271,7 @@ test('retained card removal falls back to Filter Query when a surviving card los
 test('retained focus follows the next chip promoted out of collapsed overflow', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html?retainedFocus=1')
   const card = page.locator(
-    '[data-tabout="domain-card"][data-tabout-domain="retained-focus-overflow.test"]'
+    '[data-tabout="domain-card"][data-tabout-domain="retained-focus-overflow.test"]',
   )
   const chips = card.locator('[data-tabout="page-chip"]')
   await expect(chips).toHaveCount(5)
@@ -3299,12 +3300,12 @@ test('a stalled retention refresh keeps the closing Page Chip slot visible', asy
   await expect.poll(() => slot.evaluate((element) => element.style.display), {
     message: 'retention settlement should keep the existing slot visible while refresh is stalled',
     timeout: 1_300,
-    intervals: [50, 100]
+    intervals: [50, 100],
   }).toBe('')
   await expect(slot.locator('[data-tabout="page-chip"]')).toHaveAttribute(
     'data-tabout-retained-page-identity',
     /\S+/,
-    { timeout: 3_000 }
+    { timeout: 3_000 },
   )
   await expect(page.locator('.page-chip-closing-ghost')).toHaveCount(0)
   await expect(card.locator('.intra-card-layout-moving')).toHaveCount(0)
@@ -3326,7 +3327,7 @@ test('closing the last Page Chip in a section keeps both sections in place', asy
   await expect(scopeItems).toHaveCount(3)
   expect(await slot.evaluate((element, layoutScope) => {
     const items = Array.from(element.closest('[data-tabout="website-path-section"]')?.querySelectorAll<HTMLElement>(
-      `[data-tabout-layout-scope="${layoutScope}"][data-tabout-layout-item]`
+      `[data-tabout-layout-scope="${layoutScope}"][data-tabout-layout-item]`,
     ) ?? [])
     return items.at(-1) === element
   }, scope)).toBe(true)
@@ -3352,14 +3353,14 @@ test('closing an Activation History entry leaves an exit ghost while survivor ro
   await expect.poll(() => page.evaluate(() => ({
     ghosts: document.querySelectorAll('.history-entry-closing-ghost').length,
     hiddenRows: Array.from(document.querySelectorAll<HTMLElement>('[data-tabout="activation-history-entry"]'))
-      .filter((entry) => getComputedStyle(entry).display === 'none').length
+      .filter((entry) => getComputedStyle(entry).display === 'none').length,
   })), {
     message: 'History removal should hide the real row and FLIP survivors immediately',
     timeout: 1_000,
-    intervals: [16, 32, 50]
+    intervals: [16, 32, 50],
   }).toEqual({
     ghosts: 1,
-    hiddenRows: 1
+    hiddenRows: 1,
   })
   await expect.poll(() => page.locator('.history-entry-layout-moving').count()).toBeGreaterThan(0)
 
@@ -3372,7 +3373,7 @@ test('closing an Activation History entry leaves an exit ghost while survivor ro
   expect(ghostMotion.some((frame) => frame.transform === 'scale(0.96)')).toBe(true)
   await expect.poll(() => page.locator('.history-entry-closing-ghost').count(), {
     timeout: 1_000,
-    intervals: [50, 100]
+    intervals: [50, 100],
   }).toBe(0)
   await expect.poll(() => page.locator('.history-entry-layout-moving').count()).toBe(0)
 })
@@ -3393,7 +3394,7 @@ test('primary-pointer Activation History focus FLIPs stable rows without delayin
   expect(firstMoveIndex).toBeGreaterThan(focusIndex)
   expect(activeMove).toEqual(expect.objectContaining({
     transform: 'translate(0px, 0px)',
-    transition: 'transform 180ms var(--ease-swift)'
+    transition: 'transform 180ms var(--ease-swift)',
   }))
 
   await expect.poll(() => page.locator('.history-entry-layout-moving').count()).toBe(0)
@@ -3404,7 +3405,7 @@ test('primary-pointer Activation History focus FLIPs stable rows without delayin
         transform: element.style.transform,
         transition: element.style.transition,
         willChange: element.style.willChange,
-        zIndex: element.style.zIndex
+        zIndex: element.style.zIndex,
       }
     })
   ))
@@ -3412,7 +3413,7 @@ test('primary-pointer Activation History focus FLIPs stable rows without delayin
     transform: '',
     transition: '',
     willChange: '',
-    zIndex: ''
+    zIndex: '',
   })))
 })
 
@@ -3434,7 +3435,7 @@ test('visible modifier and passive Activation History refreshes FLIP stable rows
   await prepareHistoryReorder(page)
 
   await page.locator('[data-tabout-layout-key="stack:1:9101"] [data-tabout-part="focus-button"]').click({
-    modifiers: ['Shift']
+    modifiers: ['Shift'],
   })
   await expectHistoryReordered(page)
   await expectHistoryReorderMove(page)
@@ -3444,7 +3445,7 @@ test('visible modifier and passive Activation History refreshes FLIP stable rows
   await page.evaluate(() => {
     Object.defineProperty(Document.prototype, 'hasFocus', {
       configurable: true,
-      value: () => false
+      value: () => false,
     })
     ;(window as HistoryReorderFixtureWindow).__tabOutSmokeDispatchPassiveHistoryRefresh?.()
   })

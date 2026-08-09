@@ -4,7 +4,7 @@ import FakeTimers from '@sinonjs/fake-timers'
 
 import {
   createDashboardPageRefreshScheduler,
-  dashboardTabUpdateRefreshOptions
+  dashboardTabUpdateRefreshOptions,
 } from '../src/extension/dashboard-page-refresh.js'
 
 test('Tab Out and native new-tab items refresh for every material tab update', () => {
@@ -14,63 +14,63 @@ test('Tab Out and native new-tab items refresh for every material tab update', (
   assert.deepEqual(dashboardTabUpdateRefreshOptions(
     { status: 'complete' },
     { url: dashboardUrl },
-    runtimeId
+    runtimeId,
   ), { animateCards: false })
   assert.deepEqual(dashboardTabUpdateRefreshOptions(
     { status: 'loading' },
     { pendingUrl: dashboardUrl, url: 'chrome://newtab/' },
-    runtimeId
+    runtimeId,
   ), { animateCards: false })
   assert.deepEqual(dashboardTabUpdateRefreshOptions(
     { title: 'New Tab' },
     { url: 'chrome://newtab/' },
-    runtimeId
+    runtimeId,
   ), { animateCards: false })
   assert.deepEqual(dashboardTabUpdateRefreshOptions(
     { favIconUrl: `chrome-extension://${runtimeId}/icons/icon16.png` },
     { url: 'chrome://newtab/' },
-    runtimeId
+    runtimeId,
   ), { animateCards: false })
   for (const changeInfo of [
     { audible: true },
-    { mutedInfo: { muted: true } }
+    { mutedInfo: { muted: true } },
   ]) {
     assert.deepEqual(dashboardTabUpdateRefreshOptions(
       changeInfo,
       { url: dashboardUrl },
-      runtimeId
+      runtimeId,
     ), { animateCards: false })
   }
   for (const changeInfo of [
     { groupId: 7 },
     { pinned: true },
-    { discarded: true }
+    { discarded: true },
   ]) {
     assert.deepEqual(dashboardTabUpdateRefreshOptions(
       changeInfo,
       { url: dashboardUrl },
-      runtimeId
+      runtimeId,
     ), { animateCards: true })
   }
   assert.deepEqual(dashboardTabUpdateRefreshOptions(
     { url: dashboardUrl },
     { url: dashboardUrl },
-    runtimeId
+    runtimeId,
   ), { animateCards: false })
   assert.deepEqual(dashboardTabUpdateRefreshOptions(
     { title: 'Example Article' },
     { url: 'https://example.test/article' },
-    runtimeId
+    runtimeId,
   ), { animateCards: false })
   assert.deepEqual(dashboardTabUpdateRefreshOptions(
     { url: 'https://example.test/next' },
     { url: 'https://example.test/next' },
-    runtimeId
+    runtimeId,
   ), { animateCards: true })
   assert.equal(dashboardTabUpdateRefreshOptions(
     {},
     { url: dashboardUrl },
-    runtimeId
+    runtimeId,
   ), null)
 })
 
@@ -82,7 +82,7 @@ test('hidden dashboard event bursts do no refresh work and catch up once when vi
   try {
     const scheduler = createDashboardPageRefreshScheduler({
       isVisible: () => visible,
-      refresh: (options) => { refreshes.push(options) }
+      refresh: (options) => { refreshes.push(options) },
     })
 
     scheduler.schedule()
@@ -112,7 +112,7 @@ test('a scheduled visible refresh becomes one pending catch-up if the page hides
   try {
     const scheduler = createDashboardPageRefreshScheduler({
       isVisible: () => visible,
-      refresh: (options) => { refreshes.push(options) }
+      refresh: (options) => { refreshes.push(options) },
     })
 
     scheduler.schedule({ animateCards: true })

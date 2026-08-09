@@ -59,13 +59,13 @@ export function createTitleExpansionLane(): TitleExpansionLane {
     },
     getActiveId() {
       return activeId
-    }
+    },
   }
 }
 
 const defaultScheduler: TitleExpansionScheduler = {
   set: (fn, delayMs) => setTimeout(fn, delayMs),
-  clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>)
+  clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
 }
 
 export type TitleExpansionControllerOptions = {
@@ -97,7 +97,7 @@ export function createTitleExpansionController({
   onExpandedChange,
   shouldCancelClose,
   shouldIgnoreLaneSteal,
-  scheduler = defaultScheduler
+  scheduler = defaultScheduler,
 }: TitleExpansionControllerOptions): TitleExpansionController {
   let expanded = false
   let pendingClose: unknown = null
@@ -159,6 +159,6 @@ export function createTitleExpansionController({
       cancelPendingClose()
       unsubscribe()
       lane.release(id)
-    }
+    },
   }
 }

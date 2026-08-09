@@ -2,12 +2,12 @@ import { Schema } from 'effect'
 
 import {
   emptyWorkingSetActivity,
-  parseWorkingSetActivityStorageValue
+  parseWorkingSetActivityStorageValue,
 } from '../working-set.js'
 import type { WorkingSetActivityStore } from '../types'
 import type {
   WorkingSetActivityStorageBackend,
-  WorkingSetActivityWrite
+  WorkingSetActivityWrite,
 } from './working-set-activity-storage.js'
 
 export const WORKING_SET_ACTIVITY_AUTHORITY_KEY =
@@ -16,38 +16,38 @@ export const WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION = 1
 
 const WORKING_SET_ACTIVITY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 const sha256HexSchema = Schema.String.check(
-  Schema.isPattern(/^[0-9a-f]{64}$/)
+  Schema.isPattern(/^[0-9a-f]{64}$/),
 )
 const generationSchema = Schema.String.check(
-  Schema.isPattern(/^v1:[0-9a-f]{64}$/)
+  Schema.isPattern(/^v1:[0-9a-f]{64}$/),
 )
 const nonNegativeIntSchema = Schema.Int.check(
-  Schema.isGreaterThanOrEqualTo(0)
+  Schema.isGreaterThanOrEqualTo(0),
 )
 const nonNegativeFiniteSchema = Schema.Finite.check(
-  Schema.isGreaterThanOrEqualTo(0)
+  Schema.isGreaterThanOrEqualTo(0),
 )
 
 const workingSetActivityGenerationManifestFields = {
   schemaVersion: Schema.Literals([
-    WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION
+    WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION,
   ]),
   generation: generationSchema,
   sourceDigest: sha256HexSchema,
   recordCount: nonNegativeIntSchema,
   eventCount: nonNegativeIntSchema,
-  retainedAfter: Schema.Finite
+  retainedAfter: Schema.Finite,
 } as const
 
 export const workingSetActivityGenerationManifestSchema = Schema.Struct(
-  workingSetActivityGenerationManifestFields
+  workingSetActivityGenerationManifestFields,
 )
 
 export const workingSetActivityAuthorityMarkerSchema = Schema.Struct({
   version: Schema.Literals([1]),
   backend: Schema.Literals(['idb']),
   ...workingSetActivityGenerationManifestFields,
-  cutoverAt: nonNegativeFiniteSchema
+  cutoverAt: nonNegativeFiniteSchema,
 })
 
 export type WorkingSetActivityAuthorityMarker =
@@ -59,7 +59,7 @@ export type WorkingSetActivityGenerationManifest =
 export interface WorkingSetActivityChromeAuthorityPort {
   readonly readMarker: () => PromiseLike<unknown>
   readonly writeMarker: (
-    marker: WorkingSetActivityAuthorityMarker
+    marker: WorkingSetActivityAuthorityMarker,
   ) => PromiseLike<void>
   readonly readLegacy: () => PromiseLike<unknown>
 }
@@ -73,21 +73,21 @@ export interface WorkingSetActivityChromeAuthorityPort {
 export interface WorkingSetActivityIndexedDbAuthorityPort {
   readonly stage: (
     manifest: WorkingSetActivityGenerationManifest,
-    activity: WorkingSetActivityStore
+    activity: WorkingSetActivityStore,
   ) => PromiseLike<void>
   readonly verify: (
-    manifest: WorkingSetActivityGenerationManifest
+    manifest: WorkingSetActivityGenerationManifest,
   ) => PromiseLike<WorkingSetActivityStore>
   readonly read: (
-    manifest: WorkingSetActivityGenerationManifest
+    manifest: WorkingSetActivityGenerationManifest,
   ) => PromiseLike<WorkingSetActivityStore>
   readonly write: (
     manifest: WorkingSetActivityGenerationManifest,
-    change: WorkingSetActivityWrite
+    change: WorkingSetActivityWrite,
   ) => PromiseLike<void>
   readonly replace: (
     manifest: WorkingSetActivityGenerationManifest,
-    activity: WorkingSetActivityStore
+    activity: WorkingSetActivityStore,
   ) => PromiseLike<void>
   readonly close?: () => PromiseLike<void>
 }
@@ -107,11 +107,11 @@ export class WorkingSetActivityAuthorityError extends Schema.TaggedErrorClass<Wo
       'target-read',
       'target-write',
       'target-replace',
-      'target-close'
+      'target-close',
     ]),
     reason: Schema.String,
-    cause: Schema.Defect()
-  }
+    cause: Schema.Defect(),
+  },
 ) {}
 
 export interface WorkingSetActivityAuthorityBackendOptions {
@@ -140,7 +140,7 @@ type ActivityFingerprint = {
 }
 
 const isWorkingSetActivityAuthorityMarker = Schema.is(
-  workingSetActivityAuthorityMarkerSchema
+  workingSetActivityAuthorityMarkerSchema,
 )
 const workingSetActivityAuthorityMarkerKeys = new Set<PropertyKey>([
   'version',
@@ -151,13 +151,13 @@ const workingSetActivityAuthorityMarkerKeys = new Set<PropertyKey>([
   'recordCount',
   'eventCount',
   'retainedAfter',
-  'cutoverAt'
+  'cutoverAt',
 ])
 
 function authorityError(
   phase: AuthorityPhase,
   reason: string,
-  cause: unknown
+  cause: unknown,
 ): WorkingSetActivityAuthorityError {
   return WorkingSetActivityAuthorityError.make({ phase, reason, cause })
 }
@@ -165,7 +165,7 @@ function authorityError(
 async function runBoundary<Value>(
   phase: AuthorityPhase,
   reason: string,
-  run: () => PromiseLike<Value>
+  run: () => PromiseLike<Value>,
 ): Promise<Value> {
   try {
     return await run()
@@ -177,7 +177,7 @@ async function runBoundary<Value>(
 
 function parseMarker(
   value: unknown,
-  phase: 'marker-read' | 'marker-readback'
+  phase: 'marker-read' | 'marker-readback',
 ): WorkingSetActivityAuthorityMarker | null {
   if (value === undefined) return null
   const ownKeys = typeof value === 'object' && value !== null
@@ -189,18 +189,18 @@ function parseMarker(
     ownKeys.length === workingSetActivityAuthorityMarkerKeys.size &&
     ownKeys.every((key) =>
       workingSetActivityAuthorityMarkerKeys.has(key)) &&
-    isWorkingSetActivityAuthorityMarker(value)
+      isWorkingSetActivityAuthorityMarker(value)
   ) return value
   throw authorityError(
     phase,
     'Working Set activity authority marker is malformed or unsupported',
-    value
+    value,
   )
 }
 
 function markerMatches(
   left: WorkingSetActivityAuthorityMarker,
-  right: WorkingSetActivityAuthorityMarker
+  right: WorkingSetActivityAuthorityMarker,
 ): boolean {
   return left.version === right.version &&
     left.backend === right.backend &&
@@ -214,7 +214,7 @@ function markerMatches(
 }
 
 function manifestFromMarker(
-  marker: WorkingSetActivityAuthorityMarker
+  marker: WorkingSetActivityAuthorityMarker,
 ): WorkingSetActivityGenerationManifest {
   return {
     schemaVersion: marker.schemaVersion,
@@ -222,7 +222,7 @@ function manifestFromMarker(
     sourceDigest: marker.sourceDigest,
     recordCount: marker.recordCount,
     eventCount: marker.eventCount,
-    retainedAfter: marker.retainedAfter
+    retainedAfter: marker.retainedAfter,
   }
 }
 
@@ -236,8 +236,8 @@ function canonicalActivityRows(activity: WorkingSetActivityStore): readonly unkn
       record.dismissedUntil ?? null,
       record.events.map((event) => [
         event.kind === 'activation' ? 0 : 1,
-        event.at
-      ])
+        event.at,
+      ]),
     ])
 }
 
@@ -245,36 +245,36 @@ async function sha256Hex(value: unknown): Promise<string> {
   const bytes = new TextEncoder().encode(JSON.stringify(value))
   const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes)
   return Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, '0')
+    byte.toString(16).padStart(2, '0'),
   ).join('')
 }
 
 async function fingerprintActivity(
-  activity: WorkingSetActivityStore
+  activity: WorkingSetActivityStore,
 ): Promise<ActivityFingerprint> {
   const rows = canonicalActivityRows(activity)
   const digest = await sha256Hex([
     WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION,
-    rows
+    rows,
   ])
   return {
     digest,
     recordCount: rows.length,
     eventCount: Object.values(activity.records).reduce(
       (count, record) => count + record.events.length,
-      0
-    )
+      0,
+    ),
   }
 }
 
 function assertRetentionBounds(
   activity: WorkingSetActivityStore,
-  retainedAfter: number
+  retainedAfter: number,
 ): void {
   for (const record of Object.values(activity.records)) {
     if (record.events.some((event) => event.at < retainedAfter)) {
       throw new Error(
-        'Verified Working Set activity contains an event outside retention'
+        'Verified Working Set activity contains an event outside retention',
       )
     }
   }
@@ -282,7 +282,7 @@ function assertRetentionBounds(
 
 async function verifyActivityMatchesManifest(
   activity: WorkingSetActivityStore,
-  manifest: WorkingSetActivityGenerationManifest
+  manifest: WorkingSetActivityGenerationManifest,
 ): Promise<void> {
   assertRetentionBounds(activity, manifest.retainedAfter)
   const fingerprint = await fingerprintActivity(activity)
@@ -292,7 +292,7 @@ async function verifyActivityMatchesManifest(
     fingerprint.eventCount !== manifest.eventCount
   ) {
     throw new Error(
-      'Verified Working Set activity does not match its migration manifest'
+      'Verified Working Set activity does not match its migration manifest',
     )
   }
 }
@@ -301,12 +301,12 @@ function makePromiseSerializer() {
   let tail: Promise<void> = Promise.resolve()
 
   return function serialize<Value>(
-    task: () => PromiseLike<Value>
+    task: () => PromiseLike<Value>,
   ): Promise<Value> {
     const result = tail.then(task, task)
     tail = result.then(
       () => undefined,
-      () => undefined
+      () => undefined,
     )
     return result
   }
@@ -315,7 +315,7 @@ function makePromiseSerializer() {
 export function makeWorkingSetActivityAuthorityBackend({
   chrome,
   indexedDb,
-  now = Date.now
+  now = Date.now,
 }: WorkingSetActivityAuthorityBackendOptions): WorkingSetActivityAuthorityBackend {
   const serialize = makePromiseSerializer()
   let activeAuthority: InitializedAuthority | undefined
@@ -326,7 +326,7 @@ export function makeWorkingSetActivityAuthorityBackend({
     const storedMarker = await runBoundary(
       'marker-read',
       'Unable to read Working Set activity authority marker',
-      chrome.readMarker
+      chrome.readMarker,
     )
     const marker = parseMarker(storedMarker, 'marker-read')
     if (marker !== null) {
@@ -339,11 +339,11 @@ export function makeWorkingSetActivityAuthorityBackend({
     const legacyValue = await runBoundary(
       'legacy-read',
       'Unable to read legacy Working Set activity',
-      chrome.readLegacy
+      chrome.readLegacy,
     )
     const parsedLegacy = parseWorkingSetActivityStorageValue(
       legacyValue,
-      migrationStartedAt
+      migrationStartedAt,
     )
     let legacyActivity: WorkingSetActivityStore
     if (parsedLegacy.status === 'missing') {
@@ -354,20 +354,20 @@ export function makeWorkingSetActivityAuthorityBackend({
       throw authorityError(
         'legacy-parse',
         `Unsupported legacy Working Set activity version ${parsedLegacy.version}`,
-        legacyValue
+        legacyValue,
       )
     } else {
       throw authorityError(
         'legacy-parse',
         'Legacy Working Set activity is malformed',
-        legacyValue
+        legacyValue,
       )
     }
 
     const source = await runBoundary(
       'source-digest',
       'Unable to digest legacy Working Set activity',
-      () => fingerprintActivity(legacyActivity)
+      () => fingerprintActivity(legacyActivity),
     )
     const manifest: WorkingSetActivityGenerationManifest = {
       schemaVersion: WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION,
@@ -375,23 +375,23 @@ export function makeWorkingSetActivityAuthorityBackend({
       sourceDigest: source.digest,
       recordCount: source.recordCount,
       eventCount: source.eventCount,
-      retainedAfter: migrationStartedAt - WORKING_SET_ACTIVITY_RETENTION_MS
+      retainedAfter: migrationStartedAt - WORKING_SET_ACTIVITY_RETENTION_MS,
     }
 
     await runBoundary(
       'target-stage',
       'Unable to stage IndexedDB Working Set activity generation',
-      () => indexedDb.stage(manifest, legacyActivity)
+      () => indexedDb.stage(manifest, legacyActivity),
     )
     const verifiedActivity = await runBoundary(
       'target-verify',
       'Unable to verify IndexedDB Working Set activity generation',
-      () => indexedDb.verify(manifest)
+      () => indexedDb.verify(manifest),
     )
     await runBoundary(
       'target-verify',
       'IndexedDB Working Set activity verification did not match its source',
-      () => verifyActivityMatchesManifest(verifiedActivity, manifest)
+      () => verifyActivityMatchesManifest(verifiedActivity, manifest),
     )
 
     const nextMarker: WorkingSetActivityAuthorityMarker = {
@@ -403,17 +403,17 @@ export function makeWorkingSetActivityAuthorityBackend({
       recordCount: manifest.recordCount,
       eventCount: manifest.eventCount,
       retainedAfter: manifest.retainedAfter,
-      cutoverAt: migrationStartedAt
+      cutoverAt: migrationStartedAt,
     }
     await runBoundary(
       'marker-write',
       'Unable to commit Working Set activity authority marker',
-      () => chrome.writeMarker(nextMarker)
+      () => chrome.writeMarker(nextMarker),
     )
     const markerReadback = await runBoundary(
       'marker-readback',
       'Unable to read back Working Set activity authority marker',
-      chrome.readMarker
+      chrome.readMarker,
     )
     const confirmedMarker = parseMarker(markerReadback, 'marker-readback')
     if (
@@ -423,7 +423,7 @@ export function makeWorkingSetActivityAuthorityBackend({
       throw authorityError(
         'marker-readback',
         'Working Set activity authority marker readback did not match',
-        markerReadback
+        markerReadback,
       )
     }
 
@@ -440,7 +440,7 @@ export function makeWorkingSetActivityAuthorityBackend({
       return runBoundary(
         'target-read',
         'Unable to read authoritative IndexedDB Working Set activity',
-        () => indexedDb.read(initialized.manifest)
+        () => indexedDb.read(initialized.manifest),
       )
     }),
     write: (change) => serialize(async () => {
@@ -448,7 +448,7 @@ export function makeWorkingSetActivityAuthorityBackend({
       await runBoundary(
         'target-write',
         'Unable to write authoritative IndexedDB Working Set activity',
-        () => indexedDb.write(initialized.manifest, change)
+        () => indexedDb.write(initialized.manifest, change),
       )
     }),
     replace: (activity) => serialize(async () => {
@@ -456,9 +456,9 @@ export function makeWorkingSetActivityAuthorityBackend({
       await runBoundary(
         'target-replace',
         'Unable to replace authoritative IndexedDB Working Set activity',
-        () => indexedDb.replace(initialized.manifest, activity)
+        () => indexedDb.replace(initialized.manifest, activity),
       )
-    })
+    }),
   }
 
   const closeIndexedDb = indexedDb.close
@@ -468,7 +468,7 @@ export function makeWorkingSetActivityAuthorityBackend({
     close: () => serialize(() => runBoundary(
       'target-close',
       'Unable to close IndexedDB Working Set activity',
-      closeIndexedDb
-    ))
+      closeIndexedDb,
+    )),
   }
 }

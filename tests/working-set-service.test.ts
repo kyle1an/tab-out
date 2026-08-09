@@ -5,7 +5,7 @@ import { Effect, Layer, ManagedRuntime } from 'effect'
 
 import {
   readChromeStorageValue,
-  writeChromeStorageValue
+  writeChromeStorageValue,
 } from '../src/extension/background/chrome-storage.js'
 import { WorkingSetActivityStorage } from '../src/extension/background/working-set-activity-storage.js'
 import * as WorkingSet from '../src/extension/background/working-set-service.js'
@@ -13,7 +13,7 @@ import type { ChromeApi } from '../src/extension/background/chrome-api.js'
 import type { WorkingSetActivityStore } from '../src/extension/types'
 import { emptyWorkingSetActivity, recordWorkingSetActivity } from '../src/extension/working-set.js'
 
-function chromeTab(id: number, path: string, audio: { audible?: boolean; muted?: boolean } = {}): chrome.tabs.Tab {
+function chromeTab(id: number, path: string, audio: { audible?: boolean, muted?: boolean } = {}): chrome.tabs.Tab {
   return {
     id,
     index: id - 1,
@@ -29,14 +29,14 @@ function chromeTab(id: number, path: string, audio: { audible?: boolean; muted?:
     url: `https://example.test/${path}`,
     title: path,
     audible: audio.audible,
-    mutedInfo: { muted: !!audio.muted }
+    mutedInfo: { muted: !!audio.muted },
   } as chrome.tabs.Tab
 }
 
 function createWorkingSetService(t: TestContext, chromeApi: ChromeApi) {
   const storage = chromeApi.storage?.local
   const unavailable = (): Promise<never> => Promise.reject(
-    new Error('Chrome local storage is unavailable for Working Set activity')
+    new Error('Chrome local storage is unavailable for Working Set activity'),
   )
   const activityStorage = WorkingSetActivityStorage.layer({
     read: () => storage
@@ -46,47 +46,47 @@ function createWorkingSetService(t: TestContext, chromeApi: ChromeApi) {
       ? writeChromeStorageValue(
           storage,
           WorkingSet.WORKING_SET_ACTIVITY_KEY,
-          change.activity
+          change.activity,
         )
       : unavailable(),
     replace: (activity) => storage
       ? writeChromeStorageValue(
           storage,
           WorkingSet.WORKING_SET_ACTIVITY_KEY,
-          activity
+          activity,
         )
-      : unavailable()
+      : unavailable(),
   })
   const runtime = ManagedRuntime.make(
     WorkingSet.WorkingSet.layer(chromeApi).pipe(
-      Layer.provide(activityStorage)
-    )
+      Layer.provide(activityStorage),
+    ),
   )
   t.after(() => runtime.dispose())
   const service = runtime.runSync(WorkingSet.WorkingSet)
   const run = <Value>(
-    effect: Effect.Effect<Value, WorkingSet.WorkingSetStorageError, WorkingSet.WorkingSet>
+    effect: Effect.Effect<Value, WorkingSet.WorkingSetStorageError, WorkingSet.WorkingSet>,
   ) => runtime.runPromise(effect.pipe(
-    Effect.catchTag('WorkingSetStorageError', (error) => Effect.fail(error.cause))
+    Effect.catchTag('WorkingSetStorageError', (error) => Effect.fail(error.cause)),
   ))
   return {
     getWorkingSetActivity: () => run(service.getWorkingSetActivity()),
     recordFocusedWindowActiveTab: (
       windowId: number,
-      capturedActiveTab?: Promise<chrome.tabs.Tab | null>
+      capturedActiveTab?: Promise<chrome.tabs.Tab | null>,
     ) => run(service.recordFocusedWindowActiveTab(windowId, capturedActiveTab)),
     replaceTabId: (addedTabId: number, removedTabId: number) =>
       run(service.replaceTabId(addedTabId, removedTabId)),
     recordTabActivation: (
       windowId: number,
       tabId: number,
-      capturedTab?: Promise<chrome.tabs.Tab | null>
+      capturedTab?: Promise<chrome.tabs.Tab | null>,
     ) => run(service.recordTabActivation(windowId, tabId, capturedTab)),
     recordTabNavigation: (
       tabId: number,
-      changeInfo: { url?: string; title?: string },
-      tab: chrome.tabs.Tab
-    ) => run(service.recordTabNavigation(tabId, changeInfo, tab))
+      changeInfo: { url?: string, title?: string },
+      tab: chrome.tabs.Tab,
+    ) => run(service.recordTabNavigation(tabId, changeInfo, tab)),
   }
 }
 
@@ -105,9 +105,9 @@ test('Working Set activity reads wait for mutations that started first', async (
         domain: 'example.test',
         lastSeenAt: at,
         lastActivatedAt: at,
-        events: [{ kind: 'activation' as const, at }]
+        events: [{ kind: 'activation' as const, at }],
       }]
-    }))
+    })),
   }
   const { promise: activationQueryBlocked, resolve: releaseActivationQuery } = Promise.withResolvers<void>()
   const { promise: activationQueryStarted, resolve: markActivationQueryStarted } = Promise.withResolvers<void>()
@@ -121,19 +121,19 @@ test('Working Set activity reads wait for mutations that started first', async (
           await activationQueryBlocked
         }
         return tabs
-      }
+      },
     },
     windows: {
-      getAll: async () => [{ id: 1, focused: true, type: 'normal' }]
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' }],
     },
     storage: {
       local: {
         get: async () => ({ [WorkingSet.WORKING_SET_ACTIVITY_KEY]: storedActivity }),
         set: async (value: Record<string, unknown>) => {
           storedActivity = value[WorkingSet.WORKING_SET_ACTIVITY_KEY] as WorkingSetActivityStore
-        }
-      }
-    }
+        },
+      },
+    },
   } as unknown as ChromeApi
   const service = createWorkingSetService(t, chromeApi)
 
@@ -142,7 +142,7 @@ test('Working Set activity reads wait for mutations that started first', async (
   const activity = service.getWorkingSetActivity()
   const firstTurn = await Promise.race([
     activity.then(() => 'settled' as const),
-    setImmediate('pending' as const)
+    setImmediate('pending' as const),
   ])
 
   assert.equal(firstTurn, 'pending')
@@ -151,7 +151,7 @@ test('Working Set activity reads wait for mutations that started first', async (
   assert.deepEqual(Object.keys((await activity).records).sort(), [
     'https://example.test/one',
     'https://example.test/three',
-    'https://example.test/two'
+    'https://example.test/two',
   ])
 })
 
@@ -162,33 +162,33 @@ test('Working Set window-focus activity preserves event order when captured tab 
   let storedActivity = emptyWorkingSetActivity()
   const chromeApi = {
     tabs: {
-      query: async () => { throw new Error('captured focus events must not repeat the active-tab lookup') }
+      query: async () => { throw new Error('captured focus events must not repeat the active-tab lookup') },
     },
     windows: {
       WINDOW_ID_NONE: -1,
       getAll: async () => [
         { id: 1, focused: false, type: 'normal' },
-        { id: 2, focused: true, type: 'normal' }
-      ]
+        { id: 2, focused: true, type: 'normal' },
+      ],
     },
     storage: {
       local: {
         get: async () => ({ [WorkingSet.WORKING_SET_ACTIVITY_KEY]: storedActivity }),
         set: async (value: Record<string, unknown>) => {
           storedActivity = value[WorkingSet.WORKING_SET_ACTIVITY_KEY] as WorkingSetActivityStore
-        }
-      }
-    }
+        },
+      },
+    },
   } as unknown as ChromeApi
   const service = createWorkingSetService(t, chromeApi)
 
   const firstFocus = service.recordFocusedWindowActiveTab(
     1,
-    windowOneLookup.then((resolvedTabs) => resolvedTabs[0] ?? null)
+    windowOneLookup.then((resolvedTabs) => resolvedTabs[0] ?? null),
   )
   const secondFocus = service.recordFocusedWindowActiveTab(
     2,
-    windowTwoLookup.then((resolvedTabs) => resolvedTabs[0] ?? null)
+    windowTwoLookup.then((resolvedTabs) => resolvedTabs[0] ?? null),
   )
   const secondTab = tabs[1]
   const firstTab = tabs[0]
@@ -215,7 +215,7 @@ test('Working Set counts paired tab-activation and window-focus signals once', a
     tabs: { query: async () => [tab] },
     windows: {
       WINDOW_ID_NONE: -1,
-      getAll: async () => [{ id: 1, focused: true, type: 'normal' }]
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' }],
     },
     storage: {
       local: {
@@ -223,15 +223,15 @@ test('Working Set counts paired tab-activation and window-focus signals once', a
         set: async (value: Record<string, unknown>) => {
           writeCount += 1
           storedActivity = value[WorkingSet.WORKING_SET_ACTIVITY_KEY] as WorkingSetActivityStore
-        }
-      }
-    }
+        },
+      },
+    },
   } as unknown as ChromeApi
   const service = createWorkingSetService(t, chromeApi)
 
   await Promise.all([
     service.recordTabActivation(1, 1),
-    service.recordFocusedWindowActiveTab(1)
+    service.recordFocusedWindowActiveTab(1),
   ])
 
   const record = (await service.getWorkingSetActivity()).records['https://example.test/paired']
@@ -246,16 +246,16 @@ test('Working Set does not treat same-page reloads as navigation activity', asyn
     tabs: { query: async () => [tab] },
     windows: {
       WINDOW_ID_NONE: -1,
-      getAll: async () => [{ id: 1, focused: true, type: 'normal' }]
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' }],
     },
     storage: {
       local: {
         get: async () => ({ [WorkingSet.WORKING_SET_ACTIVITY_KEY]: storedActivity }),
         set: async (value: Record<string, unknown>) => {
           storedActivity = value[WorkingSet.WORKING_SET_ACTIVITY_KEY] as WorkingSetActivityStore
-        }
-      }
-    }
+        },
+      },
+    },
   } as unknown as ChromeApi
   const service = createWorkingSetService(t, chromeApi)
 
@@ -273,14 +273,14 @@ test('Working Set tab lookup failures do not rewrite unchanged activity', async 
     tabs: { query: async () => { throw new Error('tab lookup unavailable') } },
     windows: {
       WINDOW_ID_NONE: -1,
-      getAll: async () => []
+      getAll: async () => [],
     },
     storage: {
       local: {
         get: async () => ({ [WorkingSet.WORKING_SET_ACTIVITY_KEY]: emptyWorkingSetActivity() }),
-        set: async () => { writeCount += 1 }
-      }
-    }
+        set: async () => { writeCount += 1 },
+      },
+    },
   } as unknown as ChromeApi
 
   await createWorkingSetService(t, chromeApi).recordTabActivation(1, 1)
@@ -291,27 +291,27 @@ test('Working Set tab lookup failures do not rewrite unchanged activity', async 
 test('Working Set ignores active navigation for an unsupported page identity without writing', async (t) => {
   const tab = {
     ...chromeTab(1, 'ignored'),
-    url: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop/index.html'
+    url: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop/index.html',
   }
   let writeCount = 0
   const chromeApi = {
     tabs: { query: async () => [tab] },
     windows: {
       WINDOW_ID_NONE: -1,
-      getAll: async () => [{ id: 1, focused: true, type: 'normal' }]
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' }],
     },
     storage: {
       local: {
         get: async () => ({ [WorkingSet.WORKING_SET_ACTIVITY_KEY]: emptyWorkingSetActivity() }),
-        set: async () => { writeCount += 1 }
-      }
-    }
+        set: async () => { writeCount += 1 },
+      },
+    },
   } as unknown as ChromeApi
 
   await createWorkingSetService(t, chromeApi).recordTabNavigation(
     1,
     { url: tab.url },
-    tab
+    tab,
   )
 
   assert.equal(writeCount, 0)
@@ -325,7 +325,7 @@ test('Working Set does not dedupe a paired focus event after the activation writ
     tabs: { query: async () => [tab] },
     windows: {
       WINDOW_ID_NONE: -1,
-      getAll: async () => [{ id: 1, focused: true, type: 'normal' }]
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' }],
     },
     storage: {
       local: {
@@ -334,9 +334,9 @@ test('Working Set does not dedupe a paired focus event after the activation writ
           writeAttempts += 1
           if (writeAttempts === 1) throw new Error('activity write failed')
           storedActivity = value[WorkingSet.WORKING_SET_ACTIVITY_KEY] as WorkingSetActivityStore
-        }
-      }
-    }
+        },
+      },
+    },
   } as unknown as ChromeApi
   const service = createWorkingSetService(t, chromeApi)
 
@@ -355,16 +355,16 @@ test('Working Set still records repeated activation signals from the same event 
     tabs: { query: async () => [tab] },
     windows: {
       WINDOW_ID_NONE: -1,
-      getAll: async () => [{ id: 1, focused: true, type: 'normal' }]
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' }],
     },
     storage: {
       local: {
         get: async () => ({ [WorkingSet.WORKING_SET_ACTIVITY_KEY]: storedActivity }),
         set: async (value: Record<string, unknown>) => {
           storedActivity = value[WorkingSet.WORKING_SET_ACTIVITY_KEY] as WorkingSetActivityStore
-        }
-      }
-    }
+        },
+      },
+    },
   } as unknown as ChromeApi
   const service = createWorkingSetService(t, chromeApi)
 
@@ -392,11 +392,11 @@ test('Working Set rebases its activation signal when Chrome replaces a tab id', 
           return activationLookup
         }
         return tabs
-      }
+      },
     },
     windows: {
       WINDOW_ID_NONE: -1,
-      getAll: async () => [{ id: 1, focused: true, type: 'normal' }]
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' }],
     },
     storage: {
       local: {
@@ -404,9 +404,9 @@ test('Working Set rebases its activation signal when Chrome replaces a tab id', 
         set: async (value: Record<string, unknown>) => {
           writeCount += 1
           storedActivity = value[WorkingSet.WORKING_SET_ACTIVITY_KEY] as WorkingSetActivityStore
-        }
-      }
-    }
+        },
+      },
+    },
   } as unknown as ChromeApi
   const service = createWorkingSetService(t, chromeApi)
 
@@ -434,7 +434,7 @@ test('Working Set mutation retries persisted activity after a transient initial 
   let persistedActivity = recordWorkingSetActivity(emptyWorkingSetActivity(), {
     kind: 'activation',
     at: Date.now() - 1000,
-    tab: { url: existingTab.url || '', rawUrl: existingTab.url || '', title: existingTab.title || '' }
+    tab: { url: existingTab.url || '', rawUrl: existingTab.url || '', title: existingTab.title || '' },
   })
   let readAttempts = 0
   let writeAttempts = 0
@@ -442,7 +442,7 @@ test('Working Set mutation retries persisted activity after a transient initial 
     tabs: { query: async () => [existingTab, activatedTab] },
     windows: {
       WINDOW_ID_NONE: -1,
-      getAll: async () => [{ id: 1, focused: true, type: 'normal' }]
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' }],
     },
     storage: {
       local: {
@@ -454,9 +454,9 @@ test('Working Set mutation retries persisted activity after a transient initial 
         set: async (value: Record<string, unknown>) => {
           writeAttempts += 1
           persistedActivity = value[WorkingSet.WORKING_SET_ACTIVITY_KEY] as WorkingSetActivityStore
-        }
-      }
-    }
+        },
+      },
+    },
   } as unknown as ChromeApi
   const service = createWorkingSetService(t, chromeApi)
 
@@ -477,14 +477,14 @@ test('Working Set mutation does not advance its cache until the storage write su
   let persistedActivity = recordWorkingSetActivity(emptyWorkingSetActivity(), {
     kind: 'activation',
     at: Date.now() - 1000,
-    tab: { url: existingTab.url || '', rawUrl: existingTab.url || '', title: existingTab.title || '' }
+    tab: { url: existingTab.url || '', rawUrl: existingTab.url || '', title: existingTab.title || '' },
   })
   let writeAttempts = 0
   const chromeApi = {
     tabs: { query: async () => [existingTab, activatedTab] },
     windows: {
       WINDOW_ID_NONE: -1,
-      getAll: async () => [{ id: 1, focused: true, type: 'normal' }]
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' }],
     },
     storage: {
       local: {
@@ -493,9 +493,9 @@ test('Working Set mutation does not advance its cache until the storage write su
           writeAttempts += 1
           if (writeAttempts === 1) throw new Error('activity write failed')
           persistedActivity = value[WorkingSet.WORKING_SET_ACTIVITY_KEY] as WorkingSetActivityStore
-        }
-      }
-    }
+        },
+      },
+    },
   } as unknown as ChromeApi
   const service = createWorkingSetService(t, chromeApi)
 
@@ -513,11 +513,11 @@ test('Working Set treats an absent first-run storage key as known empty state', 
     tabs: { query: async () => [] },
     windows: {
       WINDOW_ID_NONE: -1,
-      getAll: async () => [{ id: 1, focused: true, type: 'normal' }]
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' }],
     },
     storage: {
-      local: { get: async () => ({}) }
-    }
+      local: { get: async () => ({}) },
+    },
   } as unknown as ChromeApi
 
   const activity = await createWorkingSetService(t, chromeApi).getWorkingSetActivity()

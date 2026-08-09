@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import {
   animateHistoryEntryMoves,
-  snapshotHistoryEntryPositions
+  snapshotHistoryEntryPositions,
 } from '../src/extension/history-entry-move-animation.js'
 
 function fakeHistoryRow(key: string, top: number) {
@@ -13,12 +13,12 @@ function fakeHistoryRow(key: string, top: number) {
     dataset: { taboutLayoutKey: key },
     classList: {
       add: (...names: string[]) => names.forEach((name) => classes.add(name)),
-      remove: (...names: string[]) => names.forEach((name) => classes.delete(name))
+      remove: (...names: string[]) => names.forEach((name) => classes.delete(name)),
     },
     style: {} as Record<string, string>,
     getBoundingClientRect: () => ({ left: 20, top: state.top, width: 260, height: 36 }),
     addEventListener() {},
-    removeEventListener() {}
+    removeEventListener() {},
   }
   return {
     classes,
@@ -26,7 +26,7 @@ function fakeHistoryRow(key: string, top: number) {
       state.top = nextTop
     },
     row: row as unknown as HTMLElement,
-    style: row.style
+    style: row.style,
   }
 }
 
@@ -38,7 +38,7 @@ test('Activation History survivors move into the removed row position with FLIP'
     querySelectorAll: () => rows
       .filter((candidate) => !candidate.classes.has('closing'))
       .map((candidate) => candidate.row),
-    getBoundingClientRect: () => ({ left: 0, top: 0, width: 280, height: 500 })
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 280, height: 500 }),
   } as unknown as HTMLElement
 
   const previous = snapshotHistoryEntryPositions(root)
@@ -56,7 +56,7 @@ test('Activation History survivors FLIP across a stable-key reorder', () => {
   const rows = [alpha, bravo, charlie]
   const root = {
     querySelectorAll: () => rows.map((candidate) => candidate.row),
-    getBoundingClientRect: () => ({ left: 0, top: 0, width: 280, height: 500 })
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 280, height: 500 }),
   } as unknown as HTMLElement
 
   const previous = snapshotHistoryEntryPositions(root)

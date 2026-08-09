@@ -10,7 +10,7 @@ import {
   selectAdjacentFilterResult,
   selectHorizontalFilterResult,
   type FilterResultCandidate,
-  type PositionedFilterResultCandidate
+  type PositionedFilterResultCandidate,
 } from '../src/extension/filter-result-navigation.js'
 import type { DashboardCardEntry, DashboardChipData } from '../src/extension/types.js'
 
@@ -18,13 +18,13 @@ const candidates: FilterResultCandidate[] = [
   {
     key: 'tab:alpha',
     identity: 'https://alpha.example.test/',
-    domId: 'filter-result-alpha'
+    domId: 'filter-result-alpha',
   },
   {
     key: 'tab:bravo',
     identity: 'https://bravo.example.test/',
-    domId: 'filter-result-bravo'
-  }
+    domId: 'filter-result-bravo',
+  },
 ]
 
 function chip(overrides: Partial<DashboardChipData> & { tabUrl: string }): DashboardChipData {
@@ -43,7 +43,7 @@ function chip(overrides: Partial<DashboardChipData> & { tabUrl: string }): Dashb
     groupDotColor: null,
     isApp: false,
     envs: null,
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -55,12 +55,12 @@ function valueAt<T>(values: readonly T[], index: number): T {
 
 function cardWithChips(
   visibleChips: DashboardChipData[],
-  hiddenChips: DashboardChipData[] = []
+  hiddenChips: DashboardChipData[] = [],
 ): DashboardCardEntry {
   return {
     group: {
       domain: 'example.test',
-      tabs: []
+      tabs: [],
     },
     vm: {
       stableId: 'domain-example-test',
@@ -77,9 +77,9 @@ function cardWithChips(
         flatHiddenChips: hiddenChips,
         flatHiddenCount: hiddenChips.length,
         clusters: [],
-        websitePathSections: []
-      }]
-    }
+        websitePathSections: [],
+      }],
+    },
   }
 }
 
@@ -93,8 +93,8 @@ test('a committed query leaves result selection owned by the input', () => {
     {
       query: 'example',
       candidateKey: null,
-      identity: null
-    }
+      identity: null,
+    },
   )
 })
 
@@ -103,7 +103,7 @@ test('editing a query returns an established result selection to the input', () 
     EMPTY_FILTER_RESULT_SELECTION,
     'example',
     candidates,
-    'next'
+    'next',
   )
 
   assert.deepEqual(
@@ -111,8 +111,8 @@ test('editing a query returns an established result selection to the input', () 
     {
       query: 'example updated',
       candidateKey: null,
-      identity: null
-    }
+      identity: null,
+    },
   )
 })
 
@@ -120,19 +120,19 @@ test('selection follows the same Dashboard Item Identity when its rendered candi
   const current = {
     query: 'example',
     candidateKey: 'history:alpha',
-    identity: 'https://alpha.example.test/'
+    identity: 'https://alpha.example.test/',
   }
   const hydratedCandidates: FilterResultCandidate[] = [
     {
       key: 'tab:bravo',
       identity: 'https://bravo.example.test/',
-      domId: 'filter-result-bravo'
+      domId: 'filter-result-bravo',
     },
     {
       key: 'tab:alpha',
       identity: 'https://alpha.example.test/',
-      domId: 'filter-result-alpha'
-    }
+      domId: 'filter-result-alpha',
+    },
   ]
 
   assert.deepEqual(
@@ -140,8 +140,8 @@ test('selection follows the same Dashboard Item Identity when its rendered candi
     {
       query: 'example',
       candidateKey: 'tab:alpha',
-      identity: 'https://alpha.example.test/'
-    }
+      identity: 'https://alpha.example.test/',
+    },
   )
 })
 
@@ -150,7 +150,7 @@ test('visible selection reconciliation probes only the still-selected candidate'
     EMPTY_FILTER_RESULT_SELECTION,
     'example',
     candidates,
-    'next'
+    'next',
   )
   const probedKeys: string[] = []
 
@@ -163,13 +163,13 @@ test('visible selection reconciliation probes only the still-selected candidate'
       {
         key: 'tab:charlie',
         identity: 'https://charlie.example.test/',
-        domId: 'filter-result-charlie'
-      }
+        domId: 'filter-result-charlie',
+      },
     ],
     (candidate) => {
       probedKeys.push(candidate.key)
       return true
-    }
+    },
   )
 
   assert.deepEqual(result.selection, current)
@@ -183,18 +183,18 @@ test('visible selection reconciliation follows identity without probing unrelate
     {
       key: 'history:alpha-hidden',
       identity: valueAt(candidates, 0).identity,
-      domId: 'filter-result-alpha-hidden'
+      domId: 'filter-result-alpha-hidden',
     },
     {
       key: 'tab:alpha-replacement',
       identity: valueAt(candidates, 0).identity,
-      domId: 'filter-result-alpha-replacement'
+      domId: 'filter-result-alpha-replacement',
     },
     {
       key: 'tab:charlie',
       identity: 'https://charlie.example.test/',
-      domId: 'filter-result-charlie'
-    }
+      domId: 'filter-result-charlie',
+    },
   ]
   const probedKeys: string[] = []
 
@@ -202,20 +202,20 @@ test('visible selection reconciliation follows identity without probing unrelate
     {
       query: 'example',
       candidateKey: 'history:alpha-removed',
-      identity: valueAt(candidates, 0).identity
+      identity: valueAt(candidates, 0).identity,
     },
     'example',
     replacementCandidates,
     (candidate) => {
       probedKeys.push(candidate.key)
       return candidate.key === 'tab:alpha-replacement'
-    }
+    },
   )
 
   assert.deepEqual(result.selection, {
     query: 'example',
     candidateKey: 'tab:alpha-replacement',
-    identity: valueAt(candidates, 0).identity
+    identity: valueAt(candidates, 0).identity,
   })
   assert.equal(result.candidate, valueAt(replacementCandidates, 2))
   assert.deepEqual(probedKeys, ['history:alpha-hidden', 'tab:alpha-replacement'])
@@ -226,10 +226,10 @@ test('visible selection reconciliation leaves a new query owned by the input', (
     {
       key: 'tab:collapsed',
       identity: 'https://collapsed.example.test/',
-      domId: 'filter-result-collapsed'
+      domId: 'filter-result-collapsed',
     },
     valueAt(candidates, 0),
-    valueAt(candidates, 1)
+    valueAt(candidates, 1),
   ]
   const probedKeys: string[] = []
 
@@ -240,14 +240,14 @@ test('visible selection reconciliation leaves a new query owned by the input', (
     (candidate) => {
       probedKeys.push(candidate.key)
       return candidate.key !== 'tab:collapsed'
-    }
+    },
   )
 
   assert.equal(result.candidate, undefined)
   assert.deepEqual(result.selection, {
     query: 'new query',
     candidateKey: null,
-    identity: null
+    identity: null,
   })
   assert.deepEqual(probedKeys, [])
 })
@@ -257,10 +257,10 @@ test('visible selection reconciliation stops at the first mounted fallback', () 
     {
       key: 'tab:collapsed',
       identity: 'https://collapsed.example.test/',
-      domId: 'filter-result-collapsed'
+      domId: 'filter-result-collapsed',
     },
     valueAt(candidates, 0),
-    valueAt(candidates, 1)
+    valueAt(candidates, 1),
   ]
   const probedKeys: string[] = []
 
@@ -268,21 +268,21 @@ test('visible selection reconciliation stops at the first mounted fallback', () 
     {
       query: 'example',
       candidateKey: 'tab:removed',
-      identity: 'https://removed.example.test/'
+      identity: 'https://removed.example.test/',
     },
     'example',
     fallbackCandidates,
     (candidate) => {
       probedKeys.push(candidate.key)
       return candidate.key !== 'tab:collapsed'
-    }
+    },
   )
 
   assert.equal(result.candidate, valueAt(candidates, 0))
   assert.deepEqual(result.selection, {
     query: 'example',
     candidateKey: valueAt(candidates, 0).key,
-    identity: valueAt(candidates, 0).identity
+    identity: valueAt(candidates, 0).identity,
   })
   assert.deepEqual(probedKeys, ['tab:collapsed', 'tab:alpha'])
 })
@@ -291,7 +291,7 @@ test('Arrow navigation moves through results and clamps at either end', () => {
   const inputOwned = reconcileFilterResultSelection(
     EMPTY_FILTER_RESULT_SELECTION,
     'example',
-    candidates
+    candidates,
   )
   const first = selectAdjacentFilterResult(inputOwned, 'example', candidates, 'next')
   const second = selectAdjacentFilterResult(first, 'example', candidates, 'next')
@@ -300,12 +300,12 @@ test('Arrow navigation moves through results and clamps at either end', () => {
   assert.deepEqual(first, {
     query: 'example',
     candidateKey: 'tab:alpha',
-    identity: 'https://alpha.example.test/'
+    identity: 'https://alpha.example.test/',
   })
   assert.deepEqual(second, {
     query: 'example',
     candidateKey: 'tab:bravo',
-    identity: 'https://bravo.example.test/'
+    identity: 'https://bravo.example.test/',
   })
   assert.deepEqual(lastFromInput, second)
   assert.deepEqual(selectAdjacentFilterResult(second, 'example', candidates, 'next'), second)
@@ -319,39 +319,39 @@ test('horizontal Arrow navigation follows rendered positions instead of result o
     {
       key: 'tab:charlie',
       identity: 'https://charlie.example.test/',
-      domId: 'filter-result-charlie'
-    }
+      domId: 'filter-result-charlie',
+    },
   ]
   const positionedCandidates: PositionedFilterResultCandidate[] = [
     {
       candidate: valueAt(spatialCandidates, 0),
-      rect: { left: 0, right: 100, top: 0, bottom: 40 }
+      rect: { left: 0, right: 100, top: 0, bottom: 40 },
     },
     {
       candidate: valueAt(spatialCandidates, 1),
-      rect: { left: 0, right: 100, top: 60, bottom: 100 }
+      rect: { left: 0, right: 100, top: 60, bottom: 100 },
     },
     {
       candidate: valueAt(spatialCandidates, 2),
-      rect: { left: 140, right: 240, top: 0, bottom: 40 }
-    }
+      rect: { left: 140, right: 240, top: 0, bottom: 40 },
+    },
   ]
   const first = selectAdjacentFilterResult(
     EMPTY_FILTER_RESULT_SELECTION,
     'example',
     spatialCandidates,
-    'next'
+    'next',
   )
   const right = selectHorizontalFilterResult(first, 'example', positionedCandidates, 'right')
 
   assert.deepEqual(right, {
     query: 'example',
     candidateKey: 'tab:charlie',
-    identity: 'https://charlie.example.test/'
+    identity: 'https://charlie.example.test/',
   })
   assert.deepEqual(
     selectHorizontalFilterResult(right, 'example', positionedCandidates, 'left'),
-    first
+    first,
   )
 })
 
@@ -360,17 +360,17 @@ test('horizontal Arrow navigation keeps the current result at a spatial boundary
   const positionedCandidates: PositionedFilterResultCandidate[] = [
     {
       candidate: valueAt(candidates, 0),
-      rect: { left: 0, right: 100, top: 0, bottom: 40 }
+      rect: { left: 0, right: 100, top: 0, bottom: 40 },
     },
     {
       candidate: valueAt(candidates, 1),
-      rect: { left: 0, right: 100, top: 60, bottom: 100 }
-    }
+      rect: { left: 0, right: 100, top: 60, bottom: 100 },
+    },
   ]
 
   assert.deepEqual(
     selectHorizontalFilterResult(first, 'example', positionedCandidates, 'left'),
-    first
+    first,
   )
 })
 
@@ -379,29 +379,29 @@ test('result candidates follow source priority and expose exact folded and same-
     tabUrl: 'https://shared.example.test/docs',
     envs: [
       { prefix: 'dev', tabUrl: 'https://dev.example.test/docs', rawUrl: 'https://dev.example.test/docs' },
-      { prefix: 'qa', tabUrl: 'https://qa.example.test/docs', rawUrl: 'https://qa.example.test/docs' }
-    ]
+      { prefix: 'qa', tabUrl: 'https://qa.example.test/docs', rawUrl: 'https://qa.example.test/docs' },
+    ],
   })
   const sameTitle = chip({
     tabUrl: 'https://variants.example.test/',
     titleVariantChips: [
       chip({ tabUrl: 'https://variants.example.test/alpha' }),
-      chip({ tabUrl: 'https://variants.example.test/bravo' })
-    ]
+      chip({ tabUrl: 'https://variants.example.test/bravo' }),
+    ],
   })
   const history = chip({
     tabUrl: 'https://history.example.test/result',
-    sourceType: 'history'
+    sourceType: 'history',
   })
   const bookmark = chip({
     tabUrl: 'https://bookmark.example.test/result',
-    sourceType: 'bookmark'
+    sourceType: 'bookmark',
   })
 
   const result = buildFilterResultCandidates({
     primaryMatches: [cardWithVisibleChips([folded, sameTitle])],
     historyMatches: [cardWithVisibleChips([history])],
-    bookmarkMatches: [cardWithVisibleChips([bookmark])]
+    bookmarkMatches: [cardWithVisibleChips([bookmark])],
   })
 
   assert.deepEqual(
@@ -412,8 +412,8 @@ test('result candidates follow source priority and expose exact folded and same-
       'https://variants.example.test/alpha',
       'https://variants.example.test/bravo',
       'https://history.example.test/result',
-      'https://bookmark.example.test/result'
-    ]
+      'https://bookmark.example.test/result',
+    ],
   )
   assert.equal(new Set(result.map((candidate) => candidate.key)).size, result.length)
 })
@@ -423,15 +423,15 @@ test('result candidates retain overflow targets so expansion can make them navig
   const collapsed = chip({ tabUrl: 'https://overflow.example.test/collapsed' })
 
   const result = buildFilterResultCandidates({
-    primaryMatches: [cardWithChips([visible], [collapsed])]
+    primaryMatches: [cardWithChips([visible], [collapsed])],
   })
 
   assert.deepEqual(
     result.map((candidate) => candidate.identity),
     [
       'https://overflow.example.test/visible',
-      'https://overflow.example.test/collapsed'
-    ]
+      'https://overflow.example.test/collapsed',
+    ],
   )
 })
 

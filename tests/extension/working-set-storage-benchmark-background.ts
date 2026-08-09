@@ -2,16 +2,16 @@ import { Cause, Effect, Exit, Schema } from 'effect'
 
 import {
   backgroundRuntime,
-  workingSetService
+  workingSetService,
 } from '../../src/extension/background.js'
 import {
   WorkingSetActivityStorage,
-  type WorkingSetActivityStorageError
+  type WorkingSetActivityStorageError,
 } from '../../src/extension/background/working-set-activity-storage.js'
 import type { WorkingSetStorageError } from '../../src/extension/background/working-set-service.js'
 import type { WorkingSetActivityStore } from '../../src/extension/types'
 import {
-  recordWorkingSetActivityMutation
+  recordWorkingSetActivityMutation,
 } from '../../src/extension/working-set.js'
 import { makeWorkingSetStorageProfile } from '../helpers/working-set-storage-profile.js'
 import { benchmarkBackend } from './working-set-backends/selected.js'
@@ -24,7 +24,7 @@ import {
   type WorkingSetStorageBenchmarkMessage,
   type WorkingSetStorageBenchmarkOperation,
   type WorkingSetStorageBenchmarkSuccessResponse,
-  type WorkingSetStorageBenchmarkTimings
+  type WorkingSetStorageBenchmarkTimings,
 } from './working-set-storage-benchmark-protocol.js'
 
 const selectedBackend: WorkingSetStorageBenchmarkBackend = benchmarkBackend
@@ -34,8 +34,8 @@ class WorkingSetStorageBenchmarkControllerError extends Schema.TaggedErrorClass<
   'WorkingSetStorageBenchmarkControllerError',
   {
     operation: Schema.String,
-    cause: Schema.Defect()
-  }
+    cause: Schema.Defect(),
+  },
 ) {}
 
 type BenchmarkCommandResult = {
@@ -64,35 +64,35 @@ function makeChromeTab(event: WorkingSetStorageBenchmarkEvent): chrome.tabs.Tab 
     status: 'complete',
     title: event.title,
     url: event.url,
-    windowId: event.windowId
+    windowId: event.windowId,
   }
 }
 
 function navigationEffect(
   operation: 'navigation' | 'burst',
-  event: WorkingSetStorageBenchmarkEvent
+  event: WorkingSetStorageBenchmarkEvent,
 ): Effect.Effect<void, WorkingSetStorageBenchmarkControllerError> {
   if (event.kind !== 'navigation') {
     return Effect.fail(WorkingSetStorageBenchmarkControllerError.make({
       operation,
-      cause: new Error(`${operation} accepts navigation events only`)
+      cause: new Error(`${operation} accepts navigation events only`),
     }))
   }
   return workingSetService.recordTabNavigation(
     event.tabId,
     { url: event.url, title: event.title },
-    makeChromeTab(event)
+    makeChromeTab(event),
   ).pipe(
     Effect.mapError((cause) => WorkingSetStorageBenchmarkControllerError.make({
       operation,
-      cause
-    }))
+      cause,
+    })),
   )
 }
 
 const captureDiagnostics = Effect.fn(
-  'WorkingSetStorageBenchmark.captureDiagnostics'
-)(function*(): Effect.fn.Return<
+  'WorkingSetStorageBenchmark.captureDiagnostics',
+)(function* (): Effect.fn.Return<
   WorkingSetStorageBenchmarkDiagnostics,
   WorkingSetStorageBenchmarkControllerError
 > {
@@ -102,27 +102,27 @@ const captureDiagnostics = Effect.fn(
       ownedStorage: selectedBackend.ownedStorage,
       lastMutationLogicalBytes: selectedBackend.lastMutationLogicalBytes(),
       lastMutationPhysicalWrites: selectedBackend.lastMutationPhysicalWrites(),
-      writeInvocationCount: selectedBackend.writeInvocationCount()
+      writeInvocationCount: selectedBackend.writeInvocationCount(),
     }),
     catch: (cause) => WorkingSetStorageBenchmarkControllerError.make({
       operation: 'diagnostics',
-      cause
-    })
+      cause,
+    }),
   })
   return yield* Schema.decodeUnknownEffect(
-    workingSetStorageBenchmarkDiagnosticsSchema
+    workingSetStorageBenchmarkDiagnosticsSchema,
   )(candidate).pipe(
     Effect.mapError((cause) => WorkingSetStorageBenchmarkControllerError.make({
       operation: 'diagnostics',
-      cause
-    }))
+      cause,
+    })),
   )
 })
 
 const runCommand = Effect.fn('WorkingSetStorageBenchmark.runCommand')(
-  function*(
+  function* (
     message: WorkingSetStorageBenchmarkMessage,
-    listenerStartedAt: number
+    listenerStartedAt: number,
   ): Effect.fn.Return<
     BenchmarkCommandResult,
     | WorkingSetStorageBenchmarkControllerError
@@ -135,8 +135,8 @@ const runCommand = Effect.fn('WorkingSetStorageBenchmark.runCommand')(
           try: () => makeWorkingSetStorageProfile(message.profile, message.now),
           catch: (cause) => WorkingSetStorageBenchmarkControllerError.make({
             operation: message.operation,
-            cause
-          })
+            cause,
+          }),
         })
         const commitStartedAt = performance.now()
         yield* activityStorage.replace(profile.activity)
@@ -145,8 +145,8 @@ const runCommand = Effect.fn('WorkingSetStorageBenchmark.runCommand')(
           operation: message.operation,
           timings: {
             listenerToCommitMs: Math.max(0, commitFinishedAt - listenerStartedAt),
-            storageCommitMs: Math.max(0, commitFinishedAt - commitStartedAt)
-          }
+            storageCommitMs: Math.max(0, commitFinishedAt - commitStartedAt),
+          },
         }
       }
       case 'replace': {
@@ -157,8 +157,8 @@ const runCommand = Effect.fn('WorkingSetStorageBenchmark.runCommand')(
           operation: message.operation,
           timings: {
             listenerToCommitMs: Math.max(0, commitFinishedAt - listenerStartedAt),
-            storageCommitMs: Math.max(0, commitFinishedAt - commitStartedAt)
-          }
+            storageCommitMs: Math.max(0, commitFinishedAt - commitStartedAt),
+          },
         }
       }
       case 'storage-read': {
@@ -169,9 +169,9 @@ const runCommand = Effect.fn('WorkingSetStorageBenchmark.runCommand')(
           operation: message.operation,
           timings: {
             listenerToCommitMs: Math.max(0, readFinishedAt - listenerStartedAt),
-            storageReadMs: Math.max(0, readFinishedAt - readStartedAt)
+            storageReadMs: Math.max(0, readFinishedAt - readStartedAt),
           },
-          activity
+          activity,
         }
       }
       case 'service-read': {
@@ -182,9 +182,9 @@ const runCommand = Effect.fn('WorkingSetStorageBenchmark.runCommand')(
           operation: message.operation,
           timings: {
             listenerToCommitMs: Math.max(0, readFinishedAt - listenerStartedAt),
-            serviceReadMs: Math.max(0, readFinishedAt - readStartedAt)
+            serviceReadMs: Math.max(0, readFinishedAt - readStartedAt),
           },
-          activity
+          activity,
         }
       }
       case 'domain-mutation': {
@@ -196,17 +196,17 @@ const runCommand = Effect.fn('WorkingSetStorageBenchmark.runCommand')(
           tab: {
             url: message.event.url,
             rawUrl: message.event.url,
-            title: message.event.title
-          }
+            title: message.event.title,
+          },
         })
         const mutationFinishedAt = performance.now()
         return {
           operation: message.operation,
           timings: {
             listenerToCommitMs: Math.max(0, mutationFinishedAt - listenerStartedAt),
-            domainMutationMs: Math.max(0, mutationFinishedAt - mutationStartedAt)
+            domainMutationMs: Math.max(0, mutationFinishedAt - mutationStartedAt),
           },
-          activity: mutation.activity
+          activity: mutation.activity,
         }
       }
       case 'storage-mutation': {
@@ -218,8 +218,8 @@ const runCommand = Effect.fn('WorkingSetStorageBenchmark.runCommand')(
           tab: {
             url: message.event.url,
             rawUrl: message.event.url,
-            title: message.event.title
-          }
+            title: message.event.title,
+          },
         })
         const mutationFinishedAt = performance.now()
         const commitStartedAt = performance.now()
@@ -230,8 +230,8 @@ const runCommand = Effect.fn('WorkingSetStorageBenchmark.runCommand')(
           timings: {
             listenerToCommitMs: Math.max(0, commitFinishedAt - listenerStartedAt),
             domainMutationMs: Math.max(0, mutationFinishedAt - mutationStartedAt),
-            storageCommitMs: Math.max(0, commitFinishedAt - commitStartedAt)
-          }
+            storageCommitMs: Math.max(0, commitFinishedAt - commitStartedAt),
+          },
         }
       }
       case 'navigation': {
@@ -242,34 +242,34 @@ const runCommand = Effect.fn('WorkingSetStorageBenchmark.runCommand')(
           operation: message.operation,
           timings: {
             listenerToCommitMs: Math.max(0, mutationFinishedAt - listenerStartedAt),
-            fullAppMutationMs: Math.max(0, mutationFinishedAt - mutationStartedAt)
-          }
+            fullAppMutationMs: Math.max(0, mutationFinishedAt - mutationStartedAt),
+          },
         }
       }
       case 'burst': {
         const invalidEvent = message.events.find(
-          (event) => event.kind !== 'navigation'
+          (event) => event.kind !== 'navigation',
         )
         if (invalidEvent !== undefined) {
           return yield* Effect.fail(
             WorkingSetStorageBenchmarkControllerError.make({
               operation: message.operation,
-              cause: new Error('burst accepts navigation events only')
-            })
+              cause: new Error('burst accepts navigation events only'),
+            }),
           )
         }
         const mutationStartedAt = performance.now()
         yield* Effect.all(
           message.events.map((event) => navigationEffect('burst', event)),
-          { concurrency: 'unbounded', discard: true }
+          { concurrency: 'unbounded', discard: true },
         )
         const mutationFinishedAt = performance.now()
         return {
           operation: message.operation,
           timings: {
             listenerToCommitMs: Math.max(0, mutationFinishedAt - listenerStartedAt),
-            fullAppMutationMs: Math.max(0, mutationFinishedAt - mutationStartedAt)
-          }
+            fullAppMutationMs: Math.max(0, mutationFinishedAt - mutationStartedAt),
+          },
         }
       }
       case 'fail-next-mutation':
@@ -277,8 +277,8 @@ const runCommand = Effect.fn('WorkingSetStorageBenchmark.runCommand')(
         return {
           operation: message.operation,
           timings: {
-            listenerToCommitMs: elapsedSince(listenerStartedAt)
-          }
+            listenerToCommitMs: elapsedSince(listenerStartedAt),
+          },
         }
       case 'corrupt': {
         const commitStartedAt = performance.now()
@@ -286,16 +286,16 @@ const runCommand = Effect.fn('WorkingSetStorageBenchmark.runCommand')(
           try: () => selectedBackend.corrupt(message.corruption, chrome),
           catch: (cause) => WorkingSetStorageBenchmarkControllerError.make({
             operation: message.operation,
-            cause
-          })
+            cause,
+          }),
         })
         const commitFinishedAt = performance.now()
         return {
           operation: message.operation,
           timings: {
             listenerToCommitMs: Math.max(0, commitFinishedAt - listenerStartedAt),
-            storageCommitMs: Math.max(0, commitFinishedAt - commitStartedAt)
-          }
+            storageCommitMs: Math.max(0, commitFinishedAt - commitStartedAt),
+          },
         }
       }
       case 'reset': {
@@ -304,33 +304,33 @@ const runCommand = Effect.fn('WorkingSetStorageBenchmark.runCommand')(
           try: () => selectedBackend.reset(chrome),
           catch: (cause) => WorkingSetStorageBenchmarkControllerError.make({
             operation: message.operation,
-            cause
-          })
+            cause,
+          }),
         })
         const commitFinishedAt = performance.now()
         return {
           operation: message.operation,
           timings: {
             listenerToCommitMs: Math.max(0, commitFinishedAt - listenerStartedAt),
-            storageCommitMs: Math.max(0, commitFinishedAt - commitStartedAt)
-          }
+            storageCommitMs: Math.max(0, commitFinishedAt - commitStartedAt),
+          },
         }
       }
       case 'diagnostics':
         return {
           operation: message.operation,
           timings: {
-            listenerToCommitMs: elapsedSince(listenerStartedAt)
-          }
+            listenerToCommitMs: elapsedSince(listenerStartedAt),
+          },
         }
     }
-  }
+  },
 )
 
 const executeMessage = Effect.fn('WorkingSetStorageBenchmark.executeMessage')(
-  function*(
+  function* (
     message: WorkingSetStorageBenchmarkMessage,
-    listenerStartedAt: number
+    listenerStartedAt: number,
   ): Effect.fn.Return<
     WorkingSetStorageBenchmarkSuccessResponse,
     | WorkingSetStorageBenchmarkControllerError
@@ -344,9 +344,9 @@ const executeMessage = Effect.fn('WorkingSetStorageBenchmark.executeMessage')(
       operation: result.operation,
       timings: result.timings,
       diagnostics,
-      ...(result.activity === undefined ? {} : { activity: result.activity })
+      ...(result.activity === undefined ? {} : { activity: result.activity }),
     }
-  }
+  },
 )
 
 function describeFailure(cause: Cause.Cause<unknown>): {
@@ -357,13 +357,13 @@ function describeFailure(cause: Cause.Cause<unknown>): {
   if (failure instanceof Error) {
     return {
       name: failure.name || 'Error',
-      message: failure.message || Cause.pretty(cause)
+      message: failure.message || Cause.pretty(cause),
     }
   }
   const message = String(failure)
   return {
     name: 'EffectFailure',
-    message: message || Cause.pretty(cause)
+    message: message || Cause.pretty(cause),
   }
 }
 
@@ -383,7 +383,7 @@ chrome.runtime.onMessage.addListener((rawMessage, sender, sendResponse) => {
   }
 
   void backgroundRuntime.runPromiseExit(
-    executeMessage(message, listenerStartedAt)
+    executeMessage(message, listenerStartedAt),
   ).then(
     (exit) => {
       if (Exit.isSuccess(exit)) {
@@ -394,7 +394,7 @@ chrome.runtime.onMessage.addListener((rawMessage, sender, sendResponse) => {
         ok: false,
         operation: message.operation,
         listenerToFailureMs: elapsedSince(listenerStartedAt),
-        error: describeFailure(exit.cause)
+        error: describeFailure(exit.cause),
       })
     },
     (cause: unknown) => {
@@ -405,10 +405,10 @@ chrome.runtime.onMessage.addListener((rawMessage, sender, sendResponse) => {
         listenerToFailureMs: elapsedSince(listenerStartedAt),
         error: {
           name: error.name || 'Error',
-          message: error.message || 'Benchmark runtime failed'
-        }
+          message: error.message || 'Benchmark runtime failed',
+        },
       })
-    }
+    },
   )
   return true
 })

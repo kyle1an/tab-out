@@ -5,7 +5,7 @@ import {
   useId,
   useMemo,
   useRef,
-  useState
+  useState,
 } from 'react'
 import type {
   ComponentProps,
@@ -14,7 +14,7 @@ import type {
   PointerEvent as ReactPointerEvent,
   Ref,
   ReactElement,
-  ReactNode
+  ReactNode,
 } from 'react'
 // react-doctor-disable-next-line react-doctor/no-flush-sync -- instant tooltip close needs synchronous Base UI popup teardown.
 import { flushSync } from 'react-dom'
@@ -44,7 +44,7 @@ const TOOLTIP_COLLISION_AVOIDANCE: NonNullable<
 > = {
   side: 'flip',
   align: 'flip',
-  fallbackAxisSide: 'none'
+  fallbackAxisSide: 'none',
 }
 
 type TooltipProviderProps = {
@@ -115,7 +115,7 @@ function tooltipScrollableAncestors(element: HTMLElement | null) {
 }
 
 function uniqueTooltipScrollableAncestors(
-  scrollContainers: readonly HTMLElement[]
+  scrollContainers: readonly HTMLElement[],
 ) {
   return [...new Set(scrollContainers)]
 }
@@ -123,13 +123,13 @@ function uniqueTooltipScrollableAncestors(
 function tooltipScrollableAncestorsUnderPoint(
   x: number,
   y: number,
-  popupElement: HTMLElement | null
+  popupElement: HTMLElement | null,
 ) {
   const passthroughTargets = [popupElement, popupElement?.parentElement].filter(
-    (target): target is HTMLElement => !!target
+    (target): target is HTMLElement => !!target,
   )
   const previousPointerEvents = passthroughTargets.map((target) =>
-    target.style.getPropertyValue('pointer-events')
+    target.style.getPropertyValue('pointer-events'),
   )
 
   for (const target of passthroughTargets) {
@@ -139,7 +139,7 @@ function tooltipScrollableAncestorsUnderPoint(
   try {
     const element = document.elementFromPoint(x, y)
     return tooltipScrollableAncestors(
-      element instanceof HTMLElement ? element : null
+      element instanceof HTMLElement ? element : null,
     )
   } finally {
     passthroughTargets.forEach((target, index) => {
@@ -156,7 +156,7 @@ function tooltipScrollableAncestorsUnderPoint(
 function tooltipWheelDeltaToPixels(
   delta: number,
   deltaMode: number,
-  pageSize: number
+  pageSize: number,
 ) {
   if (deltaMode === TOOLTIP_WHEEL_DELTA_LINE) {
     return delta * TOOLTIP_WHEEL_LINE_HEIGHT_PX
@@ -171,17 +171,17 @@ type TooltipWheelLike = Pick<WheelEvent, 'deltaMode' | 'deltaX' | 'deltaY'>
 
 function tooltipScrollElementByWheel(
   element: HTMLElement,
-  event: TooltipWheelLike
+  event: TooltipWheelLike,
 ) {
   const deltaX = tooltipWheelDeltaToPixels(
     event.deltaX,
     event.deltaMode,
-    element.clientWidth
+    element.clientWidth,
   )
   const deltaY = tooltipWheelDeltaToPixels(
     event.deltaY,
     event.deltaMode,
-    element.clientHeight
+    element.clientHeight,
   )
   const previousLeft = element.scrollLeft
   const previousTop = element.scrollTop
@@ -237,7 +237,7 @@ function handleTooltipWheelForward(event: WheelEvent) {
 function startTooltipWheelForwarding(
   scrollContainer: HTMLElement,
   ownerId: string,
-  refreshWheelTarget: () => void
+  refreshWheelTarget: () => void,
 ) {
   tooltipWheelForwardContainer = scrollContainer
   tooltipWheelForwardOwnerId = ownerId
@@ -247,7 +247,7 @@ function startTooltipWheelForwarding(
     // react-doctor-disable-next-line react-doctor/client-passive-event-listeners -- wheel forwarding consumes the event after manual scroll.
     window.addEventListener('wheel', handleTooltipWheelForward, {
       capture: true,
-      passive: false
+      passive: false,
     })
     tooltipWheelForwardListenerInstalled = true
   }
@@ -256,13 +256,13 @@ function startTooltipWheelForwarding(
   }
   tooltipWheelForwardClearTimer = window.setTimeout(
     clearTooltipWheelForwarding,
-    TOOLTIP_WHEEL_CLOSE_REOPEN_BLOCK_MS
+    TOOLTIP_WHEEL_CLOSE_REOPEN_BLOCK_MS,
   )
 }
 
 function setTooltipWheelPassthrough(
   element: HTMLElement | null,
-  enabled: boolean
+  enabled: boolean,
 ) {
   const targets = [element, element?.parentElement]
   for (const target of targets) {
@@ -356,7 +356,7 @@ function TooltipContent({
             instant
               ? 'transition-none'
               : 'transition-[transform,opacity] duration-150 data-ending-style:transform-[scale(0.9)] data-ending-style:opacity-0 data-starting-style:transform-[scale(0.9)] data-starting-style:opacity-0',
-            className
+            className,
           )}
           onClick={(event) => {
             onClick?.(event)
@@ -416,7 +416,7 @@ function useTooltipAnchorController({
   children,
   contentOnWheel,
   onOpenChange,
-  openInstantly
+  openInstantly,
 }: TooltipAnchorControllerOptions) {
   const tooltipActionsRef = useRef<TooltipPrimitive.Root.Actions | null>(null)
   const triggerElementRef = useRef<HTMLElement | null>(null)
@@ -450,7 +450,7 @@ function useTooltipAnchorController({
     retimeFrozenPointerClear(
       window.setTimeout(() => {
         setFrozenPointerPoint(null)
-      }, TOOLTIP_CLOSE_ANCHOR_CLEAR_DELAY_MS)
+      }, TOOLTIP_CLOSE_ANCHOR_CLEAR_DELAY_MS),
     )
   }, [retimeFrozenPointerClear])
 
@@ -481,7 +481,7 @@ function useTooltipAnchorController({
       clearTooltipWheelForwarding(anchorId)
       releaseActiveTooltipAnchor(anchorId)
     },
-    [anchorId, clearHoverCloseTimer, retimeFrozenPointerClear, retimeHoverOpen, retimeWheelClose]
+    [anchorId, clearHoverCloseTimer, retimeFrozenPointerClear, retimeHoverOpen, retimeWheelClose],
   )
 
   const closeTooltip = useCallback(() => {
@@ -559,7 +559,7 @@ function useTooltipAnchorController({
       startTooltipWheelForwarding(
         scrollContainer,
         anchorId,
-        scheduleTooltipWheelTargetRelease
+        scheduleTooltipWheelTargetRelease,
       )
       setTooltipWheelPassthrough(popupElementRef.current, true)
       pointerInsideRef.current = false
@@ -575,17 +575,17 @@ function useTooltipAnchorController({
         scheduleTooltipWheelTargetRelease()
       })
     },
-    [anchorId, clearHoverCloseTimer, retimeHoverOpen, scheduleTooltipWheelTargetRelease]
+    [anchorId, clearHoverCloseTimer, retimeHoverOpen, scheduleTooltipWheelTargetRelease],
   )
 
   const updateLatestPointerPoint = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
       latestPointerPointRef.current = {
         x: event.clientX,
-        y: event.clientY
+        y: event.clientY,
       }
     },
-    []
+    [],
   )
 
   const scheduleHoverOpen = useCallback(
@@ -603,7 +603,7 @@ function useTooltipAnchorController({
         openTooltip(point)
       }, hoverDelayRef.current))
     },
-    [openInstantly, openTooltip, retimeHoverOpen, updateLatestPointerPoint]
+    [openInstantly, openTooltip, retimeHoverOpen, updateLatestPointerPoint],
   )
 
   useAbortableEffect((signal) => {
@@ -643,7 +643,7 @@ function useTooltipAnchorController({
       if (isContextMenuOpen()) return
       latestPointerPointRef.current = {
         x: event.clientX,
-        y: event.clientY
+        y: event.clientY,
       }
       const target = event.target instanceof Node ? event.target : null
       const isInsideTooltipRegion =
@@ -695,7 +695,7 @@ function useTooltipAnchorController({
         : TOOLTIP_INITIAL_REST_DELAY_MS
       scheduleHoverOpen(event)
     },
-    [anchorId, children.props, clearHoverCloseTimer, scheduleHoverOpen]
+    [anchorId, children.props, clearHoverCloseTimer, scheduleHoverOpen],
   )
 
   const handlePointerDown = useCallback(
@@ -705,7 +705,7 @@ function useTooltipAnchorController({
       pointerFocusedRef.current = true
       closeTooltip()
     },
-    [children.props, closeTooltip]
+    [children.props, closeTooltip],
   )
 
   const handlePointerMove = useCallback(
@@ -721,7 +721,7 @@ function useTooltipAnchorController({
       }
       scheduleHoverOpen(event)
     },
-    [children.props, scheduleHoverOpen, tooltipOpen, updateLatestPointerPoint]
+    [children.props, scheduleHoverOpen, tooltipOpen, updateLatestPointerPoint],
   )
 
   const handlePointerLeave = useCallback(
@@ -735,7 +735,7 @@ function useTooltipAnchorController({
         closeTooltip()
       }
     },
-    [children.props, closeTooltip, scheduleHoverClose, tooltipOpen, updateLatestPointerPoint]
+    [children.props, closeTooltip, scheduleHoverClose, tooltipOpen, updateLatestPointerPoint],
   )
 
   const handleFocus = useCallback(
@@ -746,7 +746,7 @@ function useTooltipAnchorController({
       if (!focusVisible) return
       openTooltip(null)
     },
-    [children.props, openTooltip]
+    [children.props, openTooltip],
   )
 
   const handleBlur = useCallback(
@@ -755,7 +755,7 @@ function useTooltipAnchorController({
       pointerFocusedRef.current = false
       closeTooltip()
     },
-    [children.props, closeTooltip]
+    [children.props, closeTooltip],
   )
 
   const markContentPointerInside = useCallback(() => {
@@ -774,28 +774,28 @@ function useTooltipAnchorController({
     (_event: ReactPointerEvent<HTMLDivElement>) => {
       markContentPointerInside()
     },
-    [markContentPointerInside]
+    [markContentPointerInside],
   )
 
   const handleContentPointerLeave = useCallback(
     (_event: ReactPointerEvent<HTMLDivElement>) => {
       markContentPointerOutside()
     },
-    [markContentPointerOutside]
+    [markContentPointerOutside],
   )
 
   const handleContentMouseEnter = useCallback(
     (_event: ReactMouseEvent<HTMLDivElement>) => {
       markContentPointerInside()
     },
-    [markContentPointerInside]
+    [markContentPointerInside],
   )
 
   const handleContentMouseLeave = useCallback(
     (_event: ReactMouseEvent<HTMLDivElement>) => {
       markContentPointerOutside()
     },
-    [markContentPointerOutside]
+    [markContentPointerOutside],
   )
 
   const handleContentWheel = useCallback(
@@ -808,10 +808,10 @@ function useTooltipAnchorController({
           ...tooltipScrollableAncestorsUnderPoint(
             event.clientX,
             event.clientY,
-            popupElementRef.current
+            popupElementRef.current,
           ),
-          ...tooltipScrollableAncestors(triggerElementRef.current)
-        ]
+          ...tooltipScrollableAncestors(triggerElementRef.current),
+        ],
       )
       for (const scrollContainer of scrollContainers) {
         if (tooltipScrollElementByWheel(scrollContainer, event)) {
@@ -822,7 +822,7 @@ function useTooltipAnchorController({
         }
       }
     },
-    [beginTooltipWheelClose, contentOnWheel]
+    [beginTooltipWheelClose, contentOnWheel],
   )
 
   useEffect(() => {
@@ -843,12 +843,12 @@ function useTooltipAnchorController({
   const triggerRef = useMemo(
     // react-doctor-disable-next-line react-hooks-js/refs -- mergeRefs intentionally composes the ref objects; the merged ref is consumed outside render (by React when attaching).
     () => mergeRefs<HTMLElement>(children.props.ref, triggerElementRef),
-    [children.props.ref]
+    [children.props.ref],
   )
   const popupRef = useMemo(
     // react-doctor-disable-next-line react-hooks-js/refs -- mergeRefs intentionally composes the ref objects; the merged ref is consumed outside render (by React when attaching).
     () => mergeRefs<HTMLDivElement>(popupElementRef, setPopupElement),
-    []
+    [],
   )
 
   const trigger = useMemo(
@@ -861,9 +861,9 @@ function useTooltipAnchorController({
         onPointerEnter: handlePointerEnter,
         onPointerLeave: handlePointerLeave,
         onPointerMove: handlePointerMove,
-        ref: triggerRef
+        ref: triggerRef,
       }),
-    [children, handleBlur, handleFocus, handlePointerDown, handlePointerEnter, handlePointerLeave, handlePointerMove, triggerRef]
+    [children, handleBlur, handleFocus, handlePointerDown, handlePointerEnter, handlePointerLeave, handlePointerMove, triggerRef],
   )
 
   const cursorAnchor = useMemo(() => {
@@ -871,7 +871,7 @@ function useTooltipAnchorController({
 
     return {
       getBoundingClientRect: () =>
-        new DOMRect(frozenPointerPoint.x, frozenPointerPoint.y, 0, 0)
+        new DOMRect(frozenPointerPoint.x, frozenPointerPoint.y, 0, 0),
     }
   }, [frozenPointerPoint])
   const tooltipAnchor = anchorToCursor ? cursorAnchor : undefined
@@ -886,7 +886,7 @@ function useTooltipAnchorController({
     tooltipAnchor,
     tooltipOpen,
     tooltipWheelClosing,
-    trigger
+    trigger,
   }
 }
 
@@ -909,14 +909,14 @@ function TooltipAnchor({
     tooltipAnchor,
     tooltipOpen,
     tooltipWheelClosing,
-    trigger
+    trigger,
   } = useTooltipAnchorController({
     anchorId,
     anchorToCursor,
     children,
     contentOnWheel,
     onOpenChange,
-    openInstantly: contentProps.instant === true
+    openInstantly: contentProps.instant === true,
   })
 
   if (content === null || content === undefined || content === '') return children

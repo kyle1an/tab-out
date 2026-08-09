@@ -9,7 +9,7 @@ export interface GuardedOpenSurfaceCapture {
 export interface AdjacentOpenSurfaceBatcher {
   readonly enqueue: (
     tabId: number,
-    capture: PromiseLike<OpenSurfaceCheckpointCapture>
+    capture: PromiseLike<OpenSurfaceCheckpointCapture>,
   ) => void
   /** Cancel pending or already-draining observations for a superseded lifetime. */
   readonly invalidate: (tabId: number) => void
@@ -24,9 +24,9 @@ export interface AdjacentOpenSurfaceBatcherOptions {
 /** Coalesce the newest observation per tab already adjacent in this event turn. */
 export function createAdjacentOpenSurfaceBatcher(
   drainBatch: (
-    captures: PromiseLike<readonly GuardedOpenSurfaceCapture[]>
+    captures: PromiseLike<readonly GuardedOpenSurfaceCapture[]>,
   ) => void | PromiseLike<void>,
-  options: AdjacentOpenSurfaceBatcherOptions = {}
+  options: AdjacentOpenSurfaceBatcherOptions = {},
 ): AdjacentOpenSurfaceBatcher {
   const schedule = options.schedule ?? queueMicrotask
   const pending = new Map<number, {
@@ -54,11 +54,11 @@ export function createAdjacentOpenSurfaceBatcher(
     const drained = drainBatch(Promise.all(captures.map(async ({
       tabId,
       controller,
-      capture
+      capture,
     }): Promise<GuardedOpenSurfaceCapture> => ({
       tabId,
       capture: await capture,
-      isCurrent: () => !controller.signal.aborted
+      isCurrent: () => !controller.signal.aborted,
     }))))
     void Promise.resolve(drained).finally(() => {
       for (const { tabId, controller } of captures) {
@@ -69,7 +69,7 @@ export function createAdjacentOpenSurfaceBatcher(
 
   function enqueue(
     tabId: number,
-    capture: PromiseLike<OpenSurfaceCheckpointCapture>
+    capture: PromiseLike<OpenSurfaceCheckpointCapture>,
   ): void {
     if (!Number.isInteger(tabId)) return
     current.get(tabId)?.abort()

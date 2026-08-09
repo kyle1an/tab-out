@@ -3,11 +3,11 @@ import { Schema } from 'effect'
 import type {
   WorkingSetActivityEvent,
   WorkingSetActivityRecord,
-  WorkingSetActivityStore
+  WorkingSetActivityStore,
 } from '../../../src/extension/types'
 import type {
   WorkingSetStorageBenchmarkBackend,
-  WorkingSetStorageBenchmarkOwnedStorage
+  WorkingSetStorageBenchmarkOwnedStorage,
 } from '../working-set-storage-benchmark-protocol.js'
 
 export const DISPOSABLE_BENCHMARK_PREFIX =
@@ -17,7 +17,7 @@ const COMPACT_ACTIVITY_ENCODING_VERSION = 1
 
 export const compactActivityEventSchema = Schema.Tuple([
   Schema.Literals([0, 1]),
-  Schema.Finite
+  Schema.Finite,
 ])
 
 export const compactActivityRowSchema = Schema.Tuple([
@@ -25,7 +25,7 @@ export const compactActivityRowSchema = Schema.Tuple([
   Schema.String,
   Schema.NullOr(Schema.Finite),
   Schema.NullOr(Schema.Finite),
-  Schema.Array(compactActivityEventSchema)
+  Schema.Array(compactActivityEventSchema),
 ])
 
 const compactActivityStoredRowSchema = Schema.Tuple([
@@ -33,17 +33,17 @@ const compactActivityStoredRowSchema = Schema.Tuple([
   Schema.String,
   Schema.NullOr(Schema.Finite),
   Schema.NullOr(Schema.Finite),
-  Schema.Array(Schema.Unknown)
+  Schema.Array(Schema.Unknown),
 ])
 
 export const compactActivityEnvelopeSchema = Schema.Tuple([
   Schema.Literals([COMPACT_ACTIVITY_ENCODING_VERSION]),
-  Schema.Array(compactActivityRowSchema)
+  Schema.Array(compactActivityRowSchema),
 ])
 
 const compactActivityStorageEnvelopeSchema = Schema.Tuple([
   Schema.Literals([COMPACT_ACTIVITY_ENCODING_VERSION]),
-  Schema.Array(Schema.Unknown)
+  Schema.Array(Schema.Unknown),
 ])
 
 export type CompactActivityRow = typeof compactActivityRowSchema.Type
@@ -54,7 +54,7 @@ export type WorkingSetBenchmarkBackend = WorkingSetStorageBenchmarkBackend
 
 export interface BenchmarkChromeStorageArea {
   readonly get: (
-    keys: string | string[]
+    keys: string | string[],
   ) => Promise<Record<string, unknown>>
   readonly set: (items: Record<string, unknown>) => Promise<void>
   readonly remove: (keys: string | string[]) => Promise<void>
@@ -64,7 +64,7 @@ export interface MutationDiagnostics {
   readonly beginWrite: () => void
   readonly commitMutation: (
     values: readonly unknown[],
-    physicalWrites: readonly string[]
+    physicalWrites: readonly string[],
   ) => void
   readonly lastMutationLogicalBytes: () => number
   readonly lastMutationPhysicalWrites: () => readonly string[]
@@ -91,7 +91,7 @@ export function makeMutationDiagnostics(): MutationDiagnostics {
       if (logicalBytes !== undefined) return logicalBytes
       logicalBytes = logicalValues.reduce<number>(
         (total, value) => total + jsonUtf8ByteLength(value),
-        0
+        0,
       )
       return logicalBytes
     },
@@ -102,7 +102,7 @@ export function makeMutationDiagnostics(): MutationDiagnostics {
       logicalBytes = undefined
       physicalWrites = []
       writes = 0
-    }
+    },
   }
 }
 
@@ -113,57 +113,57 @@ export function makePromiseSerializer() {
     const result = tail.then(task, task)
     tail = result.then(
       () => undefined,
-      () => undefined
+      () => undefined,
     )
     return result
   }
 }
 
 export function encodeCompactActivityRecord(
-  record: WorkingSetActivityRecord
+  record: WorkingSetActivityRecord,
 ): CompactActivityRow {
   return [
     record.key,
     record.title,
     record.dismissedAt ?? null,
     record.dismissedUntil ?? null,
-    record.events.map(encodeCompactEvent)
+    record.events.map(encodeCompactEvent),
   ]
 }
 
 export function encodeCompactActivityEnvelope(
-  activity: WorkingSetActivityStore
+  activity: WorkingSetActivityStore,
 ): CompactActivityEnvelope {
   return [
     COMPACT_ACTIVITY_ENCODING_VERSION,
     Object.values(activity.records)
       .toSorted((left, right) => left.key.localeCompare(right.key))
-      .map(encodeCompactActivityRecord)
+      .map(encodeCompactActivityRecord),
   ]
 }
 
 export async function decodeCompactActivityEnvelope(
-  value: unknown
+  value: unknown,
 ): Promise<WorkingSetActivityStore> {
   const envelope = await Schema.decodeUnknownPromise(
-    compactActivityStorageEnvelopeSchema
+    compactActivityStorageEnvelopeSchema,
   )(value)
   const decodedRows = await Promise.allSettled(
-    envelope[1].map(decodeCompactActivityRow)
+    envelope[1].map(decodeCompactActivityRow),
   )
   return materializeCompactActivityRows(decodedRows.flatMap((result) =>
-    result.status === 'fulfilled' ? [result.value] : []
+    result.status === 'fulfilled' ? [result.value] : [],
   ))
 }
 
 async function decodeCompactActivityRow(
-  value: unknown
+  value: unknown,
 ): Promise<CompactActivityRow> {
   const stored = await Schema.decodeUnknownPromise(
-    compactActivityStoredRowSchema
+    compactActivityStoredRowSchema,
   )(value)
   const decodedEvents = await Promise.allSettled(stored[4].map((event) =>
-    Schema.decodeUnknownPromise(compactActivityEventSchema)(event)
+    Schema.decodeUnknownPromise(compactActivityEventSchema)(event),
   ))
   return [
     stored[0],
@@ -171,13 +171,13 @@ async function decodeCompactActivityRow(
     stored[2],
     stored[3],
     decodedEvents.flatMap((result) =>
-      result.status === 'fulfilled' ? [result.value] : []
-    )
+      result.status === 'fulfilled' ? [result.value] : [],
+    ),
   ]
 }
 
 export function materializeCompactActivityRows(
-  rows: readonly CompactActivityRow[]
+  rows: readonly CompactActivityRow[],
 ): WorkingSetActivityStore {
   return {
     version: 1,
@@ -185,7 +185,7 @@ export function materializeCompactActivityRows(
       const events = row[4].map(decodeCompactEvent)
       const lastSeenAt = events.reduce(
         (latest, event) => Math.max(latest, event.at),
-        0
+        0,
       )
       const lastActivatedAt = latestEventAt(events, 'activation')
       const lastNavigatedAt = latestEventAt(events, 'navigation')
@@ -199,10 +199,10 @@ export function materializeCompactActivityRows(
         ...(lastNavigatedAt === undefined ? {} : { lastNavigatedAt }),
         ...(row[2] === null ? {} : { dismissedAt: row[2] }),
         ...(row[3] === null ? {} : { dismissedUntil: row[3] }),
-        events
+        events,
       }
       return [record.key, record]
-    }))
+    })),
   }
 }
 
@@ -211,7 +211,7 @@ export function jsonUtf8ByteLength(value: unknown): number {
 }
 
 function encodeCompactEvent(
-  event: WorkingSetActivityEvent
+  event: WorkingSetActivityEvent,
 ): typeof compactActivityEventSchema.Type {
   return event.kind === 'activation'
     ? [0, event.at]
@@ -219,17 +219,17 @@ function encodeCompactEvent(
 }
 
 function decodeCompactEvent(
-  event: typeof compactActivityEventSchema.Type
+  event: typeof compactActivityEventSchema.Type,
 ): WorkingSetActivityEvent {
   return {
     kind: event[0] === 0 ? 'activation' : 'navigation',
-    at: event[1]
+    at: event[1],
   }
 }
 
 function latestEventAt(
   events: readonly WorkingSetActivityEvent[],
-  kind: WorkingSetActivityEvent['kind']
+  kind: WorkingSetActivityEvent['kind'],
 ): number | undefined {
   const latest = events
     .filter((event) => event.kind === kind)

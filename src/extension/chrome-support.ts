@@ -7,21 +7,21 @@ export const CHROME_PLATFORMS = [
   'win_arm64',
   'mac',
   'mac_arm64',
-  'linux'
+  'linux',
 ] as const
 
 export type ChromePlatform = (typeof CHROME_PLATFORMS)[number]
 
 const chromeStableVersionsSchema = Schema.Record(
   Schema.Literals(CHROME_PLATFORMS),
-  Schema.String
+  Schema.String,
 )
 
 export type ChromeStableVersions = typeof chromeStableVersionsSchema.Type
 
 const chromeSupportPolicySchema = Schema.Struct({
   minimumMajor: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)),
-  lastBumpedAt: Schema.String
+  lastBumpedAt: Schema.String,
 })
 
 export type ChromeSupportPolicy = typeof chromeSupportPolicySchema.Type
@@ -35,11 +35,11 @@ export type ChromeSupportAssessment = {
 const CHROME_VERSION_PATTERN = /^(\d+)\./
 
 const chromeVersionHistoryEnvelopeSchema = Schema.Struct({
-  versions: Schema.Array(Schema.Unknown)
+  versions: Schema.Array(Schema.Unknown),
 })
 
 const chromeVersionCandidateSchema = Schema.Struct({
-  version: Schema.String
+  version: Schema.String,
 })
 
 const isChromeStableVersionsSchema = Schema.is(chromeStableVersionsSchema)
@@ -75,7 +75,7 @@ export function parseLatestStableVersion(value: unknown, platform: string): stri
 
 export function assessChromeSupport(
   policy: ChromeSupportPolicy,
-  versions: ChromeStableVersions
+  versions: ChromeStableVersions,
 ): ChromeSupportAssessment {
   const desiredMinimumMajor = deriveMinimumChromeMajor(versions)
   const status = policy.minimumMajor === desiredMinimumMajor
@@ -86,26 +86,26 @@ export function assessChromeSupport(
   return {
     status,
     committedMinimumMajor: policy.minimumMajor,
-    desiredMinimumMajor
+    desiredMinimumMajor,
   }
 }
 
 export function createBumpedChromeSupportPolicy(
   policy: ChromeSupportPolicy,
   versions: ChromeStableVersions,
-  now: Date
+  now: Date,
 ): ChromeSupportPolicy | null {
   const assessment = assessChromeSupport(policy, versions)
   if (assessment.status === 'current') return null
   if (assessment.status === 'unsupported') {
     throw new Error(
       `Chrome support policy is ahead of the official cross-platform floor; ` +
-      `refusing to lower ${policy.minimumMajor} to ${assessment.desiredMinimumMajor}`
+      `refusing to lower ${policy.minimumMajor} to ${assessment.desiredMinimumMajor}`,
     )
   }
   return {
     minimumMajor: assessment.desiredMinimumMajor,
-    lastBumpedAt: now.toISOString().slice(0, 10)
+    lastBumpedAt: now.toISOString().slice(0, 10),
   }
 }
 

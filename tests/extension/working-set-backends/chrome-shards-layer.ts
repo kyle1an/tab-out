@@ -3,12 +3,12 @@ import type { Layer } from 'effect'
 import type { ChromeApi } from '../../../src/extension/background/chrome-api.js'
 import {
   emptyWorkingSetActivity,
-  normalizeWorkingSetActivity
+  normalizeWorkingSetActivity,
 } from '../../../src/extension/working-set.js'
 import {
   WorkingSetActivityStorage,
   type WorkingSetActivityStorageBackend,
-  type WorkingSetActivityWrite
+  type WorkingSetActivityWrite,
 } from '../../../src/extension/background/working-set-activity-storage.js'
 import type { WorkingSetActivityStore } from '../../../src/extension/types'
 import {
@@ -19,21 +19,21 @@ import {
   makePromiseSerializer,
   type BenchmarkChromeStorageArea,
   type CompactActivityEnvelope,
-  type WorkingSetBenchmarkBackend
+  type WorkingSetBenchmarkBackend,
 } from './benchmark-backend.js'
 
 export const CHROME_SHARD_COUNT = 32
 export const CHROME_SHARD_STORAGE_KEYS = Array.from(
   { length: CHROME_SHARD_COUNT },
   (_, index) =>
-    `${DISPOSABLE_BENCHMARK_PREFIX}:shard:${index.toString().padStart(2, '0')}`
+    `${DISPOSABLE_BENCHMARK_PREFIX}:shard:${index.toString().padStart(2, '0')}`,
 )
 
 const diagnostics = makeMutationDiagnostics()
 let failNextWrite = false
 const ALL_SHARD_INDEXES = Array.from(
   { length: CHROME_SHARD_COUNT },
-  (_, index) => index
+  (_, index) => index,
 )
 
 export function shardForWorkingSetKey(key: string): number {
@@ -46,19 +46,19 @@ export function shardForWorkingSetKey(key: string): number {
 }
 
 export function makeWorkingSetActivityStorageLayer(
-  chromeApi: ChromeApi
+  chromeApi: ChromeApi,
 ): Layer.Layer<WorkingSetActivityStorage> {
   return makeChromeShardsStorageLayer(chromeApi.storage?.local)
 }
 
 export function makeChromeShardsStorageLayer(
-  storage: BenchmarkChromeStorageArea | undefined
+  storage: BenchmarkChromeStorageArea | undefined,
 ): Layer.Layer<WorkingSetActivityStorage> {
   return WorkingSetActivityStorage.layer(makeChromeShardsBackend(storage))
 }
 
 function makeChromeShardsBackend(
-  storage: BenchmarkChromeStorageArea | undefined
+  storage: BenchmarkChromeStorageArea | undefined,
 ): WorkingSetActivityStorageBackend {
   const serialize = makePromiseSerializer()
   let expirySwept = false
@@ -66,10 +66,10 @@ function makeChromeShardsBackend(
 
   const persistShards = async (
     activity: WorkingSetActivityStore,
-    shardIndexes: readonly number[]
+    shardIndexes: readonly number[],
   ): Promise<void> => {
     const encoded = shardIndexes.map((shardIndex) =>
-      encodeShard(activity, shardIndex)
+      encodeShard(activity, shardIndex),
     )
     const keys = shardIndexes.map(shardStorageKey)
     if (storage === undefined) {
@@ -81,7 +81,7 @@ function makeChromeShardsBackend(
     }
     await storage.set(Object.fromEntries(keys.map((key, index) => [
       key,
-      encoded[index]
+      encoded[index],
     ])))
     diagnostics.commitMutation(encoded, keys)
   }
@@ -93,7 +93,7 @@ function makeChromeShardsBackend(
       }
       const stored = await storage.get([...CHROME_SHARD_STORAGE_KEYS])
       const presentShardCount = CHROME_SHARD_STORAGE_KEYS.filter(
-        (key) => stored[key] !== undefined
+        (key) => stored[key] !== undefined,
       ).length
       if (presentShardCount === 0) {
         requiresShardInitialization = true
@@ -102,7 +102,7 @@ function makeChromeShardsBackend(
       }
       if (presentShardCount !== CHROME_SHARD_COUNT) {
         throw new Error(
-          `Incomplete Working Set shard set: expected ${CHROME_SHARD_COUNT}, found ${presentShardCount}`
+          `Incomplete Working Set shard set: expected ${CHROME_SHARD_COUNT}, found ${presentShardCount}`,
         )
       }
 
@@ -110,7 +110,7 @@ function makeChromeShardsBackend(
         async (key, shardIndex) => {
           const activity = await decodeCompactActivityEnvelope(stored[key])
           return retainRecordsForShard(activity, shardIndex)
-        }
+        },
       ))
       requiresShardInitialization = false
       const materialized = expirySwept
@@ -121,7 +121,7 @@ function makeChromeShardsBackend(
         for (const [index, key] of CHROME_SHARD_STORAGE_KEYS.entries()) {
           if (stored[key] === undefined) continue
           const compact = encodeCompactActivityEnvelope(
-            materialized[index] ?? emptyWorkingSetActivity()
+            materialized[index] ?? emptyWorkingSetActivity(),
           )
           if (JSON.stringify(compact) !== JSON.stringify(stored[key])) {
             replacements[key] = compact
@@ -140,8 +140,8 @@ function makeChromeShardsBackend(
         version: 1,
         records: Object.assign(
           {},
-          ...materialized.map((activity) => activity.records)
-        )
+          ...materialized.map((activity) => activity.records),
+        ),
       }
     }),
     write: (change: WorkingSetActivityWrite) => {
@@ -149,7 +149,7 @@ function makeChromeShardsBackend(
       if (failNextWrite) {
         failNextWrite = false
         return serialize(() => Promise.reject(
-          new Error('Synthetic Working Set benchmark write failure')
+          new Error('Synthetic Working Set benchmark write failure'),
         ))
       }
       const touched = new Set(change.deleteKeys.map(shardForWorkingSetKey))
@@ -168,31 +168,31 @@ function makeChromeShardsBackend(
       await persistShards(activity, ALL_SHARD_INDEXES)
       requiresShardInitialization = false
       expirySwept = false
-    })
+    }),
   }
 }
 
 function retainRecordsForShard(
   activity: WorkingSetActivityStore,
-  shardIndex: number
+  shardIndex: number,
 ): WorkingSetActivityStore {
   return {
     version: 1,
     records: Object.fromEntries(Object.entries(activity.records).filter(
-      ([recordKey]) => shardForWorkingSetKey(recordKey) === shardIndex
-    ))
+      ([recordKey]) => shardForWorkingSetKey(recordKey) === shardIndex,
+    )),
   }
 }
 
 function encodeShard(
   activity: WorkingSetActivityStore,
-  shardIndex: number
+  shardIndex: number,
 ): CompactActivityEnvelope {
   return encodeCompactActivityEnvelope({
     version: 1,
     records: Object.fromEntries(Object.entries(activity.records).filter(
-      ([key]) => shardForWorkingSetKey(key) === shardIndex
-    ))
+      ([key]) => shardForWorkingSetKey(key) === shardIndex,
+    )),
   })
 }
 
@@ -208,7 +208,7 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
   variant: 'shards-32',
   ownedStorage: {
     kind: 'chrome-storage',
-    keys: CHROME_SHARD_STORAGE_KEYS
+    keys: CHROME_SHARD_STORAGE_KEYS,
   },
   lastMutationLogicalBytes: diagnostics.lastMutationLogicalBytes,
   lastMutationPhysicalWrites: diagnostics.lastMutationPhysicalWrites,
@@ -237,15 +237,15 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
     failNextWrite = false
     diagnostics.reset()
   },
-  close() {}
+  close() {},
 }
 
 export async function corruptShardedRow(
-  storage: BenchmarkChromeStorageArea
+  storage: BenchmarkChromeStorageArea,
 ): Promise<void> {
   const stored = await storage.get([...CHROME_SHARD_STORAGE_KEYS])
   let targetIndex = CHROME_SHARD_STORAGE_KEYS.findIndex(
-    (key) => stored[key] !== undefined
+    (key) => stored[key] !== undefined,
   )
   if (targetIndex < 0) targetIndex = 0
   let activity = emptyWorkingSetActivity()
@@ -271,8 +271,8 @@ export async function corruptShardedRow(
   await storage.set({
     [shardStorageKey(targetIndex)]: [
       encoded[0],
-      [...encoded[1], ['malformed-benchmark-row']]
-    ]
+      [...encoded[1], ['malformed-benchmark-row']],
+    ],
   })
 }
 
@@ -289,9 +289,9 @@ function fallbackActivityForShard(shardIndex: number): WorkingSetActivityStore {
         domain: URL.parse(key)?.hostname ?? '',
         lastSeenAt: at,
         lastActivatedAt: at,
-        events: [{ kind: 'activation', at }]
-      }
-    }
+        events: [{ kind: 'activation', at }],
+      },
+    },
   }
 }
 

@@ -20,7 +20,7 @@ export type {
   TitleExpansionController,
   TitleExpansionControllerOptions,
   TitleExpansionLane,
-  TitleExpansionScheduler
+  TitleExpansionScheduler,
 } from './controller'
 export { useTitleExpansionController } from './use-title-expansion'
 /** @public — sanctioned seam surface (consumers import from the barrel; ADR-0002). */
@@ -43,12 +43,12 @@ export {
   syncClampedTitleFadeEnd,
   syncTruncatedTitleFadeEnd,
   truncatedTitleFadeEndPx,
-  unwrapClampedTitleLines
+  unwrapClampedTitleLines,
 } from './line-capture'
 /** @public — sanctioned seam surface (consumers import from the barrel; ADR-0002). */
 export type {
   ExpansionLineClasses,
   TitleFadeBox,
   TitleLineCaptureGeometry,
-  TitleLineFragmentRect
+  TitleLineFragmentRect,
 } from './line-capture'

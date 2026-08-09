@@ -11,7 +11,7 @@ function duplicateTabs(closableCount: number): chrome.tabs.Tab[] {
     windowId: 1,
     url: 'https://duplicate.example.test/',
     active: index === 0,
-    groupId: -1
+    groupId: -1,
   })) as chrome.tabs.Tab[]
 }
 
@@ -41,16 +41,16 @@ test('badge refresh coalesces an event burst and never applies an overtaken coun
         const query = queries[queryCount - 1]
         assert.ok(query, 'unexpected badge tab query')
         return query.promise
-      }
+      },
     },
     windows: {
-      getCurrent: async () => ({ id: 1 })
+      getCurrent: async () => ({ id: 1 }),
     },
     action: {
       setBadgeText: async ({ text }: { text: string }) => { badgeText.push(text) },
       setBadgeBackgroundColor: async ({ color }: { color: string }) => { badgeColors.push(color) },
-      setTitle: async ({ title }: { title: string }) => { badgeTitles.push(title) }
-    }
+      setTitle: async ({ title }: { title: string }) => { badgeTitles.push(title) },
+    },
   } as unknown as ChromeApi
   const refresh = await createBadgeRefresher(t, chromeApi)
 
@@ -84,16 +84,16 @@ test('badge refresh skips redundant writes when the visible count and color are 
       query: async () => {
         queryCount += 1
         return duplicateTabs(2)
-      }
+      },
     },
     windows: {
-      getCurrent: async () => ({ id: 1 })
+      getCurrent: async () => ({ id: 1 }),
     },
     action: {
       setBadgeText: async ({ text }: { text: string }) => { badgeText.push(text) },
       setBadgeBackgroundColor: async ({ color }: { color: string }) => { badgeColors.push(color) },
-      setTitle: async ({ title }: { title: string }) => { badgeTitles.push(title) }
-    }
+      setTitle: async ({ title }: { title: string }) => { badgeTitles.push(title) },
+    },
   } as unknown as ChromeApi
   const refresh = await createBadgeRefresher(t, chromeApi)
 
@@ -116,16 +116,16 @@ test('badge refresh preserves its last presentation when the tab read fails', as
       query: async () => {
         if (shouldFail) throw new Error('Tabs unavailable')
         return duplicateTabs(4)
-      }
+      },
     },
     windows: {
-      getCurrent: async () => ({ id: 1 })
+      getCurrent: async () => ({ id: 1 }),
     },
     action: {
       setBadgeText: async ({ text }: { text: string }) => { badgeText.push(text) },
       setBadgeBackgroundColor: async ({ color }: { color: string }) => { badgeColors.push(color) },
-      setTitle: async ({ title }: { title: string }) => { badgeTitles.push(title) }
-    }
+      setTitle: async ({ title }: { title: string }) => { badgeTitles.push(title) },
+    },
   } as unknown as ChromeApi
   const refresh = await createBadgeRefresher(t, chromeApi)
 
@@ -145,10 +145,10 @@ test('badge refresh retries a presentation whose text write failed', async (t) =
   let textWriteCount = 0
   const chromeApi = {
     tabs: {
-      query: async () => duplicateTabs(5)
+      query: async () => duplicateTabs(5),
     },
     windows: {
-      getCurrent: async () => ({ id: 1 })
+      getCurrent: async () => ({ id: 1 }),
     },
     action: {
       setBadgeText: async ({ text }: { text: string }) => {
@@ -157,8 +157,8 @@ test('badge refresh retries a presentation whose text write failed', async (t) =
         badgeText.push(text)
       },
       setBadgeBackgroundColor: async ({ color }: { color: string }) => { badgeColors.push(color) },
-      setTitle: async ({ title }: { title: string }) => { badgeTitles.push(title) }
-    }
+      setTitle: async ({ title }: { title: string }) => { badgeTitles.push(title) },
+    },
   } as unknown as ChromeApi
   const refresh = await createBadgeRefresher(t, chromeApi)
 
@@ -179,17 +179,17 @@ test('badge hides at zero and explains that there is nothing to dedupe', async (
     tabs: {
       query: async () => [
         { id: 1, windowId: 1, url: 'https://alpha.example.test/' },
-        { id: 2, windowId: 1, url: 'https://bravo.example.test/' }
-      ]
+        { id: 2, windowId: 1, url: 'https://bravo.example.test/' },
+      ],
     },
     windows: {
-      getCurrent: async () => ({ id: 1 })
+      getCurrent: async () => ({ id: 1 }),
     },
     action: {
       setBadgeText: async ({ text }: { text: string }) => { badgeText.push(text) },
       setBadgeBackgroundColor: async ({ color }: { color: string }) => { badgeColors.push(color) },
-      setTitle: async ({ title }: { title: string }) => { badgeTitles.push(title) }
-    }
+      setTitle: async ({ title }: { title: string }) => { badgeTitles.push(title) },
+    },
   } as unknown as ChromeApi
 
   const refresh = await createBadgeRefresher(t, chromeApi)

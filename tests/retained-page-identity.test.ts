@@ -5,7 +5,7 @@ import {
   createClosureToken,
   createRetainedPageIdentity,
   isRetainedPageCaptureEligible,
-  retainedPageEffectiveUrl
+  retainedPageEffectiveUrl,
 } from '../src/extension/retained-page-identity.js'
 
 const RUNTIME_ID = 'tab-out-id'
@@ -13,11 +13,11 @@ const RUNTIME_ID = 'tab-out-id'
 test('retained identity reuses surface-qualified canonical dedupe identity while preserving the exact effective URL', async () => {
   const first = await createRetainedPageIdentity({
     surfaceKind: 'normal-tab',
-    url: 'https://example.atlassian.net/browse/ABC-123?sourceType=mail&focusedCommentId=100#comment-100'
+    url: 'https://example.atlassian.net/browse/ABC-123?sourceType=mail&focusedCommentId=100#comment-100',
   })
   const second = await createRetainedPageIdentity({
     surfaceKind: 'normal-tab',
-    url: 'https://example.atlassian.net/browse/ABC-123?focusedCommentId=100'
+    url: 'https://example.atlassian.net/browse/ABC-123?focusedCommentId=100',
   })
 
   assert.ok(first)
@@ -26,7 +26,7 @@ test('retained identity reuses surface-qualified canonical dedupe identity while
   assert.equal(first.identityDigest, second.identityDigest)
   assert.equal(
     first.url,
-    'https://example.atlassian.net/browse/ABC-123?sourceType=mail&focusedCommentId=100#comment-100'
+    'https://example.atlassian.net/browse/ABC-123?sourceType=mail&focusedCommentId=100#comment-100',
   )
   assert.equal(second.url, 'https://example.atlassian.net/browse/ABC-123?focusedCommentId=100')
 })
@@ -36,11 +36,11 @@ test('retained identity unwraps suspended pages before canonicalization and keep
   const suspendedUrl = `chrome-extension://suspender-id/suspended.html#ttl=Docs&uri=${encodeURIComponent(exactUrl)}`
   const normal = await createRetainedPageIdentity({
     surfaceKind: 'normal-tab',
-    url: suspendedUrl
+    url: suspendedUrl,
   })
   const app = await createRetainedPageIdentity({
     surfaceKind: 'app',
-    url: suspendedUrl
+    url: suspendedUrl,
   })
 
   assert.ok(normal)
@@ -54,14 +54,14 @@ test('retained identity unwraps suspended pages before canonicalization and keep
 test('identity digest is a stable SHA-256 encoding with an explicit identity version', async () => {
   const identity = await createRetainedPageIdentity({
     surfaceKind: 'normal-tab',
-    url: 'https://example.test/docs'
+    url: 'https://example.test/docs',
   })
 
   assert.ok(identity)
   assert.equal(identity.identityVersion, 1)
   assert.equal(
     identity.identityDigest,
-    'acbf701da33d4758693781f27bb360f7fc73364f9f3ac88d248f448f5d5ff3b4'
+    'acbf701da33d4758693781f27bb360f7fc73364f9f3ac88d248f448f5d5ff3b4',
   )
 })
 
@@ -73,7 +73,7 @@ test('capture eligibility includes privileged and app page targets without promi
     { surfaceKind: 'normal-tab' as const, url: 'chrome-untrusted://example-surface/content' },
     { surfaceKind: 'normal-tab' as const, url: 'devtools://devtools/bundled/inspector.html' },
     { surfaceKind: 'app' as const, url: 'https://app.example.test/workspace' },
-    { surfaceKind: 'normal-tab' as const, url: 'file:///tmp/example.html' }
+    { surfaceKind: 'normal-tab' as const, url: 'file:///tmp/example.html' },
   ]) {
     assert.equal(isRetainedPageCaptureEligible(candidate, { runtimeId: RUNTIME_ID }), true, candidate.url)
     assert.ok(await createRetainedPageIdentity(candidate, { runtimeId: RUNTIME_ID }), candidate.url)
@@ -93,7 +93,7 @@ test('capture eligibility excludes Tab Out, blank/new-tab, and ephemeral non-pag
     'about:srcdoc',
     'javascript:alert(1)',
     'data:text/plain,hello',
-    'blob:https://example.test/session-only'
+    'blob:https://example.test/session-only',
   ]) {
     const candidate = { surfaceKind: 'normal-tab' as const, url }
     assert.equal(isRetainedPageCaptureEligible(candidate, { runtimeId: RUNTIME_ID }), false, url)

@@ -5,7 +5,7 @@ import FakeTimers from '@sinonjs/fake-timers'
 import { createMoveAnimator } from '../src/extension/move-animation.js'
 import type { MoveAnimatorConfig, MovePositionMap } from '../src/extension/move-animation.js'
 
-type Rect = { left: number; top: number; width?: number; height?: number }
+type Rect = { left: number, top: number, width?: number, height?: number }
 
 function fakeItem(key: string, rect: Rect) {
   const classes = new Set<string>()
@@ -16,7 +16,7 @@ function fakeItem(key: string, rect: Rect) {
     classList: {
       add: (...names: string[]) => names.forEach((name) => classes.add(name)),
       remove: (...names: string[]) => names.forEach((name) => classes.delete(name)),
-      contains: (name: string) => classes.has(name)
+      contains: (name: string) => classes.has(name),
     },
     style: {} as Record<string, string>,
     getBoundingClientRect: () => ({ left: state.rect.left, top: state.rect.top, width: state.rect.width ?? 100, height: state.rect.height ?? 40 }),
@@ -27,7 +27,7 @@ function fakeItem(key: string, rect: Rect) {
       const index = listeners.indexOf(handler)
       if (index >= 0) listeners.splice(index, 1)
     },
-    matches: () => true
+    matches: () => true,
   }
   return {
     el: el as unknown as HTMLElement,
@@ -36,16 +36,16 @@ function fakeItem(key: string, rect: Rect) {
     style: el.style,
     moveTo(next: Rect) {
       state.rect = next
-    }
+    },
   }
 }
 
 type Fake = ReturnType<typeof fakeItem>
 
-function fakeRoot(items: Fake[], origin: { left: number; top: number } = { left: 0, top: 0 }) {
+function fakeRoot(items: Fake[], origin: { left: number, top: number } = { left: 0, top: 0 }) {
   return {
     querySelectorAll: () => items.map((item) => item.el),
-    getBoundingClientRect: () => ({ left: origin.left, top: origin.top, width: 800, height: 600 })
+    getBoundingClientRect: () => ({ left: origin.left, top: origin.top, width: 800, height: 600 }),
   } as unknown as HTMLElement
 }
 
@@ -57,7 +57,7 @@ function makeConfig(overrides: Partial<MoveAnimatorConfig> = {}): MoveAnimatorCo
     movingClass: 'moving',
     activeClass: 'moving-active',
     coordinateSpace: 'viewport',
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -126,8 +126,8 @@ test('cancel clears a mid-flight move, fires onCancel, and suppresses cleanup ho
   const animator = createMoveAnimator(
     makeConfig({
       afterCleanup: () => events.push('cleanup'),
-      onCancel: () => events.push('cancel')
-    })
+      onCancel: () => events.push('cancel'),
+    }),
   )
 
   const previous = animator.snapshot([root])
@@ -209,11 +209,11 @@ test('move animation can snapshot a structural anchor and animate its replacemen
       selectors.push(selector)
       return selector === '.anchor' ? [anchor.el] : [item.el]
     },
-    getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 600 })
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 600 }),
   } as unknown as HTMLElement
   const animator = createMoveAnimator(makeConfig({
     itemSelector: '.item',
-    snapshotItemSelector: '.anchor'
+    snapshotItemSelector: '.anchor',
   }))
 
   const previous = animator.snapshot([root])
@@ -258,13 +258,13 @@ test('a newer animator owns the element through an older animator cleanup deadli
   try {
     firstAnimator.animate([root], new Map([[
       'a',
-      [{ left: 0, top: 0, width: 100, height: 40 }]
+      [{ left: 0, top: 0, width: 100, height: 40 }],
     ]]))
     clock.tick(16)
 
     secondAnimator.animate([root], new Map([[
       'a',
-      [{ left: 50, top: 0, width: 100, height: 40 }]
+      [{ left: 50, top: 0, width: 100, height: 40 }],
     ]]))
     clock.tick(16)
     assert.equal(item.style.transition, 'transform 500ms var(--ease-swift)')

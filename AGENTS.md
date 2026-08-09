@@ -36,6 +36,17 @@ This repo is a Chrome Manifest V3 extension. Treat `AGENTS.md` as the day-to-day
 - Do not hand-edit `extension/dist/*`, `extension/index.html`, or `extension/manifest.json` except for emergency diagnosis. Regenerate generated output with `pnpm build` or `pnpm verify`.
 - When source or style changes legitimately alter `extension/dist/*`, include the generated bundle changes in the final ready-to-commit diff.
 
+## Formatting And Diff Hygiene
+
+- ESLint Stylistic is the canonical formatter for JavaScript, TypeScript, and JSX. `pnpm lint` checks formatting without writing; `pnpm format -- <changed-file> [...]` applies layout-only fixes to the files named after `--`.
+- During normal work, format only files changed for the current task. Reserve a repository-wide `pnpm format` run for an explicit formatting baseline or formatter upgrade.
+- Use trailing commas in multiline comma-separated constructs. Once a construct is multiline, keep one logical item per line when the syntax and existing layout allow it; keep small literals compact.
+- Preserve declaration, object-property, test-case, CSS-declaration, and side-effect-import order unless a focused rule documents and enforces canonical sorting. Do not align neighboring code with padding spaces.
+- Preserve intentional Markdown hard breaks; prefer `<br>` for new explicit breaks so `git diff --check` can continue to catch accidental trailing whitespace.
+- Keep formatter upgrades and formatting-only baselines separate from behavior changes. Inspect the resulting diff for unrelated churn before handoff.
+- `.editorconfig` and `.gitattributes` own repository text normalization. Keep generated files and lockfiles under their owning tools rather than formatting them by hand.
+- Formatting commands must not stage, unstage, or otherwise change the Git index.
+
 ## Chrome Support Policy
 
 - `chrome-support.json` records the approved minimum Chrome major and when it last changed. The updater computes the latest-two floor as one less than the slowest Windows, macOS, or Linux Stable feed.
@@ -84,8 +95,8 @@ pnpm dev
 
 ## Git And Commits
 
-- For implementation tasks, commit each independently verified logical change as soon as it is ready; do not accumulate unrelated fixes in one commit.
-- Stage only the files that belong to that logical change.
+- Leave changes unstaged unless the user explicitly asks to stage or commit.
+- When a commit is requested, stage only the files for one independently verified logical change; do not accumulate unrelated fixes.
 - Do not amend, rewrite history, or push unless explicitly requested.
 - Use a Conventional Commit subject that makes the touched product or code area obvious, such as `fix(page-chip): keep expansion anchored`, `perf(filter): focus input before app mount`, or `build: generate typed extension manifest`.
 - Prefer domain-specific scopes over broad buckets like `ui`; examples include `page-chip`, `domain-card`, `activation-history`, `working-set`, `suspend`, `build`, or another clear repo-local area.

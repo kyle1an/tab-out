@@ -4,7 +4,7 @@ import test from 'node:test'
 import { computeDomainCardViewModel } from '../src/extension/domain-card-view-model.js'
 import type { DashboardTab, DomainGroup } from '../src/extension/types'
 
-function makeAppTab(o: Partial<DashboardTab> & { url: string; title: string }): DashboardTab {
+function makeAppTab(o: Partial<DashboardTab> & { url: string, title: string }): DashboardTab {
   return {
     rawUrl: o.url,
     suspended: false,
@@ -15,7 +15,7 @@ function makeAppTab(o: Partial<DashboardTab> & { url: string; title: string }): 
     groupId: -1,
     isTabOut: false,
     isApp: true,
-    ...o
+    ...o,
   }
 }
 
@@ -25,8 +25,8 @@ test('apps card chips carry their titles instead of rendering icon-only', () => 
     label: 'Apps',
     tabs: [
       makeAppTab({ id: 1, url: 'https://mail.example.com/inbox', title: 'Inbox - Mail' }),
-      makeAppTab({ id: 2, url: 'https://calendar.example.com/week', title: 'Week View - Calendar' })
-    ]
+      makeAppTab({ id: 2, url: 'https://calendar.example.com/week', title: 'Week View - Calendar' }),
+    ],
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1, allowMutations: false })
@@ -47,7 +47,7 @@ test('apps card chips keep raw titles like history rows — no noise cleanup, no
   const group: DomainGroup = {
     domain: '__standalone-apps__',
     label: 'Apps',
-    tabs: [makeAppTab({ id: 1, url: 'https://mail.example.com/inbox', title: rawTitle })]
+    tabs: [makeAppTab({ id: 1, url: 'https://mail.example.com/inbox', title: rawTitle })],
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1, allowMutations: false })

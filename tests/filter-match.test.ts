@@ -5,7 +5,7 @@ import { computeDomainCardViewModel } from '../src/extension/domain-card-view-mo
 import {
   getFilteredCloseableTabsForQuery,
   tabMatchesCompiledFilter,
-  tabMatchesFilter
+  tabMatchesFilter,
 } from '../src/extension/filter-match.js'
 import { compileFilterQuery } from '../src/extension/filter-query.js'
 import type { DashboardTab } from '../src/extension/types.js'
@@ -23,7 +23,7 @@ function makeTab(overrides: Partial<DashboardTab> & { url: string }): DashboardT
     groupId: -1,
     isTabOut: false,
     isApp: false,
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -38,50 +38,50 @@ test('compiled filter matching preserves token, phrase, separator, alias, and li
       name: 'spaces match hyphens',
       tab: makeTab({ url: 'https://example.test/guide', title: 'Tab-Out guide' }),
       filter: 'tab out',
-      expected: true
+      expected: true,
     },
     {
       name: 'hyphens match spaces in phrases',
       tab: makeTab({ url: 'https://example.test/guide', title: 'Tab Out guide' }),
       filter: '"tab-out"',
-      expected: true
+      expected: true,
     },
     {
       name: 'quoted phrases preserve word order',
       tab: makeTab({ url: 'https://example.test/reviews/42', title: 'Pull Request review' }),
       filter: '"request pull"',
-      expected: false
+      expected: false,
     },
     {
       name: 'token aliases remain available',
       tab: makeTab({ url: 'https://example.test/reviews/42', title: 'Pull Request review' }),
       filter: 'pr 42',
-      expected: true
+      expected: true,
     },
     {
       name: 'terms may match across title and URL',
       tab: makeTab({ url: 'https://example.test/docs/reference', title: 'API guide' }),
       filter: 'api reference',
-      expected: true
+      expected: true,
     },
     {
       name: 'a missing term keeps AND semantics negative',
       tab: makeTab({ url: 'https://example.test/docs/reference', title: 'API guide' }),
       filter: 'api missing',
-      expected: false
+      expected: false,
     },
     {
       name: 'a leading minus remains a literal token',
       tab: makeTab({ url: 'https://example.test/docs', title: 'Legacy guide' }),
       filter: '-legacy',
-      expected: false
+      expected: false,
     },
     {
       name: 'a literal leading minus can still match',
       tab: makeTab({ url: 'https://example.test/-legacy', title: 'Guide' }),
       filter: '-legacy',
-      expected: true
-    }
+      expected: true,
+    },
   ]
 
   for (const { name, tab, filter, expected } of cases) {
@@ -99,9 +99,9 @@ test('filter tokens matching Object prototype properties remain literal search t
     assert.equal(
       tabMatchesCompiledFilter(
         makeTab({ url: `https://example.test/${filter}`, title: 'Example page' }),
-        compiled
+        compiled,
       ),
-      true
+      true,
     )
   }
 })
@@ -117,13 +117,13 @@ test('one compiled query serves every item, matching card, and filtered-close pa
   const tabs = Array.from({ length: 240 }, (_, index) => makeTab({
     id: index + 1,
     url: `https://example.test/docs/${index}`,
-    title: index % 2 === 0 ? `Tab-Out guide ${index}` : `Other guide ${index}`
+    title: index % 2 === 0 ? `Tab-Out guide ${index}` : `Other guide ${index}`,
   }))
 
   const directMatches = tabs.filter((tab) => tabMatchesCompiledFilter(tab, query))
   const matchedCard = computeDomainCardViewModel(
     { domain: 'example.test', tabs },
-    { filter, filterQuery: query }
+    { filter, filterQuery: query },
   )
   const filteredCloseTabs = getFilteredCloseableTabsForQuery(tabs, query)
 

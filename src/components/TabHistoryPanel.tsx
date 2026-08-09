@@ -81,7 +81,7 @@ const DEFAULT_HISTORY_ENTRY_EXPANSION_GEOMETRY: HistoryEntryExpansionGeometry = 
   titleWidth: 0,
   viewportConstrained: false,
   width: 0,
-  y: 'down'
+  y: 'down',
 }
 const DEFAULT_HISTORY_ENTRY_SLOT_SIZE: HistoryEntrySlotSize = { height: 0, width: 0 }
 const historyTitleTruncationCallbacks = new WeakMap<
@@ -120,7 +120,7 @@ const DEFAULT_HISTORY_TITLE_METRICS: HistoryTitleMetrics = {
   expandedViewportConstrained: false,
   isTruncated: false,
   visibleLineCount: 1,
-  width: 0
+  width: 0,
 }
 
 type HistoryEntryExpansionGeometry = {
@@ -193,7 +193,7 @@ function startHistoryEntryRemoval(row: Element | null | undefined): boolean {
   const positions = snapshotHistoryEntryPositions(root)
   return startLayoutRemovalAnimation(row, {
     ghostClassName: 'history-entry-closing-ghost',
-    onAfterRemove: () => animateHistoryEntryMoves(root, positions)
+    onAfterRemove: () => animateHistoryEntryMoves(root, positions),
   })
 }
 
@@ -201,7 +201,7 @@ function syncVisibleHistoryLayout(
   root: HTMLElement | null,
   previous: VisibleHistoryLayoutSnapshot | null,
   filter: string,
-  animate: boolean
+  animate: boolean,
 ): VisibleHistoryLayoutSnapshot | null {
   if (!root || document.visibilityState !== 'visible') return previous
 
@@ -267,7 +267,7 @@ function getHistoryTitleContentWidth(titleEl: HTMLElement | null) {
     top: '0',
     visibility: 'hidden',
     whiteSpace: 'nowrap',
-    width: 'max-content'
+    width: 'max-content',
   })
   clone.style.setProperty('mask-image', 'none')
   ownerDocument.body.append(clone)
@@ -285,7 +285,7 @@ const HISTORY_ENTRY_EXPANSION_LINE_CLASSES: ExpansionLineClasses = {
   wrapper: HISTORY_ENTRY_EXPANDED_LINES_CLASS_NAME,
   line: HISTORY_ENTRY_EXPANDED_LINE_CLASS_NAME,
   constrainedLine: HISTORY_ENTRY_EXPANDED_CONSTRAINED_LINE_CLASS_NAME,
-  tailLine: HISTORY_ENTRY_EXPANDED_TAIL_LINE_CLASS_NAME
+  tailLine: HISTORY_ENTRY_EXPANDED_TAIL_LINE_CLASS_NAME,
 }
 
 function historyTitleExpandedLineMarkup(lineHtml: readonly string[], viewportConstrained = false) {
@@ -295,7 +295,7 @@ function historyTitleExpandedLineMarkup(lineHtml: readonly string[], viewportCon
 function historyTitleExpandedMeasureFitsLineCount(
   measureEl: HTMLElement,
   width: number,
-  targetLineCount: number
+  targetLineCount: number,
 ) {
   measureEl.style.width = `${Math.max(1, width)}px`
   const styles = window.getComputedStyle(measureEl)
@@ -311,7 +311,7 @@ function historyTitleExpandedMeasureFitsLineCount(
 function createHistoryTitleExpandedMeasureElement(titleEl: HTMLElement, lineHtml: readonly string[]) {
   return createExpansionMeasureElement(titleEl, {
     className: 'history-entry-title-expansion-measure pointer-events-none invisible fixed top-0 left-0 z-[-1] block min-w-0 max-w-none whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-tab-live [font-family:inherit] [hyphenate-character:\'\'] wrap-break-word',
-    markup: lineHtml.length > 0 ? historyTitleExpandedLineMarkup(lineHtml) : titleEl.innerHTML
+    markup: lineHtml.length > 0 ? historyTitleExpandedLineMarkup(lineHtml) : titleEl.innerHTML,
   })
 }
 
@@ -321,7 +321,7 @@ function getHistoryTitleExpandedTextWidth(
   contentWidth: number,
   availableContentWidth: number,
   visibleLineCount: number,
-  visibleWidth: number
+  visibleWidth: number,
 ) {
   if (!titleEl) return { viewportConstrained: false, width: 0 }
 
@@ -339,7 +339,7 @@ function getHistoryTitleExpandedTextWidth(
       lowerBound,
       maxContentWidth,
       steps: HISTORY_ENTRY_EXPANDED_WIDTH_SEARCH_STEPS,
-      fits: (width) => historyTitleExpandedMeasureFitsLineCount(measureEl, width, targetLineCount)
+      fits: (width) => historyTitleExpandedMeasureFitsLineCount(measureEl, width, targetLineCount),
     })
   } finally {
     measureEl.remove()
@@ -379,7 +379,7 @@ function historyTitleExpandedLayoutCacheKey(titleEl: HTMLElement, availableConte
     styles?.font || '',
     styles?.letterSpacing || '',
     styles?.lineHeight || '',
-    win?.devicePixelRatio || 1
+    win?.devicePixelRatio || 1,
   ])
 }
 
@@ -394,12 +394,12 @@ function readHistoryTitleGeometry(titleEl: HTMLElement): HistoryTitleGeometryMea
   const width = Math.round(rect.width * 100) / 100
   historyTitleMeasuredSizes.set(titleEl, {
     height: Math.round(rect.height * 100) / 100,
-    width
+    width,
   })
   return {
     captureGeometry: {
       elementRect: rect,
-      lineHeight
+      lineHeight,
     },
     metrics: {
       contentWidth: 0,
@@ -408,8 +408,8 @@ function readHistoryTitleGeometry(titleEl: HTMLElement): HistoryTitleGeometryMea
       expandedViewportConstrained: false,
       isTruncated,
       visibleLineCount,
-      width
-    }
+      width,
+    },
   }
 }
 
@@ -464,7 +464,7 @@ function scheduleHistoryTitleMeasurement(job: HistoryTitleMeasurementJob) {
 function syncHistoryTitleFade(
   titleEl: HTMLElement | null,
   syncFadeEnd = true,
-  measuredMetrics?: HistoryTitleMetrics
+  measuredMetrics?: HistoryTitleMetrics,
 ) {
   if (!titleEl) return { contentWidth: 0, expandedLineHtml: [], expandedTextWidth: 0, expandedViewportConstrained: false, isTruncated: false, visibleLineCount: 1, width: 0 }
 
@@ -494,7 +494,7 @@ function measureHistoryTitleExpandedLayout(titleEl: HTMLElement | null, availabl
     expandedTextWidth: expandedMetrics.width,
     expandedViewportConstrained: expandedMetrics.viewportConstrained,
     visibleLineCount,
-    width
+    width,
   }
   rememberHistoryTitleExpandedLayout(cacheKey, layout)
   return { ...layout, isTruncated }
@@ -502,7 +502,7 @@ function measureHistoryTitleExpandedLayout(titleEl: HTMLElement | null, availabl
 
 function updateTitleTruncation(
   titleEl: HTMLElement | null,
-  setTitleMetrics: Dispatch<SetStateAction<HistoryTitleMetrics>>
+  setTitleMetrics: Dispatch<SetStateAction<HistoryTitleMetrics>>,
 ) {
   const metrics = syncHistoryTitleFade(titleEl)
   setTitleMetrics((current) => sameHistoryTitleMetrics(current, metrics) ? current : metrics)
@@ -529,7 +529,7 @@ function getHistoryEntryExpansionGeometry(entryEl: HTMLElement | null, titleEl: 
   const metrics = measureHistoryTitleExpandedLayout(titleEl, maxContentWidth)
   const expandedContentWidth = Math.min(
     maxContentWidth,
-    Math.max(metrics.width, metrics.expandedTextWidth + HISTORY_ENTRY_EXPANDED_WIDTH_GUARD_PX)
+    Math.max(metrics.width, metrics.expandedTextWidth + HISTORY_ENTRY_EXPANDED_WIDTH_GUARD_PX),
   )
   const width = Math.min(maxWidth, Math.max(rect.width, horizontalInset + expandedContentWidth))
   const scrollbarTrack = entryEl.closest('.tab-history-panel')?.querySelector<HTMLElement>('.history-entry-scrollbar-track')
@@ -545,7 +545,7 @@ function getHistoryEntryExpansionGeometry(entryEl: HTMLElement | null, titleEl: 
     titleWidth: expandedContentWidth,
     viewportConstrained: metrics.expandedViewportConstrained,
     width,
-    y: roomBelow >= rect.height * 2 || roomBelow >= roomAbove ? 'down' : 'up'
+    y: roomBelow >= rect.height * 2 || roomBelow >= roomAbove ? 'down' : 'up',
   }
 }
 
@@ -554,7 +554,7 @@ function roundedHistoryEntrySlotSize(element: HTMLElement | null): HistoryEntryS
   const rect = element.getBoundingClientRect()
   return {
     height: Math.round(rect.height * 100) / 100,
-    width: Math.round(rect.width * 100) / 100
+    width: Math.round(rect.width * 100) / 100,
   }
 }
 
@@ -626,7 +626,7 @@ type HistoryTitleLayoutState = {
 }
 const DEFAULT_HISTORY_TITLE_LAYOUT_STATE: HistoryTitleLayoutState = {
   clamp: null,
-  metrics: DEFAULT_HISTORY_TITLE_METRICS
+  metrics: DEFAULT_HISTORY_TITLE_METRICS,
 }
 
 function historyTitleClampEqual(left: HistoryTitleClamp | null, right: HistoryTitleClamp | null) {
@@ -700,7 +700,7 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
     lane: historyEntryExpansionLane,
     closeDelayMs: 0,
     onExpandedChange: setTitleExpanded,
-    shouldIgnoreLaneSteal: () => contextMenuOpenRef.current
+    shouldIgnoreLaneSteal: () => contextMenuOpenRef.current,
   })
 
   function updateHistoryEntryExpansionMeasurements() {
@@ -747,7 +747,7 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
         titleMeasurementRef.current = {
           element: titleEl,
           key: titleClampKey,
-          metrics
+          metrics,
         }
         let nextClamp: HistoryTitleClamp | null = null
         if (metrics.isTruncated && lineHtml.length > 1) {
@@ -764,7 +764,7 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
             ? current
             : { clamp: nextClamp, metrics }
         ))
-      }
+      },
     })
     // Resize-observer metrics carry width changes back through titleMetrics,
     // which invalidates the captured rows without re-reading unchanged titles.
@@ -906,7 +906,7 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
     onHistoryEntryPointerLeave,
     onHistoryEntryFocus,
     onHistoryEntryBlur,
-    onHistoryEntryContextMenuOpenChange
+    onHistoryEntryContextMenuOpenChange,
   }
 }
 
@@ -992,7 +992,7 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
     const activationResult = await performDashboardItemActivation(
       mode,
       { tabId, tabUrl, rawUrl },
-      { moveExisting: hasLiveTab }
+      { moveExisting: hasLiveTab },
     )
     if (activationResult === 'handled') await refreshAfterMutation()
   }
@@ -1046,7 +1046,7 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
     const hoverUrl = workingSetItem ? pageTargetUrl(workingSetItem) : pageTargetUrl(entry)
     const hoverUrls = uniqueUrls([
       ...pageTargetMatchUrls(entry),
-      ...workingSetUrls(workingSetItem ?? undefined)
+      ...workingSetUrls(workingSetItem ?? undefined),
     ])
     const tabId = workingSetItem?.tabId ?? (entry.exists ? entry.tabId : undefined)
     onHoverUrlChange?.(hoverUrl, hoverSource, hoverUrls, tabId)
@@ -1075,7 +1075,7 @@ function HistoryEntryMarkerCell({ indexLabel, isIndexHighlighted }: HistoryEntry
       data-tabout-part="history-entry-marker"
       className={cn(
         'mt-1.25 inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-muted-foreground group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
-        isIndexHighlighted && 'font-semibold text-tab-live group-hover/history-row:text-tab-live group-focus-within/history-row:text-tab-live'
+        isIndexHighlighted && 'font-semibold text-tab-live group-hover/history-row:text-tab-live group-focus-within/history-row:text-tab-live',
       )}
     >
       {marker}
@@ -1112,8 +1112,8 @@ function HistoryEntryTitle({ expanded, title, highlightTerms, mutedTitle, geomet
   const titleContent = expanded && geometry.lineHtml.length > 0
     ? expandedLinesNode()
     : !expanded && clampedLineHtml && clampedLineHtml.length > 1
-      ? clampedTitleLineNodes(clampedLineHtml, 'history-entry-title')
-      : highlightedTextNodes(title, highlightTerms, 'history-entry-title', createBionicTitleTextRenderer(title))
+        ? clampedTitleLineNodes(clampedLineHtml, 'history-entry-title')
+        : highlightedTextNodes(title, highlightTerms, 'history-entry-title', createBionicTitleTextRenderer(title))
   const titleContentKey = clampedLineHtml && clampedLineHtml.length > 1
     ? 'captured'
     : 'natural'
@@ -1124,7 +1124,7 @@ function HistoryEntryTitle({ expanded, title, highlightTerms, mutedTitle, geomet
           className={cn(
             "history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [font-size:inherit] [font-weight:inherit] [hyphenate-character:''] wrap-break-word [&.history-entry-title-truncated]:mask-(--title-fade-mask)",
             mutedTitle ? 'text-tab-closed' : 'text-tab-live',
-            expanded && 'max-h-none! max-w-none! flex-none! overflow-visible! mask-none! w-(--history-entry-expanded-title-width) whitespace-normal wrap-break-word'
+            expanded && 'max-h-none! max-w-none! flex-none! overflow-visible! mask-none! w-(--history-entry-expanded-title-width) whitespace-normal wrap-break-word',
           )}
           ref={expanded ? undefined : titleRef}
         >
@@ -1159,8 +1159,9 @@ function HistoryEntryFaviconFrame({ expanded, faviconUrl, faviconDimmed, loading
     <span className={cn(
       'history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center',
       canRemoveEntry && 'pointer-events-none',
-      !loading && !faviconUrl && !isWorkingSetExtra && !canRemoveEntry && 'invisible'
-    )}>
+      !loading && !faviconUrl && !isWorkingSetExtra && !canRemoveEntry && 'invisible',
+    )}
+    >
       <span
         className={cn(
           // The favicon column is the same 16px cell page chips use, so
@@ -1176,7 +1177,7 @@ function HistoryEntryFaviconFrame({ expanded, faviconUrl, faviconDimmed, loading
           isApp
             ? 'history-entry-app-favicon -mx-0.5 -my-0.5 size-5 place-content-center overflow-hidden rounded-lg border border-[rgba(115,115,115,0.32)] p-0.5 [corner-shape:squircle]'
             : 'h-full w-full',
-          canRemoveEntry && 'group-hover/history-favicon-frame:opacity-0'
+          canRemoveEntry && 'group-hover/history-favicon-frame:opacity-0',
         )}
         aria-hidden="true"
       >
@@ -1315,7 +1316,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
     onHistoryEntryPointerLeave,
     onHistoryEntryFocus,
     onHistoryEntryBlur,
-    onHistoryEntryContextMenuOpenChange
+    onHistoryEntryContextMenuOpenChange,
   } = useHistoryEntryExpansion(contextMenuOpenRef, titleClampKey)
 
   const isWorkingSetExtra = !!workingSetItem
@@ -1338,7 +1339,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
     ...(onSnapshotChange ? { onSnapshotChange } : {}),
     ...(onHistoryLayoutSettled ? { onHistoryLayoutSettled } : {}),
     ...(onHoverUrlChange ? { onHoverUrlChange } : {}),
-    ...(onTabsChange ? { onTabsChange } : {})
+    ...(onTabsChange ? { onTabsChange } : {}),
   })
 
   async function onForgetEntry(e: MouseEvent<HTMLButtonElement>) {
@@ -1379,7 +1380,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
   const hoverSource: HoverUrlSource = workingSetItem ? 'working-set' : 'history'
   const matchUrls = uniqueUrls([
     ...pageTargetMatchUrls(entry),
-    ...workingSetUrls(workingSetItem ?? undefined)
+    ...workingSetUrls(workingSetItem ?? undefined),
   ])
   const hoverMatched = useHoverStateSelector((state) => (
     !!state.source && state.source !== hoverSource && (
@@ -1402,7 +1403,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
     if (!audioState || !Number.isInteger(entry.tabId)) return
     void setHistoryEntryMuted(
       { tabId: entry.tabId, tabUrl: entry.url, rawUrl: entry.rawUrl },
-      nextMutedForAudioState(audioState)
+      nextMutedForAudioState(audioState),
     )
   }
   function onHistoryEntryMenuOpenChange(open: boolean, details: ContextMenuChangeEventDetails) {
@@ -1416,7 +1417,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
 
   const entrySlotStyle: CSSVariableProperties | undefined = titleExpanded && entrySlotSize.width > 0 && entrySlotSize.height > 0 ? {
     height: `${entrySlotSize.height}px`,
-    width: `${entrySlotSize.width}px`
+    width: `${entrySlotSize.width}px`,
   } : undefined
   const entryExpandedMaxWidth = entryExpansionGeometry.maxWidth > 0 ? `${entryExpansionGeometry.maxWidth}px` : 'calc(100vw - 16px)'
   const entryExpandedWidth = entryExpansionGeometry.width > 0 ? `${entryExpansionGeometry.width}px` : entryExpandedMaxWidth
@@ -1425,7 +1426,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
     '--history-entry-fade-bg': historyEntryInteractionBg,
     '--history-entry-interaction-bg': historyEntryInteractionBg,
     '--history-entry-hover-border': entryClosed ? HISTORY_ENTRY_CLOSED_HOVER_BORDER : HISTORY_ENTRY_OPEN_HOVER_BORDER,
-    '--history-entry-rest-bg': activeInOtherWindow ? HISTORY_ENTRY_ACTIVE_OTHER_REST_BG : 'transparent'
+    '--history-entry-rest-bg': activeInOtherWindow ? HISTORY_ENTRY_ACTIVE_OTHER_REST_BG : 'transparent',
   }
   const entryOverlayStyle: CSSVariableProperties = {
     ...entryBaseStyle,
@@ -1433,7 +1434,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
     '--history-entry-expanded-title-width': entryExpandedTitleWidth,
     '--history-entry-expanded-width': entryExpandedWidth,
     maxWidth: entryExpandedMaxWidth,
-    width: entryExpandedWidth
+    width: entryExpandedWidth,
   }
   function historyEntrySurface(expanded: boolean) {
     return (
@@ -1453,7 +1454,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
           expanded && (entryExpansionGeometry.y === 'up' ? 'bottom-0' : 'top-0'),
           entry.current && 'bg-neutral-100 text-tab-live shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400 [--history-entry-fade-bg:var(--color-neutral-100)]',
           !entry.current && historyEntryInteractionClasses,
-          hoverMatched && 'history-entry-hover-match outline-1 outline-offset-1 outline-(--accent-amber)'
+          hoverMatched && 'history-entry-hover-match outline-1 outline-offset-1 outline-(--accent-amber)',
         )}
         style={expanded ? entryOverlayStyle : entryBaseStyle}
         ref={expanded ? undefined : entryRef}
@@ -1483,7 +1484,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
             className="history-entry-scrollbar-input-shield pointer-events-auto absolute top-0 bottom-0 z-3"
             style={{
               left: `${entryExpansionGeometry.scrollbarShieldLeft}px`,
-              width: `${entryExpansionGeometry.scrollbarShieldWidth}px`
+              width: `${entryExpansionGeometry.scrollbarShieldWidth}px`,
             }}
             aria-hidden="true"
           />
@@ -1546,7 +1547,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
       data-pending={entry.pending ? 'true' : undefined}
       className={cn(
         'history-entry-row group/history-row flex w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none',
-        titleExpanded && 'history-entry-row-expanded-open'
+        titleExpanded && 'history-entry-row-expanded-open',
       )}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
@@ -1577,7 +1578,7 @@ function HistoryEntryScrollbar({ scrollbar }: { scrollbar: HistoryScrollbar }) {
 
   const scrollbarStyle: CSSVariableProperties = {
     '--history-entry-scrollbar-thumb-height': `${metrics.thumbHeight}px`,
-    '--history-entry-scrollbar-thumb-top': `${metrics.thumbTop}px`
+    '--history-entry-scrollbar-thumb-top': `${metrics.thumbTop}px`,
   }
 
   return (
@@ -1599,7 +1600,7 @@ function HistoryEntryScrollbar({ scrollbar }: { scrollbar: HistoryScrollbar }) {
           className={cn(
             'history-entry-scrollbar-thumb absolute top-0 right-0 w-(--dashboard-scrollbar-size) rounded-(--dashboard-scrollbar-radius) border-(length:--dashboard-scrollbar-padding) border-transparent bg-(--dashboard-scrollbar-thumb-bg) bg-clip-content [transition:opacity_300ms_ease-out,border-width_var(--dashboard-scrollbar-grow-duration)_ease-out] h-(--history-entry-scrollbar-thumb-height) transform-[translateY(var(--history-entry-scrollbar-thumb-top))] hover:border-(length:--dashboard-scrollbar-padding-hover)',
             active ? 'opacity-100' : 'opacity-0',
-            dragging && 'border-(length:--dashboard-scrollbar-padding-hover)'
+            dragging && 'border-(length:--dashboard-scrollbar-padding-hover)',
           )}
           onPointerDown={onThumbPointerDown}
         />
@@ -1617,7 +1618,7 @@ export function TabHistoryPanel({
   savedKeys,
   retainedPageSurfaceMatches = EMPTY_RETAINED_PAGE_SURFACE_MATCHES,
   onSnapshotChange,
-  onTabsChange
+  onTabsChange,
 }: TabHistoryPanelProps) {
   const { onHoverUrlChange } = useDashboardActions()
   const [observedClosedGhostDismissals, setObservedClosedGhostDismissals] = useState<ClosedGhostDismissals | null>(null)
@@ -1664,7 +1665,7 @@ export function TabHistoryPanel({
         } catch {
           showToast('Could not restore recently closed page')
         }
-      }
+      },
     })
   }
 
@@ -1682,7 +1683,7 @@ export function TabHistoryPanel({
       historyContentRef.current,
       lastVisibleHistoryLayoutRef.current,
       currentHistoryFilterRef.current,
-      false
+      false,
     )
   }
 
@@ -1699,7 +1700,7 @@ export function TabHistoryPanel({
       historyContentRef.current,
       lastVisibleHistoryLayoutRef.current,
       filter,
-      true
+      true,
     )
   }, [filter, rows])
 
@@ -1710,7 +1711,7 @@ export function TabHistoryPanel({
         historyContentRef.current,
         lastVisibleHistoryLayoutRef.current,
         currentHistoryFilterRef.current,
-        true
+        true,
       )
     }
 
@@ -1784,7 +1785,7 @@ function HistoryPanelRow({
   onHistoryLayoutSettled,
   onHoverUrlChange,
   onTabsChange,
-  onForgetClosedGhost
+  onForgetClosedGhost,
 }: {
   row: HistoryPanelRow
   layoutKey: string

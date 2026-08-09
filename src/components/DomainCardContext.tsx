@@ -19,12 +19,12 @@ const defaultDomainCardContext: DomainCardContextValue = {
   setActiveSuppressedTitle: () => {},
   dedupeBadgesClosing: false,
   suppressionCloseTargetsByText: {},
-  suppressionSuspendTargetsByText: {}
+  suppressionSuspendTargetsByText: {},
 }
 
 const DomainCardContext = createContext(defaultDomainCardContext)
 
-export function DomainCardProvider({ value, children }: { value: DomainCardContextValue; children?: ReactNode }) {
+export function DomainCardProvider({ value, children }: { value: DomainCardContextValue, children?: ReactNode }) {
   return <DomainCardContext.Provider value={value}>{children}</DomainCardContext.Provider>
 }
 

@@ -13,7 +13,7 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
       async sendMessage(extensionId: string, message: unknown) {
         calls.runtimeMessages.push({ extensionId, message: { ...(message as object) } })
         return undefined
-      }
+      },
     },
     tabs: {
       async get(tabId: number) {
@@ -38,7 +38,7 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
         if (!tab) return undefined
         Object.assign(tab, updateProperties)
         return { ...tab }
-      }
+      },
     },
     windows: {
       async create(createProperties: any) {
@@ -56,8 +56,8 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
       async update(windowId: number, updateProperties: any) {
         calls.windowsUpdate.push({ windowId, updateProperties: { ...updateProperties } })
         return { id: windowId, type: 'normal', focused: !!updateProperties.focused }
-      }
-    }
+      },
+    },
   }
 
   return { calls, tabs }
@@ -68,7 +68,7 @@ const TAB_OUT = 'chrome-extension://tab-out/index.html'
 test('moveTabToCurrentWindow moves a tab from another window in the background', async () => {
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 2, url: 'https://example.com/docs' }
+    { id: 2, windowId: 2, url: 'https://example.com/docs' },
   ])
 
   const moved = await moveTabToCurrentWindow({ tabId: 2, tabUrl: 'https://example.com/docs' }, { activate: false })
@@ -82,7 +82,7 @@ test('moveTabToCurrentWindow moves a tab from another window in the background',
 test('moveTabToCurrentWindow moves and switches to the tab in the foreground', async () => {
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 2, url: 'https://example.com/docs' }
+    { id: 2, windowId: 2, url: 'https://example.com/docs' },
   ])
 
   const moved = await moveTabToCurrentWindow({ tabId: 2, tabUrl: 'https://example.com/docs' }, { activate: true })
@@ -98,7 +98,7 @@ test('moveTabToCurrentWindow moves and switches to the tab in the foreground', a
 test('moveTabToCurrentWindow does not move a tab already in the current window (background no-op)', async () => {
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 1, url: 'https://example.com/docs' }
+    { id: 2, windowId: 1, url: 'https://example.com/docs' },
   ])
 
   const moved = await moveTabToCurrentWindow({ tabId: 2, tabUrl: 'https://example.com/docs' }, { activate: false })
@@ -111,7 +111,7 @@ test('moveTabToCurrentWindow does not move a tab already in the current window (
 test('moveTabToCurrentWindow switches to an already-current-window tab without moving (foreground)', async () => {
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 1, url: 'https://example.com/docs' }
+    { id: 2, windowId: 1, url: 'https://example.com/docs' },
   ])
 
   const moved = await moveTabToCurrentWindow({ tabId: 2, tabUrl: 'https://example.com/docs' }, { activate: true })
@@ -126,7 +126,7 @@ test('moveTabToCurrentWindow resolves by URL when no tabId, preferring another w
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
     { id: 2, windowId: 1, url: 'https://example.com/docs' },
-    { id: 3, windowId: 2, url: 'https://example.com/docs' }
+    { id: 3, windowId: 2, url: 'https://example.com/docs' },
   ])
 
   const moved = await moveTabToCurrentWindow({ tabUrl: 'https://example.com/docs' }, { activate: false })
@@ -141,7 +141,7 @@ test('moveTabToCurrentWindow resolves against pending navigation identity', asyn
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
     { id: 2, windowId: 2, url: targetUrl, pendingUrl: otherUrl },
-    { id: 3, windowId: 2, url: otherUrl, pendingUrl: targetUrl }
+    { id: 3, windowId: 2, url: otherUrl, pendingUrl: targetUrl },
   ])
 
   const moved = await moveTabToCurrentWindow({ tabUrl: targetUrl }, { activate: false })
@@ -154,7 +154,7 @@ test('moveTabToCurrentWindow rejects a numeric target navigating away from its r
   const targetUrl = 'https://example.test/docs'
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 2, url: targetUrl, pendingUrl: 'https://example.test/other' }
+    { id: 2, windowId: 2, url: targetUrl, pendingUrl: 'https://example.test/other' },
   ])
 
   const moved = await moveTabToCurrentWindow({ tabId: 2, tabUrl: targetUrl })
@@ -168,7 +168,7 @@ test('moveTabToCurrentWindow reads tabs after current-window state settles', asy
   const pendingUrl = 'https://example.test/other'
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 2, url: targetUrl }
+    { id: 2, windowId: 2, url: targetUrl },
   ])
   const { promise: currentWindowGate, resolve: releaseCurrentWindow } = Promise.withResolvers<void>()
   let navigationStarted = false
@@ -183,7 +183,7 @@ test('moveTabToCurrentWindow reads tabs after current-window state settles', asy
       id: 2,
       windowId: 2,
       url: targetUrl,
-      ...(navigationStarted ? { pendingUrl } : {})
+      ...(navigationStarted ? { pendingUrl } : {}),
     }]
   }
 
@@ -211,7 +211,7 @@ test('moveTabToCurrentWindow reports not-found when no open tab matches', async 
 test('moveTabToCurrentWindow reports failed when the tab inventory is unknown', async () => {
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 2, url: 'https://example.com/docs' }
+    { id: 2, windowId: 2, url: 'https://example.com/docs' },
   ])
   ;(globalThis as any).chrome.tabs.query = async () => {
     throw new Error('tabs unavailable')
@@ -226,7 +226,7 @@ test('moveTabToCurrentWindow reports failed when the tab inventory is unknown', 
 test('moveTabToCurrentWindow reports failed when the current window is unknown', async () => {
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 2, url: 'https://example.com/docs' }
+    { id: 2, windowId: 2, url: 'https://example.com/docs' },
   ])
   ;(globalThis as any).chrome.windows.getCurrent = async () => {
     throw new Error('window unavailable')
@@ -241,7 +241,7 @@ test('moveTabToCurrentWindow reports failed when the current window is unknown',
 test('moveTabToCurrentWindow reports failed rather than missing when Chrome refuses the move', async () => {
   createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 2, url: 'https://example.com/docs' }
+    { id: 2, windowId: 2, url: 'https://example.com/docs' },
   ])
   let attempts = 0
   ;(globalThis as any).chrome.tabs.move = async () => {
@@ -258,7 +258,7 @@ test('moveTabToCurrentWindow reports failed rather than missing when Chrome refu
 test('moveTabToCurrentWindow keeps a successful physical move handled when later activation fails', async () => {
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 2, url: 'https://example.com/docs' }
+    { id: 2, windowId: 2, url: 'https://example.com/docs' },
   ])
   ;(globalThis as any).chrome.tabs.update = async () => {
     throw new Error('activation refused')
@@ -266,7 +266,7 @@ test('moveTabToCurrentWindow keeps a successful physical move handled when later
 
   const moved = await moveTabToCurrentWindow(
     { tabId: 2, tabUrl: 'https://example.com/docs' },
-    { activate: true }
+    { activate: true },
   )
 
   assert.equal(moved, 'handled')
@@ -279,7 +279,7 @@ test('moveTabToCurrentWindow does not activate a target that navigates after inv
   const navigatedUrl = 'https://example.com/other'
   const { calls, tabs } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 1, url: targetUrl }
+    { id: 2, windowId: 1, url: targetUrl },
   ])
   const queryTabs = (globalThis as any).chrome.tabs.query.bind((globalThis as any).chrome.tabs)
   ;(globalThis as any).chrome.tabs.query = async () => {
@@ -298,7 +298,7 @@ test('moveTabToCurrentWindow does not activate a target that navigates after inv
 test('moveTabToCurrentWindow rejects a reused id when no live tab matches the target URL', async () => {
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 2, url: 'https://unrelated.example/' }
+    { id: 2, windowId: 2, url: 'https://unrelated.example/' },
   ])
 
   const moved = await moveTabToCurrentWindow({ tabId: 2, tabUrl: 'https://expected.example/' })
@@ -311,7 +311,7 @@ test('moveTabToCurrentWindow does not substitute a same-URL sibling for a missin
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
     { id: 2, windowId: 2, url: 'https://unrelated.example/' },
-    { id: 3, windowId: 2, url: 'https://expected.example/' }
+    { id: 3, windowId: 2, url: 'https://expected.example/' },
   ])
 
   const moved = await moveTabToCurrentWindow({ tabId: 2, tabUrl: 'https://expected.example/' })
@@ -324,7 +324,7 @@ test('moveTabToCurrentWindow does not substitute a same-URL sibling for a missin
 test('moveTabToCurrentWindow treats a synthetic string tabId as no id and resolves by URL', async () => {
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 2, url: 'https://example.com/docs' }
+    { id: 2, windowId: 2, url: 'https://example.com/docs' },
   ])
 
   const moved = await moveTabToCurrentWindow({ tabId: 'saved-abc', tabUrl: 'https://example.com/docs' }, { activate: false })
@@ -337,12 +337,12 @@ test('moveTabToCurrentWindow unsuspends a suspended tab when foregrounding', asy
   const suspendedUrl = 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 2, url: suspendedUrl }
+    { id: 2, windowId: 2, url: suspendedUrl },
   ])
 
   const moved = await moveTabToCurrentWindow(
     { tabId: 2, tabUrl: 'https://example.com/docs', rawUrl: suspendedUrl },
-    { activate: true }
+    { activate: true },
   )
 
   assert.equal(moved, 'handled')
@@ -355,12 +355,12 @@ test('moveTabToCurrentWindow unsuspends a suspended tab when moving in the backg
   const suspendedUrl = 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 2, url: suspendedUrl }
+    { id: 2, windowId: 2, url: suspendedUrl },
   ])
 
   const moved = await moveTabToCurrentWindow(
     { tabId: 2, tabUrl: 'https://example.com/docs', rawUrl: suspendedUrl },
-    { activate: false }
+    { activate: false },
   )
 
   assert.equal(moved, 'handled')
@@ -373,7 +373,7 @@ test('moveTabToCurrentWindow unsuspends a suspended tab when moving in the backg
 test('moveTabToNewWindow moves a live tab into a focused new window', async () => {
   const { calls, tabs } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 1, url: 'https://example.com/docs' }
+    { id: 2, windowId: 1, url: 'https://example.com/docs' },
   ])
 
   const moved = await moveTabToNewWindow({ tabId: 2, tabUrl: 'https://example.com/docs' })
@@ -391,7 +391,7 @@ test('moveTabToNewWindow moves a live tab into a focused new window', async () =
 test('moveTabToNewWindow resolves by URL when no tabId', async () => {
   const { calls, tabs } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 2, url: 'https://example.com/docs' }
+    { id: 2, windowId: 2, url: 'https://example.com/docs' },
   ])
 
   const moved = await moveTabToNewWindow({ tabUrl: 'https://example.com/docs' })
@@ -408,7 +408,7 @@ test('moveTabToNewWindow reads tabs after current-window state settles', async (
   const pendingUrl = 'https://example.test/other'
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 2, url: targetUrl }
+    { id: 2, windowId: 2, url: targetUrl },
   ])
   const { promise: currentWindowGate, resolve: releaseCurrentWindow } = Promise.withResolvers<void>()
   let navigationStarted = false
@@ -423,7 +423,7 @@ test('moveTabToNewWindow reads tabs after current-window state settles', async (
       id: 2,
       windowId: 2,
       url: targetUrl,
-      ...(navigationStarted ? { pendingUrl } : {})
+      ...(navigationStarted ? { pendingUrl } : {}),
     }]
   }
 
@@ -453,7 +453,7 @@ test('moveTabToNewWindow reports not-found when no open tab matches', async () =
 test('moveTabToNewWindow reports failed when the tab inventory is unknown', async () => {
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 1, url: 'https://example.com/docs' }
+    { id: 2, windowId: 1, url: 'https://example.com/docs' },
   ])
   ;(globalThis as any).chrome.tabs.query = async () => {
     throw new Error('tabs unavailable')
@@ -468,7 +468,7 @@ test('moveTabToNewWindow reports failed when the tab inventory is unknown', asyn
 test('moveTabToNewWindow reports failed rather than missing when Chrome refuses the new window', async () => {
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 1, url: 'https://example.com/docs' }
+    { id: 2, windowId: 1, url: 'https://example.com/docs' },
   ])
   ;(globalThis as any).chrome.windows.create = async (createProperties: any) => {
     calls.windowsCreate.push({ ...createProperties })
@@ -485,7 +485,7 @@ test('moveTabToNewWindow does not substitute a same-URL sibling for a missing nu
   const { calls } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
     { id: 2, windowId: 1, url: 'https://unrelated.example/' },
-    { id: 3, windowId: 1, url: 'https://expected.example/' }
+    { id: 3, windowId: 1, url: 'https://expected.example/' },
   ])
 
   const moved = await moveTabToNewWindow({ tabId: 2, tabUrl: 'https://expected.example/' })
@@ -499,7 +499,7 @@ test('moveTabToNewWindow unsuspends a suspended tab after moving it', async () =
   const suspendedUrl = 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'
   const { calls, tabs } = createChromeMock([
     { id: 1, windowId: 1, url: TAB_OUT },
-    { id: 2, windowId: 1, url: suspendedUrl }
+    { id: 2, windowId: 1, url: suspendedUrl },
   ])
 
   const moved = await moveTabToNewWindow({ tabId: 2, tabUrl: 'https://example.com/docs', rawUrl: suspendedUrl })

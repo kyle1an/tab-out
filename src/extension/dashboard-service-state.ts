@@ -14,28 +14,28 @@ type DashboardServiceState = Omit<CapturedDashboardServiceState, 'openTabsSnapsh
   openTabsSnapshot: ChromeOpenTabsSnapshot | null
 }
 export type DashboardServiceStateResult =
-  | { ok: true; value: DashboardServiceState }
-  | { ok: false; value: DashboardServiceState }
+  | { ok: true, value: DashboardServiceState }
+  | { ok: false, value: DashboardServiceState }
 function emptyDashboardServiceState(): DashboardServiceState {
   return {
     tabHistory: normalizeTabHistorySnapshot(null),
     workingSetActivity: emptyWorkingSetActivity(),
     openTabsSnapshot: null,
     retainedPages: [],
-    retentionHealth: null
+    retentionHealth: null,
   }
 }
 
 export const fetchDashboardServiceStateResultEffect = Effect.fn(
-  'dashboardServiceState.fetch'
-)(function*() {
+  'dashboardServiceState.fetch',
+)(function* () {
   if (!globalThis.chrome?.runtime?.sendMessage) {
     return { ok: false, value: emptyDashboardServiceState() }
   }
 
   const response = yield* Effect.result(Effect.tryPromise({
     try: () => chrome.runtime.sendMessage({ type: DASHBOARD_SERVICE_STATE_GET_MESSAGE }),
-    catch: (cause) => cause
+    catch: (cause) => cause,
   }))
   if (Result.isFailure(response)) {
     return { ok: false, value: emptyDashboardServiceState() }
@@ -46,13 +46,13 @@ export const fetchDashboardServiceStateResultEffect = Effect.fn(
   }
   const retainedPagesResult = yield* Effect.result(Effect.tryPromise({
     try: () => decodeDashboardRetainedPagesWire(parsed.retainedPages),
-    catch: (cause) => cause
+    catch: (cause) => cause,
   }))
   if (Result.isFailure(retainedPagesResult)) {
     return { ok: false, value: emptyDashboardServiceState() }
   }
   yield* Effect.sync(() => reportRetentionHealthEpisode(parsed.retentionHealth)).pipe(
-    Effect.catchCause(() => Effect.void)
+    Effect.catchCause(() => Effect.void),
   )
 
   return {
@@ -62,8 +62,8 @@ export const fetchDashboardServiceStateResultEffect = Effect.fn(
       workingSetActivity: normalizeWorkingSetActivity(parsed.workingSetActivity),
       openTabsSnapshot: parsed.openTabsSnapshot,
       retainedPages: retainedPagesResult.success,
-      retentionHealth: parsed.retentionHealth
-    }
+      retentionHealth: parsed.retentionHealth,
+    },
   }
 })
 

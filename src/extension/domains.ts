@@ -38,7 +38,7 @@ const USER_SPACE_SUFFIX_OVERRIDES = new Set([
   'surge.sh',
   'blogspot.com',
   'wordpress.com',
-  'tumblr.com'
+  'tumblr.com',
 ])
 
 // Callers already pass a normalized hostname extracted by the platform URL
@@ -80,7 +80,7 @@ export function registrableDomain(hostname: string): string {
   return getDomain(normalized, PUBLIC_SUFFIX_OPTIONS) || normalized
 }
 
-export function splitDomainForDisplay(domain: string): { name: string; suffix: string } {
+export function splitDomainForDisplay(domain: string): { name: string, suffix: string } {
   const normalized = normalizeHostname(domain)
   if (!normalized) return { name: normalized, suffix: '' }
   const matchedOverride = overriddenUserSpaceSuffix(normalized)

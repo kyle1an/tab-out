@@ -22,7 +22,7 @@ test('exclusive Effect bridge holds the callback lock until the workflow exits',
       events.push('effect')
       return 42
     }),
-    (cause) => cause
+    (cause) => cause,
   ))
 
   assert.equal(value, 42)
@@ -39,7 +39,7 @@ test('exclusive Effect bridge maps acquisition rejection without running the wor
     Effect.sync(() => {
       ran = true
     }),
-    (cause) => ({ cause })
+    (cause) => ({ cause }),
   )))
 
   assert.equal(ran, false)
@@ -62,7 +62,7 @@ test('interrupting an acquired exclusive Effect releases the callback lock', asy
   const fiber = Effect.runFork(runPromiseExclusiveEffect(
     runExclusive,
     Deferred.await(neverFinishes),
-    (cause) => cause
+    (cause) => cause,
   ))
 
   await Effect.runPromise(Deferred.await(acquired))

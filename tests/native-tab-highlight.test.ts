@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import {
   createNativeTabHighlightController,
-  type NativeTabHighlightDependencies
+  type NativeTabHighlightDependencies,
 } from '../src/extension/native-tab-highlight.js'
 import { setChromeTabsApi } from '../src/extension/browser-tabs-gateway.js'
 
@@ -16,7 +16,7 @@ function fakeTab(
   id: number,
   windowId: number,
   index: number,
-  { active = false, highlighted = active }: { active?: boolean; highlighted?: boolean } = {}
+  { active = false, highlighted = active }: { active?: boolean, highlighted?: boolean } = {},
 ): chrome.tabs.Tab {
   return {
     id,
@@ -25,7 +25,7 @@ function fakeTab(
     active,
     highlighted,
     pinned: false,
-    groupId: -1
+    groupId: -1,
   } as chrome.tabs.Tab
 }
 
@@ -35,7 +35,7 @@ function fakeWindow(id: number, type: chrome.windows.Window['type'] = 'normal', 
     type,
     focused,
     alwaysOnTop: false,
-    incognito: false
+    incognito: false,
   }
 }
 
@@ -62,7 +62,7 @@ function createHarness(tabs: chrome.tabs.Tab[], windows: chrome.windows.Window[]
     },
     async queryTabsInWindowResult(windowId) {
       return { ok: true, value: tabs.filter((tab) => tab.windowId === windowId) }
-    }
+    },
   }
   return { calls, dependencies }
 }
@@ -96,14 +96,14 @@ test('the default controller resolves live browser operations through BrowserTab
       },
       async query({ windowId }) {
         return tabs.filter((tab) => windowId === undefined || tab.windowId === windowId)
-      }
+      },
     },
     windows: {
       async get(windowId) {
         if (windowId !== window.id) throw new Error('window not found')
         return window
-      }
-    }
+      },
+    },
   })
   t.after(() => setChromeTabsApi(null))
 
@@ -117,7 +117,7 @@ test('native preview preserves the active tab and an existing multi-selection', 
   const tabs = [
     fakeTab(1, 1, 0, { active: true }),
     fakeTab(2, 1, 1),
-    fakeTab(3, 1, 2, { highlighted: true })
+    fakeTab(3, 1, 2, { highlighted: true }),
   ]
   const harness = createHarness(tabs, [fakeWindow(1, 'normal', true)])
   const controller = createNativeTabHighlightController(harness.dependencies)
@@ -135,7 +135,7 @@ test('moving between targets replaces the owned highlight in one window update',
   const tabs = [
     fakeTab(1, 1, 0, { active: true }),
     fakeTab(2, 1, 1),
-    fakeTab(3, 1, 2)
+    fakeTab(3, 1, 2),
   ]
   const harness = createHarness(tabs, [fakeWindow(1, 'normal', true)])
   const controller = createNativeTabHighlightController(harness.dependencies)
@@ -145,7 +145,7 @@ test('moving between targets replaces the owned highlight in one window update',
 
   assert.deepEqual(harness.calls, [
     { windowId: 1, tabIndexes: [0, 1] },
-    { windowId: 1, tabIndexes: [0, 2] }
+    { windowId: 1, tabIndexes: [0, 2] },
   ])
   assert.deepEqual(highlightedIds(tabs, 1), [1, 3])
 })
@@ -155,7 +155,7 @@ test('cross-window preview changes only the target window selection', async () =
     fakeTab(1, 1, 0, { active: true }),
     fakeTab(10, 2, 0, { active: true }),
     fakeTab(11, 2, 1),
-    fakeTab(12, 2, 2, { highlighted: true })
+    fakeTab(12, 2, 2, { highlighted: true }),
   ]
   const windows = [fakeWindow(1, 'normal', true), fakeWindow(2, 'normal', false)]
   const harness = createHarness(tabs, windows)
@@ -173,7 +173,7 @@ test('clear removes only the owned target and preserves later native selections'
   const tabs = [
     fakeTab(1, 1, 0, { active: true }),
     fakeTab(2, 1, 1),
-    fakeTab(3, 1, 2)
+    fakeTab(3, 1, 2),
   ]
   const harness = createHarness(tabs, [fakeWindow(1, 'normal', true)])
   const controller = createNativeTabHighlightController(harness.dependencies)
@@ -207,7 +207,7 @@ test('a stale zero-delay hover request cannot land after a newer target', async 
   const tabs = [
     fakeTab(1, 1, 0, { active: true }),
     fakeTab(2, 1, 1),
-    fakeTab(3, 1, 2)
+    fakeTab(3, 1, 2),
   ]
   const harness = createHarness(tabs, [fakeWindow(1, 'normal', true)])
   const { promise: firstRead, resolve: releaseFirstRead } = Promise.withResolvers<void>()
@@ -216,7 +216,7 @@ test('a stale zero-delay hover request cannot land after a newer target', async 
     async getTab(tabId) {
       if (tabId === 2) await firstRead
       return harness.dependencies.getTab(tabId)
-    }
+    },
   }
   const controller = createNativeTabHighlightController(dependencies)
 
@@ -242,7 +242,7 @@ test('a rejected browser read does not wedge later highlight requests', async ()
   const tabs = [
     fakeTab(1, 1, 0, { active: true }),
     fakeTab(2, 1, 1),
-    fakeTab(3, 1, 2)
+    fakeTab(3, 1, 2),
   ]
   const harness = createHarness(tabs, [fakeWindow(1, 'normal', true)])
   let rejectNextRead = true
@@ -254,7 +254,7 @@ test('a rejected browser read does not wedge later highlight requests', async ()
         return Promise.reject(new Error('transient tab read failure'))
       }
       return harness.dependencies.getTab(tabId)
-    }
+    },
   })
 
   await controller.setTarget(2)

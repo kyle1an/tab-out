@@ -17,29 +17,29 @@ export function createExtensionManifest(input: ExtensionManifestInput): chrome.r
     background: { service_worker: 'dist/background.js' },
     commands: {
       'switch-to-last-tab': {
-        description: 'Switch to the previous tab in global activation history'
+        description: 'Switch to the previous tab in global activation history',
       },
       'switch-to-next-tab': {
-        description: 'Switch forward to the next tab in global activation history'
+        description: 'Switch forward to the next tab in global activation history',
       },
       'open-filter-tab': {
-        description: 'Open Tab Out with the filter focused'
+        description: 'Open Tab Out with the filter focused',
       },
       'open-new-tab': {
-        description: 'Open a new Tab Out tab'
-      }
+        description: 'Open a new Tab Out tab',
+      },
     },
     action: {
       default_title: 'Tab Out',
       default_icon: {
         16: 'icons/icon16.png',
-        48: 'icons/icon48.png'
-      }
+        48: 'icons/icon48.png',
+      },
     },
     icons: {
       16: 'icons/blank16.png',
       48: 'icons/icon48.png',
-      128: 'icons/blank128.png'
-    }
+      128: 'icons/blank128.png',
+    },
   }
 }

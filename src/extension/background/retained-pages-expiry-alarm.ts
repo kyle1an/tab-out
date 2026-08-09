@@ -2,7 +2,7 @@ import { Effect, Schema } from 'effect'
 
 import {
   RETAINED_PAGE_LIFETIME_MS,
-  type RetainedPageLedger
+  type RetainedPageLedger,
 } from '../retained-pages-ledger.js'
 
 export const RETAINED_PAGES_EXPIRY_ALARM = 'tab-out:retained-pages-earliest-expiry'
@@ -16,8 +16,8 @@ class RetainedPagesExpiryAlarmError extends Schema.TaggedErrorClass<RetainedPage
   'RetainedPagesExpiryAlarmError',
   {
     operation: Schema.Literals(['create', 'clear']),
-    cause: Schema.Defect()
-  }
+    cause: Schema.Defect(),
+  },
 ) {}
 
 /**
@@ -40,22 +40,22 @@ export function earliestRetainedPageExpiry(ledger: RetainedPageLedger): number |
  * owns pruning; this scheduling seam never mutates the ledger.
  */
 export const scheduleRetainedPagesExpiryAlarm = Effect.fn(
-  'RetainedPages.scheduleExpiryAlarm'
-)(function*(
+  'RetainedPages.scheduleExpiryAlarm',
+)(function* (
   alarms: RetainedPagesExpiryAlarmApi,
-  ledger: RetainedPageLedger
+  ledger: RetainedPageLedger,
 ) {
   const when = earliestRetainedPageExpiry(ledger)
   if (when === null) {
     yield* Effect.tryPromise({
       try: () => alarms.clear(RETAINED_PAGES_EXPIRY_ALARM),
-      catch: (cause) => RetainedPagesExpiryAlarmError.make({ operation: 'clear', cause })
+      catch: (cause) => RetainedPagesExpiryAlarmError.make({ operation: 'clear', cause }),
     })
     return
   }
 
   yield* Effect.tryPromise({
     try: () => alarms.create(RETAINED_PAGES_EXPIRY_ALARM, { when }),
-    catch: (cause) => RetainedPagesExpiryAlarmError.make({ operation: 'create', cause })
+    catch: (cause) => RetainedPagesExpiryAlarmError.make({ operation: 'create', cause }),
   })
 })

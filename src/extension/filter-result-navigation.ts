@@ -42,7 +42,7 @@ export type FilterResultKeyboardEvent = {
 export const EMPTY_FILTER_RESULT_SELECTION: FilterResultSelection = {
   query: '',
   candidateKey: null,
-  identity: null
+  identity: null,
 }
 
 type FilterResultTarget = Pick<DashboardChipData | DashboardChipEnv, 'tabId' | 'tabUrl' | 'rawUrl' | 'sourceType'>
@@ -54,7 +54,7 @@ function filterResultIdentity(target: FilterResultTarget): string {
 
 export function filterResultCandidateForTarget(
   target: FilterResultTarget,
-  fallbackSourceType: DashboardTab['sourceType'] = 'tab'
+  fallbackSourceType: DashboardTab['sourceType'] = 'tab',
 ): FilterResultCandidate {
   const identity = filterResultIdentity(target)
   const sourceType = target.sourceType || fallbackSourceType
@@ -63,7 +63,7 @@ export function filterResultCandidateForTarget(
   return {
     key,
     identity,
-    domId: `tab-out-filter-result-${encodeURIComponent(key)}`
+    domId: `tab-out-filter-result-${encodeURIComponent(key)}`,
   }
 }
 
@@ -86,13 +86,13 @@ function resultChipsForCard({ vm }: DashboardCardEntry): DashboardChipData[] {
       ...websitePathSection.flatHiddenChips,
       ...websitePathSection.clusters.flatMap((cluster) => [
         ...cluster.visibleChips,
-        ...cluster.hiddenChips
-      ])
+        ...cluster.hiddenChips,
+      ]),
     ]),
     ...section.clusters.flatMap((cluster) => [
       ...cluster.visibleChips,
-      ...cluster.hiddenChips
-    ])
+      ...cluster.hiddenChips,
+    ]),
   ])
 }
 
@@ -103,7 +103,7 @@ function filterResultCandidatesForCards(cards: readonly DashboardCardEntry[]): F
 export function buildFilterResultCandidates({
   primaryMatches,
   historyMatches = [],
-  bookmarkMatches = []
+  bookmarkMatches = [],
 }: {
   primaryMatches: readonly DashboardCardEntry[]
   historyMatches?: readonly DashboardCardEntry[]
@@ -112,12 +112,12 @@ export function buildFilterResultCandidates({
   return [
     ...filterResultCandidatesForCards(primaryMatches),
     ...filterResultCandidatesForCards(historyMatches),
-    ...filterResultCandidatesForCards(bookmarkMatches)
+    ...filterResultCandidatesForCards(bookmarkMatches),
   ]
 }
 
 export function filterResultKeyboardIntent(
-  event: FilterResultKeyboardEvent
+  event: FilterResultKeyboardEvent,
 ): FilterResultKeyboardIntent | null {
   if (event.isComposing || event.altKey) return null
   if (event.key === 'ArrowDown') return 'next'
@@ -132,14 +132,14 @@ function selectionForCandidate(query: string, candidate: FilterResultCandidate |
   return {
     query,
     candidateKey: candidate?.key ?? null,
-    identity: candidate?.identity ?? null
+    identity: candidate?.identity ?? null,
   }
 }
 
 export function reconcileFilterResultSelection(
   current: FilterResultSelection,
   query: string,
-  candidates: readonly FilterResultCandidate[]
+  candidates: readonly FilterResultCandidate[],
 ): FilterResultSelection {
   if (!query.trim() || candidates.length === 0) return selectionForCandidate(query, undefined)
   if (current.query !== query) return selectionForCandidate(query, undefined)
@@ -156,7 +156,7 @@ export function reconcileVisibleFilterResultSelection(
   current: FilterResultSelection,
   query: string,
   candidates: readonly FilterResultCandidate[],
-  isVisible: (candidate: FilterResultCandidate) => boolean
+  isVisible: (candidate: FilterResultCandidate) => boolean,
 ): {
   selection: FilterResultSelection
   candidate: FilterResultCandidate | undefined
@@ -164,14 +164,14 @@ export function reconcileVisibleFilterResultSelection(
   if (!query.trim() || candidates.length === 0) {
     return {
       selection: selectionForCandidate(query, undefined),
-      candidate: undefined
+      candidate: undefined,
     }
   }
 
   if (current.query !== query || current.identity === null) {
     return {
       selection: selectionForCandidate(query, undefined),
-      candidate: undefined
+      candidate: undefined,
     }
   }
 
@@ -191,7 +191,7 @@ export function reconcileVisibleFilterResultSelection(
   candidate ??= candidates.find(candidateIsVisible)
   return {
     selection: selectionForCandidate(query, candidate),
-    candidate
+    candidate,
   }
 }
 
@@ -199,7 +199,7 @@ export function selectAdjacentFilterResult(
   current: FilterResultSelection,
   query: string,
   candidates: readonly FilterResultCandidate[],
-  direction: 'next' | 'previous'
+  direction: 'next' | 'previous',
 ): FilterResultSelection {
   const reconciled = reconcileFilterResultSelection(current, query, candidates)
   const currentIndex = candidates.findIndex((candidate) => candidate.key === reconciled.candidateKey)
@@ -228,12 +228,12 @@ export function selectHorizontalFilterResult(
   current: FilterResultSelection,
   query: string,
   positionedCandidates: readonly PositionedFilterResultCandidate[],
-  direction: HorizontalFilterResultDirection
+  direction: HorizontalFilterResultDirection,
 ): FilterResultSelection {
   const candidates = positionedCandidates.map(({ candidate }) => candidate)
   const reconciled = reconcileFilterResultSelection(current, query, candidates)
   const currentPosition = positionedCandidates.find(
-    ({ candidate }) => candidate.key === reconciled.candidateKey
+    ({ candidate }) => candidate.key === reconciled.candidateKey,
   )
   if (!currentPosition) return reconciled
 
@@ -247,7 +247,7 @@ export function selectHorizontalFilterResult(
 
     const majorAxisDistance = Math.max(horizontalGap, 0)
     const minorAxisDistance = Math.abs(
-      verticalCenter(position.rect) - verticalCenter(currentPosition.rect)
+      verticalCenter(position.rect) - verticalCenter(currentPosition.rect),
     )
     const inVerticalBeam = verticallyOverlaps(position.rect, currentPosition.rect)
 
@@ -259,7 +259,7 @@ export function selectHorizontalFilterResult(
       minorAxisDistance,
       weightedDistance:
         HORIZONTAL_AXIS_DISTANCE_WEIGHT * majorAxisDistance ** 2 +
-        minorAxisDistance ** 2
+        minorAxisDistance ** 2,
     }]
   })
 

@@ -3,17 +3,17 @@ import test, { type TestContext } from 'node:test'
 import { Effect, ManagedRuntime, Result } from 'effect'
 
 import {
-  WorkingSetActivityAuthorityError
+  WorkingSetActivityAuthorityError,
 } from '../src/extension/background/working-set-activity-authority.js'
 import {
   WorkingSetActivityStorage,
-  type WorkingSetActivityWrite
+  type WorkingSetActivityWrite,
 } from '../src/extension/background/working-set-activity-storage.js'
 import { makeWorkingSetActivityStorageLayer } from '../src/extension/background/working-set-activity-storage-layer.js'
 import type { ChromeApi } from '../src/extension/background/chrome-api.js'
 import {
   emptyWorkingSetActivity,
-  recordWorkingSetActivityMutation
+  recordWorkingSetActivityMutation,
 } from '../src/extension/working-set.js'
 import type { WorkingSetActivityStore } from '../src/extension/types'
 
@@ -24,38 +24,38 @@ function makeStorage(
     readonly write?: (change: WorkingSetActivityWrite) => PromiseLike<void>
     readonly replace?: (activity: WorkingSetActivityStore) => PromiseLike<void>
     readonly close?: () => PromiseLike<void>
-  }
+  },
 ) {
   const runtime = ManagedRuntime.make(WorkingSetActivityStorage.layer({
     read: options.read,
     write: options.write ?? (() => Promise.resolve()),
     replace: options.replace ?? (() => Promise.resolve()),
-    ...(options.close === undefined ? {} : { close: options.close })
+    ...(options.close === undefined ? {} : { close: options.close }),
   }))
   runtime.runSync(Effect.void)
   t.after(() => runtime.dispose())
   return {
     runtime,
-    storage: runtime.runSync(WorkingSetActivityStorage)
+    storage: runtime.runSync(WorkingSetActivityStorage),
   }
 }
 
 test('Working Set storage reports malformed and unsupported outer schemas as typed read failures', async (t) => {
   const malformed = makeStorage(t, {
-    read: () => Promise.resolve({ version: 1, records: [] })
+    read: () => Promise.resolve({ version: 1, records: [] }),
   })
   const malformedResult = await malformed.runtime.runPromise(
-    Effect.result(malformed.storage.read())
+    Effect.result(malformed.storage.read()),
   )
   assert.ok(Result.isFailure(malformedResult))
   assert.equal(malformedResult.failure.operation, 'read')
   assert.equal(malformedResult.failure.reason, 'malformed')
 
   const unsupported = makeStorage(t, {
-    read: () => Promise.resolve({ version: 2, records: {} })
+    read: () => Promise.resolve({ version: 2, records: {} }),
   })
   const unsupportedResult = await unsupported.runtime.runPromise(
-    Effect.result(unsupported.storage.read())
+    Effect.result(unsupported.storage.read()),
   )
   assert.ok(Result.isFailure(unsupportedResult))
   assert.equal(unsupportedResult.failure.operation, 'read')
@@ -74,19 +74,19 @@ test('Working Set storage repairs row and event damage after accepting the outer
           title: 'Docs',
           events: [
             { kind: 'activation', at: now - 1_000 },
-            { kind: 'navigation', at: 'invalid' }
-          ]
+            { kind: 'navigation', at: 'invalid' },
+          ],
         },
-        malformed: null
-      }
-    })
+        malformed: null,
+      },
+    }),
   })
 
   const activity = await runtime.runPromise(storage.read())
 
   assert.deepEqual(Object.keys(activity.records), [key])
   assert.deepEqual(activity.records[key]?.events, [
-    { kind: 'activation', at: now - 1_000 }
+    { kind: 'activation', at: now - 1_000 },
   ])
 })
 
@@ -102,7 +102,7 @@ test('Working Set storage forwards record deltas and full replacements to its ba
     replace: (activity) => {
       replaced = activity
       return Promise.resolve()
-    }
+    },
   })
   const change = recordWorkingSetActivityMutation(emptyWorkingSetActivity(), {
     kind: 'activation',
@@ -110,8 +110,8 @@ test('Working Set storage forwards record deltas and full replacements to its ba
     tab: {
       url: 'https://example.test/docs',
       rawUrl: 'https://example.test/docs',
-      title: 'Docs'
-    }
+      title: 'Docs',
+    },
   })
 
   await runtime.runPromise(storage.write(change))
@@ -123,7 +123,7 @@ test('Working Set storage forwards record deltas and full replacements to its ba
 
 test('Working Set storage treats an unavailable Chrome backend as unknown, not known empty', async (t) => {
   const runtime = ManagedRuntime.make(
-    makeWorkingSetActivityStorageLayer({} as ChromeApi)
+    makeWorkingSetActivityStorageLayer({} as ChromeApi),
   )
   runtime.runSync(Effect.void)
   t.after(() => runtime.dispose())
@@ -138,7 +138,7 @@ test('Working Set storage treats an unavailable Chrome backend as unknown, not k
   assert.equal(result.failure.cause.phase, 'marker-read')
   assert.match(
     String(result.failure.cause.cause),
-    /local storage is unavailable/
+    /local storage is unavailable/,
   )
 })
 
@@ -151,7 +151,7 @@ test('Working Set storage keeps Layer construction synchronous and closes its ba
     close: () => {
       closeCount += 1
       return Promise.resolve()
-    }
+    },
   }))
 
   runtime.runSync(Effect.void)

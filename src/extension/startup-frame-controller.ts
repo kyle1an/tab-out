@@ -1,29 +1,29 @@
 export const STARTUP_ADMISSION_TIMEOUT_MS = 5_000
 
 export type StartupAdmissionFailure<Error> =
-  | { readonly kind: 'capture'; readonly error: Error }
+  | { readonly kind: 'capture', readonly error: Error }
   | { readonly kind: 'timeout' }
 
 export type StartupAdmissionState<Value, Error> =
   | { readonly phase: 'shell' }
   | {
-      readonly phase: 'capturing'
-      readonly attempt: number
-    }
+    readonly phase: 'capturing'
+    readonly attempt: number
+  }
   | {
-      readonly phase: 'failed'
-      readonly attempt: number
-      readonly failure: StartupAdmissionFailure<Error>
-    }
+    readonly phase: 'failed'
+    readonly attempt: number
+    readonly failure: StartupAdmissionFailure<Error>
+  }
   | {
-      readonly phase: 'ready'
-      readonly attempt: number
-      readonly value: Value
-    }
+    readonly phase: 'ready'
+    readonly attempt: number
+    readonly value: Value
+  }
 
 export type StartupAdmissionCaptureResult<Value, Error> =
-  | { readonly ok: true; readonly value: Value }
-  | { readonly ok: false; readonly error: Error }
+  | { readonly ok: true, readonly value: Value }
+  | { readonly ok: false, readonly error: Error }
 
 export type StartupAdmissionCaptureRequest = {
   readonly attempt: number
@@ -39,7 +39,7 @@ export type StartupAdmissionCancellation = {
 
 export type StartupAdmissionCaptureRunner<Value, Error> = (
   request: StartupAdmissionCaptureRequest,
-  settle: (result: StartupAdmissionCaptureResult<Value, Error>) => void
+  settle: (result: StartupAdmissionCaptureResult<Value, Error>) => void,
 ) => StartupAdmissionCancellation
 
 export type StartupAdmissionTimer = {
@@ -48,7 +48,7 @@ export type StartupAdmissionTimer = {
 
 export type StartupAdmissionSchedule = (
   delayMs: number,
-  callback: () => void
+  callback: () => void,
 ) => StartupAdmissionTimer
 
 export type StartupAdmissionControllerOptions<Value, Error> = {
@@ -83,12 +83,12 @@ const scheduleWithPlatformTimer: StartupAdmissionSchedule = (delayMs, callback) 
   return {
     cancel() {
       globalThis.clearTimeout(timer)
-    }
+    },
   }
 }
 
 export function createStartupAdmissionController<Value, Error>(
-  options: StartupAdmissionControllerOptions<Value, Error>
+  options: StartupAdmissionControllerOptions<Value, Error>,
 ): StartupAdmissionController<Value, Error> {
   const now = options.now ?? Date.now
   const schedule = options.schedule ?? scheduleWithPlatformTimer
@@ -119,7 +119,7 @@ export function createStartupAdmissionController<Value, Error>(
 
   const cancelTimer = (
     attempt: ActiveAttempt,
-    key: 'deadlineTimer' | 'recaptureTimer'
+    key: 'deadlineTimer' | 'recaptureTimer',
   ) => {
     const timer = attempt[key]
     attempt[key] = null
@@ -139,14 +139,14 @@ export function createStartupAdmissionController<Value, Error>(
     publish({
       phase: 'failed',
       attempt: attempt.id,
-      failure: { kind: 'timeout' }
+      failure: { kind: 'timeout' },
     })
   }
 
   const settleCapture = (
     attempt: ActiveAttempt,
     token: number,
-    result: StartupAdmissionCaptureResult<Value, Error>
+    result: StartupAdmissionCaptureResult<Value, Error>,
   ) => {
     if (
       disposed ||
@@ -168,7 +168,7 @@ export function createStartupAdmissionController<Value, Error>(
       publish({
         phase: 'failed',
         attempt: attempt.id,
-        failure: { kind: 'capture', error: result.error }
+        failure: { kind: 'capture', error: result.error },
       })
       return
     }
@@ -197,7 +197,7 @@ export function createStartupAdmissionController<Value, Error>(
       generation: attempt.generation,
       startedAt: attempt.startedAt,
       deadlineAt: attempt.deadlineAt,
-      remainingMs: attempt.deadlineAt - capturedAt
+      remainingMs: attempt.deadlineAt - capturedAt,
     }, (result) => {
       settleCapture(attempt, token, result)
     })
@@ -227,12 +227,12 @@ export function createStartupAdmissionController<Value, Error>(
       activeCapture: null,
       activeToken: null,
       deadlineTimer: null,
-      recaptureTimer: null
+      recaptureTimer: null,
     }
     activeAttempt = attempt
     publish({
       phase: 'capturing',
-      attempt: attempt.id
+      attempt: attempt.id,
     })
 
     attempt.deadlineTimer = schedule(timeoutMs, () => {
@@ -303,6 +303,6 @@ export function createStartupAdmissionController<Value, Error>(
       disposed = true
       if (activeAttempt !== null) endAttempt(activeAttempt)
       listeners.clear()
-    }
+    },
   }
 }

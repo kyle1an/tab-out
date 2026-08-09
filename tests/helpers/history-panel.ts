@@ -5,11 +5,11 @@ import { TabHistoryPanel } from '../../src/components/TabHistoryPanel.js'
 import type {
   TabHistoryEntry,
   TabHistorySnapshot,
-  WorkingSetSnapshot
+  WorkingSetSnapshot,
 } from '../../src/extension/types'
 
 export function makeHistoryEntry(
-  overrides: Partial<TabHistoryEntry> = {}
+  overrides: Partial<TabHistoryEntry> = {},
 ): TabHistoryEntry {
   return {
     index: 0,
@@ -32,13 +32,13 @@ export function makeHistoryEntry(
     displayUrl: 'example.com/docs',
     favIconUrl: 'https://example.com/icon.png',
     lastActivatedAt: null,
-    ...overrides
+    ...overrides,
   }
 }
 
 function makeHistorySnapshot(
   entries: TabHistoryEntry[],
-  overrides: Partial<TabHistorySnapshot> = {}
+  overrides: Partial<TabHistorySnapshot> = {},
 ): TabHistorySnapshot {
   return {
     stackSize: entries.length,
@@ -51,14 +51,14 @@ function makeHistorySnapshot(
     activeWindowId: 1,
     activeWasInserted: false,
     ...overrides,
-    entries
+    entries,
   }
 }
 
 export function renderHistoryPanel(
   entries: TabHistoryEntry[],
   snapshotOverrides: Partial<TabHistorySnapshot> = {},
-  workingSet: WorkingSetSnapshot | null = null
+  workingSet: WorkingSetSnapshot | null = null,
 ): string {
   return renderToStaticMarkup(
     React.createElement(
@@ -66,7 +66,7 @@ export function renderHistoryPanel(
         snapshot: TabHistorySnapshot
         workingSet?: WorkingSetSnapshot | null
       }>,
-      { snapshot: makeHistorySnapshot(entries, snapshotOverrides), workingSet }
-    )
+      { snapshot: makeHistorySnapshot(entries, snapshotOverrides), workingSet },
+    ),
   )
 }

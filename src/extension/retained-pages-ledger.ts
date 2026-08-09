@@ -83,18 +83,18 @@ export function emptyRetainedPageLedger(): RetainedPageLedger {
     schemaVersion: 1,
     identityVersion: 1,
     pages: {},
-    removalBoundaries: {}
+    removalBoundaries: {},
   }
 }
 
 export function recordRetainedPageClosure(
   ledger: RetainedPageLedger,
-  closure: RetainedPageClosure
+  closure: RetainedPageClosure,
 ): RecordRetainedPageClosureResult {
   const recorded = recordRetainedPageClosures(ledger, [closure])
   return {
     ledger: recorded.ledger,
-    ...(recorded.results[0] ?? { changed: false, outcome: 'stale' })
+    ...(recorded.results[0] ?? { changed: false, outcome: 'stale' }),
   }
 }
 
@@ -105,7 +105,7 @@ interface RemovalBoundaryIndex {
 }
 
 function indexRemovalBoundaries(
-  boundaries: Readonly<Record<string, RetainedPageRemovalBoundary>>
+  boundaries: Readonly<Record<string, RetainedPageRemovalBoundary>>,
 ): RemovalBoundaryIndex {
   const byToken = new Map<string, RetainedPageRemovalBoundary>()
   const latestByIdentity = new Map<string, RetainedPageRemovalBoundary>()
@@ -123,7 +123,7 @@ function indexRemovalBoundaries(
 
 function removeIndexedBoundariesForIdentity(
   index: RemovalBoundaryIndex,
-  identityDigest: string
+  identityDigest: string,
 ): void {
   const tokens = index.tokensByIdentity.get(identityDigest)
   if (!tokens) return
@@ -134,21 +134,21 @@ function removeIndexedBoundariesForIdentity(
 
 function setIndexedReplayBoundary(
   index: RemovalBoundaryIndex,
-  page: RetainedPageRecord
+  page: RetainedPageRecord,
 ): void {
   removeIndexedBoundariesForIdentity(index, page.identityDigest)
   const boundary = replayBoundaryForPage(page)
   index.byToken.set(boundary.closureToken, boundary)
   index.tokensByIdentity.set(
     boundary.identityDigest,
-    new Set([boundary.closureToken])
+    new Set([boundary.closureToken]),
   )
   index.latestByIdentity.set(boundary.identityDigest, boundary)
 }
 
 function compareRetainedPageOrder(
   left: RetainedPageRecord,
-  right: RetainedPageRecord
+  right: RetainedPageRecord,
 ): number {
   return left.closedAt - right.closedAt ||
     left.closureToken.localeCompare(right.closureToken) ||
@@ -163,7 +163,7 @@ function compareRetainedPageOrder(
  */
 export function recordRetainedPageClosures(
   ledger: RetainedPageLedger,
-  closures: readonly RetainedPageClosure[]
+  closures: readonly RetainedPageClosure[],
 ): RecordRetainedPageClosuresResult {
   if (closures.length === 0) return { ledger, changed: false, results: [] }
 
@@ -181,7 +181,7 @@ export function recordRetainedPageClosures(
         identityBoundary &&
         compareClosureOrder(closure, {
           closedAt: identityBoundary.expiresAt - RETAINED_PAGE_LIFETIME_MS,
-          closureToken: identityBoundary.closureToken
+          closureToken: identityBoundary.closureToken,
         }) <= 0
       )
     ) {
@@ -208,7 +208,7 @@ export function recordRetainedPageClosures(
       title: closure.title || existing?.title || '',
       closedAt: closure.closedAt,
       closureToken: closure.closureToken,
-      ...(favIconUrl ? { favIconUrl } : {})
+      ...(favIconUrl ? { favIconUrl } : {}),
     }
     pages.set(closure.identityDigest, retainedRecord)
 
@@ -216,14 +216,14 @@ export function recordRetainedPageClosures(
     if (pages.size > RETAINED_PAGE_CAPACITY) {
       const capacityCandidates = [...pages.values()]
       const kept = capacityCandidates.toSorted((left, right) =>
-        compareRetainedPageOrder(right, left)
+        compareRetainedPageOrder(right, left),
       ).slice(0, RETAINED_PAGE_CAPACITY)
       const keptTokens = new Map(kept.map((page) => [
         page.identityDigest,
-        page.closureToken
+        page.closureToken,
       ]))
       evicted = capacityCandidates.filter((page) =>
-        keptTokens.get(page.identityDigest) !== page.closureToken
+        keptTokens.get(page.identityDigest) !== page.closureToken,
       )
       pages.clear()
       for (const page of kept) pages.set(page.identityDigest, page)
@@ -242,7 +242,7 @@ export function recordRetainedPageClosures(
     ledgerChanged = true
     results.push({
       changed: true,
-      outcome: accepted ? (existing ? 'refreshed' : 'inserted') : 'stale'
+      outcome: accepted ? (existing ? 'refreshed' : 'inserted') : 'stale',
     })
   }
 
@@ -251,26 +251,26 @@ export function recordRetainedPageClosures(
     ledger: {
       ...ledger,
       pages: Object.fromEntries(pages),
-      removalBoundaries: Object.fromEntries(boundaries.byToken)
+      removalBoundaries: Object.fromEntries(boundaries.byToken),
     },
     changed: true,
-    results
+    results,
   }
 }
 
 function replayBoundaryForPage(
-  page: RetainedPageRecord
+  page: RetainedPageRecord,
 ): RetainedPageRemovalBoundary {
   return {
     identityDigest: page.identityDigest,
     closureToken: page.closureToken,
-    expiresAt: page.closedAt + RETAINED_PAGE_LIFETIME_MS
+    expiresAt: page.closedAt + RETAINED_PAGE_LIFETIME_MS,
   }
 }
 
 function compareBoundaryOrder(
   left: RetainedPageRemovalBoundary,
-  right: RetainedPageRemovalBoundary
+  right: RetainedPageRemovalBoundary,
 ): number {
   return left.expiresAt - right.expiresAt ||
     left.closureToken.localeCompare(right.closureToken)
@@ -278,19 +278,19 @@ function compareBoundaryOrder(
 
 function withReplayBoundary(
   boundaries: Readonly<Record<string, RetainedPageRemovalBoundary>>,
-  page: RetainedPageRecord
+  page: RetainedPageRecord,
 ): Readonly<Record<string, RetainedPageRemovalBoundary>> {
   const boundary = replayBoundaryForPage(page)
   return {
     ...omitBoundariesForIdentity(boundaries, page.identityDigest),
-    [boundary.closureToken]: boundary
+    [boundary.closureToken]: boundary,
   }
 }
 
 export function removeRetainedPageSnapshot(
   ledger: RetainedPageLedger,
   identityDigest: string,
-  closureToken: string
+  closureToken: string,
 ): RemoveRetainedPageSnapshotResult {
   const page = ledger.pages[identityDigest]
   if (!page) {
@@ -304,16 +304,16 @@ export function removeRetainedPageSnapshot(
     ledger: {
       ...ledger,
       pages: omitIdentity(ledger.pages, identityDigest),
-      removalBoundaries: withReplayBoundary(ledger.removalBoundaries, page)
+      removalBoundaries: withReplayBoundary(ledger.removalBoundaries, page),
     },
     changed: true,
-    outcome: 'removed'
+    outcome: 'removed',
   }
 }
 
 export function removeRetainedPageSnapshots(
   ledger: RetainedPageLedger,
-  snapshots: readonly RetainedPageSnapshotTarget[]
+  snapshots: readonly RetainedPageSnapshotTarget[],
 ): RemoveRetainedPageSnapshotsResult {
   let nextLedger = ledger
   let changed = false
@@ -323,7 +323,7 @@ export function removeRetainedPageSnapshots(
     const result = removeRetainedPageSnapshot(
       nextLedger,
       snapshot.identityDigest,
-      snapshot.closureToken
+      snapshot.closureToken,
     )
     nextLedger = result.ledger
     changed ||= result.changed
@@ -335,7 +335,7 @@ export function removeRetainedPageSnapshots(
 
 function omitBoundariesForIdentity(
   boundaries: Readonly<Record<string, RetainedPageRemovalBoundary>>,
-  omittedIdentity: string
+  omittedIdentity: string,
 ): Readonly<Record<string, RetainedPageRemovalBoundary>> {
   const next: Record<string, RetainedPageRemovalBoundary> = {}
   for (const [closureToken, boundary] of Object.entries(boundaries)) {
@@ -346,14 +346,14 @@ function omitBoundariesForIdentity(
 
 function compareClosureOrder(
   left: Pick<RetainedPageClosure, 'closedAt' | 'closureToken'>,
-  right: Pick<RetainedPageClosure, 'closedAt' | 'closureToken'>
+  right: Pick<RetainedPageClosure, 'closedAt' | 'closureToken'>,
 ): number {
   return left.closedAt - right.closedAt || left.closureToken.localeCompare(right.closureToken)
 }
 
 function omitIdentity<Value>(
   values: Readonly<Record<string, Value>>,
-  omittedIdentity: string
+  omittedIdentity: string,
 ): Readonly<Record<string, Value>> {
   const next: Record<string, Value> = {}
   for (const [identity, value] of Object.entries(values)) {
@@ -363,13 +363,13 @@ function omitIdentity<Value>(
 }
 
 export function enforceRetainedPageCapacity(
-  pages: Readonly<Record<string, RetainedPageRecord>>
+  pages: Readonly<Record<string, RetainedPageRecord>>,
 ): Readonly<Record<string, RetainedPageRecord>> {
   const records = Object.values(pages)
   if (records.length <= RETAINED_PAGE_CAPACITY) return pages
 
   const kept = records.toSorted((left, right) =>
-    compareRetainedPageOrder(right, left)
+    compareRetainedPageOrder(right, left),
   ).slice(0, RETAINED_PAGE_CAPACITY)
   const nextPages: Record<string, RetainedPageRecord> = {}
   for (const page of kept) nextPages[page.identityDigest] = page
@@ -378,7 +378,7 @@ export function enforceRetainedPageCapacity(
 
 export function pruneRetainedPageLedger(
   ledger: RetainedPageLedger,
-  now: number
+  now: number,
 ): PruneRetainedPageLedgerResult {
   const pages: Record<string, RetainedPageRecord> = {}
   const removalBoundaries: Record<string, RetainedPageRemovalBoundary> = {}
@@ -432,7 +432,7 @@ export function pruneRetainedPageLedger(
       changed: false,
       removedPages: 0,
       removedBoundaries: 0,
-      nextExpiryAt
+      nextExpiryAt,
     }
   }
 
@@ -441,7 +441,7 @@ export function pruneRetainedPageLedger(
     changed: true,
     removedPages,
     removedBoundaries,
-    nextExpiryAt
+    nextExpiryAt,
   }
 }
 

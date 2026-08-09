@@ -7,7 +7,7 @@ import type { CompiledFilterQuery } from './filter-query.js'
 
 export function tabMatchesCompiledFilter(
   tab: Pick<DashboardTab, 'title' | 'url' | 'isTabOut'>,
-  query: CompiledFilterQuery
+  query: CompiledFilterQuery,
 ): boolean {
   if (!query.active) return true
   if (query.terms.length === 0) return false
@@ -22,7 +22,7 @@ export function tabMatchesFilter(tab: Pick<DashboardTab, 'title' | 'url' | 'isTa
 
 export function tabMatchesSourceFilter(
   tab: Pick<DashboardTab, 'title' | 'url' | 'isTabOut'>,
-  filter: string
+  filter: string,
 ): boolean {
   return tabMatchesFilter(tab, filter)
 }

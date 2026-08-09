@@ -23,7 +23,7 @@ import {
   removeTabs,
   requestExternalUnsuspend,
   setChromeTabsApi,
-  updateTab
+  updateTab,
 } from '../src/extension/browser-tabs-gateway.js'
 import type { ChromeTabsApi } from '../src/extension/browser-tabs-gateway.js'
 import { createFakeChromeApi } from './helpers/fake-chrome.mjs'
@@ -102,8 +102,8 @@ test('gateway never throws: missing global and rejecting apis normalize to empty
       },
       get: async () => {
         throw new Error('boom')
-      }
-    }
+      },
+    },
   } as unknown as ChromeTabsApi
   setChromeTabsApi(rejecting)
   assert.deepEqual(await queryAllTabsResult(), { ok: false, value: [] })
@@ -116,8 +116,8 @@ test('getCurrentTab normalizes current-page lookup availability and rejection', 
   setChromeTabsApi({
     tabs: {
       query: async () => [],
-      getCurrent: async () => currentTab
-    }
+      getCurrent: async () => currentTab,
+    },
   })
   assert.equal(await getCurrentTab(), currentTab)
 
@@ -126,8 +126,8 @@ test('getCurrentTab normalizes current-page lookup availability and rejection', 
       query: async () => [],
       getCurrent: async () => {
         throw new Error('Current page unavailable')
-      }
-    }
+      },
+    },
   })
   assert.equal(await getCurrentTab(), null)
 })
@@ -138,14 +138,14 @@ test('window tab reads and native highlighting stay scoped to the requested wind
   const calls = {
     highlight: [] as chrome.tabs.HighlightInfo[],
     query: [] as chrome.tabs.QueryInfo[],
-    windows: [] as number[]
+    windows: [] as number[],
   }
   const targetWindow = {
     id: 4,
     type: 'normal',
     focused: false,
     alwaysOnTop: false,
-    incognito: false
+    incognito: false,
   } as chrome.windows.Window
   setChromeTabsApi({
     tabs: {
@@ -156,26 +156,26 @@ test('window tab reads and native highlighting stay scoped to the requested wind
       highlight: async (highlightInfo) => {
         calls.highlight.push(highlightInfo)
         return targetWindow
-      }
+      },
     },
     windows: {
       get: async (windowId) => {
         calls.windows.push(windowId)
         return targetWindow
-      }
-    }
+      },
+    },
   })
 
   assert.deepEqual(await queryTabsInWindowResult(4), {
     ok: true,
-    value: [fakeTab(8, 'https://target.test/', { windowId: 4, index: 2 })]
+    value: [fakeTab(8, 'https://target.test/', { windowId: 4, index: 2 })],
   })
   assert.equal((await getWindow(4))?.id, 4)
   assert.equal(await highlightTabs(4, [2, 2, -1, 0]), true)
   assert.deepEqual(calls, {
     highlight: [{ windowId: 4, tabs: [2, 0] }],
     query: [{ windowId: 4 }],
-    windows: [4]
+    windows: [4],
   })
 })
 
@@ -184,11 +184,11 @@ test('collection read results distinguish Chrome rejection from confirmed empty 
   setChromeTabsApi({
     tabs: { query: async () => [] },
     tabGroups: {
-      query: async () => { throw new Error('group metadata unavailable') }
+      query: async () => { throw new Error('group metadata unavailable') },
     },
     sessions: {
-      getRecentlyClosed: async () => { throw new Error('sessions unavailable') }
-    }
+      getRecentlyClosed: async () => { throw new Error('sessions unavailable') },
+    },
   } as unknown as ChromeTabsApi)
 
   assert.deepEqual(await queryTabGroupsResult(), { ok: false, value: [] })
@@ -208,8 +208,8 @@ test('reloadTab and duplicateTab normalize Chrome tab commands', async (t) => {
       duplicate: async (tabId: number) => {
         calls.duplicate.push(tabId)
         return fakeTab(9, 'https://duplicate.test/')
-      }
-    }
+      },
+    },
   } as unknown as ChromeTabsApi
   setChromeTabsApi(api)
 
@@ -225,8 +225,8 @@ test('reloadTab and duplicateTab normalize Chrome tab commands', async (t) => {
       },
       duplicate: async () => {
         throw new Error('gone')
-      }
-    }
+      },
+    },
   } as unknown as ChromeTabsApi)
   assert.equal(await reloadTab(4), false)
   assert.equal(await duplicateTab(4), null)
@@ -243,8 +243,8 @@ test('removeTabs falls back to per-id removal when the batch rejects, and report
         if (Array.isArray(tabIds)) throw new Error('batch contains a missing tab')
         if (tabIds === 2) throw new Error('already gone')
         removed.push(tabIds)
-      }
-    }
+      },
+    },
   } as unknown as ChromeTabsApi
   setChromeTabsApi(api)
 
@@ -273,8 +273,8 @@ test('createTabWithFallbackUrl retries the effective url when the raw url is ref
         if (props.url?.startsWith('chrome-extension://')) throw new Error('refused')
         created.push(props.url || '')
         return fakeTab(9, props.url || '')
-      }
-    }
+      },
+    },
   } as unknown as ChromeTabsApi
   setChromeTabsApi(api)
 
@@ -302,7 +302,7 @@ test('groupTabs guards a missing tabs.group and reports success through the fake
 test('requestExternalUnsuspend refuses self, missing messaging, and suspender errors', async (t) => {
   t.after(() => setChromeTabsApi(null))
 
-  const messages: Array<{ extensionId: string; message: unknown }> = []
+  const messages: Array<{ extensionId: string, message: unknown }> = []
   const apiWith = (response: unknown, id = 'tab-out-self') =>
     ({
       tabs: { query: async () => [] },
@@ -311,8 +311,8 @@ test('requestExternalUnsuspend refuses self, missing messaging, and suspender er
         sendMessage: async (extensionId: string, message: unknown) => {
           messages.push({ extensionId, message })
           return response
-        }
-      }
+        },
+      },
     }) as unknown as ChromeTabsApi
 
   setChromeTabsApi(apiWith('done'))
@@ -331,13 +331,13 @@ test('fake windows and sessions back the read ops', async (t) => {
 
   const windows = [
     { id: 1, type: 'normal', focused: false },
-    { id: 2, type: 'normal', focused: true }
+    { id: 2, type: 'normal', focused: true },
   ] as chrome.windows.Window[]
   setChromeTabsApi(
     createFakeChromeApi({
       windows,
-      recentlyClosed: [{ lastModified: 1, tab: fakeTab(4, 'https://closed.test/') } as unknown as chrome.sessions.Session]
-    })
+      recentlyClosed: [{ lastModified: 1, tab: fakeTab(4, 'https://closed.test/') } as unknown as chrome.sessions.Session],
+    }),
   )
 
   assert.equal((await getCurrentWindow())?.id, 2)

@@ -6,12 +6,12 @@ import {
   PAGE_CHIP_PIN_STORAGE_KEY,
   pageChipPinId,
   pageChipPinKeyForUrl,
-  pageChipPinScopeId
+  pageChipPinScopeId,
 } from '../../src/extension/page-chip-pins.js'
 import { SAVED_PAGES_STORAGE_KEY, savedPageKeyForUrl } from '../../src/extension/saved-pages.js'
 import { SECTION_PIN_STORAGE_KEY, pathgroupPinId } from '../../src/extension/section-pins.js'
 import {
-  DASHBOARD_STARTUP_SEED_CACHE_KEY
+  DASHBOARD_STARTUP_SEED_CACHE_KEY,
 } from '../../src/extension/startup-snapshot.js'
 import { SUSPEND_TARGET_STORAGE_KEY } from '../../src/extension/suspension.js'
 import { pageIdentityForWorkingSet } from '../../src/extension/working-set.js'
@@ -32,7 +32,7 @@ export const COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS = {
   startupCardOrder: 500,
   startupWorkingSetPriority: 500,
   workingSetEventsPerRecord: 20,
-  workingSetRecords: 500
+  workingSetRecords: 500,
 } as const
 
 export const COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_KEYS = [
@@ -45,7 +45,7 @@ export const COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_KEYS = [
   SECTION_PIN_STORAGE_KEY,
   SUSPEND_TARGET_STORAGE_KEY,
   TAB_HISTORY_STORAGE_KEY,
-  WORKING_SET_ACTIVITY_KEY
+  WORKING_SET_ACTIVITY_KEY,
 ] as const
 
 // Retained-state changes intentionally rebuild the warm Startup Seed, and its
@@ -55,16 +55,16 @@ export const COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_KEYS = [
 // stable after the benchmark seed barrier.
 export const COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_LIVE_MUTABLE_KEYS = [
   DASHBOARD_STARTUP_SEED_CACHE_KEY,
-  TAB_HISTORY_STORAGE_KEY
+  TAB_HISTORY_STORAGE_KEY,
 ] as const
 
 const liveMutableProfileKeySet = new Set<string>(
-  COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_LIVE_MUTABLE_KEYS
+  COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_LIVE_MUTABLE_KEYS,
 )
 
 export const COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_STABLE_KEYS =
   COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_KEYS.filter(
-    (key) => !liveMutableProfileKeySet.has(key)
+    (key) => !liveMutableProfileKeySet.has(key),
   )
 
 function exactLengthUrl(prefix: string, length: number): string {
@@ -95,7 +95,7 @@ function savedPagesFixture(now: number): Record<string, unknown> {
     const label = indexedLabel(index)
     const url = exactLengthUrl(
       `https://saved-${label}.example.test/page?fixture=`,
-      256
+      256,
     )
     const surfaceKind = index < 450 ? 'normal-tab' : 'app'
     const key = savedPageKeyForUrl(url, surfaceKind)
@@ -106,11 +106,11 @@ function savedPagesFixture(now: number): Record<string, unknown> {
       title: fixedTitle(`Saved ${label} `, 80),
       favIconUrl: exactLengthUrl(
         `https://assets.example.test/saved-${label}?fixture=`,
-        256
+        256,
       ),
       savedAt: now - index,
       updatedAt: now - index,
-      lastSeenOpenAt: now - index
+      lastSeenOpenAt: now - index,
     }
   }
   return { version: 2, pages }
@@ -126,14 +126,14 @@ function workingSetFixture(now: number): Record<string, unknown> {
     const label = indexedLabel(index)
     const url = exactLengthUrl(
       `https://working-${label}.example.test/page?fixture=`,
-      256
+      256,
     )
     const key = pageIdentityForWorkingSet(url)
     const events = Array.from({
-      length: COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.workingSetEventsPerRecord
+      length: COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.workingSetEventsPerRecord,
     }, (_, eventIndex) => ({
       kind: eventIndex % 2 === 0 ? 'activation' : 'navigation',
-      at: now - index - eventIndex
+      at: now - index - eventIndex,
     }))
     records[key] = {
       key,
@@ -143,7 +143,7 @@ function workingSetFixture(now: number): Record<string, unknown> {
       lastSeenAt: now - index,
       lastActivatedAt: now - index,
       lastNavigatedAt: now - index - 1,
-      events
+      events,
     }
   }
   return { version: 1, records }
@@ -155,25 +155,25 @@ function globalHistoryFixture(now: number): Record<string, unknown> {
     tabId: index + 1,
     url: exactLengthUrl(
       `https://history-${indexedLabel(index)}.example.test/page?fixture=`,
-      2_048
-    )
+      2_048,
+    ),
   })
   return {
     version: 2,
     stack: Array.from(
       { length: COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.globalHistoryEntries },
-      (_, index) => historyEntry(index)
+      (_, index) => historyEntry(index),
     ),
     index: COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.globalHistoryEntries - 1,
     pending: Array.from(
       { length: COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.globalHistoryPendingEntries },
       (_, index) => ({
         ...historyEntry(
-          COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.globalHistoryEntries + index
+          COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.globalHistoryEntries + index,
         ),
-        createdAt: now - index
-      })
-    )
+        createdAt: now - index,
+      }),
+    ),
   }
 }
 
@@ -184,28 +184,28 @@ function dashboardStartupSeedFixture(now: number): Record<string, unknown> {
     captureStartedAt: now,
     cardOrder: Array.from(
       { length: COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.startupCardOrder },
-      (_, index) => domainCardId(`startup-${indexedLabel(index)}.example.test`)
+      (_, index) => domainCardId(`startup-${indexedLabel(index)}.example.test`),
     ),
     workingSetPriority: {
       epoch: now,
       keys: Array.from(
         {
           length:
-            COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.startupWorkingSetPriority
+            COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.startupWorkingSetPriority,
         },
         (_, index) => exactLengthUrl(
           `https://priority-${indexedLabel(index)}.example.test/page?fixture=`,
-          256
-        )
-      )
-    }
+          256,
+        ),
+      ),
+    },
   }
 }
 
 function pinnedDomainsFixture(): string[] {
   return Array.from(
     { length: COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.pinnedDomains },
-    (_, index) => `pinned-${indexedLabel(index)}.example.test`
+    (_, index) => `pinned-${indexedLabel(index)}.example.test`,
   )
 }
 
@@ -216,8 +216,8 @@ function pinnedSectionsFixture(): string[] {
       `section-${indexedLabel(index)}.example.test`,
       'www',
       'docs',
-      `group-${indexedLabel(index)}`
-    )
+      `group-${indexedLabel(index)}`,
+    ),
   )
 }
 
@@ -229,14 +229,14 @@ function pinnedPageChipsFixture(): string[] {
       const domain = `chip-${label}.example.test`
       const url = exactLengthUrl(
         `https://${domain}/page?fixture=`,
-        256
+        256,
       )
       return pageChipPinId(
         'tabs',
         pageChipPinScopeId(domain, 'www', 'docs', `group-${label}`),
-        pageChipPinKeyForUrl(url)
+        pageChipPinKeyForUrl(url),
       )
-    }
+    },
   )
 }
 
@@ -246,10 +246,10 @@ function closedGhostDismissalsFixture(now: number): Record<string, number> {
     (_, index) => [
       exactLengthUrl(
         `https://dismissed-${indexedLabel(index)}.example.test/page?fixture=`,
-        256
+        256,
       ),
-      now - index
-    ]
+      now - index,
+    ],
   ))
 }
 
@@ -259,12 +259,12 @@ function suspendTargetFixture(now: number): Record<string, unknown> {
   return {
     id,
     template: exactLengthUrl(prefix, 2_048),
-    observedAt: now
+    observedAt: now,
   }
 }
 
 export function buildCompleteRepresentativeLocalProfileV1(
-  now = Date.now()
+  now = Date.now(),
 ): Record<string, unknown> {
   return {
     [CLOSED_GHOST_DISMISSAL_STORAGE_KEY]: closedGhostDismissalsFixture(now),
@@ -276,6 +276,6 @@ export function buildCompleteRepresentativeLocalProfileV1(
     [SECTION_PIN_STORAGE_KEY]: pinnedSectionsFixture(),
     [SUSPEND_TARGET_STORAGE_KEY]: suspendTargetFixture(now),
     [TAB_HISTORY_STORAGE_KEY]: globalHistoryFixture(now),
-    [WORKING_SET_ACTIVITY_KEY]: workingSetFixture(now)
+    [WORKING_SET_ACTIVITY_KEY]: workingSetFixture(now),
   }
 }

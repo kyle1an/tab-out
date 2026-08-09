@@ -19,9 +19,9 @@ test('dashboard local state distinguishes a storage read failure from an empty s
   ;(globalThis as any).chrome = {
     storage: {
       local: {
-        get: async () => { throw new Error('storage unavailable') }
-      }
-    }
+        get: async () => { throw new Error('storage unavailable') },
+      },
+    },
   }
 
   const result = await loadDashboardLocalStateResult()
@@ -31,7 +31,7 @@ test('dashboard local state distinguishes a storage read failure from an empty s
     loaded: true,
     pinnedDomains: [],
     pinnedSectionIds: [],
-    pinnedPageChipIds: []
+    pinnedPageChipIds: [],
   })
 })
 
@@ -39,14 +39,14 @@ test('dashboard local state rejects every malformed pin container instead of cle
   for (const storageKey of [
     DOMAIN_PIN_STORAGE_KEY,
     SECTION_PIN_STORAGE_KEY,
-    PAGE_CHIP_PIN_STORAGE_KEY
+    PAGE_CHIP_PIN_STORAGE_KEY,
   ]) {
     ;(globalThis as any).chrome = {
       storage: {
         local: {
-          get: async () => ({ [storageKey]: {} })
-        }
-      }
+          get: async () => ({ [storageKey]: {} }),
+        },
+      },
     }
 
     const result = await loadDashboardLocalStateResult()
@@ -56,7 +56,7 @@ test('dashboard local state rejects every malformed pin container instead of cle
       loaded: true,
       pinnedDomains: [],
       pinnedSectionIds: [],
-      pinnedPageChipIds: []
+      pinnedPageChipIds: [],
     })
   }
 })
@@ -66,7 +66,7 @@ test('dashboard local state loads and normalizes every pin kind atomically', asy
   const pageChipId = pageChipPinId(
     'tabs',
     pageChipPinScopeId('example.test', 'docs', '', ''),
-    pageChipPinKeyForUrl('https://docs.example.test/')
+    pageChipPinKeyForUrl('https://docs.example.test/'),
   )
   ;(globalThis as any).chrome = {
     storage: {
@@ -74,10 +74,10 @@ test('dashboard local state loads and normalizes every pin kind atomically', asy
         get: async () => ({
           [DOMAIN_PIN_STORAGE_KEY]: ['example.test', 'example.test', '__private__'],
           [SECTION_PIN_STORAGE_KEY]: [sectionId, 'bogus', sectionId],
-          [PAGE_CHIP_PIN_STORAGE_KEY]: [pageChipId, 'bogus', pageChipId]
-        })
-      }
-    }
+          [PAGE_CHIP_PIN_STORAGE_KEY]: [pageChipId, 'bogus', pageChipId],
+        }),
+      },
+    },
   }
 
   assert.deepEqual(await loadDashboardLocalStateResult(), {
@@ -86,8 +86,8 @@ test('dashboard local state loads and normalizes every pin kind atomically', asy
       loaded: true,
       pinnedDomains: ['example.test'],
       pinnedSectionIds: [sectionId],
-      pinnedPageChipIds: [pageChipId]
-    }
+      pinnedPageChipIds: [pageChipId],
+    },
   })
 })
 
@@ -98,10 +98,10 @@ test('dashboard local state accepts storage adapters that return explicit undefi
         get: async () => ({
           [DOMAIN_PIN_STORAGE_KEY]: undefined,
           [SECTION_PIN_STORAGE_KEY]: undefined,
-          [PAGE_CHIP_PIN_STORAGE_KEY]: undefined
-        })
-      }
-    }
+          [PAGE_CHIP_PIN_STORAGE_KEY]: undefined,
+        }),
+      },
+    },
   }
 
   assert.deepEqual(await loadDashboardLocalStateResult(), {
@@ -110,8 +110,8 @@ test('dashboard local state accepts storage adapters that return explicit undefi
       loaded: true,
       pinnedDomains: [],
       pinnedSectionIds: [],
-      pinnedPageChipIds: []
-    }
+      pinnedPageChipIds: [],
+    },
   })
 })
 
@@ -123,7 +123,7 @@ function activityRecord(url: string, title: string, at: number) {
     domain: new URL(url).hostname,
     lastSeenAt: at,
     lastActivatedAt: at,
-    events: [{ kind: 'activation' as const, at }]
+    events: [{ kind: 'activation' as const, at }],
   }
 }
 
@@ -139,7 +139,7 @@ test('page startup snapshot gathers one coherent view without writing the shared
     makeChromeTab(1, 'https://example.com/docs', 'Example Docs'),
     makeChromeTab(2, 'https://example.com/app', 'Example App'),
     makeChromeTab(3, 'https://example.test/report', 'Example Report'),
-    makeChromeTab(4, 'chrome://extensions/', 'Extensions')
+    makeChromeTab(4, 'chrome://extensions/', 'Extensions'),
   ]
   const workingSetTabs = openTabs.filter((tab) => tab.url?.startsWith('https://'))
 
@@ -156,7 +156,7 @@ test('page startup snapshot gathers one coherent view without writing the shared
             ok: true,
             openTabsSnapshot: {
               tabs: openTabs,
-              windows: [{ id: 1, focused: true, type: 'normal' }]
+              windows: [{ id: 1, focused: true, type: 'normal' }],
             },
             tabHistory: {
               stackSize: 0,
@@ -168,27 +168,27 @@ test('page startup snapshot gathers one coherent view without writing the shared
               activeTabId: null,
               activeWindowId: null,
               activeWasInserted: false,
-              entries: []
+              entries: [],
             },
             workingSetActivity: {
               version: 1,
               records: Object.fromEntries(workingSetTabs.map((tab, index) => [
                 tab.url,
-                activityRecord(String(tab.url), String(tab.title), now - index)
-              ]))
+                activityRecord(String(tab.url), String(tab.title), now - index),
+              ])),
             },
             retainedPages: await encodeDashboardRetainedPagesWire([]),
-            retentionHealth: null
+            retentionHealth: null,
           }
         }
         return { ok: false }
-      }
+      },
     },
     tabs: {
       query: async () => {
         tabsQueryCount += 1
         return openTabs
-      }
+      },
     },
     windows: {
       getAll: async () => {
@@ -198,13 +198,13 @@ test('page startup snapshot gathers one coherent view without writing the shared
       getCurrent: async () => {
         windowsGetCurrentCount += 1
         return { id: 1, focused: true, type: 'normal' } as chrome.windows.Window
-      }
+      },
     },
     tabGroups: {
       query: async () => {
         tabGroupsQueryCount += 1
         return []
-      }
+      },
     },
     sessions: {
       getRecentlyClosed: async () => {
@@ -226,22 +226,22 @@ test('page startup snapshot gathers one coherent view without writing the shared
               autoDiscardable: true,
               groupId: -1,
               url: 'https://example.com/closed',
-              title: 'Closed Example'
-            } as chrome.tabs.Tab & { sessionId: string }
-          }
+              title: 'Closed Example',
+            } as chrome.tabs.Tab & { sessionId: string },
+          },
         ] as chrome.sessions.Session[]
-      }
+      },
     },
     storage: {
       session: {
         get: async () => ({}),
-        set: async () => { startupCacheWrites += 1 }
+        set: async () => { startupCacheWrites += 1 },
       },
       local: {
         get: async () => ({}),
-        set: async () => { startupCacheWrites += 1 }
-      }
-    }
+        set: async () => { startupCacheWrites += 1 },
+      },
+    },
   }
 
   const snapshot = await fetchDashboardStartupSnapshot({
@@ -253,8 +253,8 @@ test('page startup snapshot gathers one coherent view without writing the shared
     previousOrder: {
       tabs: new Map(),
       bookmarks: new Map(),
-      history: new Map()
-    }
+      history: new Map(),
+    },
   })
 
   assert.deepEqual(snapshot.dashboard.realTabs.map((tab) => tab.url), workingSetTabs.map((tab) => tab.url))
@@ -282,18 +282,18 @@ test('page startup snapshot includes the latest filter companion authorities', a
         ok: true,
         openTabsSnapshot: {
           tabs: openTabs,
-          windows: [{ id: 1, focused: true, type: 'normal' }]
+          windows: [{ id: 1, focused: true, type: 'normal' }],
         },
         tabHistory: { entries: [], maxSize: 48 },
         workingSetActivity: { version: 1, records: {} },
         retainedPages: await encodeDashboardRetainedPagesWire([]),
-        retentionHealth: null
-      })
+        retentionHealth: null,
+      }),
     },
     tabs: { query: async () => openTabs },
     windows: {
       getAll: async () => [{ id: 1, focused: true, type: 'normal' }],
-      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' })
+      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' }),
     },
     tabGroups: { query: async () => [] },
     sessions: { getRecentlyClosed: async () => [] },
@@ -301,13 +301,13 @@ test('page startup snapshot includes the latest filter companion authorities', a
       getTree: async () => [{
         id: 'root',
         title: '',
-        children: [{ id: 'bookmark-1', title: 'Bookmark Needle', url: 'https://bookmark.example.test/needle' }]
-      }]
+        children: [{ id: 'bookmark-1', title: 'Bookmark Needle', url: 'https://bookmark.example.test/needle' }],
+      }],
     },
     history: {
-      search: async () => [{ id: 'history-1', title: 'History Needle', url: 'https://history.example.test/needle' }]
+      search: async () => [{ id: 'history-1', title: 'History Needle', url: 'https://history.example.test/needle' }],
     },
-    storage: { local: { get: async () => ({}) } }
+    storage: { local: { get: async () => ({}) } },
   }
 
   const snapshot = await fetchDashboardStartupSnapshot({
@@ -319,18 +319,18 @@ test('page startup snapshot includes the latest filter companion authorities', a
     previousOrder: {
       tabs: new Map(),
       bookmarks: new Map(),
-      history: new Map()
-    }
+      history: new Map(),
+    },
   })
 
   assert.equal(snapshot.dashboard.bookmarkSearchReady, true)
   assert.deepEqual(snapshot.dashboard.bookmarkTabs?.map((tab) => tab.url), [
-    'https://bookmark.example.test/needle'
+    'https://bookmark.example.test/needle',
   ])
   assert.equal(snapshot.dashboard.historySearchQuery, 'needle')
   assert.equal(snapshot.dashboard.historySearchStatus, 'ready')
   assert.deepEqual(snapshot.dashboard.historyTabs?.map((tab) => tab.url), [
-    'https://history.example.test/needle'
+    'https://history.example.test/needle',
   ])
 })
 
@@ -348,7 +348,7 @@ test('fresh page startup captures do not share browser reads or write the orderi
         ok: true,
         openTabsSnapshot: {
           tabs: await chrome.tabs.query({}),
-          windows: await chrome.windows.getAll()
+          windows: await chrome.windows.getAll(),
         },
         tabHistory: {
           stackSize: 0,
@@ -360,12 +360,12 @@ test('fresh page startup captures do not share browser reads or write the orderi
           activeTabId: null,
           activeWindowId: null,
           activeWasInserted: false,
-          entries: []
+          entries: [],
         },
         workingSetActivity: { version: 1, records: {} },
         retainedPages: await encodeDashboardRetainedPagesWire([]),
-        retentionHealth: null
-      })
+        retentionHealth: null,
+      }),
     },
     tabs: {
       query: async () => {
@@ -373,24 +373,24 @@ test('fresh page startup captures do not share browser reads or write the orderi
         markTabsQueryStarted()
         await tabsQueryBlocked
         return []
-      }
+      },
     },
     windows: {
       getAll: async () => [{ id: 1, focused: true, type: 'normal' }] as chrome.windows.Window[],
-      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' }) as chrome.windows.Window
+      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' }) as chrome.windows.Window,
     },
     tabGroups: { query: async () => [] },
     sessions: { getRecentlyClosed: async () => [] },
     storage: {
       session: {
         get: async () => ({}),
-        set: async () => { startupCacheWrites += 1 }
+        set: async () => { startupCacheWrites += 1 },
       },
       local: {
         get: async () => ({}),
-        set: async () => { startupCacheWrites += 1 }
-      }
-    }
+        set: async () => { startupCacheWrites += 1 },
+      },
+    },
   }
 
   const baseOptions = {
@@ -402,8 +402,8 @@ test('fresh page startup captures do not share browser reads or write the orderi
     previousOrder: {
       tabs: new Map(),
       bookmarks: new Map(),
-      history: new Map()
-    }
+      history: new Map(),
+    },
   }
   const firstFetch = fetchDashboardStartupSnapshot(baseOptions)
   await tabsQueryStarted
@@ -429,7 +429,7 @@ test('concurrent page startup fetches remain read-only when an older read finish
         ok: true,
         openTabsSnapshot: {
           tabs: await chrome.tabs.query({}),
-          windows: await chrome.windows.getAll()
+          windows: await chrome.windows.getAll(),
         },
         tabHistory: {
           stackSize: 0,
@@ -441,12 +441,12 @@ test('concurrent page startup fetches remain read-only when an older read finish
           activeTabId: null,
           activeWindowId: null,
           activeWasInserted: false,
-          entries: []
+          entries: [],
         },
         workingSetActivity: { version: 1, records: {} },
         retainedPages: await encodeDashboardRetainedPagesWire([]),
-        retentionHealth: null
-      })
+        retentionHealth: null,
+      }),
     },
     tabs: {
       query: async () => {
@@ -456,24 +456,24 @@ test('concurrent page startup fetches remain read-only when an older read finish
           await firstTabsQueryBlocked
         }
         return []
-      }
+      },
     },
     windows: {
       getAll: async () => [{ id: 1, focused: true, type: 'normal' }] as chrome.windows.Window[],
-      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' }) as chrome.windows.Window
+      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' }) as chrome.windows.Window,
     },
     tabGroups: { query: async () => [] },
     sessions: { getRecentlyClosed: async () => [] },
     storage: {
       session: {
         get: async () => ({}),
-        set: async () => { startupCacheWrites += 1 }
+        set: async () => { startupCacheWrites += 1 },
       },
       local: {
         get: async () => ({}),
-        set: async () => { startupCacheWrites += 1 }
-      }
-    }
+        set: async () => { startupCacheWrites += 1 },
+      },
+    },
   }
 
   const baseOptions = {
@@ -484,17 +484,17 @@ test('concurrent page startup fetches remain read-only when an older read finish
     previousOrder: {
       tabs: new Map(),
       bookmarks: new Map(),
-      history: new Map()
-    }
+      history: new Map(),
+    },
   }
   const firstFetch = fetchDashboardStartupSnapshot({
     ...baseOptions,
-    pinnedDomains: ['first.example']
+    pinnedDomains: ['first.example'],
   })
   await firstTabsQueryStarted
   const latestFetch = fetchDashboardStartupSnapshot({
     ...baseOptions,
-    pinnedDomains: ['latest.example']
+    pinnedDomains: ['latest.example'],
   })
 
   await latestFetch
@@ -519,7 +519,7 @@ test('latest refresh runner discards an overtaken result and applies one trailin
       await firstRunBlocked
       return 'stale'
     },
-    (value) => applied.push(value)
+    (value) => applied.push(value),
   )
   await firstRunStarted
   const latestRequest = runner.request(
@@ -527,7 +527,7 @@ test('latest refresh runner discards an overtaken result and applies one trailin
       runs.push('latest')
       return 'latest'
     },
-    (value) => applied.push(value)
+    (value) => applied.push(value),
   )
   releaseFirstRun()
   await Promise.all([firstRequest, latestRequest])
@@ -550,12 +550,12 @@ test('latest refresh runner ignores an overtaken failure and applies the latest 
       await firstRunBlocked
       throw staleFailure
     },
-    (value) => applied.push(value)
+    (value) => applied.push(value),
   )
   await firstRunStarted
   const latestRequest = runner.request(
     async () => 'latest',
-    (value) => applied.push(value)
+    (value) => applied.push(value),
   )
   releaseFirstRun()
   await Promise.all([firstRequest, latestRequest])
@@ -572,15 +572,15 @@ test('latest refresh runner preserves the current failure and accepts a later re
   await assert.rejects(
     runner.request(
       async () => { throw expectedFailure },
-      (value) => applied.push(value)
+      (value) => applied.push(value),
     ),
-    (error) => error === expectedFailure
+    (error) => error === expectedFailure,
   )
   assert.equal(runner.active(), false)
 
   await runner.request(
     async () => 'recovered',
-    (value) => applied.push(value)
+    (value) => applied.push(value),
   )
 
   assert.deepEqual(applied, ['recovered'])
@@ -593,9 +593,9 @@ test('latest refresh runner preserves a failure thrown while applying', async ()
   await assert.rejects(
     runner.request(
       async () => 'value',
-      () => { throw expectedFailure }
+      () => { throw expectedFailure },
     ),
-    (error) => error === expectedFailure
+    (error) => error === expectedFailure,
   )
 
   assert.equal(runner.active(), false)
@@ -619,9 +619,9 @@ test('latest refresh runner executes a request queued synchronously while applyi
           runs.push('trailing')
           return 'trailing'
         },
-        (trailingValue) => applied.push(trailingValue)
+        (trailingValue) => applied.push(trailingValue),
       )
-    }
+    },
   )
   await firstRequest
   await trailingRequest
@@ -637,7 +637,7 @@ test('latest refresh runner accepts an Effect without a nested Promise flight', 
 
   await runner.requestEffect(
     Effect.succeed('effect result'),
-    (value) => applied.push(value)
+    (value) => applied.push(value),
   )
 
   assert.deepEqual(applied, ['effect result'])
@@ -649,7 +649,7 @@ test('startup path reads ordering before saved pages without losing saved rows',
   const savedPageUrl = 'https://saved.example/report'
   const openTabs = [
     makeChromeTab(1, 'https://example.com/docs', 'Example Docs'),
-    makeChromeTab(2, 'https://example.test/report', 'Example Report')
+    makeChromeTab(2, 'https://example.test/report', 'Example Report'),
   ]
 
   ;(globalThis as any).chrome = {
@@ -660,7 +660,7 @@ test('startup path reads ordering before saved pages without losing saved rows',
         ok: true,
         openTabsSnapshot: {
           tabs: await chrome.tabs.query({}),
-          windows: await chrome.windows.getAll()
+          windows: await chrome.windows.getAll(),
         },
         tabHistory: {
           stackSize: 0,
@@ -672,25 +672,25 @@ test('startup path reads ordering before saved pages without losing saved rows',
           activeTabId: null,
           activeWindowId: null,
           activeWasInserted: false,
-          entries: []
+          entries: [],
         },
         workingSetActivity: { version: 1, records: {} },
         retainedPages: await encodeDashboardRetainedPagesWire([]),
-        retentionHealth: null
-      })
+        retentionHealth: null,
+      }),
     },
     tabs: {
-      query: async () => openTabs
+      query: async () => openTabs,
     },
     windows: {
       getAll: async () => [{ id: 1, focused: true, type: 'normal' }] as chrome.windows.Window[],
-      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' }) as chrome.windows.Window
+      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' }) as chrome.windows.Window,
     },
     tabGroups: {
-      query: async () => []
+      query: async () => [],
     },
     sessions: {
-      getRecentlyClosed: async () => []
+      getRecentlyClosed: async () => [],
     },
     storage: {
       local: {
@@ -706,14 +706,14 @@ test('startup path reads ordering before saved pages without losing saved rows',
                   url: savedPageUrl,
                   title: 'Saved Report',
                   savedAt: now,
-                  updatedAt: now
-                }
-              }
-            }
+                  updatedAt: now,
+                },
+              },
+            },
           }
-        }
-      }
-    }
+        },
+      },
+    },
   }
 
   const localState = await loadDashboardLocalState()
@@ -726,14 +726,14 @@ test('startup path reads ordering before saved pages without losing saved rows',
     previousOrder: {
       tabs: new Map(),
       bookmarks: new Map(),
-      history: new Map()
-    }
+      history: new Map(),
+    },
   })
 
   assert.deepEqual(storageGetKeys, [[
     DOMAIN_PIN_STORAGE_KEY,
     SECTION_PIN_STORAGE_KEY,
-    PAGE_CHIP_PIN_STORAGE_KEY
+    PAGE_CHIP_PIN_STORAGE_KEY,
   ], SAVED_PAGES_STORAGE_KEY])
   assert.equal(snapshot.dashboard.domainGroups[0]?.domain, 'example.test')
   assert.ok(snapshot.dashboard.realTabs.some((tab) => tab.url === savedPageUrl && tab.closedSaved))
@@ -747,7 +747,7 @@ test('tabs refresh snapshot derives dashboard and working set from the same open
   const openTabs = [
     makeChromeTab(1, 'https://example.com/docs', 'Example Docs'),
     makeChromeTab(2, 'https://example.test/report', 'Example Report'),
-    makeChromeTab(3, 'chrome://extensions/', 'Extensions')
+    makeChromeTab(3, 'chrome://extensions/', 'Extensions'),
   ]
 
   ;(globalThis as any).chrome = {
@@ -762,7 +762,7 @@ test('tabs refresh snapshot derives dashboard and working set from the same open
           ok: true,
           openTabsSnapshot: {
             tabs: openTabs,
-            windows: [{ id: 1, focused: true, type: 'normal' }]
+            windows: [{ id: 1, focused: true, type: 'normal' }],
           },
           tabHistory: {
             stackSize: 1,
@@ -774,24 +774,24 @@ test('tabs refresh snapshot derives dashboard and working set from the same open
             activeTabId: 1,
             activeWindowId: 1,
             activeWasInserted: false,
-            entries: []
+            entries: [],
           },
           workingSetActivity: {
             version: 1,
             records: {
-              'https://example.com/docs': activityRecord('https://example.com/docs', 'Example Docs', now)
-            }
+              'https://example.com/docs': activityRecord('https://example.com/docs', 'Example Docs', now),
+            },
           },
           retainedPages: await encodeDashboardRetainedPagesWire([]),
-          retentionHealth: null
+          retentionHealth: null,
         }
-      }
+      },
     },
     tabs: {
       query: async () => {
         tabsQueryCount += 1
         return openTabs
-      }
+      },
     },
     windows: {
       getAll: async () => {
@@ -801,16 +801,16 @@ test('tabs refresh snapshot derives dashboard and working set from the same open
       getCurrent: async () => {
         windowsGetCurrentCount += 1
         return { id: 1, focused: true, type: 'normal' } as chrome.windows.Window
-      }
+      },
     },
     tabGroups: {
-      query: async () => []
+      query: async () => [],
     },
     storage: {
       local: {
-        get: async () => ({})
-      }
-    }
+        get: async () => ({}),
+      },
+    },
   }
 
   const snapshot = await fetchDashboardSnapshot({
@@ -822,8 +822,8 @@ test('tabs refresh snapshot derives dashboard and working set from the same open
     previousOrder: {
       tabs: new Map(),
       bookmarks: new Map(),
-      history: new Map()
-    }
+      history: new Map(),
+    },
   })
 
   assert.deepEqual(snapshot.dashboard.realTabs.map((tab) => tab.url), ['https://example.com/docs', 'https://example.test/report'])
@@ -847,8 +847,8 @@ test('tabs refresh rejects unknown required state instead of committing an empty
     previousOrder: {
       tabs: new Map<string, number>(),
       bookmarks: new Map<string, number>(),
-      history: new Map<string, number>()
-    }
+      history: new Map<string, number>(),
+    },
   }
   const openTabs = [makeChromeTab(1, 'https://example.test/keep', 'Keep')]
   const baseChrome = {
@@ -859,30 +859,30 @@ test('tabs refresh rejects unknown required state instead of committing an empty
         ok: true,
         openTabsSnapshot: {
           tabs: openTabs,
-          windows: [{ id: 1, focused: true, type: 'normal' }]
+          windows: [{ id: 1, focused: true, type: 'normal' }],
         },
         tabHistory: { entries: [], maxSize: 48 },
         workingSetActivity: { version: 1, records: {} },
         retainedPages: await encodeDashboardRetainedPagesWire([]),
-        retentionHealth: null
-      })
+        retentionHealth: null,
+      }),
     },
     tabs: { query: async () => openTabs },
     windows: {
       getAll: async () => [{ id: 1, focused: true, type: 'normal' }],
-      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' })
+      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' }),
     },
     tabGroups: { query: async () => [] },
     sessions: { getRecentlyClosed: async () => [] },
-    storage: { local: { get: async () => ({}) } }
+    storage: { local: { get: async () => ({}) } },
   }
 
   ;(globalThis as any).chrome = {
     ...baseChrome,
     runtime: {
       ...baseChrome.runtime,
-      sendMessage: async () => { throw new Error('Service worker unavailable') }
-    }
+      sendMessage: async () => { throw new Error('Service worker unavailable') },
+    },
   }
   await assert.rejects(fetchDashboardSnapshot(options), /dashboard service state/)
 
@@ -890,9 +890,9 @@ test('tabs refresh rejects unknown required state instead of committing an empty
     ...baseChrome,
     storage: {
       local: {
-        get: async () => { throw new Error('Saved Pages unavailable') }
-      }
-    }
+        get: async () => { throw new Error('Saved Pages unavailable') },
+      },
+    },
   }
   await assert.rejects(fetchDashboardSnapshot(options), /Saved Pages/)
 
@@ -900,8 +900,8 @@ test('tabs refresh rejects unknown required state instead of committing an empty
     ...baseChrome,
     windows: {
       ...baseChrome.windows,
-      getCurrent: async () => ({ focused: true, type: 'normal' })
-    }
+      getCurrent: async () => ({ focused: true, type: 'normal' }),
+    },
   }
   await assert.rejects(fetchDashboardSnapshot(options), /current browser window/)
   await assert.rejects(fetchDashboardStartupSnapshot(options), /current browser window/)
@@ -917,18 +917,18 @@ test('bookmarks refresh does not wait on hidden Activation History or Working Se
       sendMessage: async () => {
         runtimeMessageCount += 1
         throw new Error('worker state unavailable')
-      }
+      },
     },
     bookmarks: {
       getTree: async () => [{
         id: 'root',
         title: '',
-        children: [{ id: 'bookmark-1', title: 'Example', url: 'https://example.test/' }]
-      }]
+        children: [{ id: 'bookmark-1', title: 'Example', url: 'https://example.test/' }],
+      }],
     },
     storage: {
-      local: { get: async () => ({}) }
-    }
+      local: { get: async () => ({}) },
+    },
   }
 
   const snapshot = await fetchDashboardSnapshot({
@@ -940,8 +940,8 @@ test('bookmarks refresh does not wait on hidden Activation History or Working Se
     previousOrder: {
       tabs: new Map(),
       bookmarks: new Map(),
-      history: new Map()
-    }
+      history: new Map(),
+    },
   })
 
   assert.equal(runtimeMessageCount, 0)

@@ -4,7 +4,7 @@ import test from 'node:test'
 import {
   LAYOUT_REMOVAL_ANIMATION_MS,
   REDUCED_LAYOUT_REMOVAL_ANIMATION_MS,
-  startLayoutRemovalAnimation
+  startLayoutRemovalAnimation,
 } from '../src/components/LayoutRemovalAnimation.js'
 
 type RemovalGhost = {
@@ -30,17 +30,17 @@ function fakeRemovalSurface() {
   const layoutStyle: Record<string, string> = {}
   const layoutElement = {
     classList: {
-      add: (...names: string[]) => names.forEach((name) => classes.add(name))
+      add: (...names: string[]) => names.forEach((name) => classes.add(name)),
     },
     isConnected: true,
     setAttribute(name: string, value: string) {
       layoutAttributes.set(name, value)
     },
-    style: layoutStyle
+    style: layoutStyle,
   }
   const visualElement = {
     classList: {
-      add: (...names: string[]) => names.forEach((name) => classes.add(name))
+      add: (...names: string[]) => names.forEach((name) => classes.add(name)),
     },
     setAttribute(name: string, value: string) {
       visualAttributes.set(name, value)
@@ -50,8 +50,8 @@ function fakeRemovalSurface() {
       body: {
         appendChild(node: (typeof appendedNodes)[number]) {
           appendedNodes.push(node)
-        }
-      }
+        },
+      },
     },
     cloneNode: (): RemovalGhost => {
       const ghost: RemovalGhost = {
@@ -59,7 +59,7 @@ function fakeRemovalSurface() {
           classes: [],
           add(...names: string[]) {
             ghost.classList.classes.push(...names)
-          }
+          },
         },
         style: {},
         getBoundingClientRect() {},
@@ -69,11 +69,11 @@ function fakeRemovalSurface() {
         },
         remove() {
           ghost.removed = true
-        }
+        },
       }
       return ghost
     },
-    getBoundingClientRect: () => ({ left: 12, top: 24, width: 240, height: 36 })
+    getBoundingClientRect: () => ({ left: 12, top: 24, width: 240, height: 36 }),
   }
 
   return {
@@ -84,7 +84,7 @@ function fakeRemovalSurface() {
     layoutStyle,
     visualAttributes,
     visualElement,
-    visualStyle
+    visualStyle,
   }
 }
 
@@ -102,7 +102,7 @@ test('layout removal leaves a transform-only exit ghost and removes the real row
       cleanupDelay = delay
       handler()
       return 1
-    }
+    },
   })
 
   assert.equal(started, true)
@@ -150,7 +150,7 @@ test('deferred layout removal reserves the real row until the next render', () =
       deferredLayout.release = handler
       deferredReleaseDelay = delay
       return 2
-    }
+    },
   })
 
   assert.equal(started, true)
@@ -169,7 +169,7 @@ test('deferred layout removal reserves the real row until the next render', () =
 test('reduced motion keeps a short opacity exit without scale motion', () => {
   const previousWindow = (globalThis as { window?: unknown }).window
   ;(globalThis as { window?: unknown }).window = {
-    matchMedia: () => ({ matches: true })
+    matchMedia: () => ({ matches: true }),
   }
   const surface = fakeRemovalSurface()
   let cleanupDelay = 0
@@ -181,7 +181,7 @@ test('reduced motion keeps a short opacity exit without scale motion', () => {
       scheduleCleanup: (_handler, delay) => {
         cleanupDelay = delay
         return 1
-      }
+      },
     })
 
     const [ghost] = surface.appendedNodes

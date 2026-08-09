@@ -13,11 +13,11 @@ test('chipCanShowSuspend: live single tab true; non-tab/closed-saved sources fal
 test('chipCanShowSuspend: folded group with tab envs true; title-variant group false', () => {
   assert.equal(chipCanShowSuspend({
     sourceType: 'tab', tabUrl: 'https://a', rawUrl: 'https://a',
-    envs: [{ sourceType: 'tab', tabUrl: 'https://e1', rawUrl: 'https://e1' }]
+    envs: [{ sourceType: 'tab', tabUrl: 'https://e1', rawUrl: 'https://e1' }],
   }), true)
   assert.equal(chipCanShowSuspend({
     sourceType: 'tab', tabUrl: 'https://a', rawUrl: 'https://a',
-    titleVariantChips: [{}, {}]
+    titleVariantChips: [{}, {}],
   }), false)
 })
 
@@ -25,7 +25,7 @@ test('chipSuspendableTargetCount: counts live, non-suspended tabs only', () => {
   assert.equal(chipSuspendableTargetCount({ sourceType: 'tab', tabUrl: 'https://a', rawUrl: 'https://a' }), 1)
   assert.equal(chipSuspendableTargetCount({
     sourceType: 'tab', tabUrl: 'https://a',
-    rawUrl: 'chrome-extension://x/suspended.html#uri=https://a'
+    rawUrl: 'chrome-extension://x/suspended.html#uri=https://a',
   }), 0)
   assert.equal(chipSuspendableTargetCount({ sourceType: 'bookmark', tabUrl: 'https://a', rawUrl: 'https://a' }), 0)
 })
@@ -36,7 +36,7 @@ test('chipSuspendableTargetCount: folded group counts live envs, skips already-s
     envs: [
       { sourceType: 'tab', tabUrl: 'https://e1', rawUrl: 'https://e1' },
       { sourceType: 'tab', tabUrl: 'https://e2', rawUrl: 'https://e2' },
-      { sourceType: 'tab', tabUrl: 'https://e3', rawUrl: 'chrome-extension://x/suspended.html#uri=https://e3' }
-    ]
+      { sourceType: 'tab', tabUrl: 'https://e3', rawUrl: 'chrome-extension://x/suspended.html#uri=https://e3' },
+    ],
   }), 2)
 })

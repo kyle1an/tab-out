@@ -34,8 +34,8 @@ export type SavedPageMetadataUpdates = {
 }
 
 export type SavedPagesStoreLoadResult =
-  | { ok: true; value: SavedPagesStore }
-  | { ok: false; value: SavedPagesStore }
+  | { ok: true, value: SavedPagesStore }
+  | { ok: false, value: SavedPagesStore }
 
 export type SavedPagesStoreMutation<Value> = {
   store: SavedPagesStore
@@ -74,7 +74,7 @@ function isCurrentTabOutExtensionUrl(url: string, runtimeId: string | null | und
 
 export function isSavedPageEligible(
   candidate: Pick<DashboardTab, 'url'> & Partial<Pick<DashboardTab, 'isTabOut' | 'isApp'>>,
-  runtimeId: string | null | undefined = globalThis.chrome?.runtime?.id
+  runtimeId: string | null | undefined = globalThis.chrome?.runtime?.id,
 ): boolean {
   if (
     candidate.isTabOut ||
@@ -83,7 +83,7 @@ export function isSavedPageEligible(
   ) return false
   return isRetainedPageCaptureEligible({
     surfaceKind: savedPageSurfaceKindForCandidate(candidate),
-    url: candidate.url || ''
+    url: candidate.url || '',
   }, { runtimeId })
 }
 
@@ -99,7 +99,7 @@ export function normalizeSavedPagesStore(store: Partial<SavedPagesStore> | null 
     if (surfaceKind !== 'normal-tab' && surfaceKind !== 'app') continue
     if (!isSavedPageEligible({
       url: record.url || '',
-      isApp: surfaceKind === 'app'
+      isApp: surfaceKind === 'app',
     })) continue
     const key = savedPageKeyForUrl(record.url || '', surfaceKind)
     if (!key || key !== record.key) continue
@@ -113,7 +113,7 @@ export function normalizeSavedPagesStore(store: Partial<SavedPagesStore> | null 
       ...(record.favIconUrl ? { favIconUrl: String(record.favIconUrl) } : {}),
       savedAt,
       updatedAt,
-      ...(typeof record.lastSeenOpenAt === 'number' && Number.isFinite(record.lastSeenOpenAt) ? { lastSeenOpenAt: record.lastSeenOpenAt } : {})
+      ...(typeof record.lastSeenOpenAt === 'number' && Number.isFinite(record.lastSeenOpenAt) ? { lastSeenOpenAt: record.lastSeenOpenAt } : {}),
     }
   }
 
@@ -145,12 +145,12 @@ export function addSavedPageToStore(store: Partial<SavedPagesStore> | null | und
     ...(favIconUrl ? { favIconUrl } : {}),
     savedAt: existing?.savedAt || at,
     updatedAt: at,
-    lastSeenOpenAt: at
+    lastSeenOpenAt: at,
   }
   return next
 }
 
-export function removeSavedPageFromStore(store: Partial<SavedPagesStore> | null | undefined, keyOrUrl: string): { store: SavedPagesStore; removed: SavedPageRecord | null } {
+export function removeSavedPageFromStore(store: Partial<SavedPagesStore> | null | undefined, keyOrUrl: string): { store: SavedPagesStore, removed: SavedPageRecord | null } {
   const next = normalizeSavedPagesStore(store)
   const key = next.pages[keyOrUrl] ? keyOrUrl : savedPageKeyForUrl(keyOrUrl)
   const removed = key ? next.pages[key] || null : null
@@ -171,12 +171,12 @@ export function restoreSavedPageToStore(store: Partial<SavedPagesStore> | null |
     ...next,
     pages: {
       ...next.pages,
-      [record.key]: restored
-    }
+      [record.key]: restored,
+    },
   }
 }
 
-export function mergeSavedPagesWithTabs(tabs: DashboardTab[], store: Partial<SavedPagesStore> | null | undefined, now = Date.now()): { tabs: DashboardTab[]; store: SavedPagesStore } {
+export function mergeSavedPagesWithTabs(tabs: DashboardTab[], store: Partial<SavedPagesStore> | null | undefined, now = Date.now()): { tabs: DashboardTab[], store: SavedPagesStore } {
   const normalized = normalizeSavedPagesStore(store)
   const openKeys = new Set<string>()
   const baseOpenRecords = new Map<string, SavedPageRecord>()
@@ -185,7 +185,7 @@ export function mergeSavedPagesWithTabs(tabs: DashboardTab[], store: Partial<Sav
   const mergedOpenTabs = tabs.map((tab) => {
     const key = savedPageKeyForUrl(
       tab.url || tab.rawUrl || '',
-      savedPageSurfaceKindForCandidate(tab)
+      savedPageSurfaceKindForCandidate(tab),
     )
     if (!key || !normalized.pages[key]) return tab
     openKeys.add(key)
@@ -204,7 +204,7 @@ export function mergeSavedPagesWithTabs(tabs: DashboardTab[], store: Partial<Sav
         ? { lastSeenOpenAt: now }
         : record.lastSeenOpenAt === undefined
           ? {}
-          : { lastSeenOpenAt: record.lastSeenOpenAt })
+          : { lastSeenOpenAt: record.lastSeenOpenAt }),
     }
     if (!savedPageRecordsEqual(record, nextRecord)) {
       normalized.pages[key] = nextRecord
@@ -214,7 +214,7 @@ export function mergeSavedPagesWithTabs(tabs: DashboardTab[], store: Partial<Sav
       title: nextTitle,
       saved: true,
       closedSaved: false,
-      savedPageKey: key
+      savedPageKey: key,
     }
   })
 
@@ -230,7 +230,7 @@ export function mergeSavedPagesWithTabs(tabs: DashboardTab[], store: Partial<Sav
         ? { lastSeenOpenAt: now }
         : baseRecord.lastSeenOpenAt === undefined
           ? {}
-          : { lastSeenOpenAt: baseRecord.lastSeenOpenAt })
+          : { lastSeenOpenAt: baseRecord.lastSeenOpenAt }),
     }
     normalized.pages[key] = nextRecord
     if (!savedPageRecordsEqual(baseRecord, nextRecord)) changed = true
@@ -242,7 +242,7 @@ export function mergeSavedPagesWithTabs(tabs: DashboardTab[], store: Partial<Sav
 
   return {
     tabs: [...mergedOpenTabs, ...closedSavedTabs],
-    store: changed ? normalizeSavedPagesStore(normalized) : normalized
+    store: changed ? normalizeSavedPagesStore(normalized) : normalized,
   }
 }
 
@@ -251,14 +251,14 @@ export function annotateSavedPageHints(tabs: DashboardTab[], store: Partial<Save
   return tabs.map((tab) => {
     const key = savedPageKeyForUrl(
       tab.url || tab.rawUrl || '',
-      savedPageSurfaceKindForCandidate(tab)
+      savedPageSurfaceKindForCandidate(tab),
     )
     if (!key || !normalized.pages[key]) return tab
     return {
       ...tab,
       saved: true,
       closedSaved: false,
-      savedPageKey: key
+      savedPageKey: key,
     }
   })
 }
@@ -303,7 +303,7 @@ function savedPageRecordToDashboardTab(record: SavedPageRecord): DashboardTab {
     sourceType: 'saved-page',
     saved: true,
     closedSaved: true,
-    savedPageKey: record.key
+    savedPageKey: record.key,
   })
 }
 

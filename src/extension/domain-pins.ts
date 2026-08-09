@@ -11,11 +11,11 @@ const PINNABLE_SYSTEM_DOMAINS = new Set(['__tab-out__', '__standalone-apps__'])
 
 export type PinnedDomainReorderPlacement =
   | { direction: 'previous' | 'next' }
-  | { targetDomain: string; position: 'before' | 'after' }
+  | { targetDomain: string, position: 'before' | 'after' }
 
 export type PinnedDomainMutation =
-  | { type: 'set-pinned'; domain: string; pinned: boolean }
-  | { type: 'reorder'; domain: string; placement: PinnedDomainReorderPlacement }
+  | { type: 'set-pinned', domain: string, pinned: boolean }
+  | { type: 'reorder', domain: string, placement: PinnedDomainReorderPlacement }
 
 export function isPinnableDomain(domain: unknown): domain is string {
   return !!domain && typeof domain === 'string' && (!domain.startsWith('__') || PINNABLE_SYSTEM_DOMAINS.has(domain))
@@ -35,7 +35,7 @@ export function normalizePinnedDomains(domains: unknown = []): string[] {
 function setPinnedDomainInList(
   domains: unknown = [],
   domain: unknown,
-  pinned: boolean
+  pinned: boolean,
 ): string[] {
   const normalized = normalizePinnedDomains(domains)
   if (!isPinnableDomain(domain)) return normalized
@@ -48,7 +48,7 @@ export function reorderPinnedDomainInList(
   domains: unknown = [],
   domain: unknown,
   targetDomain: unknown,
-  position: 'before' | 'after' = 'before'
+  position: 'before' | 'after' = 'before',
 ): string[] {
   const normalized = normalizePinnedDomains(domains)
   if (!isPinnableDomain(domain) || !isPinnableDomain(targetDomain) || domain === targetDomain) return normalized
@@ -82,7 +82,7 @@ export function movePinnedDomainInList(domains: unknown = [], domain: unknown, d
 
 export function applyPinnedDomainMutation(
   domains: unknown,
-  mutation: PinnedDomainMutation
+  mutation: PinnedDomainMutation,
 ): string[] {
   if (mutation.type === 'set-pinned') {
     return setPinnedDomainInList(domains, mutation.domain, mutation.pinned)
@@ -93,6 +93,6 @@ export function applyPinnedDomainMutation(
         domains,
         mutation.domain,
         mutation.placement.targetDomain,
-        mutation.placement.position
+        mutation.placement.position,
       )
 }

@@ -4,13 +4,13 @@ import {
   Layer,
   Queue,
   Result,
-  Schema
+  Schema,
 } from 'effect'
 
 import type { ChromeApi } from './chrome-api.js'
 import {
   createInactiveWindow,
-  type TargetDisplayBounds
+  type TargetDisplayBounds,
 } from './native-window-placement.js'
 
 export const NATIVE_PLACEMENT_BRIDGE_VERSION = 3
@@ -22,7 +22,7 @@ const NATIVE_PLACEMENT_RECONNECT_DELAYS_MS = [
   250,
   1_000,
   5_000,
-  NATIVE_PLACEMENT_UNAVAILABLE_RETRY_MS
+  NATIVE_PLACEMENT_UNAVAILABLE_RETRY_MS,
 ] as const
 const NATIVE_PLACEMENT_HOST_NAME = 'com.tabout.native_bridge'
 
@@ -39,31 +39,31 @@ export type NativePlacementBridgeResponse = {
 
 class NativePlacementOperationError extends Schema.TaggedErrorClass<NativePlacementOperationError>()(
   'NativePlacementOperationError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 class NativePlacementConnectionError extends Schema.TaggedErrorClass<NativePlacementConnectionError>()(
   'NativePlacementConnectionError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 const nativePlacementRequestRecordSchema = Schema.Record(Schema.String, Schema.Unknown)
 const nativePlacementRequestIdSchema = Schema.String.check(
   Schema.isMinLength(1),
   Schema.isMaxLength(128),
-  Schema.isPattern(/^[A-Za-z0-9._:-]+$/)
+  Schema.isPattern(/^[A-Za-z0-9._:-]+$/),
 )
 const nativePlacementCoordinateSchema = Schema.Finite.check(
-  Schema.isBetween({ minimum: -100_000, maximum: 100_000 })
+  Schema.isBetween({ minimum: -100_000, maximum: 100_000 }),
 )
 const nativePlacementDimensionSchema = nativePlacementCoordinateSchema.check(
-  Schema.isGreaterThan(0)
+  Schema.isGreaterThan(0),
 )
 const nativePlacementTargetBoundsSchema = Schema.Struct({
   left: nativePlacementCoordinateSchema,
   top: nativePlacementCoordinateSchema,
   width: nativePlacementDimensionSchema,
-  height: nativePlacementDimensionSchema
+  height: nativePlacementDimensionSchema,
 }) satisfies Schema.Schema<TargetDisplayBounds>
 
 const isNativePlacementRequestRecord = Schema.is(nativePlacementRequestRecordSchema)
@@ -75,7 +75,7 @@ function response(
   requestId: string,
   status: NativePlacementBridgeResponse['status'],
   reason?: string,
-  windowIds?: number[]
+  windowIds?: number[],
 ): NativePlacementBridgeResponse {
   return {
     version: NATIVE_PLACEMENT_BRIDGE_VERSION,
@@ -83,7 +83,7 @@ function response(
     requestId,
     status,
     ...(reason ? { reason } : {}),
-    ...(windowIds ? { windowIds } : {})
+    ...(windowIds ? { windowIds } : {}),
   }
 }
 
@@ -93,10 +93,10 @@ function errorMessage(error: unknown): string {
     : 'The native placement request failed'
 }
 
-export const handleNativePlacementBridgeMessageEffect = Effect.fn('nativePlacementBridge.handleMessage')(function*(
+export const handleNativePlacementBridgeMessageEffect = Effect.fn('nativePlacementBridge.handleMessage')(function* (
   message: unknown,
   chromeApi: ChromeApi,
-  nowMs: number
+  nowMs: number,
 ) {
   if (!isNativePlacementRequestRecord(message)) {
     return response('invalid', 'rejected', 'The native placement request is not an object')
@@ -120,7 +120,7 @@ export const handleNativePlacementBridgeMessageEffect = Effect.fn('nativePlaceme
   if (candidate.type === 'list-profile-windows') {
     const windowsResult = yield* Effect.result(Effect.tryPromise({
       try: () => chromeApi.windows.getAll({ windowTypes: ['normal'] }),
-      catch: (cause) => new NativePlacementOperationError({ cause })
+      catch: (cause) => new NativePlacementOperationError({ cause }),
     }))
     if (Result.isFailure(windowsResult)) {
       return response(requestId, 'rejected', errorMessage(windowsResult.failure.cause))
@@ -147,7 +147,7 @@ export const handleNativePlacementBridgeMessageEffect = Effect.fn('nativePlaceme
 
   const placementResult = yield* Effect.result(Effect.tryPromise({
     try: () => createInactiveWindow(operation, targetBounds, requestId, chromeApi),
-    catch: (cause) => new NativePlacementOperationError({ cause })
+    catch: (cause) => new NativePlacementOperationError({ cause }),
   }))
   if (Result.isFailure(placementResult)) {
     return response(requestId, 'rejected', errorMessage(placementResult.failure.cause))
@@ -158,7 +158,7 @@ export const handleNativePlacementBridgeMessageEffect = Effect.fn('nativePlaceme
     // Protocol v3 originally required this echo. Current Hammerspoon derives
     // the token from its validated request ID, but an already-loaded v3 client
     // still needs the field during a staggered extension-only reload.
-    creationToken: requestId
+    creationToken: requestId,
   }
 })
 
@@ -171,45 +171,45 @@ export class NativePlacementBridge extends Context.Service<NativePlacementBridge
 }
 
 function makeNativePlacementBridgeLayer(
-  chromeApi: ChromeApi
+  chromeApi: ChromeApi,
 ): Layer.Layer<NativePlacementBridge> {
-  return Layer.effect(NativePlacementBridge, Effect.gen(function*() {
+  return Layer.effect(NativePlacementBridge, Effect.gen(function* () {
     const scope = yield* Effect.scope
     const runtimeApi = chromeApi.runtime
     const service = NativePlacementBridge.of({ version: NATIVE_PLACEMENT_BRIDGE_VERSION })
     if (!runtimeApi || typeof runtimeApi.connectNative !== 'function') return service
     let reconnectAttempt = 0
 
-    const replyToNativeMessage = Effect.fn('NativePlacementBridge.reply')(function*(
+    const replyToNativeMessage = Effect.fn('NativePlacementBridge.reply')(function* (
       port: chrome.runtime.Port,
-      message: unknown
+      message: unknown,
     ) {
       const result = yield* handleNativePlacementBridgeMessageEffect(message, chromeApi, Date.now())
       yield* Effect.try({
         try: () => port.postMessage(result),
-        catch: (cause) => NativePlacementOperationError.make({ cause })
+        catch: (cause) => NativePlacementOperationError.make({ cause }),
       }).pipe(
         Effect.catchTag('NativePlacementOperationError', (error) => Effect.sync(() => {
           console.warn(
             'Tab Out native placement bridge could not reply:',
-            errorMessage(error.cause)
+            errorMessage(error.cause),
           )
-        }))
+        })),
       )
     })
 
-    const connectUntilDisconnected = Effect.fn('NativePlacementBridge.connect')(function*() {
+    const connectUntilDisconnected = Effect.fn('NativePlacementBridge.connect')(function* () {
       const port = yield* Effect.try({
         try: () => runtimeApi.connectNative(NATIVE_PLACEMENT_HOST_NAME),
-        catch: (cause) => NativePlacementConnectionError.make({ cause })
+        catch: (cause) => NativePlacementConnectionError.make({ cause }),
       })
       const messages = yield* Queue.unbounded<unknown>()
       yield* Queue.take(messages).pipe(
         Effect.flatMap((message) => replyToNativeMessage(port, message).pipe(
-          Effect.forkChild({ startImmediately: true })
+          Effect.forkChild({ startImmediately: true }),
         )),
         Effect.forever,
-        Effect.forkChild({ startImmediately: true })
+        Effect.forkChild({ startImmediately: true }),
       )
 
       yield* Effect.callback<void>((resume) => {
@@ -231,7 +231,7 @@ function makeNativePlacementBridgeLayer(
           if (disconnectError?.message) {
             console.info(
               'Tab Out native placement bridge disconnected:',
-              disconnectError.message
+              disconnectError.message,
             )
           }
           resume(Effect.void)
@@ -251,20 +251,20 @@ function makeNativePlacementBridgeLayer(
       })
     })
 
-    const reconnect = Effect.fn('NativePlacementBridge.reconnect')(function*() {
+    const reconnect = Effect.fn('NativePlacementBridge.reconnect')(function* () {
       const connection = yield* Effect.result(connectUntilDisconnected())
       if (Result.isFailure(connection)) {
         yield* Effect.sync(() => {
           console.warn(
             'Tab Out native placement bridge could not connect:',
-            errorMessage(connection.failure.cause)
+            errorMessage(connection.failure.cause),
           )
         })
       }
 
       const delayIndex = Math.min(
         reconnectAttempt,
-        NATIVE_PLACEMENT_RECONNECT_DELAYS_MS.length - 1
+        NATIVE_PLACEMENT_RECONNECT_DELAYS_MS.length - 1,
       )
       const delay = NATIVE_PLACEMENT_RECONNECT_DELAYS_MS.at(delayIndex) ??
         NATIVE_PLACEMENT_UNAVAILABLE_RETRY_MS
@@ -274,7 +274,7 @@ function makeNativePlacementBridgeLayer(
 
     yield* reconnect().pipe(
       Effect.forever,
-      Effect.forkIn(scope, { startImmediately: true })
+      Effect.forkIn(scope, { startImmediately: true }),
     )
 
     return service

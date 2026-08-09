@@ -5,24 +5,24 @@ import { createDashboardRetainedPagesWireEncodeCache } from '../dashboard-retain
 import {
   OPEN_SURFACE_DURABLE_STORAGE_KEY,
   OPEN_SURFACE_SESSION_STORAGE_KEY,
-  OpenSurfaceInventoryStorage
+  OpenSurfaceInventoryStorage,
 } from '../open-surface-inventory-storage.js'
 import {
   RETAINED_PAGES_STORAGE_KEY,
   RetainedPageLedgerStorage,
   createRetainedPageLedgerStorageDecodeCache,
-  encodeRetainedPageLedgerStorageValue
+  encodeRetainedPageLedgerStorageValue,
 } from '../retained-pages-storage.js'
 import {
   RETENTION_HEALTH_STORAGE_KEY,
-  RetentionHealth
+  RetentionHealth,
 } from '../retention-health.js'
 import { Badge } from './badge.js'
 import type { ChromeApi } from './chrome-api.js'
 import {
   readChromeStorageValue,
   removeChromeStorageValue,
-  writeChromeStorageValue
+  writeChromeStorageValue,
 } from './chrome-storage.js'
 import { NativePlacementBridge } from './native-placement-bridge.js'
 import { recoverRetainedPageSnapshot } from './retained-page-recovery.js'
@@ -35,14 +35,14 @@ import { makeWorkingSetActivityStorageLayer } from './working-set-activity-stora
 const dashboardRetainedPagesWireCache =
   createDashboardRetainedPagesWireEncodeCache()
 
-export const captureDashboardServiceStateEffect = Effect.gen(function*() {
+export const captureDashboardServiceStateEffect = Effect.gen(function* () {
   const workingSet = yield* WorkingSet
   const retainedPagesService = yield* RetainedPages
   const retentionHealthService = yield* RetentionHealth
   const tabHistoryService = yield* TabHistory
   const [workingSetActivity, retainedPageLedger] = yield* Effect.all([
     workingSet.getWorkingSetActivity(),
-    retainedPagesService.getLedger()
+    retainedPagesService.getLedger(),
   ] as const, { concurrency: 'unbounded' })
   // Ledger restore/pruning may update the session-only health episode. Read it
   // afterward so this same Startup Frame reports the resulting truth.
@@ -51,10 +51,10 @@ export const captureDashboardServiceStateEffect = Effect.gen(function*() {
     yield* Effect.all([
       Effect.tryPromise({
         try: () => dashboardRetainedPagesWireCache.encode(retainedPages),
-        catch: (cause) => cause
+        catch: (cause) => cause,
       }),
       retentionHealthService.getEpisode(),
-      tabHistoryService.getTabHistorySnapshotCapture(workingSetActivity)
+      tabHistoryService.getTabHistorySnapshotCapture(workingSetActivity),
     ] as const, { concurrency: 'unbounded' })
   return {
     tabHistory,
@@ -62,7 +62,7 @@ export const captureDashboardServiceStateEffect = Effect.gen(function*() {
     openTabsSnapshot,
     retainedPages,
     retainedPagesWire,
-    retentionHealth
+    retentionHealth,
   }
 })
 
@@ -72,17 +72,17 @@ export function createBackgroundRuntime(chromeApi: ChromeApi) {
   const storageAccess = localStorage?.setAccessLevel && sessionStorage?.setAccessLevel
     ? Promise.all([
         localStorage.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' }),
-        sessionStorage.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' })
+        sessionStorage.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' }),
       ]).then(
         () => ({ ok: true as const }),
-        (cause: unknown) => ({ ok: false as const, cause })
+        (cause: unknown) => ({ ok: false as const, cause }),
       )
     : Promise.resolve({
         ok: false as const,
-        cause: new Error('Trusted retention storage is unavailable')
+        cause: new Error('Trusted retention storage is unavailable'),
       })
   const withTrustedRetentionStorage = async <Value>(
-    operation: () => Promise<Value>
+    operation: () => Promise<Value>,
   ): Promise<Value> => {
     const access = await storageAccess
     if (!access.ok) throw access.cause
@@ -94,57 +94,57 @@ export function createBackgroundRuntime(chromeApi: ChromeApi) {
     read: () => withTrustedRetentionStorage(async () =>
       retainedPagesDecodeCache.decode(await readChromeStorageValue(
         chromeApi.storage.local,
-        RETAINED_PAGES_STORAGE_KEY
+        RETAINED_PAGES_STORAGE_KEY,
       ))),
     write: (ledger) => withTrustedRetentionStorage(async () => {
       const encoded = await encodeRetainedPageLedgerStorageValue(ledger)
       await writeChromeStorageValue(
         chromeApi.storage.local,
         RETAINED_PAGES_STORAGE_KEY,
-        encoded
+        encoded,
       )
-    })
+    }),
   }, {
     reindexExpandedIdentities: true,
-    runtimeId: chromeApi.runtime?.id
+    runtimeId: chromeApi.runtime?.id,
   })
   const openSurfaceStorage = OpenSurfaceInventoryStorage.layer({
     readSession: () => withTrustedRetentionStorage(() => readChromeStorageValue(
       chromeApi.storage.session,
-      OPEN_SURFACE_SESSION_STORAGE_KEY
+      OPEN_SURFACE_SESSION_STORAGE_KEY,
     )),
     writeSession: (inventory) => withTrustedRetentionStorage(() => writeChromeStorageValue(
       chromeApi.storage.session,
       OPEN_SURFACE_SESSION_STORAGE_KEY,
-      inventory
+      inventory,
     )),
     readDurable: () => withTrustedRetentionStorage(() => readChromeStorageValue(
       chromeApi.storage.local,
-      OPEN_SURFACE_DURABLE_STORAGE_KEY
+      OPEN_SURFACE_DURABLE_STORAGE_KEY,
     )),
     writeDurable: (inventory) => withTrustedRetentionStorage(() => writeChromeStorageValue(
       chromeApi.storage.local,
       OPEN_SURFACE_DURABLE_STORAGE_KEY,
-      inventory
-    ))
+      inventory,
+    )),
   }, {
     reindexIdentities: true,
-    runtimeId: chromeApi.runtime?.id
+    runtimeId: chromeApi.runtime?.id,
   })
   const retentionHealth = RetentionHealth.layer({
     read: () => withTrustedRetentionStorage(() => readChromeStorageValue(
       chromeApi.storage.session,
-      RETENTION_HEALTH_STORAGE_KEY
+      RETENTION_HEALTH_STORAGE_KEY,
     )),
     write: (episode) => withTrustedRetentionStorage(() => writeChromeStorageValue(
       chromeApi.storage.session,
       RETENTION_HEALTH_STORAGE_KEY,
-      episode
+      episode,
     )),
     clear: () => withTrustedRetentionStorage(() => removeChromeStorageValue(
       chromeApi.storage.session,
-      RETENTION_HEALTH_STORAGE_KEY
-    ))
+      RETENTION_HEALTH_STORAGE_KEY,
+    )),
   })
   const retainedPages = RetainedPages.layer({
     now: Date.now,
@@ -156,17 +156,17 @@ export function createBackgroundRuntime(chromeApi: ChromeApi) {
       chromeApi,
       page,
       disposition,
-      currentWindowId === undefined ? {} : { currentWindowId }
-    )
+      currentWindowId === undefined ? {} : { currentWindowId },
+    ),
   }).pipe(Layer.provide(Layer.mergeAll(
     retainedPagesStorage,
     openSurfaceStorage,
-    retentionHealth
+    retentionHealth,
   )))
   const workingSetActivityStorage = makeWorkingSetActivityStorageLayer(chromeApi)
   const activityServices = Layer.mergeAll(
     TabHistory.layer(chromeApi),
-    WorkingSet.layer(chromeApi)
+    WorkingSet.layer(chromeApi),
   ).pipe(Layer.provideMerge(workingSetActivityStorage))
   const coreServices = Layer.mergeAll(
     BrowserTabs.layer(),
@@ -174,11 +174,11 @@ export function createBackgroundRuntime(chromeApi: ChromeApi) {
     NativePlacementBridge.layer(chromeApi),
     retainedPages,
     retentionHealth,
-    activityServices
+    activityServices,
   )
   const runtimeLayer = StartupSnapshot.layer({
     alarms: chromeApi.alarms,
-    getDashboardServiceState: captureDashboardServiceStateEffect
+    getDashboardServiceState: captureDashboardServiceStateEffect,
   }).pipe(Layer.provideMerge(coreServices))
   const runtime = ManagedRuntime.make(runtimeLayer)
   // Every worker service layer is synchronously constructed. Build it during

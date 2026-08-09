@@ -5,7 +5,7 @@ import { setChromeTabsApi } from '../src/extension/browser-tabs-gateway.js'
 import {
   chipActivationMode,
   performDashboardItemActivation,
-  shouldSuppressSelectionForGesture
+  shouldSuppressSelectionForGesture,
 } from '../src/extension/tab-activation.js'
 import { createFakeChromeApi } from './helpers/fake-chrome.mjs'
 
@@ -91,7 +91,7 @@ test('modifier activation opens a missing target with the requested current-wind
   t.after(() => setChromeTabsApi(null))
 
   const handled = await performDashboardItemActivation('bring-background', {
-    tabUrl: 'https://example.test/docs'
+    tabUrl: 'https://example.test/docs',
   })
 
   assert.equal(handled, 'handled')
@@ -102,7 +102,7 @@ test('modifier activation opens a missing target with the requested current-wind
 
 test('modifier activation does not open a duplicate when the tab inventory is unknown', async (t) => {
   const tabs: chrome.tabs.Tab[] = [
-    liveTab(7, 2, 'https://example.test/docs')
+    liveTab(7, 2, 'https://example.test/docs'),
   ]
   const api = createFakeChromeApi({ tabs })
   api.tabs.query = async () => {
@@ -113,7 +113,7 @@ test('modifier activation does not open a duplicate when the tab inventory is un
 
   const handled = await performDashboardItemActivation('bring-background', {
     tabId: 7,
-    tabUrl: 'https://example.test/docs'
+    tabUrl: 'https://example.test/docs',
   })
 
   assert.equal(handled, 'failed')
@@ -122,7 +122,7 @@ test('modifier activation does not open a duplicate when the tab inventory is un
 
 test('modifier activation does not open a duplicate when the current window is unknown', async (t) => {
   const tabs: chrome.tabs.Tab[] = [
-    liveTab(7, 2, 'https://example.test/docs')
+    liveTab(7, 2, 'https://example.test/docs'),
   ]
   const api = createFakeChromeApi({ tabs })
   api.windows.getCurrent = async () => {
@@ -133,7 +133,7 @@ test('modifier activation does not open a duplicate when the current window is u
 
   const handled = await performDashboardItemActivation('bring-background', {
     tabId: 7,
-    tabUrl: 'https://example.test/docs'
+    tabUrl: 'https://example.test/docs',
   })
 
   assert.equal(handled, 'failed')
@@ -142,7 +142,7 @@ test('modifier activation does not open a duplicate when the current window is u
 
 test('modifier activation does not open a duplicate when Chrome refuses the move', async (t) => {
   const tabs: chrome.tabs.Tab[] = [
-    liveTab(7, 2, 'https://example.test/docs')
+    liveTab(7, 2, 'https://example.test/docs'),
   ]
   const api = createFakeChromeApi({ tabs })
   let moveAttempts = 0
@@ -155,7 +155,7 @@ test('modifier activation does not open a duplicate when Chrome refuses the move
 
   const handled = await performDashboardItemActivation('bring-background', {
     tabId: 7,
-    tabUrl: 'https://example.test/docs'
+    tabUrl: 'https://example.test/docs',
   })
 
   assert.equal(handled, 'failed')
@@ -165,7 +165,7 @@ test('modifier activation does not open a duplicate when Chrome refuses the move
 
 test('foreground modifier activation reports failure when a same-window tab cannot be activated', async (t) => {
   const tabs: chrome.tabs.Tab[] = [
-    liveTab(7, 1, 'https://example.test/docs')
+    liveTab(7, 1, 'https://example.test/docs'),
   ]
   const api = createFakeChromeApi({ tabs })
   let updateAttempts = 0
@@ -178,7 +178,7 @@ test('foreground modifier activation reports failure when a same-window tab cann
 
   const result = await performDashboardItemActivation('bring-foreground', {
     tabId: 7,
-    tabUrl: 'https://example.test/docs'
+    tabUrl: 'https://example.test/docs',
   })
 
   assert.equal(result, 'failed')
@@ -188,7 +188,7 @@ test('foreground modifier activation reports failure when a same-window tab cann
 
 test('Shift activation does not open a duplicate when the tab inventory is unknown', async (t) => {
   const tabs: chrome.tabs.Tab[] = [
-    liveTab(7, 1, 'https://example.test/docs')
+    liveTab(7, 1, 'https://example.test/docs'),
   ]
   const api = createFakeChromeApi({ tabs })
   let createAttempts = 0
@@ -204,7 +204,7 @@ test('Shift activation does not open a duplicate when the tab inventory is unkno
 
   const handled = await performDashboardItemActivation('open-window', {
     tabId: 7,
-    tabUrl: 'https://example.test/docs'
+    tabUrl: 'https://example.test/docs',
   })
 
   assert.equal(handled, 'failed')
@@ -214,7 +214,7 @@ test('Shift activation does not open a duplicate when the tab inventory is unkno
 
 test('Shift activation does not retry by URL when Chrome refuses to move the live tab', async (t) => {
   const tabs: chrome.tabs.Tab[] = [
-    liveTab(7, 1, 'https://example.test/docs')
+    liveTab(7, 1, 'https://example.test/docs'),
   ]
   const api = createFakeChromeApi({ tabs })
   const createRequests: chrome.windows.CreateData[] = []
@@ -227,7 +227,7 @@ test('Shift activation does not retry by URL when Chrome refuses to move the liv
 
   const handled = await performDashboardItemActivation('open-window', {
     tabId: 7,
-    tabUrl: 'https://example.test/docs'
+    tabUrl: 'https://example.test/docs',
   })
 
   assert.equal(handled, 'failed')
@@ -245,7 +245,7 @@ test('modifier activation reports failure when Chrome refuses to create the fall
   t.after(() => setChromeTabsApi(null))
 
   const result = await performDashboardItemActivation('bring-background', {
-    tabUrl: 'https://example.test/docs'
+    tabUrl: 'https://example.test/docs',
   })
 
   assert.equal(result, 'failed')
@@ -264,7 +264,7 @@ test('new-window activation reports failure when Chrome refuses to create the fa
   const result = await performDashboardItemActivation(
     'open-window',
     { tabUrl: 'https://example.test/docs' },
-    { moveExisting: false }
+    { moveExisting: false },
   )
 
   assert.equal(result, 'failed')

@@ -42,7 +42,7 @@ function rectSnapshot(rect?: DOMRectReadOnly) {
     top: Math.round(rect.top),
     width: Math.round(rect.width),
     x: Math.round(rect.x),
-    y: Math.round(rect.y)
+    y: Math.round(rect.y),
   }
 }
 
@@ -54,7 +54,7 @@ function debugChips(root: Element, blockedSelector = '') {
     chips.push({
       index,
       text: textFromElement(chip).slice(0, 180),
-      top: Math.round(chip.getBoundingClientRect().top)
+      top: Math.round(chip.getBoundingClientRect().top),
     })
   }
   return chips
@@ -69,7 +69,7 @@ function debugPathgroups(root: Element) {
       label: textFromElement(pathgroup.querySelector('.chip-pathgroup')),
       count: textFromElement(pathgroup.querySelector('.pathgroup-header-count')),
       top: Math.round(pathgroup.getBoundingClientRect().top),
-      chips: debugChips(pathgroup)
+      chips: debugChips(pathgroup),
     })
   }
   return pathgroups
@@ -85,7 +85,7 @@ function debugWebsitePaths(root: Element) {
       count: textFromElement(websitePath.querySelector('.website-path-section-header-count')),
       top: Math.round(websitePath.getBoundingClientRect().top),
       chips: debugChips(websitePath, '.pathgroup-section'),
-      pathgroups: debugPathgroups(websitePath)
+      pathgroups: debugPathgroups(websitePath),
     })
   }
   return websitePaths
@@ -105,7 +105,7 @@ function debugDomCards() {
         top: Math.round(section.getBoundingClientRect().top),
         chips: debugChips(section, '.website-path-section, .pathgroup-section'),
         websitePaths: debugWebsitePaths(section),
-        pathgroups: debugPathgroups(section)
+        pathgroups: debugPathgroups(section),
       })
     }
     const entry = {
@@ -113,7 +113,7 @@ function debugDomCards() {
       domain: card.dataset.taboutDomain || '',
       title: textFromElement(card.querySelector('.domain-title, .domain-header-flow')).slice(0, 180),
       top: Math.round(card.getBoundingClientRect().top),
-      sections
+      sections,
     }
     if (matchesDebugTarget(entry)) cards.push(entry)
   }
@@ -130,7 +130,7 @@ function debugHistoryRows() {
       text: textFromElement(row).slice(0, 180),
       top: Math.round(rect.top),
       height: Math.round(rect.height),
-      workingSetExtra: row.dataset.workingSetExtra === 'true'
+      workingSetExtra: row.dataset.workingSetExtra === 'true',
     })
   }
   return rows
@@ -144,9 +144,9 @@ function debugChipVm(
     sourceType?: string
     pagePinned?: boolean
     pathSuffix?: string
-    titleVariantChips?: Array<{ title?: string; tabUrl?: string; rawUrl?: string; sourceType?: string; pagePinned?: boolean; pathSuffix?: string }>
+    titleVariantChips?: Array<{ title?: string, tabUrl?: string, rawUrl?: string, sourceType?: string, pagePinned?: boolean, pathSuffix?: string }>
   },
-  index: number
+  index: number,
 ) {
   return {
     index,
@@ -163,8 +163,8 @@ function debugChipVm(
       rawUrl: variant.rawUrl || '',
       sourceType: variant.sourceType || '',
       pagePinned: !!variant.pagePinned,
-      pathSuffix: variant.pathSuffix || ''
-    }))
+      pathSuffix: variant.pathSuffix || '',
+    })),
   }
 }
 
@@ -183,7 +183,7 @@ function debugVmCards(cards: StartupOrderVmSampleOptions['matchedCards']) {
             label: cluster.label,
             count: cluster.count,
             chips: cluster.visibleChips.map(debugChipVm),
-            hiddenChips: cluster.hiddenChips.map(debugChipVm)
+            hiddenChips: cluster.hiddenChips.map(debugChipVm),
           })
         }
         websitePaths.push({
@@ -193,7 +193,7 @@ function debugVmCards(cards: StartupOrderVmSampleOptions['matchedCards']) {
           count: websitePath.sectionCount,
           chips: websitePath.flatVisibleChips.map(debugChipVm),
           hiddenChips: websitePath.flatHiddenChips.map(debugChipVm),
-          pathgroups
+          pathgroups,
         })
       }
       const pathgroups = []
@@ -204,7 +204,7 @@ function debugVmCards(cards: StartupOrderVmSampleOptions['matchedCards']) {
           label: cluster.label,
           count: cluster.count,
           chips: cluster.visibleChips.map(debugChipVm),
-          hiddenChips: cluster.hiddenChips.map(debugChipVm)
+          hiddenChips: cluster.hiddenChips.map(debugChipVm),
         })
       }
       sections.push({
@@ -214,14 +214,14 @@ function debugVmCards(cards: StartupOrderVmSampleOptions['matchedCards']) {
         chips: section.flatVisibleChips.map(debugChipVm),
         hiddenChips: section.flatHiddenChips.map(debugChipVm),
         websitePaths,
-        pathgroups
+        pathgroups,
       })
     }
     const entry = {
       index,
       domain: group.domain,
       title: (vm.displayName || group.label || group.domain).slice(0, 180),
-      sections
+      sections,
     }
     if (matchesDebugTarget(entry)) debugCards.push(entry)
   }
@@ -258,7 +258,7 @@ export function initializeStartupOrderDebug(capture: StartupOrderDebugCapture): 
     for (const entry of list.getEntries()) {
       const layoutShift = entry as PerformanceEntry & {
         hadRecentInput?: boolean
-        sources?: Array<{ node?: Element; previousRect?: DOMRectReadOnly; currentRect?: DOMRectReadOnly }>
+        sources?: Array<{ node?: Element, previousRect?: DOMRectReadOnly, currentRect?: DOMRectReadOnly }>
         value?: number
       }
       if (layoutShift.hadRecentInput) continue
@@ -268,8 +268,8 @@ export function initializeStartupOrderDebug(capture: StartupOrderDebugCapture): 
         sources: (layoutShift.sources || []).map((source) => ({
           node: source.node ? textFromElement(source.node).slice(0, 180) : '',
           previous: rectSnapshot(source.previousRect),
-          current: rectSnapshot(source.currentRect)
-        }))
+          current: rectSnapshot(source.currentRect),
+        })),
       })
     }
   }).observe({ type: 'layout-shift', buffered: true })
@@ -288,7 +288,7 @@ export function recordStartupOrderDebugVmSample(capture: StartupOrderDebugCaptur
     ready: options.isReady,
     tabCount: options.dashboard?.realTabs.length ?? 0,
     workingSetCount: options.workingSet?.items.length ?? 0,
-    cards: debugVmCards(options.matchedCards)
+    cards: debugVmCards(options.matchedCards),
   })
 }
 
@@ -299,7 +299,7 @@ export function startStartupOrderDebugDomSampling(capture: StartupOrderDebugCapt
       kind: 'dom',
       t: Math.round(performance.now()),
       cards: debugDomCards(),
-      historyRows: debugHistoryRows()
+      historyRows: debugHistoryRows(),
     })
   }
   sampleDom()

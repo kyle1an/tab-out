@@ -51,8 +51,8 @@ export function expandedLineContentOverflows(line: HTMLElement, tolerancePx: num
         return node.textContent
           ? win.NodeFilter.FILTER_ACCEPT
           : win.NodeFilter.FILTER_REJECT
-      }
-    }
+      },
+    },
   )
   const range = line.ownerDocument.createRange()
 
@@ -113,7 +113,7 @@ export type TitleFadeBox = {
  */
 export function truncatedTitleFadeEndPx(
   fragments: readonly TitleLineFragmentRect[],
-  box: TitleFadeBox
+  box: TitleFadeBox,
 ): number | null {
   const clipBottom = box.top + box.clipHeight - TITLE_CLIP_BOTTOM_TOLERANCE_PX
   let lastLineTop = Number.NEGATIVE_INFINITY
@@ -153,7 +153,7 @@ export function syncTruncatedTitleFadeEnd(titleEl: HTMLElement, isTruncated: boo
     left: rect.left,
     top: rect.top,
     width: rect.width,
-    clipHeight: titleEl.clientHeight
+    clipHeight: titleEl.clientHeight,
   })
   range.detach()
 
@@ -187,7 +187,7 @@ export type TitleLineCaptureGeometry = {
 function capturedRawLineIndexForRect(
   rect: DOMRect,
   elementRect: TitleLineCaptureGeometry['elementRect'],
-  lineHeight: number
+  lineHeight: number,
 ) {
   if (rect.width <= 0 && rect.height <= 0) return null
   return Math.max(0, Math.round((rect.top - elementRect.top) / lineHeight))
@@ -198,7 +198,7 @@ function firstCapturedTextOffsetOnLine(
   targetLineIndex: number,
   range: Range,
   elementRect: TitleLineCaptureGeometry['elementRect'],
-  lineHeight: number
+  lineHeight: number,
 ) {
   // The first visible line almost always begins at the first non-whitespace
   // character in its first painting text node. Prove that cheap candidate with
@@ -269,7 +269,7 @@ export function unwrapClampedTitleLines(root: ParentNode) {
 export function captureVisibleLineHtml(
   el: HTMLElement,
   visibleLineCount: number,
-  geometry?: TitleLineCaptureGeometry
+  geometry?: TitleLineCaptureGeometry,
 ): string[] {
   if (visibleLineCount <= 1) return []
 
@@ -290,8 +290,8 @@ export function captureVisibleLineHtml(
         return node.textContent
           ? win.NodeFilter.FILTER_ACCEPT
           : win.NodeFilter.FILTER_REJECT
-      }
-    }
+      },
+    },
   )
   const textNodes: Text[] = []
   while (true) {
@@ -301,7 +301,7 @@ export function captureVisibleLineHtml(
   }
 
   const range = ownerDocument.createRange()
-  const textLineBounds = new Map<Text, { first: number; last: number } | null>()
+  const textLineBounds = new Map<Text, { first: number, last: number } | null>()
   function getTextLineBounds(node: Text) {
     const cached = textLineBounds.get(node)
     if (cached !== undefined) return cached

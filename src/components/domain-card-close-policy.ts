@@ -14,7 +14,7 @@ export function domainCardCloseRemovesAllItems({
   closableCount,
   filter,
   group,
-  removedCount
+  removedCount,
 }: DomainCardClosePolicyInput): boolean {
   if (filter || removedCount === 0 || removedCount !== closableCount) return false
   const openItemCount = group.tabs.filter((tab) => !isClosedSavedDashboardTab(tab)).length
@@ -24,8 +24,8 @@ export function domainCardCloseRemovesAllItems({
     isRetainedPageCaptureEligible({
       surfaceKind: tab.isApp ? 'app' : 'normal-tab',
       url: tab.url,
-      rawUrl: tab.rawUrl
-    })
+      rawUrl: tab.rawUrl,
+    }),
   )
   return !leavesSavedPage && !leavesRetainedPage && closableCount === openItemCount
 }

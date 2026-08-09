@@ -25,7 +25,7 @@ type DisplayedTarget = {
 type ResolvedTarget = Omit<DisplayedTarget, 'owned'>
 
 type TargetResolution =
-  | { status: 'ready'; target: ResolvedTarget }
+  | { status: 'ready', target: ResolvedTarget }
   | { status: 'invalid' }
   | { status: 'stale' }
 
@@ -38,7 +38,7 @@ function readyTargetResolution(tabId: number, windowId: number): TargetResolutio
 
 class NativeTabHighlightBrowserError extends Schema.TaggedErrorClass<NativeTabHighlightBrowserError>()(
   'NativeTabHighlightBrowserError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 function normalizedTabId(tabId: number | null | undefined): number | null {
@@ -65,7 +65,7 @@ function sameIndexSelection(left: readonly number[], right: readonly number[]): 
  * cannot leave a previously hovered tab selected.
  */
 export function createNativeTabHighlightController(
-  dependencies?: NativeTabHighlightDependencies
+  dependencies?: NativeTabHighlightDependencies,
 ): NativeTabHighlightController {
   let desiredTabId: number | null = null
   let displayedTarget: DisplayedTarget | null = null
@@ -76,58 +76,58 @@ export function createNativeTabHighlightController(
     return revision === requestRevision
   }
 
-  const getTabEffect = Effect.fn('nativeTabHighlight.getTab')(function*(tabId: number) {
+  const getTabEffect = Effect.fn('nativeTabHighlight.getTab')(function* (tabId: number) {
     if (dependencies) {
       return yield* Effect.tryPromise({
         try: () => dependencies.getTab(tabId),
-        catch: (cause) => NativeTabHighlightBrowserError.make({ cause })
+        catch: (cause) => NativeTabHighlightBrowserError.make({ cause }),
       })
     }
     const browserTabs = yield* BrowserTabs
     return yield* browserTabs.getTab(tabId)
   })
 
-  const getWindowEffect = Effect.fn('nativeTabHighlight.getWindow')(function*(windowId: number) {
+  const getWindowEffect = Effect.fn('nativeTabHighlight.getWindow')(function* (windowId: number) {
     if (dependencies) {
       return yield* Effect.tryPromise({
         try: () => dependencies.getWindow(windowId),
-        catch: (cause) => NativeTabHighlightBrowserError.make({ cause })
+        catch: (cause) => NativeTabHighlightBrowserError.make({ cause }),
       })
     }
     const browserTabs = yield* BrowserTabs
     return yield* browserTabs.getWindow(windowId)
   })
 
-  const highlightTabsEffect = Effect.fn('nativeTabHighlight.highlightTabs')(function*(
+  const highlightTabsEffect = Effect.fn('nativeTabHighlight.highlightTabs')(function* (
     windowId: number,
-    tabIndexes: number[]
+    tabIndexes: number[],
   ) {
     if (dependencies) {
       return yield* Effect.tryPromise({
         try: () => dependencies.highlightTabs(windowId, tabIndexes),
-        catch: (cause) => NativeTabHighlightBrowserError.make({ cause })
+        catch: (cause) => NativeTabHighlightBrowserError.make({ cause }),
       })
     }
     const browserTabs = yield* BrowserTabs
     return yield* browserTabs.highlightTabs(windowId, tabIndexes)
   })
 
-  const queryTabsInWindowEffect = Effect.fn('nativeTabHighlight.queryTabsInWindow')(function*(
-    windowId: number
+  const queryTabsInWindowEffect = Effect.fn('nativeTabHighlight.queryTabsInWindow')(function* (
+    windowId: number,
   ) {
     if (dependencies) {
       return yield* Effect.tryPromise({
         try: () => dependencies.queryTabsInWindowResult(windowId),
-        catch: (cause) => NativeTabHighlightBrowserError.make({ cause })
+        catch: (cause) => NativeTabHighlightBrowserError.make({ cause }),
       })
     }
     const browserTabs = yield* BrowserTabs
     return yield* browserTabs.queryTabsInWindowResult(windowId)
   })
 
-  const resolveTarget = Effect.fn('nativeTabHighlight.resolveTarget')(function*(
+  const resolveTarget = Effect.fn('nativeTabHighlight.resolveTarget')(function* (
     tabId: number,
-    revision: number
+    revision: number,
   ) {
     const tab = yield* getTabEffect(tabId)
     if (!requestIsCurrent(revision)) return STALE_TARGET_RESOLUTION
@@ -144,10 +144,10 @@ export function createNativeTabHighlightController(
     return readyTargetResolution(tabId, tab.windowId)
   })
 
-  const updateWindowSelection = Effect.fn('nativeTabHighlight.updateWindowSelection')(function*(
+  const updateWindowSelection = Effect.fn('nativeTabHighlight.updateWindowSelection')(function* (
     previous: DisplayedTarget | null,
     next: ResolvedTarget | null,
-    revision: number
+    revision: number,
   ) {
     const windowId = next?.windowId ?? previous?.windowId
     if (typeof windowId !== 'number') {
@@ -225,9 +225,9 @@ export function createNativeTabHighlightController(
     return true
   })
 
-  const transitionTo = Effect.fn('nativeTabHighlight.transitionTo')(function*(
+  const transitionTo = Effect.fn('nativeTabHighlight.transitionTo')(function* (
     next: ResolvedTarget | null,
-    revision: number
+    revision: number,
   ) {
     const previous = displayedTarget
     if (previous && next && previous.tabId === next.tabId && previous.windowId === next.windowId) return
@@ -245,9 +245,9 @@ export function createNativeTabHighlightController(
     if (next) yield* updateWindowSelection(null, next, revision)
   })
 
-  const reconcileNativeTabHighlight = Effect.fn('nativeTabHighlight.reconcile')(function*(
+  const reconcileNativeTabHighlight = Effect.fn('nativeTabHighlight.reconcile')(function* (
     tabId: number | null,
-    revision: number
+    revision: number,
   ) {
     if (tabId === null) {
       yield* transitionTo(null, revision)
@@ -259,14 +259,14 @@ export function createNativeTabHighlightController(
     yield* transitionTo(resolution.status === 'ready' ? resolution.target : null, revision)
   })
 
-  const runNativeTabHighlightRequests = Effect.fn('nativeTabHighlight.runRequests')(function*() {
+  const runNativeTabHighlightRequests = Effect.fn('nativeTabHighlight.runRequests')(function* () {
     while (true) {
       const revision = requestRevision
       const tabId = desiredTabId
       yield* reconcileNativeTabHighlight(tabId, revision).pipe(
         // Hover feedback is best-effort. URL preview and all tab actions remain
         // usable when Chrome rejects a transient selection read or mutation.
-        Effect.catchTag('NativeTabHighlightBrowserError', () => Effect.void)
+        Effect.catchTag('NativeTabHighlightBrowserError', () => Effect.void),
       )
       if (requestIsCurrent(revision)) {
         runner = null
@@ -295,6 +295,6 @@ export function createNativeTabHighlightController(
     clear() {
       return setTarget(null)
     },
-    setTarget
+    setTarget,
   }
 }

@@ -7,7 +7,7 @@ import { Schema } from 'effect'
 import {
   WORKING_SET_ACTIVITY_AUTHORITY_KEY,
   WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION,
-  workingSetActivityAuthorityMarkerSchema
+  workingSetActivityAuthorityMarkerSchema,
 } from '../../src/extension/background/working-set-activity-authority.js'
 import {
   databaseNameForGeneration,
@@ -18,23 +18,23 @@ import {
   WORKING_SET_ACTIVITY_MANIFEST_KEY,
   WORKING_SET_ACTIVITY_MANIFEST_STORE,
   WORKING_SET_ACTIVITY_RECORDS_STORE,
-  workingSetActivityGenerationManifestSchema
+  workingSetActivityGenerationManifestSchema,
 } from '../../src/extension/background/working-set-activity-indexed-db.js'
 import {
-  WORKING_SET_ACTIVITY_KEY
+  WORKING_SET_ACTIVITY_KEY,
 } from '../../src/extension/background/working-set-activity-storage.js'
 import type {
   WorkingSetActivityRecord,
-  WorkingSetActivityStore
+  WorkingSetActivityStore,
 } from '../../src/extension/types'
 import {
   emptyWorkingSetActivity,
   pageIdentityForWorkingSet,
-  recordWorkingSetActivity
+  recordWorkingSetActivity,
 } from '../../src/extension/working-set.js'
 import {
   expect,
-  test
+  test,
 } from './installed-extension.js'
 import { terminateServiceWorkerAndProveAbsent } from './service-worker-cdp.js'
 
@@ -89,12 +89,12 @@ function makeLegacyActivity(now: number): WorkingSetActivityStore {
   let activity = recordWorkingSetActivity(emptyWorkingSetActivity(), {
     kind: 'activation',
     at: firstEventAt,
-    tab: { rawUrl: guideUrl, title: 'Example Guide', url: guideUrl }
+    tab: { rawUrl: guideUrl, title: 'Example Guide', url: guideUrl },
   })
   activity = recordWorkingSetActivity(activity, {
     kind: 'navigation',
     at: firstEventAt + 1_000,
-    tab: { rawUrl: guideUrl, title: 'Example Guide', url: guideUrl }
+    tab: { rawUrl: guideUrl, title: 'Example Guide', url: guideUrl },
   })
   activity = recordWorkingSetActivity(activity, {
     kind: 'activation',
@@ -102,8 +102,8 @@ function makeLegacyActivity(now: number): WorkingSetActivityStore {
     tab: {
       rawUrl: workspaceUrl,
       title: 'Example Workspace',
-      url: workspaceUrl
-    }
+      url: workspaceUrl,
+    },
   })
 
   const workspaceKey = pageIdentityForWorkingSet(workspaceUrl)
@@ -116,9 +116,9 @@ function makeLegacyActivity(now: number): WorkingSetActivityStore {
       [workspaceKey]: {
         ...workspace,
         dismissedAt: now - 30_000,
-        dismissedUntil: now + 60 * 60_000
-      }
-    }
+        dismissedUntil: now + 60 * 60_000,
+      },
+    },
   }
 }
 
@@ -133,21 +133,21 @@ function expectedIndexedDbValue(record: WorkingSetActivityRecord): unknown {
       : { dismissedUntil: record.dismissedUntil }),
     events: record.events.map((event) => [
       event.kind === 'activation' ? 0 : 1,
-      event.at
+      event.at,
     ]),
-    lastEventAt: Math.max(...record.events.map((event) => event.at))
+    lastEventAt: Math.max(...record.events.map((event) => event.at)),
   }
 }
 
 function sortedActivityRecords(
-  activity: WorkingSetActivityStore
+  activity: WorkingSetActivityStore,
 ): readonly WorkingSetActivityRecord[] {
   return Object.values(activity.records)
     .toSorted((left, right) => left.key.localeCompare(right.key))
 }
 
 async function expectedSourceDigest(
-  activity: WorkingSetActivityStore
+  activity: WorkingSetActivityStore,
 ): Promise<string> {
   const canonicalRows = sortedActivityRecords(activity).map((record) => [
     record.key,
@@ -156,15 +156,15 @@ async function expectedSourceDigest(
     record.dismissedUntil ?? null,
     record.events.map((event) => [
       event.kind === 'activation' ? 0 : 1,
-      event.at
-    ])
+      event.at,
+    ]),
   ])
   const digest = await crypto.subtle.digest(
     'SHA-256',
     new TextEncoder().encode(JSON.stringify([
       WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION,
-      canonicalRows
-    ]))
+      canonicalRows,
+    ])),
   )
   return Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, '0'))
@@ -172,16 +172,16 @@ async function expectedSourceDigest(
 }
 
 function expectedIndexedDbEntries(
-  activity: WorkingSetActivityStore
+  activity: WorkingSetActivityStore,
 ): IndexedDbPhysicalSnapshot['entries'] {
   return sortedActivityRecords(activity).map((record) => ({
     key: record.key,
-    value: expectedIndexedDbValue(record)
+    value: expectedIndexedDbValue(record),
   }))
 }
 
 async function readChromeAuthoritySnapshot(
-  page: Page
+  page: Page,
 ): Promise<ChromeAuthoritySnapshot> {
   return page.evaluate(async ({ authorityKey, legacyKey }) => {
     const values = await chrome.storage.local.get([authorityKey, legacyKey])
@@ -189,24 +189,24 @@ async function readChromeAuthoritySnapshot(
     return {
       legacy,
       legacyJson: JSON.stringify(legacy) ?? null,
-      marker: values[authorityKey]
+      marker: values[authorityKey],
     }
   }, {
     authorityKey: WORKING_SET_ACTIVITY_AUTHORITY_KEY,
-    legacyKey: WORKING_SET_ACTIVITY_KEY
+    legacyKey: WORKING_SET_ACTIVITY_KEY,
   })
 }
 
 async function readIndexedDbPhysicalSnapshot(
   page: Page,
-  databaseName: string
+  databaseName: string,
 ): Promise<IndexedDbPhysicalSnapshot> {
   return page.evaluate(async ({
     databaseName,
     lastEventIndexName,
     manifestKey,
     manifestStoreName,
-    recordsStoreName
+    recordsStoreName,
   }) => {
     function requestResult<Value>(request: IDBRequest<Value>): Promise<Value> {
       return new Promise((resolve, reject) => {
@@ -228,12 +228,12 @@ async function readIndexedDbPhysicalSnapshot(
       const request = indexedDB.open(databaseName)
       request.onerror = () => reject(request.error)
       request.onblocked = () => reject(new Error(
-        `IndexedDB generation ${databaseName} was blocked`
+        `IndexedDB generation ${databaseName} was blocked`,
       ))
       request.onupgradeneeded = () => {
         request.transaction?.abort()
         reject(new Error(
-          `IndexedDB generation ${databaseName} unexpectedly required creation`
+          `IndexedDB generation ${databaseName} unexpectedly required creation`,
         ))
       }
       request.onsuccess = () => resolve(request.result)
@@ -242,11 +242,11 @@ async function readIndexedDbPhysicalSnapshot(
     try {
       const transaction = database.transaction(
         [recordsStoreName, manifestStoreName],
-        'readonly'
+        'readonly',
       )
       const transactionDone = new Promise<void>((resolve, reject) => {
         transaction.onabort = () => reject(
-          transaction.error ?? new DOMException('Transaction aborted', 'AbortError')
+          transaction.error ?? new DOMException('Transaction aborted', 'AbortError'),
         )
         transaction.onerror = () => reject(transaction.error)
         transaction.oncomplete = () => resolve()
@@ -261,7 +261,7 @@ async function readIndexedDbPhysicalSnapshot(
           requestResult(lastEventIndex.getAllKeys()),
           requestResult(manifestStore.getAllKeys()),
           requestResult(manifestStore.get(manifestKey)),
-          transactionDone
+          transactionDone,
         ])
       if (
         !recordKeys.every((key): key is string => typeof key === 'string') ||
@@ -277,7 +277,7 @@ async function readIndexedDbPhysicalSnapshot(
         catalog,
         entries: recordKeys.map((key, index) => ({
           key,
-          value: recordValues[index]
+          value: recordValues[index],
         })),
         lastEventIndexKeys,
         manifest,
@@ -294,9 +294,9 @@ async function readIndexedDbPhysicalSnapshot(
           lastEventIndex: {
             keyPath: lastEventIndex.keyPath,
             multiEntry: lastEventIndex.multiEntry,
-            unique: lastEventIndex.unique
-          }
-        }
+            unique: lastEventIndex.unique,
+          },
+        },
       }
     } finally {
       database.close()
@@ -306,7 +306,7 @@ async function readIndexedDbPhysicalSnapshot(
     lastEventIndexName: WORKING_SET_ACTIVITY_LAST_EVENT_INDEX,
     manifestKey: WORKING_SET_ACTIVITY_MANIFEST_KEY,
     manifestStoreName: WORKING_SET_ACTIVITY_MANIFEST_STORE,
-    recordsStoreName: WORKING_SET_ACTIVITY_RECORDS_STORE
+    recordsStoreName: WORKING_SET_ACTIVITY_RECORDS_STORE,
   })
 }
 
@@ -318,7 +318,7 @@ function assertIndexedDbStructure(snapshot: IndexedDbPhysicalSnapshot): void {
     manifestKeyPath: null,
     objectStoreNames: [
       WORKING_SET_ACTIVITY_MANIFEST_STORE,
-      WORKING_SET_ACTIVITY_RECORDS_STORE
+      WORKING_SET_ACTIVITY_RECORDS_STORE,
     ].toSorted(),
     recordsAutoIncrement: false,
     recordsIndexNames: [WORKING_SET_ACTIVITY_LAST_EVENT_INDEX],
@@ -326,14 +326,14 @@ function assertIndexedDbStructure(snapshot: IndexedDbPhysicalSnapshot): void {
     lastEventIndex: {
       keyPath: 'lastEventAt',
       multiEntry: false,
-      unique: false
-    }
+      unique: false,
+    },
   })
   expect(snapshot.manifestKeys).toEqual([WORKING_SET_ACTIVITY_MANIFEST_KEY])
 }
 
 async function decodePhysicalRows(
-  snapshot: IndexedDbPhysicalSnapshot
+  snapshot: IndexedDbPhysicalSnapshot,
 ): Promise<readonly WorkingSetActivityRecord[]> {
   return Promise.all(snapshot.entries.map(({ key, value }) =>
     decodeWorkingSetActivityIndexedDbEntry(key, value)))
@@ -374,12 +374,12 @@ async function startLoopbackServer(): Promise<LoopbackServer> {
   const server = createServer((_request, response) => {
     response.writeHead(200, {
       'cache-control': 'no-store',
-      'content-type': 'text/html; charset=utf-8'
+      'content-type': 'text/html; charset=utf-8',
     })
     response.end(
       '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
       '<title>Example Activity Page</title></head>' +
-      '<body><main>Example activity page</main></body></html>'
+      '<body><main>Example activity page</main></body></html>',
     )
   })
   const sockets = new Set<Socket>()
@@ -391,16 +391,16 @@ async function startLoopbackServer(): Promise<LoopbackServer> {
   const address = server.address()
   invariant(
     address !== null && typeof address === 'object',
-    'Loopback server has no address'
+    'Loopback server has no address',
   )
   return {
     origin: `http://localhost:${String(address.port)}`,
-    close: () => closeServer(server, sockets)
+    close: () => closeServer(server, sockets),
   }
 }
 
 test('migrates retained legacy activity to IndexedDB and recovers it after worker restart', async ({
-  installedExtension
+  installedExtension,
 }) => {
   test.setTimeout(90_000)
   const workerUrl = installedExtension.serviceWorker.url()
@@ -412,7 +412,7 @@ test('migrates retained legacy activity to IndexedDB and recovers it after worke
   const seededChrome = await installedExtension.serviceWorker.evaluate(async ({
     authorityKey,
     legacyKey,
-    legacyValue
+    legacyValue,
   }) => {
     await chrome.storage.local.set({ [legacyKey]: legacyValue })
     await chrome.storage.local.remove(authorityKey)
@@ -421,24 +421,24 @@ test('migrates retained legacy activity to IndexedDB and recovers it after worke
     return {
       legacy: storedLegacy,
       legacyJson: JSON.stringify(storedLegacy) ?? null,
-      marker: values[authorityKey]
+      marker: values[authorityKey],
     }
   }, {
     authorityKey: WORKING_SET_ACTIVITY_AUTHORITY_KEY,
     legacyKey: WORKING_SET_ACTIVITY_KEY,
-    legacyValue: legacy
+    legacyValue: legacy,
   })
   expect(seededChrome.marker).toBeUndefined()
   expect(seededChrome.legacy).toEqual(legacy)
   invariant(
     seededChrome.legacyJson !== null,
-    'Seeded legacy Working Set activity was not serializable'
+    'Seeded legacy Working Set activity was not serializable',
   )
   const legacyJson = seededChrome.legacyJson
   await terminateServiceWorkerAndProveAbsent(
     installedExtension.context,
     controller,
-    workerUrl
+    workerUrl,
   )
 
   const dashboardUrl =
@@ -446,11 +446,11 @@ test('migrates retained legacy activity to IndexedDB and recovers it after worke
   await expectStartupFrame(controller, dashboardUrl)
 
   await expect.poll(async () =>
-    (await readChromeAuthoritySnapshot(controller)).marker === undefined
+    (await readChromeAuthoritySnapshot(controller)).marker === undefined,
   ).toBe(false)
   const migratedChrome = await readChromeAuthoritySnapshot(controller)
   const marker = Schema.decodeUnknownSync(
-    workingSetActivityAuthorityMarkerSchema
+    workingSetActivityAuthorityMarkerSchema,
   )(migratedChrome.marker)
   expect(migratedChrome.marker).toEqual(marker)
   expect(marker.sourceDigest).toBe(sourceDigest)
@@ -459,14 +459,14 @@ test('migrates retained legacy activity to IndexedDB and recovers it after worke
   expect(marker.eventCount).toBe(
     sortedActivityRecords(legacy).reduce(
       (count, record) => count + record.events.length,
-      0
-    )
+      0,
+    ),
   )
   expect(marker.retainedAfter).toBe(
-    marker.cutoverAt - 30 * 24 * 60 * 60_000
+    marker.cutoverAt - 30 * 24 * 60 * 60_000,
   )
   expect(marker.retainedAfter).toBeLessThan(
-    Math.min(...sortedActivityRecords(legacy).map((record) => record.lastSeenAt))
+    Math.min(...sortedActivityRecords(legacy).map((record) => record.lastSeenAt)),
   )
   expect(migratedChrome.legacy).toEqual(legacy)
   expect(migratedChrome.legacyJson).toBe(legacyJson)
@@ -474,25 +474,25 @@ test('migrates retained legacy activity to IndexedDB and recovers it after worke
   const databaseName = databaseNameForGeneration(marker.generation)
   const migratedIdb = await readIndexedDbPhysicalSnapshot(
     controller,
-    databaseName
+    databaseName,
   )
   expect(WORKING_SET_ACTIVITY_INDEXED_DB_VERSION).toBe(
-    WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION
+    WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION,
   )
   assertIndexedDbStructure(migratedIdb)
   expect(migratedIdb.catalog).toContainEqual({
     name: databaseName,
-    version: WORKING_SET_ACTIVITY_INDEXED_DB_VERSION
+    version: WORKING_SET_ACTIVITY_INDEXED_DB_VERSION,
   })
   expect(migratedIdb.entries).toEqual(expectedIndexedDbEntries(legacy))
   expect([...migratedIdb.lastEventIndexKeys].toSorted()).toEqual(
-    Object.keys(legacy.records).toSorted()
+    Object.keys(legacy.records).toSorted(),
   )
   for (const { value } of migratedIdb.entries) {
     expect(Schema.is(indexedDbActivityValueSchema)(value)).toBe(true)
   }
   const manifest = Schema.decodeUnknownSync(
-    workingSetActivityGenerationManifestSchema
+    workingSetActivityGenerationManifestSchema,
   )(migratedIdb.manifest)
   const expectedManifest = {
     schemaVersion: marker.schemaVersion,
@@ -500,29 +500,29 @@ test('migrates retained legacy activity to IndexedDB and recovers it after worke
     sourceDigest: marker.sourceDigest,
     recordCount: marker.recordCount,
     eventCount: marker.eventCount,
-    retainedAfter: marker.retainedAfter
+    retainedAfter: marker.retainedAfter,
   }
   expect(migratedIdb.manifest).toEqual(expectedManifest)
   expect(manifest).toEqual(expectedManifest)
   expect(await decodePhysicalRows(migratedIdb)).toEqual(
-    sortedActivityRecords(legacy)
+    sortedActivityRecords(legacy),
   )
 
   await terminateServiceWorkerAndProveAbsent(
     installedExtension.context,
     controller,
-    workerUrl
+    workerUrl,
   )
   await expectStartupFrame(controller, dashboardUrl)
   const recoveredChrome = await readChromeAuthoritySnapshot(controller)
   expect(recoveredChrome).toEqual(migratedChrome)
   const recoveredIdb = await readIndexedDbPhysicalSnapshot(
     controller,
-    databaseName
+    databaseName,
   )
   expect(recoveredIdb).toEqual(migratedIdb)
   expect(await decodePhysicalRows(recoveredIdb)).toEqual(
-    sortedActivityRecords(legacy)
+    sortedActivityRecords(legacy),
   )
 
   const loopback = await startLoopbackServer()
@@ -538,19 +538,19 @@ test('migrates retained legacy activity to IndexedDB and recovers it after worke
     await expect.poll(async () => {
       const snapshot = await readIndexedDbPhysicalSnapshot(
         controller,
-        databaseName
+        databaseName,
       )
       return snapshot.entries.some((entry) => entry.key === activityKey)
     }).toBe(true)
     const activeIdb = await readIndexedDbPhysicalSnapshot(
       controller,
-      databaseName
+      databaseName,
     )
     assertIndexedDbStructure(activeIdb)
     expect(activeIdb.entries).not.toEqual(migratedIdb.entries)
     expect(activeIdb.entries.map((entry) => entry.key).toSorted()).toEqual([
       ...Object.keys(legacy.records),
-      activityKey
+      activityKey,
     ].toSorted())
     expect(activeIdb.manifest).toEqual(migratedIdb.manifest)
     const activityRecord = (await decodePhysicalRows(activeIdb))

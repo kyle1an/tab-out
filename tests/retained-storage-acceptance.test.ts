@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import {
   RETAINED_PAGE_CAPACITY,
-  RETAINED_PAGE_LIFETIME_MS
+  RETAINED_PAGE_LIFETIME_MS,
 } from '../src/extension/retained-pages-ledger.js'
 import {
   buildRepresentativeDurableInventory,
@@ -14,7 +14,7 @@ import {
   RETAINED_STORAGE_PROFILE_DURABLE_SIZE_BANDS,
   RETAINED_STORAGE_PROFILE_DURABLE_SURFACES,
   RETAINED_STORAGE_PROFILE_REMOVAL_BOUNDARIES,
-  roundTripRetainedStorageProfile
+  roundTripRetainedStorageProfile,
 } from './helpers/retained-storage-profile.js'
 
 const CHROME_LOCAL_QUOTA_BYTES = 10 * 1_024 * 1_024
@@ -33,7 +33,7 @@ test('the deterministic retained-storage profile round-trips exact saturated cou
   assert.equal(Object.keys(roundTrip.ledger.ledger.pages).length, RETAINED_PAGE_CAPACITY)
   assert.equal(
     Object.keys(roundTrip.ledger.ledger.removalBoundaries).length,
-    RETAINED_STORAGE_PROFILE_REMOVAL_BOUNDARIES
+    RETAINED_STORAGE_PROFILE_REMOVAL_BOUNDARIES,
   )
   for (const page of Object.values(roundTrip.ledger.ledger.pages)) {
     assert.equal(page.url.length, 2_048)
@@ -64,7 +64,7 @@ test('the deterministic retained-storage profile round-trips exact saturated cou
   assert.ok(measurements.combinedRetainedLocalItems > measurements.retainedLedgerValue)
   assert.ok(
     measurements.combinedRetainedLocalItems <= CHROME_LOCAL_QUOTA_BYTES * 0.5,
-    'the deterministic retained keys must stay within half of Chrome local quota'
+    'the deterministic retained keys must stay within half of Chrome local quota',
   )
   assert.match(measurements.retainedLedgerSha256, /^[0-9a-f]{64}$/)
   assert.match(measurements.durableInventorySha256, /^[0-9a-f]{64}$/)
@@ -74,16 +74,16 @@ test('the deterministic retained-storage profile round-trips exact saturated cou
       retainedPageSizes: { url: 2_048, titleCodePoints: 512, favicon: 2_048 },
       removalBoundaries: RETAINED_STORAGE_PROFILE_REMOVAL_BOUNDARIES,
       durableInventorySurfaces: RETAINED_STORAGE_PROFILE_DURABLE_SURFACES,
-      durableInventoryBands: RETAINED_STORAGE_PROFILE_DURABLE_SIZE_BANDS
+      durableInventoryBands: RETAINED_STORAGE_PROFILE_DURABLE_SIZE_BANDS,
     },
     serializedBytes: measurements,
-    authority: 'Node UTF-8 JSON bytes only; Chrome getBytesInUse and quota share require the installed-extension probe.'
+    authority: 'Node UTF-8 JSON bytes only; Chrome getBytesInUse and quota share require the installed-extension probe.',
   })}`)
 })
 
 test('the deterministic retained ledger crosses expiry and capacity boundaries exactly', (t) => {
   const measurements = exerciseRetainedStorageTransitions(
-    buildSaturatedRetainedPageLedger()
+    buildSaturatedRetainedPageLedger(),
   )
 
   assert.deepEqual(measurements, {
@@ -94,7 +94,7 @@ test('the deterministic retained ledger crosses expiry and capacity boundaries e
     pagesBeforeExpiry: 2,
     pagesAtExpiry: 1,
     boundariesBeforeExpiry: 2,
-    boundariesAtExpiry: 1
+    boundariesAtExpiry: 1,
   })
   assert.equal(RETAINED_PAGE_LIFETIME_MS, 30 * 24 * 60 * 60 * 1_000)
   t.diagnostic(`deterministic retained-storage transitions: ${JSON.stringify(measurements)}`)
@@ -115,6 +115,6 @@ test('a deterministic 500-close batch uses one ledger write and bounded two-phas
   assert.equal(measurements.totalWrites, 5)
   t.diagnostic(`deterministic retained-storage 500-close batch: ${JSON.stringify({
     ...measurements,
-    authority: 'Write counts only; one-second p95 requires five warmups and 30 installed-extension measurements.'
+    authority: 'Write counts only; one-second p95 requires five warmups and 30 installed-extension measurements.',
   })}`)
 })

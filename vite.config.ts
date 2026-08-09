@@ -9,7 +9,7 @@ import {
   resolveWorkingSetBuildSelection,
   workingSetBackgroundEntryPath,
   workingSetBenchmarkAliases,
-  workingSetBenchmarkModuleGraphPlugin
+  workingSetBenchmarkModuleGraphPlugin,
 } from './scripts/working-set-benchmark-build-config.js'
 import { CHROME_BUILD_TARGET } from './src/extension/chrome-support.js'
 
@@ -27,21 +27,21 @@ const buildInputs: Record<string, string> =
   buildEntry === 'app'
     ? {
         app: resolve(repoRoot, 'src/app.tsx'),
-        'filter-focus-boot': resolve(repoRoot, 'src/extension/filter-focus-boot.ts')
+        'filter-focus-boot': resolve(repoRoot, 'src/extension/filter-focus-boot.ts'),
       }
     : buildEntry === 'background'
       ? {
           background: workingSetBackgroundEntryPath(
             repoRoot,
-            workingSetBuildSelection
-          )
+            workingSetBuildSelection,
+          ),
         }
       : {
           app: resolve(repoRoot, 'src/app.tsx'),
           background: workingSetBackgroundEntryPath(
             repoRoot,
-            workingSetBuildSelection
-          )
+            workingSetBuildSelection,
+          ),
         }
 
 export default defineConfig({
@@ -51,7 +51,7 @@ export default defineConfig({
     babel({ presets: [reactCompilerPreset()] }),
     ...(workingSetBenchmarkModuleGraph
       ? [workingSetBenchmarkModuleGraph]
-      : [])
+      : []),
   ],
   resolve: {
     alias: [
@@ -61,8 +61,8 @@ export default defineConfig({
       // both production entries to its complete, pre-minified PSL bundle.
       // The existence guard above makes an upstream packaging change fail
       // loudly instead of silently restoring ~134 kB to each entry.
-      { find: /^tldts$/, replacement: tldtsMinifiedEsm }
-    ]
+      { find: /^tldts$/, replacement: tldtsMinifiedEsm },
+    ],
   },
   build: {
     target: CHROME_BUILD_TARGET,
@@ -74,8 +74,8 @@ export default defineConfig({
       output: {
         entryFileNames: '[name].js',
         ...(buildEntry === 'background' ? { codeSplitting: false } : {}),
-        assetFileNames: 'assets/[name][extname]'
-      }
-    }
-  }
+        assetFileNames: 'assets/[name][extname]',
+      },
+    },
+  },
 })

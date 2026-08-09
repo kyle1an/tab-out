@@ -50,7 +50,7 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
   const historyDomainGroups = dashboard?.historyDomainGroups || EMPTY_DOMAIN_GROUPS
   const chipPriority = useMemo(
     () => (source === 'tabs' ? dashboardChipPriorityFromWorkingSet(workingSet) : undefined),
-    [source, workingSet]
+    [source, workingSet],
   )
   // During the startup priority freeze, frozen Working Set priority plus the deterministic
   // fallback already fix the chip order. Remembered chip-order memory is empty at first paint
@@ -74,9 +74,9 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
       chipOrder: mainChipOrder,
       ...(chipPriority ? { chipPriority } : {}),
       ...(pinnedSections ? { pinnedSections } : {}),
-      ...(pinnedPageChips ? { pinnedPageChips } : {})
+      ...(pinnedPageChips ? { pinnedPageChips } : {}),
     }),
-    [realTabs, domainGroups, filter, source, currentWindowId, mainChipOrder, chipPriority, pinnedSections, pinnedPageChips]
+    [realTabs, domainGroups, filter, source, currentWindowId, mainChipOrder, chipPriority, pinnedSections, pinnedPageChips],
   )
 
   const companionSources = useMemo(
@@ -86,16 +86,16 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
         realTabs,
         displayHistory ? historyTabs : EMPTY_TABS,
         bookmarkTabs,
-        filter
+        filter,
       )
       return {
         bookmarkTabs: deduped.bookmarkTabs,
         bookmarkDomainGroups: retainDomainGroupTabs(bookmarkDomainGroups, deduped.bookmarkTabs),
         historyTabs: deduped.historyTabs,
-        historyDomainGroups: retainDomainGroupTabs(historyDomainGroups, deduped.historyTabs)
+        historyDomainGroups: retainDomainGroupTabs(historyDomainGroups, deduped.historyTabs),
       }
     },
-    [dashboard, source, filter, historyRange, historyFilterEnabled, realTabs, bookmarkTabs, bookmarkDomainGroups, historyTabs, historyDomainGroups]
+    [dashboard, source, filter, historyRange, historyFilterEnabled, realTabs, bookmarkTabs, bookmarkDomainGroups, historyTabs, historyDomainGroups],
   )
 
   const bookmarkSearchVm = useMemo(
@@ -107,10 +107,10 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
           source: 'bookmarks',
           chipOrder: chipOrder.bookmarks || EMPTY_CHIP_ORDER_BY_CARD,
           ...(pinnedSections ? { pinnedSections } : {}),
-          ...(pinnedPageChips ? { pinnedPageChips } : {})
+          ...(pinnedPageChips ? { pinnedPageChips } : {}),
         })
       : null,
-    [dashboard, source, filter, historyRange, historyFilterEnabled, companionSources, chipOrder.bookmarks, pinnedSections, pinnedPageChips]
+    [dashboard, source, filter, historyRange, historyFilterEnabled, companionSources, chipOrder.bookmarks, pinnedSections, pinnedPageChips],
   )
 
   const historySearch = useMemo(
@@ -138,7 +138,7 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
             phase,
             totalMatches,
             visibleMatches,
-            dedupedMatches: Math.max(0, totalMatches - visibleMatches)
+            dedupedMatches: Math.max(0, totalMatches - visibleMatches),
           }
         : null
       return {
@@ -152,11 +152,11 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
           source: 'history',
           chipOrder: chipOrder.history || EMPTY_CHIP_ORDER_BY_CARD,
           ...(pinnedSections ? { pinnedSections } : {}),
-          ...(pinnedPageChips ? { pinnedPageChips } : {})
-        }) : null
+          ...(pinnedPageChips ? { pinnedPageChips } : {}),
+        }) : null,
       }
     },
-    [dashboard, source, filter, historyRange, historyFilterEnabled, historySearchPending, historyTabs, companionSources, chipOrder.history, pinnedSections, pinnedPageChips]
+    [dashboard, source, filter, historyRange, historyFilterEnabled, historySearchPending, historyTabs, companionSources, chipOrder.history, pinnedSections, pinnedPageChips],
   )
 
   const matchedCards = dashboardVm.matchedCards
@@ -176,7 +176,7 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
     showBookmarkMatches,
     showHistoryMatches,
     showHistoryRange: isReady && shouldShowHistoryRange(filterSearchOptions),
-    showPrimaryEmptyState: !((showBookmarkMatches || showHistoryMatches) && matchedCards.length === 0)
+    showPrimaryEmptyState: !((showBookmarkMatches || showHistoryMatches) && matchedCards.length === 0),
   }
 }
 
@@ -199,8 +199,8 @@ function renderedChipsInCard(vm: DashboardCardVM): DashboardChipData[] {
     ...(section.websitePathSections || []).flatMap((websitePathSection) => [
       ...websitePathSection.flatVisibleChips,
       ...websitePathSection.flatHiddenChips,
-      ...websitePathSection.clusters.flatMap((cluster) => [...cluster.visibleChips, ...cluster.hiddenChips])
-    ])
+      ...websitePathSection.clusters.flatMap((cluster) => [...cluster.visibleChips, ...cluster.hiddenChips]),
+    ]),
   ])
 }
 

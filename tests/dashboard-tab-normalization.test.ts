@@ -18,7 +18,7 @@ function chromeTab(overrides: Partial<chrome.tabs.Tab>): chrome.tabs.Tab {
     groupId: -1,
     title: 'Tab Out',
     favIconUrl: '',
-    ...overrides
+    ...overrides,
   } as chrome.tabs.Tab
 }
 
@@ -28,12 +28,12 @@ test('live Dashboard Item normalization uses adapter-supplied browser context', 
       url: 'chrome-extension://injected-id/index.html?focusFilter=1',
       status: 'loading',
       audible: true,
-      mutedInfo: { muted: true }
+      mutedInfo: { muted: true },
     }),
     {
       runtimeId: 'injected-id',
-      windowType: 'normal'
-    }
+      windowType: 'normal',
+    },
   )
 
   assert.deepEqual(
@@ -42,14 +42,14 @@ test('live Dashboard Item normalization uses adapter-supplied browser context', 
       isApp: item.isApp,
       status: item.status,
       audible: item.audible,
-      muted: item.muted
+      muted: item.muted,
     },
     {
       isTabOut: true,
       isApp: false,
       status: 'loading',
       audible: true,
-      muted: true
-    }
+      muted: true,
+    },
   )
 })

@@ -15,6 +15,6 @@ export function makeCachedSuspendedTab(pageUrl: string): DashboardTab {
     groupId: -1,
     isTabOut: false,
     isApp: false,
-    index: 0
+    index: 0,
   }
 }

@@ -66,14 +66,14 @@ export function partitionVariantCloseTargets(variants: readonly CloseTargetVaria
 }
 
 export function foldedTabCloseTargets(
-  envs: readonly DashboardChipEnv[]
+  envs: readonly DashboardChipEnv[],
 ): DashboardChipEnv[] {
   return envs.filter((env) => variantClosable(env))
 }
 
 export function historyDeleteFullyRemoved(
   requestedCount: number,
-  result: HistoryDeleteCompletion | null
+  result: HistoryDeleteCompletion | null,
 ): boolean {
   return requestedCount === 0 || result?.deletedCount === requestedCount
 }
@@ -82,7 +82,7 @@ export function titleVariantGroupRemovalConfirmed({
   requestedTabCount,
   tabResult,
   requestedHistoryCount,
-  historyResult
+  historyResult,
 }: {
   requestedTabCount: number
   tabResult: TabCloseCompletion | null
@@ -97,7 +97,7 @@ export function titleVariantGroupRemovalConfirmed({
  * groupCloseActionLabel({ count, allHistory }) — count-aware aria-label.
  * count === 1 reproduces the single-chip wording exactly (no regression).
  */
-export function groupCloseActionLabel({ count, allHistory }: { count: number; allHistory: boolean }): string {
+export function groupCloseActionLabel({ count, allHistory }: { count: number, allHistory: boolean }): string {
   if (allHistory) return count > 1 ? `Delete ${count} from history` : 'Delete from history'
   return count > 1 ? `Close ${count} tabs` : 'Close this tab'
 }

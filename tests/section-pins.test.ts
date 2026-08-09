@@ -6,7 +6,7 @@ import {
   normalizePinnedSections,
   pathgroupPinId,
   subdomainPinId,
-  websitePathPinId
+  websitePathPinId,
 } from '../src/extension/section-pins.js'
 
 // === Identity builders ===
@@ -19,11 +19,11 @@ test('subdomainPinId produces a stable kind-prefixed identity', () => {
 test('websitePathPinId encodes domain, subdomain, and path key', () => {
   assert.equal(
     websitePathPinId('google.com', 'docs', '/document'),
-    'website-path|google.com|docs|/document'
+    'website-path|google.com|docs|/document',
   )
   assert.equal(
     websitePathPinId('example.com', '', '/api'),
-    'website-path|example.com||/api'
+    'website-path|example.com||/api',
   )
 })
 
@@ -31,14 +31,14 @@ test('pathgroupPinId distinguishes subdomain-level vs website-path-level parents
   // Pathgroup nested inside a website-path section
   assert.equal(
     pathgroupPinId('google.com', 'docs', '/document', '/foo'),
-    'pathgroup|google.com|docs|/document|/foo'
+    'pathgroup|google.com|docs|/document|/foo',
   )
   // Pathgroup directly under the subdomain — empty website-path slot keeps the
   // identity layout fixed so two pathgroups with the same label but different
   // parents never collide.
   assert.equal(
     pathgroupPinId('google.com', 'docs', '', '/foo'),
-    'pathgroup|google.com|docs||/foo'
+    'pathgroup|google.com|docs||/foo',
   )
 })
 
@@ -53,11 +53,11 @@ test('section pin identities escape delimiters in arbitrary URL-derived keys', (
 test('section pin identities preserve legacy percent-escaped URL paths', () => {
   assert.equal(
     websitePathPinId('example.test', '', '/foo%20bar'),
-    'website-path|example.test||/foo%20bar'
+    'website-path|example.test||/foo%20bar',
   )
   assert.notEqual(
     websitePathPinId('example.test', '', '/foo|bar'),
-    websitePathPinId('example.test', '', '/foo%7Cbar')
+    websitePathPinId('example.test', '', '/foo%7Cbar'),
   )
 })
 
@@ -74,7 +74,7 @@ test('normalizePinnedSections preserves valid ids in input order', () => {
   const input = [
     subdomainPinId('a.com', 'x'),
     websitePathPinId('b.com', '', '/foo'),
-    pathgroupPinId('c.com', '', '', '/bar')
+    pathgroupPinId('c.com', '', '', '/bar'),
   ]
   assert.deepEqual(normalizePinnedSections(input), input)
 })

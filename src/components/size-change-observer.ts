@@ -19,7 +19,7 @@ function entryBorderBoxSize(entry: ResizeObserverEntry): ObservedElementSize {
   if (!borderBoxSize) throw new Error('ResizeObserver entry missing border-box size')
   return {
     height: borderBoxSize.blockSize,
-    width: borderBoxSize.inlineSize
+    width: borderBoxSize.inlineSize,
   }
 }
 
@@ -67,6 +67,6 @@ export function createSizeChangeObserver(onSizeChange: (target: HTMLElement) => 
       observer.unobserve(target)
       observedSizes.delete(target)
       observedTargets.delete(target)
-    }
+    },
   }
 }

@@ -37,7 +37,7 @@ export function highlightedTextNodes(text: string, highlightTerms: readonly stri
   }
 
   const normalizedText = normalizedChars.join('')
-  const ranges: Array<{ start: number; end: number }> = []
+  const ranges: Array<{ start: number, end: number }> = []
   for (const term of highlightTerms) {
     if (!term) continue
     let searchFrom = 0
@@ -52,17 +52,17 @@ export function highlightedTextNodes(text: string, highlightTerms: readonly stri
 
   if (ranges.length === 0) return renderText(text, keyPrefix, 0)
 
-  const originalRanges: Array<{ start: number; end: number }> = []
+  const originalRanges: Array<{ start: number, end: number }> = []
   for (const range of ranges) {
     const start = originalStartIndexes[range.start]
     if (start === undefined) continue
     originalRanges.push({
       start,
-      end: originalEndIndexes[range.end - 1] ?? text.length
+      end: originalEndIndexes[range.end - 1] ?? text.length,
     })
   }
   originalRanges.sort((a, b) => a.start - b.start || b.end - a.end)
-  const mergedRanges: Array<{ start: number; end: number }> = []
+  const mergedRanges: Array<{ start: number, end: number }> = []
   for (const range of originalRanges) {
     const previous = mergedRanges.at(-1)
     if (previous && range.start <= previous.end) {
@@ -87,7 +87,7 @@ export function highlightedTextNodes(text: string, highlightTerms: readonly stri
         className="chip-filter-match rounded-xs bg-[rgba(234,179,8,0.42)] text-foreground [font:inherit] [corner-shape:squircle] [box-decoration-break:clone]"
       >
         {renderedMatch}
-      </mark>
+      </mark>,
     )
     cursor = originalEnd
   }

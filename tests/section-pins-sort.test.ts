@@ -12,11 +12,11 @@ import type { DashboardTab } from '../src/extension/types'
   runtime: {
     getURL(path: string) {
       return `chrome-extension://tab-out${path}`
-    }
-  }
+    },
+  },
 }
 
-function makeTab(overrides: Partial<DashboardTab> & { url: string; id: number }): DashboardTab {
+function makeTab(overrides: Partial<DashboardTab> & { url: string, id: number }): DashboardTab {
   return {
     rawUrl: overrides.rawUrl || overrides.url,
     suspended: false,
@@ -28,7 +28,7 @@ function makeTab(overrides: Partial<DashboardTab> & { url: string; id: number })
     groupId: overrides.groupId ?? -1,
     isTabOut: false,
     isApp: overrides.isApp || false,
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -49,7 +49,7 @@ test('computeDomainCardViewModel floats a pinned subdomain section to the top of
     makeTab({ id: 3, url: 'https://drive.google.com/file1' }),
     makeTab({ id: 4, url: 'https://drive.google.com/file2' }),
     makeTab({ id: 5, url: 'https://mail.google.com/inbox' }),
-    makeTab({ id: 6, url: 'https://mail.google.com/sent' })
+    makeTab({ id: 6, url: 'https://mail.google.com/sent' }),
   ]
   const group = groupFor('google.com', tabs)
 
@@ -71,7 +71,7 @@ test('computeDomainCardViewModel floats a pinned website-path section to the top
     makeTab({ id: 1, url: 'https://docs.google.com/document/d/aaa/edit' }),
     makeTab({ id: 2, url: 'https://docs.google.com/document/d/bbb/edit' }),
     makeTab({ id: 3, url: 'https://docs.google.com/spreadsheets/d/ccc/edit' }),
-    makeTab({ id: 4, url: 'https://docs.google.com/spreadsheets/d/ddd/edit' })
+    makeTab({ id: 4, url: 'https://docs.google.com/spreadsheets/d/ddd/edit' }),
   ]
   const group = groupFor('google.com', tabs)
 
@@ -80,22 +80,22 @@ test('computeDomainCardViewModel floats a pinned website-path section to the top
   assert.ok(baselineSection)
   assert.deepEqual(
     baselineSection.websitePathSections.map((wps) => wps.key),
-    ['/document', '/spreadsheets']
+    ['/document', '/spreadsheets'],
   )
 
   const pinnedSections = new Set([
-    websitePathPinId('google.com', 'docs', '/spreadsheets')
+    websitePathPinId('google.com', 'docs', '/spreadsheets'),
   ])
   const vm = computeDomainCardViewModel(group, { pinnedSections })
   const section = vm.sections?.find((s) => s.key === 'docs')
   assert.ok(section)
   assert.deepEqual(
     section.websitePathSections.map((wps) => wps.key),
-    ['/spreadsheets', '/document']
+    ['/spreadsheets', '/document'],
   )
   assert.deepEqual(
     section.websitePathSections.map((wps) => wps.isPinned),
-    [true, false]
+    [true, false],
   )
 })
 
@@ -108,7 +108,7 @@ test('computeDomainCardViewModel floats a pinned pathgroup cluster to the top wi
     makeTab({ id: 1, url: 'https://github.com/acme/one' }),
     makeTab({ id: 2, url: 'https://github.com/acme/one/issues' }),
     makeTab({ id: 3, url: 'https://github.com/acme/two' }),
-    makeTab({ id: 4, url: 'https://github.com/acme/two/wiki' })
+    makeTab({ id: 4, url: 'https://github.com/acme/two/wiki' }),
   ]
   const group = groupFor('github.com', tabs)
 
@@ -120,7 +120,7 @@ test('computeDomainCardViewModel floats a pinned pathgroup cluster to the top wi
   // Pathgroup directly under the subdomain (no website-path parent), so the
   // website-path slot is empty.
   const pinnedSections = new Set([
-    pathgroupPinId('github.com', '', '', 'acme/two')
+    pathgroupPinId('github.com', '', '', 'acme/two'),
   ])
   const vm = computeDomainCardViewModel(group, { pinnedSections })
   const section = vm.sections?.find((s) => s.key === '')
@@ -134,7 +134,7 @@ test('computeDomainCardViewModel leaves order unchanged when pinnedSections is e
     makeTab({ id: 1, url: 'https://docs.google.com/doc1' }),
     makeTab({ id: 2, url: 'https://docs.google.com/doc2' }),
     makeTab({ id: 3, url: 'https://mail.google.com/inbox' }),
-    makeTab({ id: 4, url: 'https://mail.google.com/sent' })
+    makeTab({ id: 4, url: 'https://mail.google.com/sent' }),
   ]
   const group = groupFor('google.com', tabs)
 

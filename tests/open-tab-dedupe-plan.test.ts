@@ -6,7 +6,7 @@ import { buildOpenTabDedupePlan } from '../src/extension/open-tab-dedupe-plan.js
 function tab(
   id: number,
   url: string,
-  overrides: Partial<chrome.tabs.Tab> = {}
+  overrides: Partial<chrome.tabs.Tab> = {},
 ): chrome.tabs.Tab {
   return {
     id,
@@ -16,7 +16,7 @@ function tab(
     pinned: false,
     groupId: -1,
     index: id - 1,
-    ...overrides
+    ...overrides,
   } as chrome.tabs.Tab
 }
 
@@ -34,7 +34,7 @@ test('global dedupe plan counts only group-safe real-page close targets', () => 
     tab(6, mixedUrl, { groupId: 9 }),
     tab(7, mixedUrl),
     tab(8, 'chrome://settings/'),
-    tab(9, 'chrome://settings/')
+    tab(9, 'chrome://settings/'),
   ], 1)
 
   assert.equal(plan.closableCount, 3)
@@ -49,7 +49,7 @@ test('global dedupe plan shares Tab Out alias and current-page protection', () =
     const plan = buildOpenTabDedupePlan([
       tab(1, 'chrome://newtab/', { active: true }),
       tab(2, canonicalUrl, { active: false, pinned: true }),
-      tab(3, `${canonicalUrl}?focusFilter=1`, { active: false })
+      tab(3, `${canonicalUrl}?focusFilter=1`, { active: false }),
     ], 1)
 
     assert.equal(plan.closableCount, 1)

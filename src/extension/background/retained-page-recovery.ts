@@ -24,20 +24,20 @@ const CONFIRMATION_POLL_MS = 50
 type LiveTargetRead =
   | { readonly ok: false }
   | {
-      readonly ok: true
-      readonly normalWindowId: number | null
-      readonly target: LiveRetainedPageTarget | null
-    }
+    readonly ok: true
+    readonly normalWindowId: number | null
+    readonly target: LiveRetainedPageTarget | null
+  }
 
 async function readExactLiveTarget(
   chromeApi: ChromeApi,
   page: RecoverablePageSnapshot,
-  currentWindowId?: number
+  currentWindowId?: number,
 ): Promise<LiveTargetRead> {
   try {
     const [tabs, windows] = await Promise.all([
       chromeApi.tabs.query({}),
-      chromeApi.windows.getAll()
+      chromeApi.windows.getAll(),
     ])
     const windowTypes = new Map<number, chrome.windows.Window['type']>()
     for (const window of windows) {
@@ -49,11 +49,11 @@ async function readExactLiveTarget(
     const normalWindow = windows.find((window) =>
       window.id === currentWindowId &&
       window.type === 'normal' &&
-      typeof window.id === 'number'
+      typeof window.id === 'number',
     ) ?? windows.find((window) =>
-      window.type === 'normal' && window.focused && typeof window.id === 'number'
+      window.type === 'normal' && window.focused && typeof window.id === 'number',
     ) ?? windows.find((window) =>
-      window.type === 'normal' && typeof window.id === 'number'
+      window.type === 'normal' && typeof window.id === 'number',
     )
     let exactNormalTarget: LiveRetainedPageTarget | null = null
     let pendingExactTarget = false
@@ -83,7 +83,7 @@ async function readExactLiveTarget(
       const target = {
         tabId: tab.id,
         windowId: tab.windowId,
-        needsNavigation: committedUrl !== page.url
+        needsNavigation: committedUrl !== page.url,
       }
       if (surfaceKind === 'normal-tab' && exactNormalTarget === null) {
         exactNormalTarget = target
@@ -95,7 +95,7 @@ async function readExactLiveTarget(
     return {
       ok: true,
       normalWindowId: normalWindow?.id ?? null,
-      target: exactNormalTarget
+      target: exactNormalTarget,
     }
   } catch {
     // An unknown browser inventory cannot prove that creating would not
@@ -107,7 +107,7 @@ async function readExactLiveTarget(
 async function confirmExactNormalTarget(
   chromeApi: ChromeApi,
   target: LiveRetainedPageTarget,
-  targetUrl: string
+  targetUrl: string,
 ): Promise<boolean> {
   try {
     const tab = await chromeApi.tabs.get(target.tabId)
@@ -126,7 +126,7 @@ async function confirmExistingTarget(
   chromeApi: ChromeApi,
   target: LiveRetainedPageTarget,
   targetUrl: string,
-  expectedWindowId: number
+  expectedWindowId: number,
 ): Promise<boolean> {
   try {
     const tab = await chromeApi.tabs.get(target.tabId)
@@ -138,7 +138,7 @@ async function confirmExistingTarget(
 
 function committedTabRepresentsTarget(
   tab: chrome.tabs.Tab,
-  targetUrl: string
+  targetUrl: string,
 ): boolean {
   return retainedPageEffectiveUrl({ url: tab.url || '' }) === targetUrl
 }
@@ -151,13 +151,13 @@ async function confirmCreatedTabTarget(
   chromeApi: ChromeApi,
   created: chrome.tabs.Tab,
   targetUrl: string,
-  options: RetainedPageRecoveryOptions
+  options: RetainedPageRecoveryOptions,
 ): Promise<boolean> {
   if (typeof created.id !== 'number') return false
 
   const attempts = Math.max(
     1,
-    Math.trunc(options.confirmationAttempts ?? DEFAULT_CONFIRMATION_ATTEMPTS)
+    Math.trunc(options.confirmationAttempts ?? DEFAULT_CONFIRMATION_ATTEMPTS),
   )
   const wait = options.waitBetweenConfirmationAttempts ?? waitForConfirmationPoll
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -178,7 +178,7 @@ async function confirmCreatedWindowTarget(
   chromeApi: ChromeApi,
   created: chrome.windows.Window,
   targetUrl: string,
-  options: RetainedPageRecoveryOptions
+  options: RetainedPageRecoveryOptions,
 ): Promise<boolean> {
   if (typeof created.id !== 'number') return false
 
@@ -198,7 +198,7 @@ async function confirmCreatedWindowTarget(
 
   const attempts = Math.max(
     1,
-    Math.trunc(options.confirmationAttempts ?? DEFAULT_CONFIRMATION_ATTEMPTS)
+    Math.trunc(options.confirmationAttempts ?? DEFAULT_CONFIRMATION_ATTEMPTS),
   )
   const wait = options.waitBetweenConfirmationAttempts ?? waitForConfirmationPoll
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -222,13 +222,13 @@ async function focusExactLiveTarget(
   target: LiveRetainedPageTarget,
   targetUrl: string,
   options: RetainedPageRecoveryOptions,
-  expectedWindowId = target.windowId
+  expectedWindowId = target.windowId,
 ): Promise<boolean> {
   let updated: chrome.tabs.Tab | undefined
   try {
     updated = await chromeApi.tabs.update(target.tabId, {
       ...(target.needsNavigation ? { url: targetUrl } : {}),
-      active: true
+      active: true,
     })
   } catch {
     return false
@@ -255,13 +255,13 @@ async function moveExactLiveTarget(
   target: LiveRetainedPageTarget,
   destinationWindowId: number,
   activate: boolean,
-  options: RetainedPageRecoveryOptions
+  options: RetainedPageRecoveryOptions,
 ): Promise<boolean> {
   if (target.windowId !== destinationWindowId) {
     try {
       await chromeApi.tabs.move(target.tabId, {
         windowId: destinationWindowId,
-        index: -1
+        index: -1,
       })
     } catch {
       return false
@@ -270,7 +270,7 @@ async function moveExactLiveTarget(
       chromeApi,
       target,
       page.url,
-      destinationWindowId
+      destinationWindowId,
     )) return false
   }
 
@@ -279,7 +279,7 @@ async function moveExactLiveTarget(
     try {
       updated = await chromeApi.tabs.update(target.tabId, {
         ...(target.needsNavigation ? { url: page.url } : {}),
-        ...(activate ? { active: true } : {})
+        ...(activate ? { active: true } : {}),
       })
     } catch {
       return false
@@ -297,7 +297,7 @@ async function moveExactLiveTarget(
     chromeApi,
     target,
     page.url,
-    destinationWindowId
+    destinationWindowId,
   )) return false
 
   if (activate) {
@@ -314,14 +314,14 @@ async function moveExactLiveTargetToNewWindow(
   chromeApi: ChromeApi,
   page: RecoverablePageSnapshot,
   target: LiveRetainedPageTarget,
-  options: RetainedPageRecoveryOptions
+  options: RetainedPageRecoveryOptions,
 ): Promise<boolean> {
   let created: chrome.windows.Window | undefined
   try {
     created = await chromeApi.windows.create({
       tabId: target.tabId,
       focused: true,
-      type: 'normal'
+      type: 'normal',
     })
   } catch {
     return false
@@ -334,7 +334,7 @@ async function moveExactLiveTargetToNewWindow(
   try {
     updated = await chromeApi.tabs.update(target.tabId, {
       url: page.url,
-      active: true
+      active: true,
     })
   } catch {
     return false
@@ -348,7 +348,7 @@ async function recoverExactLiveTarget(
   target: LiveRetainedPageTarget,
   normalWindowId: number | null,
   disposition: RetainedPageActivationDisposition,
-  options: RetainedPageRecoveryOptions
+  options: RetainedPageRecoveryOptions,
 ): Promise<boolean> {
   if (disposition === 'focus-tab') {
     return focusExactLiveTarget(chromeApi, target, page.url, options)
@@ -363,7 +363,7 @@ async function recoverExactLiveTarget(
       target,
       normalWindowId,
       disposition === 'foreground-tab',
-      options
+      options,
     )
   }
 
@@ -372,7 +372,7 @@ async function recoverExactLiveTarget(
     created = await chromeApi.windows.create({
       tabId: target.tabId,
       focused: disposition === 'foreground-tab',
-      type: 'normal'
+      type: 'normal',
     })
   } catch {
     return false
@@ -385,7 +385,7 @@ async function recoverExactLiveTarget(
     { ...target, windowId: created.id },
     created.id,
     disposition === 'foreground-tab',
-    options
+    options,
   )
 }
 
@@ -394,14 +394,14 @@ async function createNormalTab(
   page: RecoverablePageSnapshot,
   active: boolean,
   normalWindowId: number | null,
-  options: RetainedPageRecoveryOptions
+  options: RetainedPageRecoveryOptions,
 ): Promise<boolean> {
   if (normalWindowId === null) {
     try {
       const created = await chromeApi.windows.create({
         url: page.url,
         focused: active,
-        type: 'normal'
+        type: 'normal',
       })
       return !!created && confirmCreatedWindowTarget(chromeApi, created, page.url, options)
     } catch {
@@ -412,7 +412,7 @@ async function createNormalTab(
     const created = await chromeApi.tabs.create({
       windowId: normalWindowId,
       url: page.url,
-      active
+      active,
     })
     return !!created && confirmCreatedTabTarget(chromeApi, created, page.url, options)
   } catch {
@@ -429,14 +429,14 @@ export async function recoverRetainedPageSnapshot(
   chromeApi: ChromeApi,
   page: RecoverablePageSnapshot,
   disposition: RetainedPageActivationDisposition,
-  options: RetainedPageRecoveryOptions = {}
+  options: RetainedPageRecoveryOptions = {},
 ): Promise<boolean> {
   if (!isRetainedPageActivationEligible(page.url)) return false
 
   let liveTargetRead = await readExactLiveTarget(
     chromeApi,
     page,
-    options.currentWindowId
+    options.currentWindowId,
   )
   if (!liveTargetRead.ok) return false
   if (
@@ -450,7 +450,7 @@ export async function recoverRetainedPageSnapshot(
     liveTargetRead = await readExactLiveTarget(
       chromeApi,
       page,
-      options.currentWindowId
+      options.currentWindowId,
     )
     if (!liveTargetRead.ok) return false
     if (
@@ -465,7 +465,7 @@ export async function recoverRetainedPageSnapshot(
       liveTargetRead.target,
       liveTargetRead.normalWindowId,
       disposition,
-      options
+      options,
     )
   }
 
@@ -474,7 +474,7 @@ export async function recoverRetainedPageSnapshot(
       const created = await chromeApi.windows.create({
         url: page.url,
         focused: true,
-        type: 'normal'
+        type: 'normal',
       })
       return !!created && confirmCreatedWindowTarget(chromeApi, created, page.url, options)
     } catch {
@@ -487,6 +487,6 @@ export async function recoverRetainedPageSnapshot(
     page,
     disposition !== 'background-tab',
     liveTargetRead.normalWindowId,
-    options
+    options,
   )
 }

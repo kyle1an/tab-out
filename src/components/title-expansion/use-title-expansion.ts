@@ -36,7 +36,7 @@ export function useTitleExpansionController(options: UseTitleExpansionController
           closeDelayMs,
           onExpandedChange: (expanded) => optionsRef.current.onExpandedChange(expanded),
           shouldCancelClose: () => optionsRef.current.shouldCancelClose?.() ?? false,
-          shouldIgnoreLaneSteal: () => optionsRef.current.shouldIgnoreLaneSteal?.() ?? false
+          shouldIgnoreLaneSteal: () => optionsRef.current.shouldIgnoreLaneSteal?.() ?? false,
         })
       }
       return instanceRef.current
@@ -50,7 +50,7 @@ export function useTitleExpansionController(options: UseTitleExpansionController
       dispose: () => {
         instanceRef.current?.dispose()
         instanceRef.current = null
-      }
+      },
     }
   }
 

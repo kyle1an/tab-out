@@ -17,11 +17,15 @@ function readProductionSource(relativePath: string): string {
   return readFileSync(join(repositoryRoot, relativePath), 'utf8')
 }
 
+function sourceWithoutLayout(source: string): string {
+  return source.replace(/\s+/g, '').replace(/,(?=[)}\]])/g, '')
+}
+
 test('production Effects cross the runtime boundary only through the shared app and worker runtimes', () => {
   const sources = productionTypeScriptFiles().map((path) => ({
     path,
     relativePath: relative(repositoryRoot, path),
-    source: readFileSync(path, 'utf8')
+    source: readFileSync(path, 'utf8'),
   }))
 
   const managedRuntimeOwners = sources
@@ -30,12 +34,12 @@ test('production Effects cross the runtime boundary only through the shared app 
 
   assert.deepEqual(managedRuntimeOwners, [
     'src/extension/app-runtime.ts',
-    'src/extension/background/runtime.ts'
+    'src/extension/background/runtime.ts',
   ])
 
   for (const owner of managedRuntimeOwners) {
     const runtimeCount = readProductionSource(owner).match(
-      /\bManagedRuntime\.make\(/g
+      /\bManagedRuntime\.make\(/g,
     )?.length ?? 0
     assert.equal(runtimeCount, 1, `${owner} must own exactly one ManagedRuntime`)
   }
@@ -44,34 +48,35 @@ test('production Effects cross the runtime boundary only through the shared app 
     assert.doesNotMatch(
       source,
       /\bEffect\.run(?:Callback|Fork|Promise(?:Exit)?|Sync(?:Exit)?)\b/,
-      `${relativePath} must use its entrypoint's shared ManagedRuntime`
+      `${relativePath} must use its entrypoint's shared ManagedRuntime`,
     )
   }
 })
 
 test('shared runtimes retain their required service graphs', () => {
-  const appRuntimeSource = readProductionSource(
-    'src/extension/app-runtime.ts'
-  ).replace(/\s+/g, '')
-  assert.ok(appRuntimeSource.includes(
-    'ManagedRuntime.make(Layer.mergeAll(BrowserTabs.layer(),ClosedTabRestoreWatchdogs.layer))'
+  const appRuntimeSource = sourceWithoutLayout(readProductionSource(
+    'src/extension/app-runtime.ts',
   ))
+  assert.match(
+    appRuntimeSource,
+    /ManagedRuntime\.make\(Layer\.mergeAll\(BrowserTabs\.layer\(\),ClosedTabRestoreWatchdogs\.layer,?\)\)/,
+  )
 
   const workerRuntimePath = 'src/extension/background/runtime.ts'
-  const workerRuntimeSource = readProductionSource(workerRuntimePath).replace(/\s+/g, '')
+  const workerRuntimeSource = sourceWithoutLayout(readProductionSource(workerRuntimePath))
   const requiredGraphEdges = [
     'constretentionHealth=RetentionHealth.layer(',
     'constretainedPages=RetainedPages.layer(',
     'constactivityServices=Layer.mergeAll(TabHistory.layer(chromeApi),WorkingSet.layer(chromeApi)).pipe(Layer.provideMerge(workingSetActivityStorage))',
     'constcoreServices=Layer.mergeAll(BrowserTabs.layer(),Badge.layer(chromeApi),NativePlacementBridge.layer(chromeApi),retainedPages,retentionHealth,activityServices)',
     'construntimeLayer=StartupSnapshot.layer({alarms:chromeApi.alarms,getDashboardServiceState:captureDashboardServiceStateEffect}).pipe(Layer.provideMerge(coreServices))',
-    'construntime=ManagedRuntime.make(runtimeLayer)'
+    'construntime=ManagedRuntime.make(runtimeLayer)',
   ]
 
   for (const edge of requiredGraphEdges) {
     assert.ok(
       workerRuntimeSource.includes(edge),
-      `${workerRuntimePath} must retain the connected service graph edge ${edge}`
+      `${workerRuntimePath} must retain the connected service graph edge ${edge}`,
     )
   }
 })
@@ -82,18 +87,18 @@ test('worker listeners enter the shared background runtime', () => {
     {
       name: 'command',
       start: 'chromeApi.commands.onCommand.addListener',
-      end: 'chromeApi.action.onClicked.addListener'
+      end: 'chromeApi.action.onClicked.addListener',
     },
     {
       name: 'action click',
       start: 'chromeApi.action.onClicked.addListener',
-      end: 'chromeApi.runtime.onMessage.addListener'
+      end: 'chromeApi.runtime.onMessage.addListener',
     },
     {
       name: 'runtime message',
       start: 'chromeApi.runtime.onMessage.addListener',
-      end: '// ─── Initial run'
-    }
+      end: '// ─── Initial run',
+    },
   ]
 
   assert.match(source, /\bcreateBackgroundRuntime\(chromeApi\)/)
@@ -105,7 +110,7 @@ test('worker listeners enter the shared background runtime', () => {
     assert.match(
       source.slice(startIndex, endIndex),
       /\bbackgroundRuntime\.runPromise\(/,
-      `${name} listener must submit its workflow through the shared runtime`
+      `${name} listener must submit its workflow through the shared runtime`,
     )
   }
 })
@@ -137,14 +142,14 @@ test('adopted Promise adapters enter the shared app runtime', () => {
     'src/extension/tab-history.ts',
     'src/extension/tab-move.ts',
     'src/extension/tabs.ts',
-    'src/extension/undo.ts'
+    'src/extension/undo.ts',
   ]
 
   for (const relativePath of promiseAdapterOwners) {
     assert.match(
       readProductionSource(relativePath),
       /\bgetAppRuntime\(\)\.runPromise\(/,
-      `${relativePath} must enter the shared app runtime at its Promise boundary`
+      `${relativePath} must enter the shared app runtime at its Promise boundary`,
     )
   }
 })
@@ -160,7 +165,7 @@ test('UI, animation, and lazy source seams remain Effect-free', () => {
     'src/extension/intra-card-move-animation.ts',
     'src/extension/layout.ts',
     'src/extension/move-animation.ts',
-    'src/extension/saved-pages.ts'
+    'src/extension/saved-pages.ts',
   ])
   const effectFreeSources = productionTypeScriptFiles()
     .map((path) => relative(repositoryRoot, path))
@@ -168,14 +173,14 @@ test('UI, animation, and lazy source seams remain Effect-free', () => {
       relativePath.startsWith('src/components/') ||
       relativePath.startsWith('src/hooks/') ||
       relativePath.startsWith('src/lib/') ||
-      explicitEffectFreeSeams.has(relativePath)
+      explicitEffectFreeSeams.has(relativePath),
     )
 
   for (const relativePath of effectFreeSources) {
     assert.doesNotMatch(
       readProductionSource(relativePath),
       /\b(?:from\s+|import\s*(?:\(\s*)?)['"]effect(?:\/[^'"]+)?['"]/,
-      `${relativePath} must stay outside the Effect runtime graph`
+      `${relativePath} must stay outside the Effect runtime graph`,
     )
   }
 })
@@ -185,14 +190,14 @@ test('scoped Effect owners do not regress to native timers', () => {
     'src/extension/background/badge.ts',
     'src/extension/background/native-placement-bridge.ts',
     'src/extension/background/startup-snapshot-service.ts',
-    'src/extension/closed-tab-restore-watchdogs.ts'
+    'src/extension/closed-tab-restore-watchdogs.ts',
   ]
 
   for (const relativePath of scopedOwners) {
     assert.doesNotMatch(
       readProductionSource(relativePath),
       /\b(?:set|clear)(?:Interval|Timeout)\s*\(/,
-      `${relativePath} must keep timer ownership in its Effect scope`
+      `${relativePath} must keep timer ownership in its Effect scope`,
     )
   }
 })
@@ -215,14 +220,14 @@ test('persisted and cross-context owners retain Schema validation', () => {
     'src/extension/suspension.ts',
     'src/extension/tab-history.ts',
     'src/extension/working-set-client.ts',
-    'src/extension/working-set.ts'
+    'src/extension/working-set.ts',
   ]
 
   for (const relativePath of schemaOwners) {
     assert.match(
       readProductionSource(relativePath),
       /\bSchema\.(?:decode\w*|encode\w*|is)\(/,
-      `${relativePath} must validate its persisted or cross-context boundary`
+      `${relativePath} must validate its persisted or cross-context boundary`,
     )
   }
 })

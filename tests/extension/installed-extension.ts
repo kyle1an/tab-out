@@ -5,13 +5,13 @@ import { fileURLToPath } from 'node:url'
 
 import {
   chromium,
-  test as base
+  test as base,
 } from '@playwright/test'
 import type {
   BrowserContext,
   ConsoleMessage,
   Page,
-  Worker
+  Worker,
 } from '@playwright/test'
 
 export const RETENTION_TEST_INSTRUMENTATION_MARKER =
@@ -43,7 +43,7 @@ const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url))
 const builtExtensionDirectory = join(repositoryRoot, 'extension')
 
 async function findInstrumentationMarker(
-  artifactDirectory: string
+  artifactDirectory: string,
 ): Promise<readonly string[]> {
   const matches: string[] = []
 
@@ -77,7 +77,7 @@ class RuntimeErrorCollector {
       this.#record({
         source: 'page',
         message: webError.error().message,
-        url: location.url
+        url: location.url,
       })
     })
     context.on('page', (page) => this.#attachPage(page))
@@ -98,7 +98,7 @@ class RuntimeErrorCollector {
       this.#record({
         source: 'page',
         message: error.message,
-        url: page.url()
+        url: page.url(),
       })
     })
   }
@@ -116,7 +116,7 @@ class RuntimeErrorCollector {
     this.#record({
       source,
       message: message.text(),
-      url: message.location().url
+      url: message.location().url,
     })
   }
 
@@ -131,10 +131,10 @@ type InstalledExtensionWorkerFixtures = {
 }
 
 export async function launchInstalledExtensionFromArtifact(
-  sourceDirectory: string
+  sourceDirectory: string,
 ): Promise<LaunchedInstalledExtension> {
   const temporaryDirectory = await mkdtempDisposable(
-    join(tmpdir(), 'tab-out-extension-smoke-')
+    join(tmpdir(), 'tab-out-extension-smoke-'),
   )
   const artifactDirectory = join(temporaryDirectory.path, 'extension')
   const profileDirectory = join(temporaryDirectory.path, 'profile')
@@ -146,24 +146,24 @@ export async function launchInstalledExtensionFromArtifact(
     await cp(sourceDirectory, artifactDirectory, {
       errorOnExist: true,
       force: false,
-      recursive: true
+      recursive: true,
     })
     await mkdir(profileDirectory)
     const markerMatches = await findInstrumentationMarker(artifactDirectory)
     context = await chromium.launchPersistentContext(profileDirectory, {
       args: [
         `--disable-extensions-except=${artifactDirectory}`,
-        `--load-extension=${artifactDirectory}`
+        `--load-extension=${artifactDirectory}`,
       ],
       channel: 'chromium',
-      headless: true
+      headless: true,
     })
     errors.attach(context)
 
     const serviceWorker = context.serviceWorkers().find(isTabOutServiceWorker)
       ?? await context.waitForEvent('serviceworker', {
         predicate: isTabOutServiceWorker,
-        timeout: 15_000
+        timeout: 15_000,
       })
     const extensionId = new URL(serviceWorker.url()).hostname
     const dispose = async (): Promise<void> => {
@@ -179,7 +179,7 @@ export async function launchInstalledExtensionFromArtifact(
       const observedErrors = errors.snapshot()
       if (observedErrors.length > 0) {
         throw new Error(
-          `Installed extension emitted runtime errors:\n${JSON.stringify(observedErrors, null, 2)}`
+          `Installed extension emitted runtime errors:\n${JSON.stringify(observedErrors, null, 2)}`,
         )
       }
     }
@@ -192,7 +192,7 @@ export async function launchInstalledExtensionFromArtifact(
       runtimeErrors: () => errors.snapshot(),
       serviceWorker,
       dispose,
-      [Symbol.asyncDispose]: dispose
+      [Symbol.asyncDispose]: dispose,
     }
   } catch (error) {
     if (context !== undefined) {
@@ -210,10 +210,10 @@ export async function launchInstalledExtensionFromArtifact(
 export const test = base.extend<object, InstalledExtensionWorkerFixtures>({
   installedExtension: [async ({}, use) => {
     await using installedExtension = await launchInstalledExtensionFromArtifact(
-      builtExtensionDirectory
+      builtExtensionDirectory,
     )
     await use(installedExtension)
-  }, { scope: 'worker', timeout: 45_000 }]
+  }, { scope: 'worker', timeout: 45_000 }],
 })
 
 export { expect } from '@playwright/test'

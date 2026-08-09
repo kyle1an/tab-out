@@ -84,7 +84,7 @@ const FRIENDLY_DOMAINS: Record<string, string> = {
   'www.producthunt.com': 'Product Hunt',
   'xiaohongshu.com': 'RedNote',
   'www.xiaohongshu.com': 'RedNote',
-  'local-files': 'Local Files'
+  'local-files': 'Local Files',
 }
 
 function capitalize(str: string): string {

@@ -7,7 +7,7 @@ import {
   HISTORY_RANGE_STORAGE_KEY,
   loadHistoryRangePreference,
   loadHistoryRangePreferenceResultEffect,
-  saveHistoryRangePreference
+  saveHistoryRangePreference,
 } from '../src/extension/history-range-storage.js'
 import { getAppRuntime } from '../src/extension/app-runtime.js'
 import { createFakeChromeApi } from './helpers/fake-chrome.mjs'
@@ -18,7 +18,7 @@ function createExclusiveRunner() {
     const result = queue.then(task)
     queue = result.then(
       () => undefined,
-      () => undefined
+      () => undefined,
     )
     return result
   }
@@ -28,8 +28,8 @@ test('history range preference restores a valid saved scope', async () => {
   const previousChrome = globalThis.chrome
   globalThis.chrome = createFakeChromeApi({
     storageSeed: {
-      [HISTORY_RANGE_STORAGE_KEY]: '90d'
-    }
+      [HISTORY_RANGE_STORAGE_KEY]: '90d',
+    },
   }) as unknown as typeof chrome
 
   try {
@@ -43,8 +43,8 @@ test('history range preference falls back to Last day for an invalid saved scope
   const previousChrome = globalThis.chrome
   globalThis.chrome = createFakeChromeApi({
     storageSeed: {
-      [HISTORY_RANGE_STORAGE_KEY]: '14d'
-    }
+      [HISTORY_RANGE_STORAGE_KEY]: '14d',
+    },
   }) as unknown as typeof chrome
 
   try {
@@ -58,8 +58,8 @@ test('history range preference rejects non-string stored values', async () => {
   const previousChrome = globalThis.chrome
   globalThis.chrome = createFakeChromeApi({
     storageSeed: {
-      [HISTORY_RANGE_STORAGE_KEY]: { value: '90d' }
-    }
+      [HISTORY_RANGE_STORAGE_KEY]: { value: '90d' },
+    },
   }) as unknown as typeof chrome
 
   try {
@@ -87,9 +87,9 @@ test('history range preference falls back to Last day when storage cannot be rea
       local: {
         async get() {
           throw new Error('storage unavailable')
-        }
-      }
-    }
+        },
+      },
+    },
   } as unknown as typeof chrome
 
   try {
@@ -108,20 +108,20 @@ test('strict history range load distinguishes a read failure from a confirmed de
         async get() {
           if (shouldFail) throw new Error('storage unavailable')
           return {}
-        }
-      }
-    }
+        },
+      },
+    },
   } as unknown as typeof chrome
 
   try {
     assert.deepEqual(
       await getAppRuntime().runPromise(loadHistoryRangePreferenceResultEffect()),
-      { ok: false, value: '1d' }
+      { ok: false, value: '1d' },
     )
     shouldFail = false
     assert.deepEqual(
       await getAppRuntime().runPromise(loadHistoryRangePreferenceResultEffect()),
-      { ok: true, value: '1d' }
+      { ok: true, value: '1d' },
     )
   } finally {
     globalThis.chrome = previousChrome
@@ -161,7 +161,7 @@ test('rapid history range changes persist in invocation order even when the firs
       if (calls === 1) await firstWrite
       writes.push(value)
     },
-    runExclusive: createExclusiveRunner()
+    runExclusive: createExclusiveRunner(),
   })
 
   const first = writer.save('30d')
@@ -186,7 +186,7 @@ test('independent page writers cannot let an older delayed range overwrite a new
       stored = value
       writes.push(value)
     },
-    runExclusive: createExclusiveRunner()
+    runExclusive: createExclusiveRunner(),
   }
   const firstPageWriter = createHistoryRangePreferenceWriter(adapter)
   const secondPageWriter = createHistoryRangePreferenceWriter(adapter)

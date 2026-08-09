@@ -28,15 +28,15 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   '.js': 'text/javascript',
   '.json': 'application/json',
   '.mjs': 'text/javascript',
-  '.svg': 'image/svg+xml'
+  '.svg': 'image/svg+xml',
 }
 
 export class DebugServerError extends Schema.TaggedErrorClass<DebugServerError>()(
   'DebugServerError',
   {
     port: Schema.Int,
-    cause: Schema.Defect()
-  }
+    cause: Schema.Defect(),
+  },
 ) {
   override get message(): string {
     const detail = this.cause instanceof Error ? this.cause.message : String(this.cause)
@@ -68,9 +68,9 @@ const resolveRequestTarget = Option.liftThrowable((requestUrl: string) => {
 
 function makeRequestHandler(
   fileSystem: FileSystem.FileSystem,
-  httpPlatform: HttpPlatform.HttpPlatform['Service']
+  httpPlatform: HttpPlatform.HttpPlatform['Service'],
 ) {
-  return Effect.gen(function*() {
+  return Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest
     const targetOption = resolveRequestTarget(request.url)
     if (Option.isNone(targetOption)) {
@@ -89,7 +89,7 @@ function makeRequestHandler(
     if (target === DASHBOARD_FIXTURE) {
       return yield* Effect.all([
         fileSystem.readFileString(DASHBOARD_FIXTURE),
-        fileSystem.readFileString(GENERATED_INDEX)
+        fileSystem.readFileString(GENERATED_INDEX),
       ] as const, { concurrency: 'unbounded' }).pipe(
         Effect.flatMap(([fixture, generatedIndex]) => Effect.try(() => {
           const fixtureStart = fixture.indexOf(APP_ROOT_START)
@@ -101,26 +101,26 @@ function makeRequestHandler(
             fixture.slice(fixtureEnd + APP_ROOT_END.length)
           return HttpServerResponse.html(body)
         })),
-        Effect.catch((error) => Effect.succeed(HttpServerResponse.text(errorMessage(error), { status: 500 })))
+        Effect.catch((error) => Effect.succeed(HttpServerResponse.text(errorMessage(error), { status: 500 }))),
       )
     }
 
     return yield* HttpServerResponse.file(target, {
-      contentType: CONTENT_TYPES[extname(target)] || 'application/octet-stream'
+      contentType: CONTENT_TYPES[extname(target)] || 'application/octet-stream',
     }).pipe(
       Effect.provideService(HttpPlatform.HttpPlatform, httpPlatform),
-      Effect.catch((error) => Effect.succeed(HttpServerResponse.text(errorMessage(error), { status: 500 })))
+      Effect.catch((error) => Effect.succeed(HttpServerResponse.text(errorMessage(error), { status: 500 }))),
     )
   })
 }
 
-const runDashboardDebugServerScoped = Effect.fn('debugServer.run')(function*(
-  options: DashboardDebugServerOptions
+const runDashboardDebugServerScoped = Effect.fn('debugServer.run')(function* (
+  options: DashboardDebugServerOptions,
 ) {
   if (!Number.isInteger(options.port) || options.port < 0 || options.port > 65_535) {
     return yield* Effect.fail(DebugServerError.make({
       port: options.port,
-      cause: new RangeError(`Invalid debug server port: ${options.port}`)
+      cause: new RangeError(`Invalid debug server port: ${options.port}`),
     }))
   }
 
@@ -129,9 +129,9 @@ const runDashboardDebugServerScoped = Effect.fn('debugServer.run')(function*(
   const server = yield* NodeHttpServer.make(createServer, {
     host: HOST,
     port: options.port,
-    gracefulShutdownTimeout: '2 seconds'
+    gracefulShutdownTimeout: '2 seconds',
   }).pipe(
-    Effect.mapError((cause) => DebugServerError.make({ port: options.port, cause }))
+    Effect.mapError((cause) => DebugServerError.make({ port: options.port, cause })),
   )
   yield* server.serve(makeRequestHandler(fileSystem, httpPlatform))
   const boundPort = server.address._tag === 'TcpAddress' ? server.address.port : options.port
@@ -140,11 +140,11 @@ const runDashboardDebugServerScoped = Effect.fn('debugServer.run')(function*(
 })
 
 export function runDashboardDebugServer(
-  options: DashboardDebugServerOptions
+  options: DashboardDebugServerOptions,
 ): Effect.Effect<void, DebugServerError> {
   return runDashboardDebugServerScoped(options).pipe(
     Effect.scoped,
-    Effect.provide(NodeHttpServer.layerHttpServices)
+    Effect.provide(NodeHttpServer.layerHttpServices),
   )
 }
 
@@ -156,15 +156,15 @@ function debugServerProgram(): Effect.Effect<number> {
     onListening: (boundServerPort) => {
       process.stdout.write(`Tab Out debug server  http://${HOST}:${boundServerPort}\n`)
       process.stdout.write(
-        `Dashboard fixture      http://${HOST}:${boundServerPort}/tests/fixtures/dashboard-resize.html\n`
+        `Dashboard fixture      http://${HOST}:${boundServerPort}/tests/fixtures/dashboard-resize.html\n`,
       )
-    }
+    },
   }).pipe(
     Effect.as(0),
     Effect.catchTag('DebugServerError', (error) => Effect.sync(() => {
       console.error(`Tab Out debug server failed on port ${error.port}: ${errorMessage(error.cause)}`)
       return 1
-    }))
+    })),
   )
 }
 
@@ -173,6 +173,6 @@ if (import.meta.main) {
     Effect.tap((exitCode) => Effect.sync(() => {
       process.exitCode = exitCode
     })),
-    NodeRuntime.runMain
+    NodeRuntime.runMain,
   )
 }

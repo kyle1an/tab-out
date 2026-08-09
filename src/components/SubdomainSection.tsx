@@ -92,7 +92,7 @@ export function SubdomainSection({
   filter = '',
   useSuppressionTokenTones = false,
   suppressedTitleToneIndexByText = EMPTY_SUPPRESSION_TONE_INDEX,
-  suppressedTitleToneByText
+  suppressedTitleToneByText,
 }: SubdomainSectionProps) {
   const { activeSuppressedTitle, setActiveSuppressedTitle } = useDomainCardContext()
   const isFirst = position === 'first'
@@ -129,7 +129,7 @@ export function SubdomainSection({
       data-tabout-removal-key={`section:${sectionLayoutKey}`}
       className={cn(
         'subdomain-section group/subdomain-section flex flex-col',
-        !isFirst && 'mt-1.5 border-t border-[rgba(115,115,115,0.12)]'
+        !isFirst && 'mt-1.5 border-t border-[rgba(115,115,115,0.12)]',
       )}
       data-kind={isPort ? 'port' : undefined}
     >
@@ -137,7 +137,7 @@ export function SubdomainSection({
         <div
           className={cn(
             'subdomain-header flex items-center gap-1.5 pb-0.5 text-xs font-semibold tracking-[0.2px] text-muted-foreground',
-            isFirst ? 'pt-0.5' : 'pt-1.5'
+            isFirst ? 'pt-0.5' : 'pt-1.5',
           )}
         >
           <span
@@ -145,7 +145,7 @@ export function SubdomainSection({
               'subdomain-header-name',
               isPort
                 ? "before:content-[':']"
-                : "after:ml-px after:content-['.']"
+                : "after:ml-px after:content-['.']",
             )}
           >
             {headerLabel}

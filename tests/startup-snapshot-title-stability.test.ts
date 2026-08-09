@@ -18,25 +18,25 @@ const emptyTabHistory = {
   activeTabId: null,
   activeWindowId: null,
   activeWasInserted: false,
-  entries: []
+  entries: [],
 }
 const emptyActivity = { version: 1, records: {} }
 
 function createStartupSnapshotService(
   t: TestContext,
-  getDashboardServiceState: () => Promise<any>
+  getDashboardServiceState: () => Promise<any>,
 ) {
   const runtime = ManagedRuntime.make(StartupSnapshot.layer({
     getDashboardServiceState: Effect.tryPromise({
       try: getDashboardServiceState,
-      catch: (cause) => cause
-    })
+      catch: (cause) => cause,
+    }),
   }).pipe(Layer.provideMerge(BrowserTabs.layer())))
   runtime.runSync(Effect.void)
   const service = runtime.runSync(StartupSnapshot)
   t.after(() => runtime.dispose())
   return {
-    refreshNow: () => runtime.runPromise(service.refreshNow())
+    refreshNow: () => runtime.runPromise(service.refreshNow()),
   }
 }
 
@@ -54,9 +54,9 @@ test('background startup snapshots retain the cached title of a waking suspended
         tabId: 7,
         url: pageUrl,
         title: 'Example Docs',
-        kind: 'suspended'
-      }]
-    }
+        kind: 'suspended',
+      }],
+    },
   }
   const localStore: Record<string, unknown> = {}
   let sessionReadCount = 0
@@ -77,13 +77,13 @@ test('background startup snapshots retain the cached title of a waking suspended
           pinned: false,
           groupId: -1,
           index: 0,
-          favIconUrl: ''
+          favIconUrl: '',
         }]
-      }
+      },
     },
     windows: {
       getAll: async () => [{ id: 1, focused: true, type: 'normal' }],
-      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' })
+      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' }),
     },
     tabGroups: { query: async () => [] },
     sessions: { getRecentlyClosed: async () => [] },
@@ -94,13 +94,13 @@ test('background startup snapshots retain the cached title of a waking suspended
           if (sessionReadCount === 1) throw new Error('session cache temporarily unavailable')
           return sessionStore
         },
-        set: async (value: Record<string, unknown>) => Object.assign(sessionStore, value)
+        set: async (value: Record<string, unknown>) => Object.assign(sessionStore, value),
       },
       local: {
         get: async () => localStore,
-        set: async (value: Record<string, unknown>) => Object.assign(localStore, value)
-      }
-    }
+        set: async (value: Record<string, unknown>) => Object.assign(localStore, value),
+      },
+    },
   }
 
   t.after(() => {
@@ -110,13 +110,13 @@ test('background startup snapshots retain the cached title of a waking suspended
   })
 
   const service = createStartupSnapshotService(t, async () => ({
-      tabHistory: emptyTabHistory as any,
-      workingSetActivity: emptyActivity as any,
-      openTabsSnapshot: {
-        tabs: await chrome.tabs.query({}),
-        windows: await chrome.windows.getAll()
-      }
-    }))
+    tabHistory: emptyTabHistory as any,
+    workingSetActivity: emptyActivity as any,
+    openTabsSnapshot: {
+      tabs: await chrome.tabs.query({}),
+      windows: await chrome.windows.getAll(),
+    },
+  }))
   await service.refreshNow()
   assert.equal(tabsQueryCount, 0, 'an unknown cache read must preserve the cache and retry seeding')
 

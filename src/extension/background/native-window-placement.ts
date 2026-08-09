@@ -27,7 +27,7 @@ function isWindowWithBounds(window: chrome.windows.Window): window is WindowWith
 
 function intersectionArea(
   bounds: TargetDisplayBounds,
-  display: chrome.system.display.DisplayUnitInfo
+  display: chrome.system.display.DisplayUnitInfo,
 ): number {
   const left = Math.max(bounds.left, display.bounds.left)
   const top = Math.max(bounds.top, display.bounds.top)
@@ -38,7 +38,7 @@ function intersectionArea(
 
 function owningDisplay(
   window: WindowWithBounds,
-  displays: chrome.system.display.DisplayUnitInfo[]
+  displays: chrome.system.display.DisplayUnitInfo[],
 ): chrome.system.display.DisplayUnitInfo | null {
   let owner: chrome.system.display.DisplayUnitInfo | null = null
   let ownerArea = 0
@@ -56,7 +56,7 @@ function owningDisplay(
 
 function targetDisplayForBounds(
   targetBounds: TargetDisplayBounds,
-  displays: chrome.system.display.DisplayUnitInfo[]
+  displays: chrome.system.display.DisplayUnitInfo[],
 ): chrome.system.display.DisplayUnitInfo {
   const matches = displays.filter((display) => (
     targetBounds.left === display.bounds.left
@@ -79,7 +79,7 @@ function clamp(value: number, minimum: number, maximum: number): number {
 function translatedBounds(
   sourceWindow: WindowWithBounds,
   sourceDisplay: chrome.system.display.DisplayUnitInfo,
-  targetDisplay: chrome.system.display.DisplayUnitInfo
+  targetDisplay: chrome.system.display.DisplayUnitInfo,
 ): Pick<chrome.windows.CreateData, 'height' | 'left' | 'top' | 'width'> {
   const width = Math.min(sourceWindow.width, targetDisplay.workArea.width)
   const height = Math.min(sourceWindow.height, targetDisplay.workArea.height)
@@ -94,25 +94,25 @@ function translatedBounds(
     left: Math.round(left),
     top: Math.round(top),
     width: Math.round(width),
-    height: Math.round(height)
+    height: Math.round(height),
   }
 }
 
 function workAreaBounds(
-  display: chrome.system.display.DisplayUnitInfo
+  display: chrome.system.display.DisplayUnitInfo,
 ): Pick<chrome.windows.CreateData, 'height' | 'left' | 'top' | 'width'> {
   return {
     left: Math.round(display.workArea.left),
     top: Math.round(display.workArea.top),
     width: Math.round(display.workArea.width),
-    height: Math.round(display.workArea.height)
+    height: Math.round(display.workArea.height),
   }
 }
 
 function nativePlacementDocumentUrl(
   kind: InactiveWindowKind,
   creationToken: string,
-  chromeApi: ChromeApi
+  chromeApi: ChromeApi,
 ): string {
   const search = new URLSearchParams()
   if (kind === 'filter') search.set('focusFilter', '1')
@@ -124,7 +124,7 @@ export async function createInactiveWindow(
   kind: InactiveWindowKind,
   targetBounds: TargetDisplayBounds,
   creationToken: string,
-  chromeApi: ChromeApi = chrome
+  chromeApi: ChromeApi = chrome,
 ): Promise<number> {
   const displays = (await chromeApi.system.display.getInfo())
     .filter((display) => display.isEnabled !== false)
@@ -154,7 +154,7 @@ export async function createInactiveWindow(
     type: 'normal',
     url: documentUrl,
     focused: false,
-    ...placement
+    ...placement,
   })
   if (typeof createdWindow?.id !== 'number') {
     throw new Error('Chrome did not return the placed window identity')

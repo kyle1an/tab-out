@@ -8,7 +8,7 @@ type PartialEntry = Partial<TabHistoryEntry>
 
 test('normalizeTabHistorySnapshot copies audible independently of muted', () => {
   const snap = normalizeTabHistorySnapshot({
-    entries: [{ index: 0, tabId: 1, url: 'https://example.com/', audible: true, muted: false } as TabHistoryEntry]
+    entries: [{ index: 0, tabId: 1, url: 'https://example.com/', audible: true, muted: false } as TabHistoryEntry],
   })
   const [entry] = snap.entries
   assert.ok(entry)
@@ -18,7 +18,7 @@ test('normalizeTabHistorySnapshot copies audible independently of muted', () => 
 
 test('normalizeTabHistorySnapshot copies muted independently of audible', () => {
   const snap = normalizeTabHistorySnapshot({
-    entries: [{ index: 0, tabId: 2, url: 'https://example.com/', audible: false, muted: true } as TabHistoryEntry]
+    entries: [{ index: 0, tabId: 2, url: 'https://example.com/', audible: false, muted: true } as TabHistoryEntry],
   })
   const [entry] = snap.entries
   assert.ok(entry)

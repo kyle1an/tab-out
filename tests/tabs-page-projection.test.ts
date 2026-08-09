@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import {
   addSavedPageToStore,
-  emptySavedPagesStore
+  emptySavedPagesStore,
 } from '../src/extension/saved-pages.js'
 import { projectTabsPageSources } from '../src/extension/tabs-page-projection.js'
 import { makeDashboardItem } from '../src/extension/dashboard-item.js'
@@ -21,7 +21,7 @@ function retained(overrides: Partial<RetainedPageRecord> = {}): RetainedPageReco
     title: 'Example article',
     closedAt: 1_000,
     closureToken: 'lifetime-example',
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -38,7 +38,7 @@ test('Tabs projection presents an unmatched Retained Page as the existing closed
     sourceType: 'retained-page',
     closedSaved: true,
     retainedPageIdentity: 'identity-example',
-    retainedPageClosureToken: 'lifetime-example'
+    retainedPageClosureToken: 'lifetime-example',
   }))
 })
 
@@ -48,13 +48,13 @@ test('matching live or Saved state owns the visible Page Chip while retention re
     url: 'https://example.test/article',
     title: 'Live article',
     windowId: 1,
-    sourceType: 'tab'
+    sourceType: 'tab',
   })
   const withLive = projectTabsPageSources(
     [open],
     emptySavedPagesStore(),
     [retained()],
-    PROJECTION_NOW
+    PROJECTION_NOW,
   )
   assert.deepEqual(withLive.tabs.map((tab) => tab.id), [1])
 
@@ -64,7 +64,7 @@ test('matching live or Saved state owns the visible Page Chip while retention re
     title: 'Saved article',
     favIconUrl: '',
     isTabOut: false,
-    isApp: false
+    isApp: false,
   }, 2_000)
   const withSaved = projectTabsPageSources([], savedStore, [retained()], PROJECTION_NOW)
   assert.equal(withSaved.tabs.length, 1)
@@ -79,7 +79,7 @@ test('a live internal page hides matching Saved and retained state outside dashb
     url: 'chrome://settings/privacy',
     title: 'Settings',
     windowId: 1,
-    sourceType: 'tab'
+    sourceType: 'tab',
   })
   const savedStore = addSavedPageToStore(emptySavedPagesStore(), {
     url: internal.url,
@@ -87,17 +87,17 @@ test('a live internal page hides matching Saved and retained state outside dashb
     title: internal.title,
     favIconUrl: '',
     isTabOut: false,
-    isApp: false
+    isApp: false,
   }, 2_000)
   const result = projectTabsPageSources(
     [],
     savedStore,
     [retained({
       canonicalKey: 'chrome://settings/privacy',
-      url: 'chrome://settings/privacy'
+      url: 'chrome://settings/privacy',
     })],
     PROJECTION_NOW,
-    [internal]
+    [internal],
   )
 
   assert.deepEqual(result.tabs, [])
@@ -111,13 +111,13 @@ test('Tabs projection never flashes a retained snapshot at or after its expiry b
     [],
     emptySavedPagesStore(),
     [retained({ closedAt: 5_001 })],
-    now
+    now,
   )
   const atExpiry = projectTabsPageSources(
     [],
     emptySavedPagesStore(),
     [retained({ closedAt: 5_000 })],
-    now
+    now,
   )
 
   assert.equal(beforeExpiry.tabs.length, 1)
@@ -131,14 +131,14 @@ test('surface qualification prevents a normal retained page from merging into an
     title: 'Saved app',
     favIconUrl: '',
     isTabOut: false,
-    isApp: true
+    isApp: true,
   }, 2_000)
   const result = projectTabsPageSources([], savedStore, [retained()], PROJECTION_NOW)
 
   assert.equal(result.tabs.length, 2)
   assert.deepEqual(result.tabs.map((tab) => tab.sourceType).sort(), [
     'retained-page',
-    'saved-page'
+    'saved-page',
   ])
 })
 
@@ -155,7 +155,7 @@ test('multiple exact Saved targets survive canonical coordination while the reta
     title: 'Example issue from mention',
     favIconUrl: '',
     isTabOut: false,
-    isApp: false
+    isApp: false,
   }, 2_000)
   savedStore = addSavedPageToStore(savedStore, {
     url: shortForm,
@@ -163,23 +163,23 @@ test('multiple exact Saved targets survive canonical coordination while the reta
     title: 'Example issue',
     favIconUrl: '',
     isTabOut: false,
-    isApp: false
+    isApp: false,
   }, 3_000)
 
   const result = projectTabsPageSources([], savedStore, [retained({
     canonicalKey,
-    url: longForm
+    url: longForm,
   })], PROJECTION_NOW)
 
   assert.deepEqual(
     result.tabs.map((tab) => ({
       savedPageKey: tab.savedPageKey,
       sourceType: tab.sourceType,
-      url: tab.url
+      url: tab.url,
     })).toSorted((left, right) => left.url.localeCompare(right.url)),
     [
       { savedPageKey: longForm, sourceType: 'saved-page', url: longForm },
-      { savedPageKey: shortForm, sourceType: 'saved-page', url: shortForm }
-    ].toSorted((left, right) => left.url.localeCompare(right.url))
+      { savedPageKey: shortForm, sourceType: 'saved-page', url: shortForm },
+    ].toSorted((left, right) => left.url.localeCompare(right.url)),
   )
 })

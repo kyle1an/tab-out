@@ -10,18 +10,18 @@ import {
   RETAINED_PAGE_LIFETIME_MS,
   type RetainedPageLedger,
   type RetainedPageRemovalBoundary,
-  type RetainedPageRecord
+  type RetainedPageRecord,
 } from '../../src/extension/retained-pages-ledger.js'
 import {
   OPEN_SURFACE_DURABLE_STORAGE_KEY,
   OpenSurfaceInventoryStorage,
   parseOpenSurfaceInventoryValue,
-  type OpenSurfaceInventoryStorageBackend
+  type OpenSurfaceInventoryStorageBackend,
 } from '../../src/extension/open-surface-inventory-storage.js'
 import {
   emptyOpenSurfaceInventory,
   type OpenSurfaceInventory,
-  type OpenSurfaceInventoryEntry
+  type OpenSurfaceInventoryEntry,
 } from '../../src/extension/open-surface-inventory.js'
 import {
   RETAINED_PAGES_STORAGE_KEY,
@@ -29,7 +29,7 @@ import {
   decodeRetainedPageLedgerStorageValue,
   encodeRetainedPageLedgerStorageValue,
   parseRetainedPageLedgerValue,
-  type RetainedPageLedgerStorageBackend
+  type RetainedPageLedgerStorageBackend,
 } from '../../src/extension/retained-pages-storage.js'
 import { RetentionHealth } from '../../src/extension/retention-health.js'
 
@@ -47,7 +47,7 @@ export interface DurableSurfaceSizeBand {
 export const RETAINED_STORAGE_PROFILE_DURABLE_SIZE_BANDS = [
   { count: 700, url: 256, title: 80, favicon: 256 },
   { count: 250, url: 1_024, title: 256, favicon: 1_024 },
-  { count: 50, url: 2_048, title: 512, favicon: 2_048 }
+  { count: 50, url: 2_048, title: 512, favicon: 2_048 },
 ] as const satisfies readonly DurableSurfaceSizeBand[]
 
 export interface RetainedStorageSerializedMeasurements {
@@ -104,7 +104,7 @@ function retainedPageFixture(index: number): RetainedPageRecord {
   const label = String(index).padStart(3, '0')
   const url = exactLengthUrl(
     `https://page-${label}.example.test/article?fixture=`,
-    2_048
+    2_048,
   )
   return {
     identityDigest: fixedHex(index + 1, 64),
@@ -114,10 +114,10 @@ function retainedPageFixture(index: number): RetainedPageRecord {
     title: exactCodePointTitle(512),
     favIconUrl: exactLengthUrl(
       `https://assets.example.test/favicon-${label}?fixture=`,
-      2_048
+      2_048,
     ),
     closedAt: RETAINED_STORAGE_PROFILE_NOW - (RETAINED_PAGE_CAPACITY - index),
-    closureToken: fixedHex(index + 1, 32)
+    closureToken: fixedHex(index + 1, 32),
   }
 }
 
@@ -136,7 +136,7 @@ function durableSurfaceFixture(index: number): OpenSurfaceInventoryEntry {
   const label = String(index).padStart(4, '0')
   const url = exactLengthUrl(
     `https://surface-${label}.example.test/page?fixture=`,
-    band.url
+    band.url,
   )
   return {
     tabId: index + 1,
@@ -148,8 +148,8 @@ function durableSurfaceFixture(index: number): OpenSurfaceInventoryEntry {
     title: exactCodePointTitle(band.title),
     favIconUrl: exactLengthUrl(
       `https://assets.example.test/surface-${label}?fixture=`,
-      band.favicon
-    )
+      band.favicon,
+    ),
   }
 }
 
@@ -172,7 +172,7 @@ export function buildSaturatedRetainedPageLedger(): RetainedPageLedger {
     removalBoundaries[closureToken] = {
       identityDigest,
       closureToken,
-      expiresAt: closedAt + RETAINED_PAGE_LIFETIME_MS
+      expiresAt: closedAt + RETAINED_PAGE_LIFETIME_MS,
     }
   }
 
@@ -180,7 +180,7 @@ export function buildSaturatedRetainedPageLedger(): RetainedPageLedger {
     schemaVersion: 1,
     identityVersion: 1,
     pages,
-    removalBoundaries
+    removalBoundaries,
   }
 }
 
@@ -196,7 +196,7 @@ export function buildRepresentativeDurableInventory(): OpenSurfaceInventory {
   }
   return {
     ...emptyOpenSurfaceInventory(),
-    entries
+    entries,
   }
 }
 
@@ -210,7 +210,7 @@ function sha256(serialized: string): string {
 
 export async function measureRetainedStorageProfile(
   ledger: RetainedPageLedger,
-  durableInventory: OpenSurfaceInventory
+  durableInventory: OpenSurfaceInventory,
 ): Promise<RetainedStorageSerializedMeasurements> {
   const persistedLedger = await encodeRetainedPageLedgerStorageValue(ledger)
   const serializedLedger = JSON.stringify(persistedLedger)
@@ -218,24 +218,24 @@ export async function measureRetainedStorageProfile(
   return {
     retainedLedgerValue: Buffer.byteLength(serializedLedger, 'utf8'),
     retainedLedgerStorageItem: serializedBytes({
-      [RETAINED_PAGES_STORAGE_KEY]: persistedLedger
+      [RETAINED_PAGES_STORAGE_KEY]: persistedLedger,
     }),
     durableInventoryValue: Buffer.byteLength(serializedInventory, 'utf8'),
     durableInventoryStorageItem: serializedBytes({
-      [OPEN_SURFACE_DURABLE_STORAGE_KEY]: durableInventory
+      [OPEN_SURFACE_DURABLE_STORAGE_KEY]: durableInventory,
     }),
     combinedRetainedLocalItems: serializedBytes({
       [RETAINED_PAGES_STORAGE_KEY]: persistedLedger,
-      [OPEN_SURFACE_DURABLE_STORAGE_KEY]: durableInventory
+      [OPEN_SURFACE_DURABLE_STORAGE_KEY]: durableInventory,
     }),
     retainedLedgerSha256: sha256(serializedLedger),
-    durableInventorySha256: sha256(serializedInventory)
+    durableInventorySha256: sha256(serializedInventory),
   }
 }
 
 export async function roundTripRetainedStorageProfile(
   ledger: RetainedPageLedger,
-  durableInventory: OpenSurfaceInventory
+  durableInventory: OpenSurfaceInventory,
 ): Promise<{
   readonly ledger: ReturnType<typeof parseRetainedPageLedgerValue>
   readonly durableInventory: ReturnType<typeof parseOpenSurfaceInventoryValue>
@@ -244,36 +244,36 @@ export async function roundTripRetainedStorageProfile(
   return {
     ledger: parseRetainedPageLedgerValue(
       await decodeRetainedPageLedgerStorageValue(
-        JSON.parse(JSON.stringify(persistedLedger))
+        JSON.parse(JSON.stringify(persistedLedger)),
       ),
-      RETAINED_STORAGE_PROFILE_NOW
+      RETAINED_STORAGE_PROFILE_NOW,
     ),
     durableInventory: parseOpenSurfaceInventoryValue(
       JSON.parse(JSON.stringify(durableInventory)),
-      RETAINED_STORAGE_PROFILE_NOW
-    )
+      RETAINED_STORAGE_PROFILE_NOW,
+    ),
   }
 }
 
 export function exerciseRetainedStorageTransitions(
-  saturatedLedger: RetainedPageLedger
+  saturatedLedger: RetainedPageLedger,
 ): RetainedStorageTransitionMeasurements {
   const oldestIdentity = retainedPageFixture(0).identityDigest
   const newest = retainedPageFixture(RETAINED_PAGE_CAPACITY)
   const capped = recordRetainedPageClosure(saturatedLedger, {
     ...newest,
     closedAt: RETAINED_STORAGE_PROFILE_NOW + 1,
-    closureToken: fixedHex(RETAINED_PAGE_CAPACITY + 1, 32)
+    closureToken: fixedHex(RETAINED_PAGE_CAPACITY + 1, 32),
   }).ledger
 
   const expiringPage = {
     ...retainedPageFixture(0),
-    closedAt: RETAINED_STORAGE_PROFILE_NOW - RETAINED_PAGE_LIFETIME_MS
+    closedAt: RETAINED_STORAGE_PROFILE_NOW - RETAINED_PAGE_LIFETIME_MS,
   }
   const survivingPage = {
     ...retainedPageFixture(1),
     closedAt: expiringPage.closedAt + 1,
-    closureToken: fixedHex(2, 32)
+    closureToken: fixedHex(2, 32),
   }
   const expiringBoundaryToken = fixedHex(200_000, 32)
   const survivingBoundaryToken = fixedHex(200_001, 32)
@@ -282,28 +282,28 @@ export function exerciseRetainedStorageTransitions(
     identityVersion: 1,
     pages: {
       [expiringPage.identityDigest]: expiringPage,
-      [survivingPage.identityDigest]: survivingPage
+      [survivingPage.identityDigest]: survivingPage,
     },
     removalBoundaries: {
       [expiringBoundaryToken]: {
         identityDigest: fixedHex(200_000, 64),
         closureToken: expiringBoundaryToken,
-        expiresAt: RETAINED_STORAGE_PROFILE_NOW
+        expiresAt: RETAINED_STORAGE_PROFILE_NOW,
       },
       [survivingBoundaryToken]: {
         identityDigest: fixedHex(200_001, 64),
         closureToken: survivingBoundaryToken,
-        expiresAt: RETAINED_STORAGE_PROFILE_NOW + 1
-      }
-    }
+        expiresAt: RETAINED_STORAGE_PROFILE_NOW + 1,
+      },
+    },
   }
   const beforeExpiry = pruneRetainedPageLedger(
     expiryLedger,
-    RETAINED_STORAGE_PROFILE_NOW - 1
+    RETAINED_STORAGE_PROFILE_NOW - 1,
   ).ledger
   const atExpiry = pruneRetainedPageLedger(
     expiryLedger,
-    RETAINED_STORAGE_PROFILE_NOW
+    RETAINED_STORAGE_PROFILE_NOW,
   ).ledger
 
   return {
@@ -314,7 +314,7 @@ export function exerciseRetainedStorageTransitions(
     pagesBeforeExpiry: Object.keys(beforeExpiry.pages).length,
     pagesAtExpiry: Object.keys(atExpiry.pages).length,
     boundariesBeforeExpiry: Object.keys(beforeExpiry.removalBoundaries).length,
-    boundariesAtExpiry: Object.keys(atExpiry.removalBoundaries).length
+    boundariesAtExpiry: Object.keys(atExpiry.removalBoundaries).length,
   }
 }
 
@@ -331,7 +331,7 @@ function batchInventory(): OpenSurfaceInventory {
       canonicalKey: page.canonicalKey,
       url: page.url,
       title: page.title,
-      ...(page.favIconUrl ? { favIconUrl: page.favIconUrl } : {})
+      ...(page.favIconUrl ? { favIconUrl: page.favIconUrl } : {}),
     }
   }
   return { ...emptyOpenSurfaceInventory(), entries }
@@ -350,7 +350,7 @@ export async function measureRetainedStorageBatchWrites(): Promise<RetainedStora
     write: async (value) => {
       ledgerWrites += 1
       ledgerStored = value
-    }
+    },
   }
   const inventoryBackend: OpenSurfaceInventoryStorageBackend = {
     readSession: async () => sessionStored,
@@ -362,7 +362,7 @@ export async function measureRetainedStorageBatchWrites(): Promise<RetainedStora
     writeDurable: async (value) => {
       durableWrites += 1
       durableStored = value
-    }
+    },
   }
   const dependencies = Layer.mergeAll(
     RetainedPageLedgerStorage.layer(ledgerBackend),
@@ -370,20 +370,20 @@ export async function measureRetainedStorageBatchWrites(): Promise<RetainedStora
     RetentionHealth.layer({
       read: async () => undefined,
       write: async () => undefined,
-      clear: async () => undefined
-    }, () => RETAINED_STORAGE_PROFILE_NOW)
+      clear: async () => undefined,
+    }, () => RETAINED_STORAGE_PROFILE_NOW),
   )
   const runtime = ManagedRuntime.make(
     RetainedPages.layer({ now: () => RETAINED_STORAGE_PROFILE_NOW }).pipe(
-      Layer.provide(dependencies)
-    )
+      Layer.provide(dependencies),
+    ),
   )
 
   try {
     const captured = await runtime.runPromise(
       runtime.runSync(RetainedPages).captureClosedSurfaces(
-        Array.from({ length: RETAINED_PAGE_CAPACITY }, (_, index) => index + 1)
-      )
+        Array.from({ length: RETAINED_PAGE_CAPACITY }, (_, index) => index + 1),
+      ),
     )
     const outcomes: Record<string, number> = {}
     for (const result of captured.results) {
@@ -391,15 +391,15 @@ export async function measureRetainedStorageBatchWrites(): Promise<RetainedStora
     }
     const ledger = parseRetainedPageLedgerValue(
       ledgerStored,
-      RETAINED_STORAGE_PROFILE_NOW
+      RETAINED_STORAGE_PROFILE_NOW,
     )
     const session = parseOpenSurfaceInventoryValue(
       sessionStored,
-      RETAINED_STORAGE_PROFILE_NOW
+      RETAINED_STORAGE_PROFILE_NOW,
     )
     const durable = parseOpenSurfaceInventoryValue(
       durableStored,
-      RETAINED_STORAGE_PROFILE_NOW
+      RETAINED_STORAGE_PROFILE_NOW,
     )
     return {
       closeEvents: captured.results.length,
@@ -416,7 +416,7 @@ export async function measureRetainedStorageBatchWrites(): Promise<RetainedStora
       ledgerWrites,
       sessionWrites,
       durableWrites,
-      totalWrites: ledgerWrites + sessionWrites + durableWrites
+      totalWrites: ledgerWrites + sessionWrites + durableWrites,
     }
   } finally {
     await runtime.dispose()

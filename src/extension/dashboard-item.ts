@@ -11,7 +11,7 @@ import type { DashboardTab } from './types'
  * Chrome, not from defaults.
  */
 export function makeDashboardItem(
-  item: Pick<DashboardTab, 'url' | 'title' | 'sourceType'> & Partial<DashboardTab>
+  item: Pick<DashboardTab, 'url' | 'title' | 'sourceType'> & Partial<DashboardTab>,
 ): DashboardTab {
   return {
     rawUrl: item.url,
@@ -23,6 +23,6 @@ export function makeDashboardItem(
     groupId: -1,
     isTabOut: false,
     isApp: false,
-    ...item
+    ...item,
   }
 }

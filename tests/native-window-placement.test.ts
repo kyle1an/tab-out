@@ -14,7 +14,7 @@ const displays = [
     workArea: { left: 0, top: 25, width: 1440, height: 875 },
     rotation: 0,
     dpiX: 144,
-    dpiY: 144
+    dpiY: 144,
   },
   {
     id: 'target-display',
@@ -25,8 +25,8 @@ const displays = [
     workArea: { left: -1920, top: 0, width: 1920, height: 1080 },
     rotation: 0,
     dpiX: 110,
-    dpiY: 110
-  }
+    dpiY: 110,
+  },
 ] as chrome.system.display.DisplayUnitInfo[]
 
 const targetBounds = displays[1]!.bounds
@@ -44,7 +44,7 @@ const remoteWindow = {
   left: 100,
   top: 100,
   width: 1200,
-  height: 700
+  height: 700,
 } as chrome.windows.Window
 
 function createChromeApi(options: {
@@ -55,7 +55,7 @@ function createChromeApi(options: {
 } = {}) {
   const calls = {
     create: [] as chrome.windows.CreateData[],
-    getAll: [] as chrome.windows.QueryOptions[]
+    getAll: [] as chrome.windows.QueryOptions[],
   }
   const chromeApi = {
     runtime: { id: 'tab-out' },
@@ -63,8 +63,8 @@ function createChromeApi(options: {
       display: {
         async getInfo() {
           return options.displays ?? displays
-        }
-      }
+        },
+      },
     },
     windows: {
       async getAll(queryOptions: chrome.windows.QueryOptions) {
@@ -76,8 +76,8 @@ function createChromeApi(options: {
         if (options.createError) throw options.createError
         if (options.createWithoutIdentity) return undefined
         return { id: 52, type: 'normal', focused: false } as chrome.windows.Window
-      }
-    }
+      },
+    },
   } as unknown as ChromeApi
 
   return { calls, chromeApi }
@@ -90,7 +90,7 @@ test('filter bridge supplies target geometry at creation so Chrome cannot expose
     'filter',
     targetBounds,
     nativePlacementRequestId,
-    chromeApi
+    chromeApi,
   )
 
   assert.equal(browserWindowId, 52)
@@ -103,8 +103,8 @@ test('filter bridge supplies target geometry at creation so Chrome cannot expose
       left: -1820,
       top: 75,
       width: 1200,
-      height: 700
-    }
+      height: 700,
+    },
   ])
 })
 
@@ -115,7 +115,7 @@ test('new-page bridge creates an inactive tokenized Tab Out window at the target
     'newPage',
     targetBounds,
     nativePlacementRequestId,
-    chromeApi
+    chromeApi,
   )
 
   assert.equal(browserWindowId, 52)
@@ -127,8 +127,8 @@ test('new-page bridge creates an inactive tokenized Tab Out window at the target
       left: -1820,
       top: 75,
       width: 1200,
-      height: 700
-    }
+      height: 700,
+    },
   ])
 })
 
@@ -137,7 +137,7 @@ test('bridge ignores a target-display Chrome window that Hammerspoon found on an
     ...remoteWindow,
     id: 42,
     left: -1800,
-    top: 80
+    top: 80,
   } as chrome.windows.Window
   const { calls, chromeApi } = createChromeApi({ windows: [remoteWindow, inactiveSpaceWindow] })
 
@@ -161,8 +161,8 @@ test('filter bridge creates on the addressed display when both displays have no 
       left: -1920,
       top: 0,
       width: 1920,
-      height: 1080
-    }
+      height: 1080,
+    },
   ])
 })
 
@@ -173,7 +173,7 @@ test('new-page bridge creates on one display when it has no Chrome window', asyn
     'newPage',
     displays[0]!.bounds,
     nativePlacementRequestId,
-    chromeApi
+    chromeApi,
   )
 
   assert.deepEqual(calls.create, [
@@ -184,8 +184,8 @@ test('new-page bridge creates on one display when it has no Chrome window', asyn
       left: 0,
       top: 25,
       width: 1440,
-      height: 875
-    }
+      height: 875,
+    },
   ])
 })
 
@@ -194,7 +194,7 @@ test('bridge addresses a third display without adding another extension command'
     ...displays[0]!,
     id: 'third-display',
     bounds: { left: 1440, top: 0, width: 1280, height: 800 },
-    workArea: { left: 1440, top: 25, width: 1280, height: 775 }
+    workArea: { left: 1440, top: 25, width: 1280, height: 775 },
   }
   const { calls, chromeApi } = createChromeApi({ displays: [...displays, thirdDisplay] })
 
@@ -208,8 +208,8 @@ test('bridge addresses a third display without adding another extension command'
       left: 1520,
       top: 100,
       width: 1200,
-      height: 700
-    }
+      height: 700,
+    },
   ])
 })
 
@@ -221,9 +221,9 @@ test('bridge aborts before mutation when target bounds do not identify a display
       'filter',
       { left: 9000, top: 9000, width: 100, height: 100 },
       nativePlacementRequestId,
-      chromeApi
+      chromeApi,
     ),
-    /do not identify one enabled display/
+    /do not identify one enabled display/,
   )
 
   assert.deepEqual(calls.create, [])
@@ -237,9 +237,9 @@ test('bridge aborts before mutation when target bounds only partially match a di
       'filter',
       { left: 100, top: 100, width: 100, height: 100 },
       nativePlacementRequestId,
-      chromeApi
+      chromeApi,
     ),
-    /do not identify one enabled display/
+    /do not identify one enabled display/,
   )
 
   assert.deepEqual(calls.getAll, [])
@@ -251,7 +251,7 @@ test('bridge rejects a placed window without an identity', async () => {
 
   await assert.rejects(
     () => createInactiveWindow('filter', targetBounds, nativePlacementRequestId, chromeApi),
-    /placed window identity/
+    /placed window identity/,
   )
 
   assert.equal(calls.create.length, 1)
@@ -262,7 +262,7 @@ test('bridge propagates a target-bounded Chrome creation failure', async () => {
 
   await assert.rejects(
     () => createInactiveWindow('filter', targetBounds, nativePlacementRequestId, chromeApi),
-    /creation failed/
+    /creation failed/,
   )
 
   assert.equal(calls.create.length, 1)

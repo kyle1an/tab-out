@@ -8,14 +8,14 @@ export const retentionHealthEpisodeSchema = Schema.Struct({
     'automatic-capture',
     'retained-ledger-reset',
     'durable-inventory-reset',
-    'open-surface-coverage'
+    'open-surface-coverage',
   ]),
   retryState: Schema.Literals([
     'exhausted-after-one-retry',
-    'not-applicable'
+    'not-applicable',
   ]),
   startedAt: Schema.Finite,
-  lastFailedAt: Schema.Finite
+  lastFailedAt: Schema.Finite,
 })
 
 export type RetentionHealthEpisode = typeof retentionHealthEpisodeSchema.Type
@@ -34,7 +34,7 @@ export interface RetentionHealthStorageBackend {
 const isRetentionHealthEpisode = Schema.is(retentionHealthEpisodeSchema)
 
 export function parseRetentionHealthEpisodeValue(
-  stored: unknown
+  stored: unknown,
 ): RetentionHealthEpisode | null {
   if (!isRetentionHealthEpisode(stored)) return null
   const allowedKeys = new Set([
@@ -42,7 +42,7 @@ export function parseRetentionHealthEpisodeValue(
     'operationKind',
     'retryState',
     'startedAt',
-    'lastFailedAt'
+    'lastFailedAt',
   ])
   return Object.keys(stored).every((key) => allowedKeys.has(key)) ? stored : null
 }
@@ -50,34 +50,34 @@ export function parseRetentionHealthEpisodeValue(
 export class RetentionHealth extends Context.Service<RetentionHealth, {
   readonly getEpisode: () => Effect.Effect<RetentionHealthEpisode | null>
   readonly recordFailure: (
-    failure: RetentionHealthFailure
+    failure: RetentionHealthFailure,
   ) => Effect.Effect<void>
   readonly recordRecovery: (
-    operationKind: RetentionHealthOperationKind
+    operationKind: RetentionHealthOperationKind,
   ) => Effect.Effect<void>
 }>()('@tab-out/background/RetentionHealth') {
   static layer(
     backend: RetentionHealthStorageBackend,
-    now: () => number = Date.now
+    now: () => number = Date.now,
   ): Layer.Layer<RetentionHealth> {
     const semaphore = Semaphore.makeUnsafe(1)
 
-    const read = Effect.fn('RetentionHealth.read')(function*() {
+    const read = Effect.fn('RetentionHealth.read')(function* () {
       const stored = yield* Effect.tryPromise({
         try: backend.read,
-        catch: (cause) => cause
+        catch: (cause) => cause,
       }).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
       return parseRetentionHealthEpisodeValue(stored)
     })
 
-    const getEpisode = Effect.fn('RetentionHealth.getEpisode')(function*() {
+    const getEpisode = Effect.fn('RetentionHealth.getEpisode')(function* () {
       return yield* semaphore.withPermit(read())
     })
 
-    const recordFailure = Effect.fn('RetentionHealth.recordFailure')(function*(
-      failure: RetentionHealthFailure
+    const recordFailure = Effect.fn('RetentionHealth.recordFailure')(function* (
+      failure: RetentionHealthFailure,
     ) {
-      yield* semaphore.withPermit(Effect.gen(function*() {
+      yield* semaphore.withPermit(Effect.gen(function* () {
         const current = yield* read()
         const failedAt = now()
         const sameEpisode = current?.failureKind === failure.failureKind &&
@@ -90,24 +90,24 @@ export class RetentionHealth extends Context.Service<RetentionHealth, {
             : failedAt,
           lastFailedAt: sameEpisode
             ? Math.max(current.lastFailedAt, failedAt)
-            : failedAt
+            : failedAt,
         }
         yield* Effect.tryPromise({
           try: () => backend.write(episode),
-          catch: (cause) => cause
+          catch: (cause) => cause,
         }).pipe(Effect.catchCause(() => Effect.void))
       }))
     })
 
-    const recordRecovery = Effect.fn('RetentionHealth.recordRecovery')(function*(
-      operationKind: RetentionHealthOperationKind
+    const recordRecovery = Effect.fn('RetentionHealth.recordRecovery')(function* (
+      operationKind: RetentionHealthOperationKind,
     ) {
-      yield* semaphore.withPermit(Effect.gen(function*() {
+      yield* semaphore.withPermit(Effect.gen(function* () {
         const current = yield* read()
         if (current?.operationKind !== operationKind) return
         yield* Effect.tryPromise({
           try: backend.clear,
-          catch: (cause) => cause
+          catch: (cause) => cause,
         }).pipe(Effect.catchCause(() => Effect.void))
       }))
     })
@@ -115,7 +115,7 @@ export class RetentionHealth extends Context.Service<RetentionHealth, {
     return Layer.succeed(RetentionHealth, RetentionHealth.of({
       getEpisode,
       recordFailure,
-      recordRecovery
+      recordRecovery,
     }))
   }
 }

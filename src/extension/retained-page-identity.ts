@@ -29,7 +29,7 @@ export interface RetainedPageIdentityOptions {
 }
 
 export type ResolveRetainedPageIdentities = (
-  candidates: readonly RetainedPageIdentityCandidate[]
+  candidates: readonly RetainedPageIdentityCandidate[],
 ) => Promise<readonly (RetainedPageIdentity | null)[]>
 
 export type RandomByteFiller = (bytes: Uint8Array<ArrayBuffer>) => void
@@ -37,7 +37,7 @@ export type RandomByteFiller = (bytes: Uint8Array<ArrayBuffer>) => void
 const EPHEMERAL_NON_PAGE_PROTOCOLS = new Set([
   'blob:',
   'data:',
-  'javascript:'
+  'javascript:',
 ])
 
 /**
@@ -45,7 +45,7 @@ const EPHEMERAL_NON_PAGE_PROTOCOLS = new Set([
  * stored unchanged for activation; canonicalization is identity-only.
  */
 export function retainedPageEffectiveUrl(
-  candidate: Pick<RetainedPageIdentityCandidate, 'url' | 'rawUrl'>
+  candidate: Pick<RetainedPageIdentityCandidate, 'url' | 'rawUrl'>,
 ): string {
   const rawUrl = candidate.rawUrl || ''
   const rawEffectiveUrl = unwrapSuspenderUrl(rawUrl)
@@ -83,7 +83,7 @@ function isOwnExtensionUrl(parsed: URL, runtimeId: string | null | undefined): b
  */
 export function isRetainedPageCaptureEligible(
   candidate: RetainedPageIdentityCandidate,
-  options: RetainedPageIdentityOptions = {}
+  options: RetainedPageIdentityOptions = {},
 ): boolean {
   const exactEffectiveUrl = retainedPageEffectiveUrl(candidate)
   if (!exactEffectiveUrl) return false
@@ -108,7 +108,7 @@ function identityMaterial(surfaceKind: RetainedPageSurfaceKind, canonicalKey: st
   return JSON.stringify([
     RETAINED_PAGE_IDENTITY_VERSION,
     surfaceKind,
-    canonicalKey
+    canonicalKey,
   ])
 }
 
@@ -118,7 +118,7 @@ function webCryptoSha256(input: BufferSource): Promise<ArrayBuffer> {
 
 export async function createRetainedPageIdentity(
   candidate: RetainedPageIdentityCandidate,
-  options: RetainedPageIdentityOptions = {}
+  options: RetainedPageIdentityOptions = {},
 ): Promise<RetainedPageIdentity | null> {
   if (!isRetainedPageCaptureEligible(candidate, options)) return null
 
@@ -132,12 +132,12 @@ export async function createRetainedPageIdentity(
     identityDigest: new Uint8Array(digest).toHex(),
     surfaceKind: candidate.surfaceKind,
     canonicalKey,
-    url
+    url,
   }
 }
 
 export function createCachedRetainedPageIdentityResolver(
-  options: RetainedPageIdentityOptions
+  options: RetainedPageIdentityOptions,
 ): ResolveRetainedPageIdentities {
   // Keep the current and previous batches so concurrent storage reads share
   // in-flight hashes without turning this short-lived migration cache global.

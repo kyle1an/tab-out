@@ -7,7 +7,7 @@ test('hidden section actions become visible with an amber keyboard focus ring', 
     '../src/components/SectionPinButton.tsx',
     '../src/components/SubdomainSection.tsx',
     '../src/components/WebsitePathSection.tsx',
-    '../src/components/PathgroupSection.tsx'
+    '../src/components/PathgroupSection.tsx',
   ]) {
     const source = readFileSync(new URL(sourcePath, import.meta.url), 'utf8')
     assert.match(source, /focus-visible:opacity-100/)

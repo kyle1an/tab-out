@@ -38,7 +38,7 @@ export function PageChipContextMenuContent({
   onReloadSelect,
   onDuplicateSelect,
   suspendEnabled,
-  onSuspendSelect
+  onSuspendSelect,
 }: PageChipContextMenuContentProps) {
   return (
     <ContextMenuContent>

@@ -1,12 +1,12 @@
 import {
   LAYOUT_REMOVAL_ANIMATION_MS,
   startLayoutRemovalAnimation,
-  type LayoutRemovalAnimationScheduler
+  type LayoutRemovalAnimationScheduler,
 } from './LayoutRemovalAnimation.js'
 import {
   animateIntraCardMoves,
   prepareIntraCardMoveAnimation,
-  queuePageChipRefreshMoveAnimation
+  queuePageChipRefreshMoveAnimation,
 } from '../extension/intra-card-move-animation.js'
 import type { LayoutChangeHandler } from './types'
 
@@ -65,11 +65,11 @@ function pageChipCloseFocusTarget(slotValue: unknown, focusWasInsideClosingChip:
 
   const candidates = [
     ...slots.slice(closingIndex + 1),
-    ...slots.slice(0, closingIndex).reverse()
+    ...slots.slice(0, closingIndex).reverse(),
   ]
   for (const candidate of candidates) {
     const focusTarget = candidate.querySelector<HTMLElement>(
-      '[data-tabout="page-chip"][tabindex="0"], [data-tabout-default-variant="true"]'
+      '[data-tabout="page-chip"][tabindex="0"], [data-tabout-default-variant="true"]',
     )
     if (focusTarget) return focusTarget
   }
@@ -80,7 +80,7 @@ export function startPageChipCloseAnimation(
   chipEl: unknown,
   onLayoutChange: LayoutChangeHandler | null = null,
   scheduleCleanup?: LayoutRemovalAnimationScheduler,
-  focusWasInsideClosingChip = false
+  focusWasInsideClosingChip = false,
 ): boolean {
   const slot = pageChipSlot(chipEl)
   const lastScopeItem = pageChipIsLastScopeItem(slot)
@@ -106,6 +106,6 @@ export function startPageChipCloseAnimation(
     onDeferredLayoutRelease: () => {
       queuedMove?.animateNow()
       onLayoutChange?.({ animate: true })
-    }
+    },
   })
 }

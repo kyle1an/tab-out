@@ -6,7 +6,7 @@ import { retainedPageActivationDisposition } from './retained-page-actions.js'
 import {
   SAVED_PAGE_ACTIVATE_MESSAGE,
   parseSavedPageActivationResponse,
-  type SavedPageActivateMessage
+  type SavedPageActivateMessage,
 } from './runtime-messages.js'
 import type { ChipActivationMode } from './tab-activation.js'
 import { showToast } from './toast.js'
@@ -22,12 +22,12 @@ type SavedPageActivationDependencies = {
 
 class SavedPageActivationMessageError extends Schema.TaggedErrorClass<SavedPageActivationMessageError>()(
   'SavedPageActivationMessageError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 class SavedPageActivationRefreshError extends Schema.TaggedErrorClass<SavedPageActivationRefreshError>()(
   'SavedPageActivationRefreshError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 /**
@@ -37,11 +37,11 @@ class SavedPageActivationRefreshError extends Schema.TaggedErrorClass<SavedPageA
 export function createSavedPageActivation({
   sendMessage,
   refresh,
-  notify
+  notify,
 }: SavedPageActivationDependencies) {
   const runActivateSavedPageTarget = Effect.fn(
-    'savedPageActivation.activateSavedPageTarget'
-  )(function*(target: SavedPageActivationTarget, mode: ChipActivationMode) {
+    'savedPageActivation.activateSavedPageTarget',
+  )(function* (target: SavedPageActivationTarget, mode: ChipActivationMode) {
     if (!target.tabUrl) {
       notify('Could not open page')
       return false
@@ -52,9 +52,9 @@ export function createSavedPageActivation({
         type: SAVED_PAGE_ACTIVATE_MESSAGE,
         url: target.tabUrl,
         surfaceKind: target.isApp ? 'app' : 'normal-tab',
-        disposition: retainedPageActivationDisposition(mode)
+        disposition: retainedPageActivationDisposition(mode),
       }),
-      catch: (cause) => SavedPageActivationMessageError.make({ cause })
+      catch: (cause) => SavedPageActivationMessageError.make({ cause }),
     }))
     const response = Result.isSuccess(responseResult)
       ? parseSavedPageActivationResponse(responseResult.success)
@@ -67,7 +67,7 @@ export function createSavedPageActivation({
 
     const refreshResult = yield* Effect.result(Effect.tryPromise({
       try: () => refresh({ animateCards: true }),
-      catch: (cause) => SavedPageActivationRefreshError.make({ cause })
+      catch: (cause) => SavedPageActivationRefreshError.make({ cause }),
     }))
     if (Result.isFailure(refreshResult)) {
       notify("Page opened, but Tabs couldn't be updated.")
@@ -77,7 +77,7 @@ export function createSavedPageActivation({
 
   function activateSavedPageTarget(
     target: SavedPageActivationTarget,
-    mode: ChipActivationMode
+    mode: ChipActivationMode,
   ): Promise<boolean> {
     return getAppRuntime().runPromise(runActivateSavedPageTarget(target, mode))
   }
@@ -93,7 +93,7 @@ const savedPageActivation = createSavedPageActivation({
     return chrome.runtime.sendMessage(message)
   },
   refresh: requestDashboardRefresh,
-  notify: showToast
+  notify: showToast,
 })
 
 export const { activateSavedPageTarget } = savedPageActivation

@@ -6,15 +6,15 @@ import {
   DashboardRetainedPagesWireError,
   createDashboardRetainedPagesWireEncodeCache,
   decodeDashboardRetainedPagesWire,
-  encodeDashboardRetainedPagesWire
+  encodeDashboardRetainedPagesWire,
 } from '../src/extension/dashboard-retained-pages-wire.js'
 import {
   RETAINED_PAGE_CAPACITY,
-  type RetainedPageRecord
+  type RetainedPageRecord,
 } from '../src/extension/retained-pages-ledger.js'
 import {
   decodeGzipBase64Json,
-  encodeGzipBase64Json
+  encodeGzipBase64Json,
 } from '../src/extension/gzip-base64-json.js'
 import { buildSaturatedRetainedPageLedger } from './helpers/retained-storage-profile.js'
 
@@ -41,7 +41,7 @@ test('dashboard retained-pages wire round-trips an empty projection', async () =
     'data',
     'encoding',
     'identityVersion',
-    'schemaVersion'
+    'schemaVersion',
   ])
   assert.equal(wire.encoding, DASHBOARD_RETAINED_PAGES_WIRE_ENCODING)
   assert.deepEqual(await decodeDashboardRetainedPagesWire(wire, now), [])
@@ -52,7 +52,7 @@ test('dashboard retained-pages wire preserves every maximum-profile field and or
   const { favIconUrl: _favIconUrl, ...firstPage } = pages[0]!
   const special: RetainedPageRecord = {
     ...firstPage,
-    canonicalKey: 'https://example.test/canonical'
+    canonicalKey: 'https://example.test/canonical',
   }
   const expected = [special, ...pages.slice(1)]
 
@@ -71,7 +71,7 @@ test('dashboard retained-pages wire preserves every maximum-profile field and or
   assert.deepEqual(decoded, expected)
   assert.ok(
     bytes(wire) < bytes(expected) * 0.1,
-    'wire should stay below ten percent of the raw semantic projection'
+    'wire should stay below ten percent of the raw semantic projection',
   )
   assert.equal(JSON.stringify(wire).includes('removalBoundaries'), false)
 })
@@ -80,7 +80,7 @@ test('dashboard retained-pages wire shares repeated titles by dictionary index',
   const pages = Object.values(buildSaturatedRetainedPageLedger().pages).slice(0, 3)
   const expected = pages.map((page, index) => ({
     ...page,
-    title: index === 1 ? 'Beta title' : 'Alpha title'
+    title: index === 1 ? 'Beta title' : 'Alpha title',
   }))
 
   const wire = await encodeDashboardRetainedPagesWire(expected)
@@ -99,7 +99,7 @@ test('dashboard retained-pages wire decodes the earlier expanded v1 payload', as
     schemaVersion: 1,
     identityVersion: 1,
     encoding: DASHBOARD_RETAINED_PAGES_WIRE_ENCODING,
-    data: await encodeGzipBase64Json([legacyProjection])
+    data: await encodeGzipBase64Json([legacyProjection]),
   }
 
   assert.deepEqual(await decodeDashboardRetainedPagesWire(wire, now), [page])
@@ -114,13 +114,13 @@ test('dashboard retained-pages wire rejects unsupported or corrupt envelopes', a
     { ...valid, identityVersion: 2 },
     { ...valid, encoding: 'plain-json-v1' },
     { ...valid, data: 'not-base64!' },
-    { ...valid, extra: true }
+    { ...valid, extra: true },
   ]
 
   for (const value of invalidValues) {
     await assert.rejects(
       decodeDashboardRetainedPagesWire(value, now),
-      DashboardRetainedPagesWireError
+      DashboardRetainedPagesWireError,
     )
   }
 })
@@ -128,11 +128,11 @@ test('dashboard retained-pages wire rejects unsupported or corrupt envelopes', a
 test('dashboard retained-pages wire rejects invalid records and capacity overflow', async () => {
   const page = Object.values(buildSaturatedRetainedPageLedger().pages)[0]!
   const malformedWire = await encodeDashboardRetainedPagesWire([
-    { ...page, url: 'javascript:alert(1)' }
+    { ...page, url: 'javascript:alert(1)' },
   ])
   await assert.rejects(
     decodeDashboardRetainedPagesWire(malformedWire, now),
-    DashboardRetainedPagesWireError
+    DashboardRetainedPagesWireError,
   )
 
   await assert.rejects(
@@ -140,10 +140,10 @@ test('dashboard retained-pages wire rejects invalid records and capacity overflo
       Array.from({ length: RETAINED_PAGE_CAPACITY + 1 }, (_, index) => ({
         ...page,
         identityDigest: `${index}`.padStart(64, '0'),
-        closureToken: `${index}`.padStart(32, '0')
-      }))
+        closureToken: `${index}`.padStart(32, '0'),
+      })),
     ),
-    DashboardRetainedPagesWireError
+    DashboardRetainedPagesWireError,
   )
 })
 
@@ -157,7 +157,7 @@ test('dashboard retained-pages wire rejects malformed compact dictionaries and t
     page.favIconUrl ?? null,
     page.closedAt,
     page.closureToken,
-    null
+    null,
   ]
   const invalidPayloads = [
     { titles: [page.title], pages: [[...compactPage, 'extra']] },
@@ -165,7 +165,7 @@ test('dashboard retained-pages wire rejects malformed compact dictionaries and t
     { titles: [page.title, 'Unused title'], pages: [compactPage] },
     { titles: [page.title, page.title], pages: [compactPage] },
     { titles: [page.title], pages: [compactPage, compactPage] },
-    { titles: [], pages: [], extra: true }
+    { titles: [], pages: [], extra: true },
   ]
 
   for (const payload of invalidPayloads) {
@@ -174,9 +174,9 @@ test('dashboard retained-pages wire rejects malformed compact dictionaries and t
         schemaVersion: 1,
         identityVersion: 1,
         encoding: DASHBOARD_RETAINED_PAGES_WIRE_ENCODING,
-        data: await encodeGzipBase64Json(payload)
+        data: await encodeGzipBase64Json(payload),
       }, now),
-      DashboardRetainedPagesWireError
+      DashboardRetainedPagesWireError,
     )
   }
 })
@@ -195,7 +195,7 @@ test('dashboard retained-pages wire cache reuses only exact semantic JSON', asyn
   const changed = await changedFlight
   assert.equal(
     (await decodeDashboardRetainedPagesWire(changed, now))[0]?.title,
-    changedTitle
+    changedTitle,
   )
 
   const returned = await cache.encode([page])
@@ -210,7 +210,7 @@ test('dashboard retained-pages wire cache skips reserializing the same immutable
     get(target, property, receiver) {
       fieldReads += 1
       return Reflect.get(target, property, receiver)
-    }
+    },
   })
   const cache = createDashboardRetainedPagesWireEncodeCache()
   const firstFlight = cache.encode([observedPage])

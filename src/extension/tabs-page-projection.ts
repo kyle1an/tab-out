@@ -2,12 +2,12 @@ import { makeDashboardItem } from './dashboard-item.js'
 import {
   mergeSavedPagesWithTabs,
   normalizeSavedPagesStore,
-  type SavedPagesStore
+  type SavedPagesStore,
 } from './saved-pages.js'
 import {
   RETAINED_PAGE_LIFETIME_MS,
   type RetainedPageRecord,
-  type RetainedPageSurfaceKind
+  type RetainedPageSurfaceKind,
 } from './retained-pages-ledger.js'
 import { unwrapSuspenderUrl } from './suspension.js'
 import type { DashboardTab } from './types'
@@ -27,7 +27,7 @@ type SurfaceIdentityIndex = Record<RetainedPageSurfaceKind, Set<string>>
 function emptySurfaceIdentityIndex(): SurfaceIdentityIndex {
   return {
     'normal-tab': new Set(),
-    app: new Set()
+    app: new Set(),
   }
 }
 
@@ -48,7 +48,7 @@ function retainedPageToDashboardTab(page: RetainedPageRecord): DashboardTab {
     sourceType: 'retained-page',
     closedSaved: true,
     retainedPageIdentity: page.identityDigest,
-    retainedPageClosureToken: page.closureToken
+    retainedPageClosureToken: page.closureToken,
   })
 }
 
@@ -57,7 +57,7 @@ export function projectTabsPageSources(
   savedPagesStore: Partial<SavedPagesStore> | null | undefined,
   retainedPages: readonly RetainedPageRecord[],
   now = Date.now(),
-  liveTabs: readonly DashboardTab[] = openTabs
+  liveTabs: readonly DashboardTab[] = openTabs,
 ): TabsPageProjection {
   const normalizedSavedPages = normalizeSavedPagesStore(savedPagesStore)
   const liveIdentities = emptySurfaceIdentityIndex()
@@ -65,7 +65,7 @@ export function projectTabsPageSources(
   const savedIdentities = emptySurfaceIdentityIndex()
   for (const page of Object.values(normalizedSavedPages.pages)) {
     savedIdentities[page.surfaceKind].add(
-      canonicalDedupeKey(unwrapSuspenderUrl(page.url))
+      canonicalDedupeKey(unwrapSuspenderUrl(page.url)),
     )
   }
   // Merge against the full browser inventory so an exact Saved Page does not
@@ -74,7 +74,7 @@ export function projectTabsPageSources(
   const savedMerge = mergeSavedPagesWithTabs([...liveTabs], normalizedSavedPages, now)
   const visibleOpenTabIds = new Set(openTabs.map((tab) => tab.id))
   const projectedSavedTabs = savedMerge.tabs.filter((tab) =>
-    tab.sourceType === 'saved-page' || visibleOpenTabIds.has(tab.id)
+    tab.sourceType === 'saved-page' || visibleOpenTabIds.has(tab.id),
   )
   const visibleRetainedPages = retainedPages
     .filter((page) => {
@@ -86,6 +86,6 @@ export function projectTabsPageSources(
 
   return {
     tabs: [...projectedSavedTabs, ...visibleRetainedPages],
-    store: savedMerge.store
+    store: savedMerge.store,
   }
 }

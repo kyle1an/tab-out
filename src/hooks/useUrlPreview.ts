@@ -45,7 +45,7 @@ export function createUrlPreviewController(): UrlPreviewController {
     subscribe(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)
-    }
+    },
   }
 
   function setUrlPreview(url: string) {

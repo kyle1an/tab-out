@@ -12,16 +12,16 @@ import {
   type OpenSurfaceInventory,
   type OpenSurfaceInventoryEntry,
   type OpenSurfaceInventoryOptions,
-  type OpenSurfaceObservation
+  type OpenSurfaceObservation,
 } from '../open-surface-inventory.js'
 import {
   OpenSurfaceInventoryStorage,
   type OpenSurfaceInventoryParseResult,
-  type OpenSurfaceInventoryStorageError
+  type OpenSurfaceInventoryStorageError,
 } from '../open-surface-inventory-storage.js'
 import {
   reconcileOpenSurfaces as reconcileOpenSurfaceInventories,
-  type OpenSurfaceReconciliationMode
+  type OpenSurfaceReconciliationMode,
 } from '../open-surface-reconciliation.js'
 import {
   createRetainedPageLedgerPruneCache,
@@ -35,11 +35,11 @@ import {
   type RetainedPageClosure,
   type RetainedPageLedger,
   type RetainedPageRecord,
-  type RetainedPageSnapshotTarget
+  type RetainedPageSnapshotTarget,
 } from '../retained-pages-ledger.js'
 import {
   RetainedPageLedgerStorage,
-  type RetainedPageLedgerStorageError
+  type RetainedPageLedgerStorageError,
 } from '../retained-pages-storage.js'
 import { RetentionHealth } from '../retention-health.js'
 import type { RetainedPageActivationDisposition } from '../runtime-messages.js'
@@ -49,7 +49,7 @@ export type { RetainedPageActivationDisposition } from '../runtime-messages.js'
 
 class RetainedPagesNewerVersionError extends Schema.TaggedErrorClass<RetainedPagesNewerVersionError>()(
   'RetainedPagesNewerVersionError',
-  {}
+  {},
 ) {}
 
 export interface RetainedPagesOptions {
@@ -59,7 +59,7 @@ export interface RetainedPagesOptions {
   readonly recoverSnapshot?: (
     page: RetainedPageRecord,
     disposition: RetainedPageActivationDisposition,
-    currentWindowId?: number
+    currentWindowId?: number,
   ) => PromiseLike<boolean>
 }
 
@@ -82,11 +82,11 @@ interface RetainedPageActivationFlight {
 
 export type CaptureClosedSurfaceResult =
   | RecordRetainedPageClosureResult
-  | { changed: false; outcome: 'missing' }
+  | { changed: false, outcome: 'missing' }
 
 type CaptureClosedSurfaceOutcome =
   | RecordRetainedPageClosureOutcome
-  | { changed: false; outcome: 'missing' }
+  | { changed: false, outcome: 'missing' }
 
 export interface CaptureClosedSurfacesResult {
   readonly ledger: RetainedPageLedger | null
@@ -118,45 +118,45 @@ export class RetainedPages extends Context.Service<RetainedPages, {
     identityDigest: string,
     closureToken: string,
     disposition: RetainedPageActivationDisposition,
-    currentWindowId?: number
+    currentWindowId?: number,
   ) => Effect.Effect<ActivateRetainedPageSnapshotResult, RetainedPagesFailure>
   readonly captureClosure: (
-    closure: RetainedPageClosure
+    closure: RetainedPageClosure,
   ) => Effect.Effect<RecordRetainedPageClosureResult, RetainedPagesFailure>
   readonly captureClosedSurface: (
-    tabId: number
+    tabId: number,
   ) => Effect.Effect<CaptureClosedSurfaceResult, RetainedPagesFailure>
   readonly captureClosedSurfaces: (
-    tabIds: readonly number[]
+    tabIds: readonly number[],
   ) => Effect.Effect<CaptureClosedSurfacesResult, RetainedPagesFailure>
   readonly checkpointOpenSurfaces: (
-    captures: PromiseLike<readonly GuardedOpenSurfaceCapture[]>
+    captures: PromiseLike<readonly GuardedOpenSurfaceCapture[]>,
   ) => Effect.Effect<void, RetainedPagesFailure>
   readonly getLedger: () => Effect.Effect<RetainedPageLedger, RetainedPagesFailure>
   readonly observeOpenSurface: (
-    observation: OpenSurfaceObservation | PromiseLike<OpenSurfaceObservation | null>
+    observation: OpenSurfaceObservation | PromiseLike<OpenSurfaceObservation | null>,
   ) => Effect.Effect<void, RetainedPagesFailure>
   readonly observeOpenSurfaces: (
     observations:
       | readonly OpenSurfaceObservation[]
-      | PromiseLike<readonly OpenSurfaceObservation[]>
+      | PromiseLike<readonly OpenSurfaceObservation[]>,
   ) => Effect.Effect<void, RetainedPagesFailure>
   readonly removeSnapshots: (
-    snapshots: readonly RetainedPageSnapshotTarget[]
+    snapshots: readonly RetainedPageSnapshotTarget[],
   ) => Effect.Effect<RemoveRetainedPageSnapshotsResult, RetainedPagesFailure>
   readonly reconcileOpenSurfaces: (
     mode: OpenSurfaceReconciliationMode,
     current:
       | readonly OpenSurfaceObservation[]
-      | PromiseLike<readonly OpenSurfaceObservation[]>
+      | PromiseLike<readonly OpenSurfaceObservation[]>,
   ) => Effect.Effect<{ inferredClosures: number }, RetainedPagesFailure>
   readonly replaceOpenSurface: (
     removedTabId: number,
-    replacement: OpenSurfaceObservation | PromiseLike<OpenSurfaceObservation | null>
+    replacement: OpenSurfaceObservation | PromiseLike<OpenSurfaceObservation | null>,
   ) => Effect.Effect<void, RetainedPagesFailure>
 }>()('@tab-out/background/RetainedPages') {
   static layer(
-    options: RetainedPagesOptions
+    options: RetainedPagesOptions,
   ): Layer.Layer<
     RetainedPages,
     never,
@@ -167,13 +167,13 @@ export class RetainedPages extends Context.Service<RetainedPages, {
 }
 
 function makeRetainedPagesLayer(
-  options: RetainedPagesOptions
+  options: RetainedPagesOptions,
 ): Layer.Layer<
   RetainedPages,
   never,
   OpenSurfaceInventoryStorage | RetainedPageLedgerStorage | RetentionHealth
 > {
-  return Layer.effect(RetainedPages, Effect.gen(function*() {
+  return Layer.effect(RetainedPages, Effect.gen(function* () {
     const storage = yield* RetainedPageLedgerStorage
     const inventoryStorage = yield* OpenSurfaceInventoryStorage
     const health = yield* RetentionHealth
@@ -184,7 +184,7 @@ function makeRetainedPagesLayer(
       Deferred.Deferred<ActivateRetainedPageSnapshotResult, RetainedPagesFailure>
     >>(new Map())
 
-    const readLedger = Effect.fn('RetainedPages.readLedger')(function*() {
+    const readLedger = Effect.fn('RetainedPages.readLedger')(function* () {
       const parsed = yield* storage.read()
       if (parsed.status === 'newer') {
         return yield* RetainedPagesNewerVersionError.make()
@@ -193,32 +193,32 @@ function makeRetainedPagesLayer(
         yield* health.recordFailure({
           failureKind: 'restore',
           operationKind: 'retained-ledger-reset',
-          retryState: 'not-applicable'
+          retryState: 'not-applicable',
         })
       }
       return {
         ledger: parsed.ledger,
-        malformed: parsed.status === 'malformed'
+        malformed: parsed.status === 'malformed',
       }
     })
 
     function writeAutomaticCapture(
       ledger: RetainedPageLedger,
-      recoverLedgerReset: boolean
+      recoverLedgerReset: boolean,
     ): Effect.Effect<void, RetainedPageLedgerStorageError> {
       return storage.write(ledger).pipe(
         Effect.catchTag('RetainedPageLedgerStorageError', () => storage.write(ledger)),
         Effect.tap(() => health.recordRecovery('automatic-capture').pipe(
           Effect.andThen(recoverLedgerReset
             ? health.recordRecovery('retained-ledger-reset')
-            : Effect.void)
+            : Effect.void),
         )),
         Effect.catchTag('RetainedPageLedgerStorageError', (error) =>
           health.recordFailure({
             failureKind: 'capture',
             operationKind: 'automatic-capture',
-            retryState: 'exhausted-after-one-retry'
-          }).pipe(Effect.andThen(Effect.fail(error))))
+            retryState: 'exhausted-after-one-retry',
+          }).pipe(Effect.andThen(Effect.fail(error)))),
       )
     }
 
@@ -226,14 +226,14 @@ function makeRetainedPagesLayer(
       return {
         ...(options.runtimeId === undefined ? {} : { runtimeId: options.runtimeId }),
         ...(options.closureTokenFactory ? {
-          closureTokenFactory: options.closureTokenFactory
-        } : {})
+          closureTokenFactory: options.closureTokenFactory,
+        } : {}),
       }
     }
 
     function closureFromInventoryEntry(
       entry: OpenSurfaceInventoryEntry,
-      fallbackClosedAt: number
+      fallbackClosedAt: number,
     ): RetainedPageClosure {
       return {
         identityDigest: entry.identityDigest,
@@ -243,12 +243,12 @@ function makeRetainedPagesLayer(
         title: entry.title,
         ...(entry.favIconUrl ? { favIconUrl: entry.favIconUrl } : {}),
         closedAt: entry.closedAt ?? fallbackClosedAt,
-        closureToken: entry.closureToken
+        closureToken: entry.closureToken,
       }
     }
 
     const captureInventoryClosures = Effect.fn('RetainedPages.captureInventoryClosures')(
-      function*(entries: readonly OpenSurfaceInventoryEntry[], observedAt: number) {
+      function* (entries: readonly OpenSurfaceInventoryEntry[], observedAt: number) {
         if (entries.length === 0) return
         const stored = yield* readLedger()
         const pruned = pruneLedger(stored.ledger, observedAt)
@@ -261,24 +261,24 @@ function makeRetainedPagesLayer(
         const recorded = recordRetainedPageClosures(pruned.ledger, closures)
         const changed = stored.malformed || pruned.changed || recorded.changed
         if (changed) yield* writeAutomaticCapture(recorded.ledger, !stored.malformed)
-      }
+      },
     )
 
     function inventoryWithMarkedClosures(
       inventory: OpenSurfaceInventory,
       entries: readonly OpenSurfaceInventoryEntry[],
-      observedAt: number
+      observedAt: number,
     ): OpenSurfaceInventory {
       return markOpenSurfaceClosures(inventory, entries.map((entry) => ({
         tabId: entry.tabId,
         closedAt: entry.closedAt ?? observedAt,
-        closureToken: entry.closureToken
+        closureToken: entry.closureToken,
       }))).inventory
     }
 
     function entriesWithStableClosureTime(
       entries: readonly OpenSurfaceInventoryEntry[],
-      observedAt: number
+      observedAt: number,
     ): OpenSurfaceInventoryEntry[] {
       return entries.map((entry) => entry.closedAt === undefined
         ? { ...entry, closedAt: observedAt }
@@ -286,7 +286,7 @@ function makeRetainedPagesLayer(
     }
 
     function usableInventory(
-      parsed: OpenSurfaceInventoryParseResult
+      parsed: OpenSurfaceInventoryParseResult,
     ): OpenSurfaceInventory | null {
       return parsed.status === 'valid' || parsed.status === 'malformed'
         ? parsed.inventory
@@ -295,7 +295,7 @@ function makeRetainedPagesLayer(
 
     function mergedInventory(
       session: OpenSurfaceInventoryParseResult,
-      durable: OpenSurfaceInventoryParseResult
+      durable: OpenSurfaceInventoryParseResult,
     ): OpenSurfaceInventory {
       const durableInventory = usableInventory(durable)
       const sessionInventory = usableInventory(session)
@@ -326,7 +326,7 @@ function makeRetainedPagesLayer(
             : Math.min(priorClosedAt, entry.closedAt)
         entries[tabId] = {
           ...entry,
-          ...(closedAt === undefined ? {} : { closedAt })
+          ...(closedAt === undefined ? {} : { closedAt }),
         }
         tabIdByClosureToken.set(entry.closureToken, tabId)
       }
@@ -342,15 +342,15 @@ function makeRetainedPagesLayer(
       return {
         schemaVersion: OPEN_SURFACE_INVENTORY_SCHEMA_VERSION,
         identityVersion: 1,
-        entries
+        entries,
       }
     }
 
     const readInventoryPair = Effect.fn('RetainedPages.readInventoryPair')(
-      function*(failureKind: 'capture' | 'restore' = 'capture') {
+      function* (failureKind: 'capture' | 'restore' = 'capture') {
         const [sessionExit, durableExit] = yield* Effect.all([
           Effect.exit(inventoryStorage.readSession()),
-          Effect.exit(inventoryStorage.readDurable())
+          Effect.exit(inventoryStorage.readDurable()),
         ] as const, { concurrency: 'unbounded' })
         const sessionAvailable = Exit.isSuccess(sessionExit)
         const durableAvailable = Exit.isSuccess(durableExit)
@@ -367,7 +367,7 @@ function makeRetainedPagesLayer(
           yield* health.recordFailure({
             failureKind,
             operationKind: 'open-surface-coverage',
-            retryState: 'not-applicable'
+            retryState: 'not-applicable',
           })
         } else {
           yield* health.recordRecovery('open-surface-coverage')
@@ -376,7 +376,7 @@ function makeRetainedPagesLayer(
           yield* health.recordFailure({
             failureKind: 'restore',
             operationKind: 'durable-inventory-reset',
-            retryState: 'not-applicable'
+            retryState: 'not-applicable',
           })
         } else if (durableAvailable && durable.status === 'valid') {
           yield* health.recordRecovery('durable-inventory-reset')
@@ -387,14 +387,14 @@ function makeRetainedPagesLayer(
           durableAvailable,
           inventory: mergedInventory(session, durable),
           session,
-          sessionAvailable
+          sessionAvailable,
         }
-      }
+      },
     )
 
     function inventoryNeedsWrite(
       parsed: OpenSurfaceInventoryParseResult,
-      inventory: OpenSurfaceInventory
+      inventory: OpenSurfaceInventory,
     ): boolean {
       return parsed.status !== 'newer' && (
         parsed.status !== 'valid' ||
@@ -403,11 +403,11 @@ function makeRetainedPagesLayer(
     }
 
     const persistInventoryCopies = Effect.fn('RetainedPages.persistInventoryCopies')(
-      function*(
+      function* (
         pair: OpenSurfaceInventoryPair,
-        copies: { session: OpenSurfaceInventory; durable: OpenSurfaceInventory },
+        copies: { session: OpenSurfaceInventory, durable: OpenSurfaceInventory },
         failureKind: 'capture' | 'restore' = 'capture',
-        force = false
+        force = false,
       ) {
         const sessionWrite = pair.sessionAvailable &&
           pair.session.status !== 'newer' &&
@@ -421,7 +421,7 @@ function makeRetainedPagesLayer(
           : Effect.succeed(null)
         const [sessionExit, durableExit] = yield* Effect.all([
           sessionWrite,
-          durableWrite
+          durableWrite,
         ] as const, { concurrency: 'unbounded' })
         const result: InventoryWriteResult = {
           session: sessionExit === null
@@ -429,13 +429,13 @@ function makeRetainedPagesLayer(
             : Exit.isSuccess(sessionExit) ? 'succeeded' : 'failed',
           durable: durableExit === null
             ? 'skipped'
-            : Exit.isSuccess(durableExit) ? 'succeeded' : 'failed'
+            : Exit.isSuccess(durableExit) ? 'succeeded' : 'failed',
         }
         if (result.session === 'failed' || result.durable === 'failed') {
           yield* health.recordFailure({
             failureKind,
             operationKind: 'open-surface-coverage',
-            retryState: 'not-applicable'
+            retryState: 'not-applicable',
           })
         } else if (
           pair.sessionAvailable &&
@@ -446,29 +446,29 @@ function makeRetainedPagesLayer(
           yield* health.recordRecovery('open-surface-coverage')
         }
         return result
-      }
+      },
     )
 
     const persistObservedInventory = Effect.fn('RetainedPages.persistObservedInventory')(
-      function*(
+      function* (
         pair: OpenSurfaceInventoryPair,
         inventory: OpenSurfaceInventory,
         failureKind: 'capture' | 'restore' = 'capture',
-        force = false
+        force = false,
       ) {
         return yield* persistInventoryCopies(
           pair,
           { session: inventory, durable: inventory },
           failureKind,
-          force
+          force,
         )
-      }
+      },
     )
 
-    const captureClosure = Effect.fn('RetainedPages.captureClosure')(function*(
-      closure: RetainedPageClosure
+    const captureClosure = Effect.fn('RetainedPages.captureClosure')(function* (
+      closure: RetainedPageClosure,
     ) {
-      return yield* mutationSemaphore.withPermit(Effect.gen(function*() {
+      return yield* mutationSemaphore.withPermit(Effect.gen(function* () {
         const observedAt = options.now()
         const stored = yield* readLedger()
         const pruned = pruneLedger(stored.ledger, observedAt)
@@ -483,7 +483,7 @@ function makeRetainedPagesLayer(
           return {
             ledger: pruned.ledger,
             changed: false,
-            outcome: 'stale'
+            outcome: 'stale',
           } as const
         }
         const result = recordRetainedPageClosure(pruned.ledger, normalizedClosure)
@@ -495,8 +495,8 @@ function makeRetainedPagesLayer(
     })
 
     const captureClosedSurfaces = Effect.fn('RetainedPages.captureClosedSurfaces')(
-      function*(tabIds: readonly number[]) {
-        return yield* mutationSemaphore.withPermit(Effect.gen(function*() {
+      function* (tabIds: readonly number[]) {
+        return yield* mutationSemaphore.withPermit(Effect.gen(function* () {
           const uniqueTabIds = [...new Set(tabIds.filter(Number.isInteger))]
           if (uniqueTabIds.length === 0) return { ledger: null, results: [] }
 
@@ -509,9 +509,9 @@ function makeRetainedPagesLayer(
               return {
                 tabId,
                 closedAt: candidate?.closedAt ?? observedAt,
-                ...(candidate ? { closureToken: candidate.closureToken } : {})
+                ...(candidate ? { closureToken: candidate.closureToken } : {}),
               }
-            })
+            }),
           )
           const markedInventory = marked.inventory
           const candidates = marked.entries
@@ -524,8 +524,8 @@ function makeRetainedPagesLayer(
               ledger: null,
               results: candidates.map(() => ({
                 changed: false as const,
-                outcome: 'missing' as const
-              }))
+                outcome: 'missing' as const,
+              })),
             }
           }
 
@@ -581,37 +581,37 @@ function makeRetainedPagesLayer(
 
           const cleanedInventory = removeOpenSurfaceLifetimes(
             markedInventory,
-            capturedCandidates
+            capturedCandidates,
           ).inventory
           yield* persistObservedInventory(
             pair,
             cleanedInventory,
             'capture',
-            true
+            true,
           )
           return {
             ledger: ledger ?? null,
             results: results.filter(
-              (result): result is CaptureClosedSurfaceOutcome => result !== null
-            )
+              (result): result is CaptureClosedSurfaceOutcome => result !== null,
+            ),
           }
         }))
-      }
+      },
     )
 
     const captureClosedSurface = Effect.fn('RetainedPages.captureClosedSurface')(
-      function*(tabId: number) {
+      function* (tabId: number) {
         const captured = yield* captureClosedSurfaces([tabId])
         const result = captured.results[0]
         if (!result || result.outcome === 'missing' || !captured.ledger) {
           return { changed: false, outcome: 'missing' } as const
         }
         return { ledger: captured.ledger, ...result }
-      }
+      },
     )
 
-    const getLedger = Effect.fn('RetainedPages.getLedger')(function*() {
-      return yield* mutationSemaphore.withPermit(Effect.gen(function*() {
+    const getLedger = Effect.fn('RetainedPages.getLedger')(function* () {
+      return yield* mutationSemaphore.withPermit(Effect.gen(function* () {
         const stored = yield* readLedger()
         const pruned = pruneLedger(stored.ledger, options.now())
         if (stored.malformed) {
@@ -619,19 +619,19 @@ function makeRetainedPagesLayer(
         } else if (pruned.changed) {
           yield* storage.write(pruned.ledger).pipe(
             Effect.tap(() => health.recordRecovery('retained-ledger-reset')),
-            Effect.catchTag('RetainedPageLedgerStorageError', () => Effect.void)
+            Effect.catchTag('RetainedPageLedgerStorageError', () => Effect.void),
           )
         }
         return pruned.ledger
       }))
     })
 
-    const observeOpenSurfaces = Effect.fn('RetainedPages.observeOpenSurfaces')(function*(
+    const observeOpenSurfaces = Effect.fn('RetainedPages.observeOpenSurfaces')(function* (
       observations:
         | readonly OpenSurfaceObservation[]
-        | PromiseLike<readonly OpenSurfaceObservation[]>
+        | PromiseLike<readonly OpenSurfaceObservation[]>,
     ) {
-      yield* mutationSemaphore.withPermit(Effect.gen(function*() {
+      yield* mutationSemaphore.withPermit(Effect.gen(function* () {
         const captured = yield* Effect.promise(() => Promise.resolve(observations))
         if (captured.length === 0) return
         const pair = yield* readInventoryPair()
@@ -640,7 +640,7 @@ function makeRetainedPagesLayer(
           const observed = yield* Effect.promise(() => observeOpenSurfaceInventory(
             inventory,
             observation,
-            inventoryOptions()
+            inventoryOptions(),
           ))
           inventory = observed.inventory
         }
@@ -649,8 +649,8 @@ function makeRetainedPagesLayer(
     })
 
     const checkpointOpenSurfaces = Effect.fn('RetainedPages.checkpointOpenSurfaces')(
-      function*(captures: PromiseLike<readonly GuardedOpenSurfaceCapture[]>) {
-        yield* mutationSemaphore.withPermit(Effect.gen(function*() {
+      function* (captures: PromiseLike<readonly GuardedOpenSurfaceCapture[]>) {
+        yield* mutationSemaphore.withPermit(Effect.gen(function* () {
           const captured = yield* Effect.promise(() => Promise.resolve(captures))
           if (!captured.some((candidate) => candidate.isCurrent())) return
 
@@ -672,7 +672,7 @@ function makeRetainedPagesLayer(
             const observed = yield* Effect.promise(() => observeOpenSurfaceInventory(
               inventory,
               capture.observation,
-              inventoryOptions()
+              inventoryOptions(),
             ))
             // Identity hashing is asynchronous. A close or newer observation
             // may have invalidated this capture while the digest was pending.
@@ -683,36 +683,36 @@ function makeRetainedPagesLayer(
             yield* health.recordFailure({
               failureKind: 'capture',
               operationKind: 'open-surface-coverage',
-              retryState: 'not-applicable'
+              retryState: 'not-applicable',
             })
           }
         }))
-      }
+      },
     )
 
-    const observeOpenSurface = Effect.fn('RetainedPages.observeOpenSurface')(function*(
-      observation: OpenSurfaceObservation | PromiseLike<OpenSurfaceObservation | null>
+    const observeOpenSurface = Effect.fn('RetainedPages.observeOpenSurface')(function* (
+      observation: OpenSurfaceObservation | PromiseLike<OpenSurfaceObservation | null>,
     ) {
       yield* observeOpenSurfaces(Promise.resolve(observation).then((captured) =>
-        captured ? [captured] : []
+        captured ? [captured] : [],
       ))
     })
 
-    const removeSnapshots = Effect.fn('RetainedPages.removeSnapshots')(function*(
-      snapshots: readonly RetainedPageSnapshotTarget[]
+    const removeSnapshots = Effect.fn('RetainedPages.removeSnapshots')(function* (
+      snapshots: readonly RetainedPageSnapshotTarget[],
     ) {
-      return yield* mutationSemaphore.withPermit(Effect.gen(function*() {
+      return yield* mutationSemaphore.withPermit(Effect.gen(function* () {
         const stored = yield* readLedger()
         const pruned = pruneLedger(stored.ledger, options.now())
         const result = removeRetainedPageSnapshots(
           pruned.ledger,
-          snapshots
+          snapshots,
         )
         if (stored.malformed || pruned.changed || result.changed) {
           const write = storage.write(result.ledger).pipe(
             Effect.tap(() => stored.malformed
               ? Effect.void
-              : health.recordRecovery('retained-ledger-reset'))
+              : health.recordRecovery('retained-ledger-reset')),
           )
           if (
             !result.changed &&
@@ -723,7 +723,7 @@ function makeRetainedPagesLayer(
             // semantics. A failed cleanup write may be retried by later
             // material work, but cannot turn an expired removal into failure.
             yield* write.pipe(
-              Effect.catchTag('RetainedPageLedgerStorageError', () => Effect.void)
+              Effect.catchTag('RetainedPageLedgerStorageError', () => Effect.void),
             )
           } else {
             yield* write
@@ -734,8 +734,8 @@ function makeRetainedPagesLayer(
     })
 
     const readActivationSnapshot = Effect.fn('RetainedPages.readActivationSnapshot')(
-      function*(identityDigest: string, closureToken: string) {
-        return yield* mutationSemaphore.withPermit(Effect.gen(function*() {
+      function* (identityDigest: string, closureToken: string) {
+        return yield* mutationSemaphore.withPermit(Effect.gen(function* () {
           const stored = yield* readLedger()
           const pruned = pruneLedger(stored.ledger, options.now())
           if (stored.malformed || pruned.changed) {
@@ -744,20 +744,20 @@ function makeRetainedPagesLayer(
             yield* storage.write(pruned.ledger).pipe(
               Effect.tap(() => stored.malformed
                 ? Effect.void
-                : health.recordRecovery('retained-ledger-reset'))
+                : health.recordRecovery('retained-ledger-reset')),
             )
           }
           const page = pruned.ledger.pages[identityDigest]
           return page?.closureToken === closureToken ? page : null
         }))
-      }
+      },
     )
 
-    const runActivation = Effect.fn('RetainedPages.runActivation')(function*(
+    const runActivation = Effect.fn('RetainedPages.runActivation')(function* (
       identityDigest: string,
       closureToken: string,
       disposition: RetainedPageActivationDisposition,
-      currentWindowId?: number
+      currentWindowId?: number,
     ) {
       const page = yield* readActivationSnapshot(identityDigest, closureToken)
       if (!page) return { outcome: 'stale' } as const
@@ -772,33 +772,33 @@ function makeRetainedPagesLayer(
         Effect.map((result): ActivateRetainedPageSnapshotResult => ({
           outcome: result.results[0]?.outcome === 'stale'
             ? 'activated-newer-retained'
-            : 'activated'
+            : 'activated',
         })),
         Effect.catchCause(() => Effect.succeed({
-          outcome: 'activated-unconsumed'
-        } as const))
+          outcome: 'activated-unconsumed',
+        } as const)),
       )
     })
 
-    const activateSnapshot = Effect.fn('RetainedPages.activateSnapshot')(function*(
+    const activateSnapshot = Effect.fn('RetainedPages.activateSnapshot')(function* (
       identityDigest: string,
       closureToken: string,
       disposition: RetainedPageActivationDisposition,
-      currentWindowId?: number
+      currentWindowId?: number,
     ) {
-      return yield* Effect.uninterruptibleMask((restore) => Effect.gen(function*() {
+      return yield* Effect.uninterruptibleMask((restore) => Effect.gen(function* () {
         const candidate = yield* Deferred.make<
           ActivateRetainedPageSnapshotResult,
           RetainedPagesFailure
         >()
         const flight = yield* Ref.modify(activationFlights, (
-          current
+          current,
         ): readonly [
           RetainedPageActivationFlight,
           ReadonlyMap<
             string,
             Deferred.Deferred<ActivateRetainedPageSnapshotResult, RetainedPagesFailure>
-          >
+          >,
         ] => {
           const existing = current.get(identityDigest)
           if (existing) {
@@ -822,10 +822,10 @@ function makeRetainedPagesLayer(
               identityDigest,
               closureToken,
               disposition,
-              currentWindowId
+              currentWindowId,
             )).pipe(
-              Effect.ensuring(clearFlight)
-            )
+              Effect.ensuring(clearFlight),
+            ),
           )
         }
 
@@ -834,19 +834,19 @@ function makeRetainedPagesLayer(
     })
 
     const reconcileOpenSurfaces = Effect.fn('RetainedPages.reconcileOpenSurfaces')(
-      function*(
+      function* (
         mode: OpenSurfaceReconciliationMode,
         current:
           | readonly OpenSurfaceObservation[]
-          | PromiseLike<readonly OpenSurfaceObservation[]>
+          | PromiseLike<readonly OpenSurfaceObservation[]>,
       ) {
-        return yield* mutationSemaphore.withPermit(Effect.gen(function*() {
+        return yield* mutationSemaphore.withPermit(Effect.gen(function* () {
           const capturedCurrent = yield* Effect.promise(() => Promise.resolve(current)).pipe(
             Effect.tapCause(() => health.recordFailure({
               failureKind: 'restore',
               operationKind: 'open-surface-coverage',
-              retryState: 'not-applicable'
-            }))
+              retryState: 'not-applicable',
+            })),
           )
           const pair = yield* readInventoryPair('restore')
           if (mode === 'first-install') {
@@ -855,7 +855,7 @@ function makeRetainedPagesLayer(
               session: null,
               durable: null,
               current: capturedCurrent,
-              options: inventoryOptions()
+              options: inventoryOptions(),
             }))
             yield* persistObservedInventory(pair, result.inventory, 'restore')
             return { inferredClosures: 0 }
@@ -872,13 +872,13 @@ function makeRetainedPagesLayer(
             session: sessionInventory,
             durable: durableInventory,
             current: capturedCurrent,
-            options: inventoryOptions()
+            options: inventoryOptions(),
           }))
 
           const observedAt = options.now()
           const stableClosures = entriesWithStableClosureTime(
             result.inferredClosures,
-            observedAt
+            observedAt,
           )
           if (stableClosures.length > 0) {
             // Checkpoint the first accepted closure time in whichever source
@@ -889,15 +889,15 @@ function makeRetainedPagesLayer(
                   ? emptyOpenSurfaceInventory()
                   : pair.session.inventory,
                 stableClosures,
-                observedAt
+                observedAt,
               ),
               durable: inventoryWithMarkedClosures(
                 pair.durable.status === 'newer'
                   ? emptyOpenSurfaceInventory()
                   : pair.durable.inventory,
                 stableClosures,
-                observedAt
-              )
+                observedAt,
+              ),
             }, 'restore', true)
           }
           yield* captureInventoryClosures(stableClosures, observedAt)
@@ -905,18 +905,18 @@ function makeRetainedPagesLayer(
             pair,
             result.inventory,
             'restore',
-            stableClosures.length > 0
+            stableClosures.length > 0,
           )
           return { inferredClosures: stableClosures.length }
         }))
-      }
+      },
     )
 
-    const replaceOpenSurface = Effect.fn('RetainedPages.replaceOpenSurface')(function*(
+    const replaceOpenSurface = Effect.fn('RetainedPages.replaceOpenSurface')(function* (
       removedTabId: number,
-      replacement: OpenSurfaceObservation | PromiseLike<OpenSurfaceObservation | null>
+      replacement: OpenSurfaceObservation | PromiseLike<OpenSurfaceObservation | null>,
     ) {
-      yield* mutationSemaphore.withPermit(Effect.gen(function*() {
+      yield* mutationSemaphore.withPermit(Effect.gen(function* () {
         const captured = yield* Effect.promise(() => Promise.resolve(replacement))
         const pair = yield* readInventoryPair()
         if (!captured) {
@@ -925,7 +925,7 @@ function makeRetainedPagesLayer(
           yield* health.recordFailure({
             failureKind: 'capture',
             operationKind: 'open-surface-coverage',
-            retryState: 'not-applicable'
+            retryState: 'not-applicable',
           })
           return
         }
@@ -933,7 +933,7 @@ function makeRetainedPagesLayer(
           pair.inventory,
           removedTabId,
           captured,
-          inventoryOptions()
+          inventoryOptions(),
         ))
         yield* persistObservedInventory(pair, replaced.inventory)
       }))
@@ -950,7 +950,7 @@ function makeRetainedPagesLayer(
       observeOpenSurfaces,
       reconcileOpenSurfaces,
       replaceOpenSurface,
-      removeSnapshots
+      removeSnapshots,
     })
   }))
 }

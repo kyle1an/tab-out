@@ -3,7 +3,7 @@ import type { FilterFocusBootWindow } from './filter-focus-buffer.js'
 const bootWindow = window as FilterFocusBootWindow
 const params = new URLSearchParams(window.location.search)
 const input = document.querySelector<HTMLInputElement>(
-  '[data-tabout="filter-query"] [data-tabout-part="input"]'
+  '[data-tabout="filter-query"] [data-tabout-part="input"]',
 )
 const shouldFocus = params.get('focusFilter') === '1'
 

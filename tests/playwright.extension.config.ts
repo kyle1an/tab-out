@@ -9,6 +9,6 @@ export default defineConfig({
   reporter: 'line',
   timeout: 45_000,
   expect: {
-    timeout: 10_000
-  }
+    timeout: 10_000,
+  },
 })

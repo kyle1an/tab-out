@@ -4,7 +4,7 @@ import {
   mkdtempDisposableSync,
   readFileSync,
   realpathSync,
-  writeFileSync
+  writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -14,7 +14,7 @@ import {
   assertTrackedExtensionHashUnchanged,
   WORKING_SET_BENCHMARK_BUILD_SIDECAR,
   WORKING_SET_BENCHMARK_CONTROLLER_PAGE,
-  WORKING_SET_BENCHMARK_VARIANT_SIDECAR
+  WORKING_SET_BENCHMARK_VARIANT_SIDECAR,
 } from '../scripts/build-working-set-storage-benchmark.js'
 import {
   assertWorkingSetBackendModuleGraph,
@@ -30,7 +30,7 @@ import {
   WORKING_SET_BENCHMARK_ROOT_MARKER,
   WORKING_SET_BENCHMARK_TEMP_PREFIX,
   WORKING_SET_BENCHMARK_VARIANTS,
-  type WorkingSetBenchmarkBuildSelection
+  type WorkingSetBenchmarkBuildSelection,
 } from '../scripts/working-set-benchmark-build-config.js'
 
 const repositoryRoot = realpathSync(process.cwd())
@@ -41,30 +41,30 @@ function makeCurrentBenchmarkSelection(): {
 } {
   const temporaryRoot = mkdtempDisposableSync(join(
     realpathSync(tmpdir()),
-    WORKING_SET_BENCHMARK_TEMP_PREFIX
+    WORKING_SET_BENCHMARK_TEMP_PREFIX,
   ))
   const nonce = 'benchmark-test-nonce'
   const extensionDirectory = resolve(
     temporaryRoot.path,
     'current',
-    'extension'
+    'extension',
   )
   mkdirSync(extensionDirectory, { recursive: true })
   writeFileSync(
     resolve(temporaryRoot.path, WORKING_SET_BENCHMARK_ROOT_MARKER),
-    `${JSON.stringify({ schemaVersion: 1, nonce })}\n`
+    `${JSON.stringify({ schemaVersion: 1, nonce })}\n`,
   )
   const selection = resolveWorkingSetBuildSelection(repositoryRoot, {
     [WORKING_SET_BENCHMARK_BACKEND_ENV]: 'current',
     [WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV]: extensionDirectory,
-    [WORKING_SET_BENCHMARK_NONCE_ENV]: nonce
+    [WORKING_SET_BENCHMARK_NONCE_ENV]: nonce,
   })
   assert.equal(selection.mode, 'benchmark')
   return {
     selection,
     [Symbol.dispose]() {
       temporaryRoot[Symbol.dispose]()
-    }
+    },
   }
 }
 
@@ -75,16 +75,16 @@ test('normal builds retain the production Working Set paths and no benchmark ali
     mode: 'production',
     backendModulePath: resolve(
       repositoryRoot,
-      'src/extension/background/working-set-activity-storage-layer.ts'
+      'src/extension/background/working-set-activity-storage-layer.ts',
     ),
     distDirectory: resolve(repositoryRoot, 'extension/dist'),
     extensionDirectory: resolve(repositoryRoot, 'extension'),
     instrumentation: 'none',
-    variant: 'current'
+    variant: 'current',
   })
   assert.equal(
     workingSetBackgroundEntryPath(repositoryRoot, selection),
-    resolve(repositoryRoot, 'src/extension/background.ts')
+    resolve(repositoryRoot, 'src/extension/background.ts'),
   )
   assert.deepEqual(workingSetBenchmarkAliases(selection), [])
 })
@@ -94,26 +94,26 @@ test('benchmark backend paths cover exactly the four compile-time variants', () 
     'current',
     'compact',
     'shards-32',
-    'idb'
+    'idb',
   ])
   assert.equal(
     workingSetBenchmarkBackendModulePath(repositoryRoot, 'current'),
     resolve(
       repositoryRoot,
-      'tests/extension/working-set-backends/current-envelope-layer.ts'
-    )
+      'tests/extension/working-set-backends/current-envelope-layer.ts',
+    ),
   )
   for (const [variant, filename] of [
     ['compact', 'compact-envelope-layer.ts'],
     ['shards-32', 'chrome-shards-layer.ts'],
-    ['idb', 'indexed-db-layer.ts']
+    ['idb', 'indexed-db-layer.ts'],
   ] as const) {
     assert.equal(
       workingSetBenchmarkBackendModulePath(repositoryRoot, variant),
       resolve(
         repositoryRoot,
-        `tests/extension/working-set-backends/${filename}`
-      )
+        `tests/extension/working-set-backends/${filename}`,
+      ),
     )
   }
 })
@@ -121,12 +121,12 @@ test('benchmark backend paths cover exactly the four compile-time variants', () 
 test('current benchmark backend freezes the legacy envelope independently of production', () => {
   const currentBackendSource = readFileSync(
     workingSetBenchmarkBackendModulePath(repositoryRoot, 'current'),
-    'utf8'
+    'utf8',
   )
 
   assert.doesNotMatch(
     currentBackendSource,
-    /working-set-activity-storage-layer/
+    /working-set-activity-storage-layer/,
   )
   assert.match(currentBackendSource, /WorkingSetActivityStorage\.layer\(/)
   assert.match(currentBackendSource, /readChromeStorageValue\(/)
@@ -136,30 +136,30 @@ test('current benchmark backend freezes the legacy envelope independently of pro
 test('benchmark selection requires a marked mkdtemp path and a complete environment', () => {
   assert.throws(
     () => resolveWorkingSetBuildSelection(repositoryRoot, {
-      [WORKING_SET_BENCHMARK_BACKEND_ENV]: 'current'
+      [WORKING_SET_BENCHMARK_BACKEND_ENV]: 'current',
     }),
-    /must be supplied together/
+    /must be supplied together/,
   )
   assert.throws(
     () => resolveWorkingSetBuildSelection(repositoryRoot, {
       [WORKING_SET_BENCHMARK_BACKEND_ENV]: 'unknown',
       [WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV]: 'relative/extension',
-      [WORKING_SET_BENCHMARK_NONCE_ENV]: 'nonce'
+      [WORKING_SET_BENCHMARK_NONCE_ENV]: 'nonce',
     }),
-    /Unknown Working Set benchmark backend/
+    /Unknown Working Set benchmark backend/,
   )
   assert.throws(
     () => resolveWorkingSetBuildSelection(repositoryRoot, {
       [WORKING_SET_BENCHMARK_BACKEND_ENV]: 'current',
       [WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV]: 'relative/extension',
-      [WORKING_SET_BENCHMARK_NONCE_ENV]: 'nonce'
+      [WORKING_SET_BENCHMARK_NONCE_ENV]: 'nonce',
     }),
-    /must be absolute/
+    /must be absolute/,
   )
 
   using unmarkedRoot = mkdtempDisposableSync(join(
     realpathSync(tmpdir()),
-    WORKING_SET_BENCHMARK_TEMP_PREFIX
+    WORKING_SET_BENCHMARK_TEMP_PREFIX,
   ))
   const unmarkedExtension = resolve(unmarkedRoot.path, 'current', 'extension')
   mkdirSync(unmarkedExtension, { recursive: true })
@@ -167,29 +167,29 @@ test('benchmark selection requires a marked mkdtemp path and a complete environm
     () => resolveWorkingSetBuildSelection(repositoryRoot, {
       [WORKING_SET_BENCHMARK_BACKEND_ENV]: 'current',
       [WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV]: unmarkedExtension,
-      [WORKING_SET_BENCHMARK_NONCE_ENV]: 'nonce'
+      [WORKING_SET_BENCHMARK_NONCE_ENV]: 'nonce',
     }),
-    /has no marker/
+    /has no marker/,
   )
   writeFileSync(
     resolve(unmarkedRoot.path, WORKING_SET_BENCHMARK_ROOT_MARKER),
-    `${JSON.stringify({ schemaVersion: 1, nonce: 'expected' })}\n`
+    `${JSON.stringify({ schemaVersion: 1, nonce: 'expected' })}\n`,
   )
   assert.throws(
     () => resolveWorkingSetBuildSelection(repositoryRoot, {
       [WORKING_SET_BENCHMARK_BACKEND_ENV]: 'current',
       [WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV]: unmarkedExtension,
-      [WORKING_SET_BENCHMARK_NONCE_ENV]: 'different'
+      [WORKING_SET_BENCHMARK_NONCE_ENV]: 'different',
     }),
-    /marker does not match/
+    /marker does not match/,
   )
   assert.throws(
     () => resolveWorkingSetBuildSelection(repositoryRoot, {
       [WORKING_SET_BENCHMARK_BACKEND_ENV]: 'compact',
       [WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV]: unmarkedExtension,
-      [WORKING_SET_BENCHMARK_NONCE_ENV]: 'expected'
+      [WORKING_SET_BENCHMARK_NONCE_ENV]: 'expected',
     }),
-    /not a validated mkdtemp variant directory/
+    /not a validated mkdtemp variant directory/,
   )
 })
 
@@ -206,8 +206,8 @@ test('benchmark aliases bind both permitted seams to one selected backend', () =
     workingSetBackgroundEntryPath(repositoryRoot, benchmark.selection),
     resolve(
       repositoryRoot,
-      'tests/extension/working-set-storage-benchmark-background.ts'
-    )
+      'tests/extension/working-set-storage-benchmark-background.ts',
+    ),
   )
 })
 
@@ -218,91 +218,91 @@ test('module graph guard accepts only the selected backend', () => {
   const productionBackend = workingSetProductionBackendModulePath(repositoryRoot)
   const otherBackend = workingSetBenchmarkBackendModulePath(
     repositoryRoot,
-    'compact'
+    'compact',
   )
 
   assert.deepEqual(
     assertWorkingSetBackendModuleGraph(
       selection,
       repositoryRoot,
-      ['/virtual/unowned.ts', `${selectedBackend}?used`]
+      ['/virtual/unowned.ts', `${selectedBackend}?used`],
     ),
-    [selectedBackend]
+    [selectedBackend],
   )
   assert.throws(
     () => assertWorkingSetBackendModuleGraph(
       selection,
       repositoryRoot,
-      ['/virtual/unowned.ts']
+      ['/virtual/unowned.ts'],
     ),
-    /exactly its selected backend/
+    /exactly its selected backend/,
   )
   assert.throws(
     () => assertWorkingSetBackendModuleGraph(
       selection,
       repositoryRoot,
-      [selectedBackend, otherBackend]
+      [selectedBackend, otherBackend],
     ),
-    /exactly its selected backend/
+    /exactly its selected backend/,
   )
   assert.throws(
     () => assertWorkingSetBackendModuleGraph(
       selection,
       repositoryRoot,
-      [selectedBackend, productionBackend]
+      [selectedBackend, productionBackend],
     ),
-    /must exclude the production storage layer/
+    /must exclude the production storage layer/,
   )
   assert.throws(
     () => assertWorkingSetBackendModuleGraph(
       selection,
       repositoryRoot,
-      [selectedBackend, workingSetBenchmarkSelectorModulePath(repositoryRoot)]
+      [selectedBackend, workingSetBenchmarkSelectorModulePath(repositoryRoot)],
     ),
-    /selector shim was not replaced/
+    /selector shim was not replaced/,
   )
 })
 
 test('builder contract keeps controllers and hash sidecars outside production output', () => {
   const builderSource = readFileSync(resolve(
     repositoryRoot,
-    'scripts/build-working-set-storage-benchmark.ts'
+    'scripts/build-working-set-storage-benchmark.ts',
   ), 'utf8')
   const installedExtensionSource = readFileSync(resolve(
     repositoryRoot,
-    'tests/extension/installed-extension.ts'
+    'tests/extension/installed-extension.ts',
   ), 'utf8')
   const normalBackgroundBundle = readFileSync(
     resolve(repositoryRoot, 'extension/dist/background.js'),
-    'utf8'
+    'utf8',
   )
 
   assert.equal(
     WORKING_SET_BENCHMARK_CONTROLLER_PAGE,
-    'working-set-benchmark-controller.html'
+    'working-set-benchmark-controller.html',
   )
   assert.equal(
     WORKING_SET_BENCHMARK_BUILD_SIDECAR,
-    'working-set-storage-benchmark-build.json'
+    'working-set-storage-benchmark-build.json',
   )
   assert.equal(
     WORKING_SET_BENCHMARK_VARIANT_SIDECAR,
-    'working-set-storage-benchmark-artifact.json'
+    'working-set-storage-benchmark-artifact.json',
   )
   assert.equal(
     normalBackgroundBundle.includes('working-set-backends/selected'),
-    false
+    false,
   )
   assert.equal(
     normalBackgroundBundle.includes(
-      '__TAB_OUT_WORKING_SET_STORAGE_BENCHMARK__'
+      '__TAB_OUT_WORKING_SET_STORAGE_BENCHMARK__',
     ),
     false,
-    'normal background bundle must omit the benchmark protocol sentinel'
+    'normal background bundle must omit the benchmark protocol sentinel',
   )
   assert.equal(
     builderSource.includes('<script'),
-    false
+    false,
   )
   assert.match(builderSource, /tests\/helpers\/working-set-storage-profile\.ts/)
   assert.match(builderSource, /cliArguments\[0\] === '--retain'/)
@@ -310,15 +310,15 @@ test('builder contract keeps controllers and hash sidecars outside production ou
   assert.match(builderSource, /\[Symbol\.asyncDispose\]: dispose/)
   assert.match(
     installedExtensionSource,
-    /export async function launchInstalledExtensionFromArtifact/
+    /export async function launchInstalledExtensionFromArtifact/,
   )
   assert.match(
     installedExtensionSource,
-    /launchInstalledExtensionFromArtifact\(\s*builtExtensionDirectory/
+    /launchInstalledExtensionFromArtifact\(\s*builtExtensionDirectory/,
   )
   assertTrackedExtensionHashUnchanged('same-hash', 'same-hash')
   assert.throws(
     () => assertTrackedExtensionHashUnchanged('before', 'after'),
-    /Tracked extension files changed/
+    /Tracked extension files changed/,
   )
 })

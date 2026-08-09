@@ -31,9 +31,9 @@ export type MoveTabTarget = {
 
 export type MoveTabResult = 'handled' | 'not-found' | 'failed'
 
-const focusLatestResolvedTarget = Effect.fn('tabMove.focusLatestResolvedTarget')(function*(
+const focusLatestResolvedTarget = Effect.fn('tabMove.focusLatestResolvedTarget')(function* (
   tabId: number,
-  target: MoveTabTarget
+  target: MoveTabTarget,
 ) {
   const browserTabs = yield* BrowserTabs
   const liveTab = yield* browserTabs.getTab(tabId)
@@ -41,7 +41,7 @@ const focusLatestResolvedTarget = Effect.fn('tabMove.focusLatestResolvedTarget')
   return yield* focusResolvedTabTargetEffect(liveTab, {
     tabId,
     ...(target.tabUrl === undefined ? {} : { url: target.tabUrl }),
-    ...(target.rawUrl === undefined ? {} : { rawUrl: target.rawUrl })
+    ...(target.rawUrl === undefined ? {} : { rawUrl: target.rawUrl }),
   })
 })
 
@@ -70,9 +70,9 @@ function findTabForTarget(tabs: chrome.tabs.Tab[], target: MoveTabTarget, curren
  * @returns {Promise<MoveTabResult>} whether the target was handled, confirmed
  * missing, or could not be resolved/moved because a browser operation failed
  */
-export const moveTabToCurrentWindowEffect = Effect.fn('tabMove.toCurrentWindow')(function*(
+export const moveTabToCurrentWindowEffect = Effect.fn('tabMove.toCurrentWindow')(function* (
   target: MoveTabTarget,
-  opts: { activate?: boolean } = {}
+  opts: { activate?: boolean } = {},
 ) {
   const { activate = false } = opts
 
@@ -110,7 +110,7 @@ export const moveTabToCurrentWindowEffect = Effect.fn('tabMove.toCurrentWindow')
   } else {
     yield* unsuspendExistingTabEffect(match, {
       ...(target.tabUrl === undefined ? {} : { url: target.tabUrl }),
-      ...(target.rawUrl === undefined ? {} : { rawUrl: target.rawUrl })
+      ...(target.rawUrl === undefined ? {} : { rawUrl: target.rawUrl }),
     })
   }
 
@@ -119,7 +119,7 @@ export const moveTabToCurrentWindowEffect = Effect.fn('tabMove.toCurrentWindow')
 
 export function moveTabToCurrentWindow(
   target: MoveTabTarget,
-  opts: { activate?: boolean } = {}
+  opts: { activate?: boolean } = {},
 ): Promise<MoveTabResult> {
   return getAppRuntime().runPromise(moveTabToCurrentWindowEffect(target, opts))
 }
@@ -132,8 +132,8 @@ export function moveTabToCurrentWindow(
  * @returns {Promise<MoveTabResult>} whether the target was handled, confirmed
  * missing, or could not be resolved/moved because a browser operation failed
  */
-export const moveTabToNewWindowEffect = Effect.fn('tabMove.toNewWindow')(function*(
-  target: MoveTabTarget
+export const moveTabToNewWindowEffect = Effect.fn('tabMove.toNewWindow')(function* (
+  target: MoveTabTarget,
 ) {
   const browserTabs = yield* BrowserTabs
   const currentWindowResult = yield* browserTabs.getCurrentWindowResult()

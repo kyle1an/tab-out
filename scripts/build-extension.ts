@@ -17,7 +17,7 @@ type BuildEntry = 'app' | 'background'
 
 const repositoryRoot = fileURLToPath(new URL('../', import.meta.url))
 const extensionPackageDirectory = resolveWorkingSetBuildSelection(
-  repositoryRoot
+  repositoryRoot,
 ).extensionDirectory
 
 class ExtensionBuildError extends Schema.TaggedErrorClass<ExtensionBuildError>()(
@@ -25,8 +25,8 @@ class ExtensionBuildError extends Schema.TaggedErrorClass<ExtensionBuildError>()
   {
     operation: Schema.String,
     cause: Schema.Defect(),
-    exitCode: Schema.optionalKey(Schema.Int)
-  }
+    exitCode: Schema.optionalKey(Schema.Int),
+  },
 ) {
   override get message(): string {
     const detail = this.cause instanceof Error ? this.cause.message : String(this.cause)
@@ -37,49 +37,49 @@ class ExtensionBuildError extends Schema.TaggedErrorClass<ExtensionBuildError>()
 function extensionBuildError(
   operation: string,
   cause: unknown,
-  exitCode?: number
+  exitCode?: number,
 ): ExtensionBuildError {
   return ExtensionBuildError.make({
     operation,
     cause,
-    ...(exitCode === undefined ? {} : { exitCode })
+    ...(exitCode === undefined ? {} : { exitCode }),
   })
 }
 
-const writeGeneratedExtensionFiles = Effect.fn('extensionBuild.writeGeneratedFiles')(function*() {
+const writeGeneratedExtensionFiles = Effect.fn('extensionBuild.writeGeneratedFiles')(function* () {
   if (typeof packageJson.version !== 'string' || !packageJson.version) {
     return yield* Effect.fail(extensionBuildError(
       'read package version',
-      new Error('package.json must define a string version for extension/manifest.json')
+      new Error('package.json must define a string version for extension/manifest.json'),
     ))
   }
 
   const manifest = yield* Effect.try({
     try: () => createExtensionManifest({ version: packageJson.version }),
-    catch: (cause) => extensionBuildError('create extension manifest', cause)
+    catch: (cause) => extensionBuildError('create extension manifest', cause),
   })
   const fileSystem = yield* FileSystem.FileSystem
   yield* fileSystem.writeFileString(
     resolve(extensionPackageDirectory, 'manifest.json'),
-    `${JSON.stringify(manifest, null, 2)}\n`
+    `${JSON.stringify(manifest, null, 2)}\n`,
   ).pipe(
-    Effect.mapError((cause) => extensionBuildError('write generated extension manifest', cause))
+    Effect.mapError((cause) => extensionBuildError('write generated extension manifest', cause)),
   )
   const indexHtml = yield* Effect.tryPromise({
     try: () => createIndexHtml(),
-    catch: (cause) => extensionBuildError('create dashboard page', cause)
+    catch: (cause) => extensionBuildError('create dashboard page', cause),
   })
   yield* fileSystem.writeFileString(
     resolve(extensionPackageDirectory, 'index.html'),
-    indexHtml
+    indexHtml,
   ).pipe(
-    Effect.mapError((cause) => extensionBuildError('write generated dashboard page', cause))
+    Effect.mapError((cause) => extensionBuildError('write generated dashboard page', cause)),
   )
 })
 
-const runBuild = Effect.fn('extensionBuild.runVite')(function*(
+const runBuild = Effect.fn('extensionBuild.runVite')(function* (
   entry: BuildEntry,
-  viteArgs: readonly string[]
+  viteArgs: readonly string[],
 ) {
   const handle = yield* ChildProcess.make('pnpm', ['exec', 'vite', 'build', ...viteArgs], {
     env: { TAB_OUT_BUILD_ENTRY: entry },
@@ -87,24 +87,24 @@ const runBuild = Effect.fn('extensionBuild.runVite')(function*(
     stdin: 'inherit',
     stdout: 'inherit',
     stderr: 'inherit',
-    shell: process.platform === 'win32'
+    shell: process.platform === 'win32',
   }).pipe(
-    Effect.mapError((cause) => extensionBuildError(`start Vite ${entry} build`, cause))
+    Effect.mapError((cause) => extensionBuildError(`start Vite ${entry} build`, cause)),
   )
   const exitCode = yield* handle.exitCode.pipe(
-    Effect.mapError((cause) => extensionBuildError(`wait for Vite ${entry} build`, cause))
+    Effect.mapError((cause) => extensionBuildError(`wait for Vite ${entry} build`, cause)),
   )
 
   if (exitCode !== ChildProcessSpawner.ExitCode(0)) {
     return yield* Effect.fail(extensionBuildError(
       `run Vite ${entry} build`,
       new Error(`Vite ${entry} build exited with code ${exitCode}`),
-      exitCode
+      exitCode,
     ))
   }
 })
 
-const runExtensionBuild = Effect.fn('extensionBuild.run')(function*(viteArgs: readonly string[]) {
+const runExtensionBuild = Effect.fn('extensionBuild.run')(function* (viteArgs: readonly string[]) {
   yield* writeGeneratedExtensionFiles()
   yield* runBuild('app', viteArgs)
   yield* runBuild('background', viteArgs)
@@ -115,8 +115,8 @@ runExtensionBuild(process.argv.slice(2)).pipe(
   Effect.catchTag('ExtensionBuildError', (error) => error.exitCode === undefined
     ? Effect.fail(error)
     : Effect.sync(() => {
-      process.exitCode = error.exitCode
-    })),
+        process.exitCode = error.exitCode
+      })),
   Effect.provide(NodeServices.layer),
-  NodeRuntime.runMain
+  NodeRuntime.runMain,
 )

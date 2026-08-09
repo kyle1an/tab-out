@@ -13,13 +13,13 @@ export default defineConfig({
     browserName: 'chromium',
     channel: 'chromium',
     headless: true,
-    viewport: { width: 1420, height: 900 }
+    viewport: { width: 1420, height: 900 },
   },
   webServer: {
     command: 'pnpm serve',
     env: { PORT: String(browserTestPort) },
     url: `${browserTestBaseUrl}/tests/fixtures/dashboard-resize.html`,
     reuseExistingServer: false,
-    timeout: 30_000
-  }
+    timeout: 30_000,
+  },
 })

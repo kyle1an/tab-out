@@ -15,7 +15,7 @@ const historyRangePreferenceSchema = Schema.Literals([
   '90d',
   '180d',
   '365d',
-  'all'
+  'all',
 ])
 
 const isHistoryRangePreference = Schema.is(historyRangePreferenceSchema)
@@ -32,7 +32,7 @@ type HistoryRangePreferenceWriter = {
 
 class HistoryRangePreferenceError extends Schema.TaggedErrorClass<HistoryRangePreferenceError>()(
   'HistoryRangePreferenceError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 export type HistoryRangePreferenceLoadResult = {
@@ -46,9 +46,9 @@ export type HistoryRangePreferenceLoadResult = {
  * and then have an older delayed write overwrite it.
  */
 export function createHistoryRangePreferenceWriter(
-  adapter: HistoryRangePreferenceWriterAdapter
+  adapter: HistoryRangePreferenceWriterAdapter,
 ): HistoryRangePreferenceWriter {
-  const saveEffect = Effect.fn('historyRange.save')(function*(historyRange: unknown) {
+  const saveEffect = Effect.fn('historyRange.save')(function* (historyRange: unknown) {
     const value = isHistoryRangePreference(historyRange) ? historyRange : DEFAULT_HISTORY_RANGE
     // Calling runExclusive before the first await enqueues this request with
     // the shared lock manager at invocation time, preserving cross-context
@@ -57,15 +57,15 @@ export function createHistoryRangePreferenceWriter(
       adapter.runExclusive,
       Effect.tryPromise({
         try: () => adapter.write(value),
-        catch: (cause) => HistoryRangePreferenceError.make({ cause })
+        catch: (cause) => HistoryRangePreferenceError.make({ cause }),
       }),
-      (cause) => HistoryRangePreferenceError.make({ cause })
+      (cause) => HistoryRangePreferenceError.make({ cause }),
     )
   })
 
   function save(historyRange: unknown): Promise<void> {
     return getAppRuntime().runPromise(saveEffect(historyRange).pipe(
-      Effect.catchTag('HistoryRangePreferenceError', (error) => Effect.fail(error.cause))
+      Effect.catchTag('HistoryRangePreferenceError', (error) => Effect.fail(error.cause)),
     ))
   }
 
@@ -78,18 +78,18 @@ const historyRangePreferenceWriter = createHistoryRangePreferenceWriter({
   },
   runExclusive: <Value>(task: () => Promise<Value>) => (
     navigator.locks.request(HISTORY_RANGE_STORAGE_WRITE_LOCK, task)
-  )
+  ),
 })
 
 export const loadHistoryRangePreferenceResultEffect = Effect.fn(
-  'historyRange.loadResult'
-)(function*() {
+  'historyRange.loadResult',
+)(function* () {
   if (typeof chrome === 'undefined' || !chrome.storage?.local) {
     return { ok: false, value: DEFAULT_HISTORY_RANGE }
   }
   const stored = yield* Effect.result(Effect.tryPromise({
     try: () => chrome.storage.local.get(HISTORY_RANGE_STORAGE_KEY),
-    catch: (cause) => HistoryRangePreferenceError.make({ cause })
+    catch: (cause) => HistoryRangePreferenceError.make({ cause }),
   }))
   if (Result.isFailure(stored)) {
     return { ok: false, value: DEFAULT_HISTORY_RANGE }
@@ -97,11 +97,11 @@ export const loadHistoryRangePreferenceResultEffect = Effect.fn(
   const historyRange = stored.success[HISTORY_RANGE_STORAGE_KEY]
   return {
     ok: true,
-    value: isHistoryRangePreference(historyRange) ? historyRange : DEFAULT_HISTORY_RANGE
+    value: isHistoryRangePreference(historyRange) ? historyRange : DEFAULT_HISTORY_RANGE,
   }
 })
 
-export const loadHistoryRangePreferenceEffect = Effect.fn('historyRange.load')(function*() {
+export const loadHistoryRangePreferenceEffect = Effect.fn('historyRange.load')(function* () {
   return (yield* loadHistoryRangePreferenceResultEffect()).value
 })
 

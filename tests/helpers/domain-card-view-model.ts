@@ -3,11 +3,11 @@ import type {
   DashboardCardVM,
   DashboardChipData,
   DashboardTab,
-  DomainGroup
+  DomainGroup,
 } from '../../src/extension/types'
 
 export function makeDashboardTab(
-  overrides: Partial<DashboardTab> & { url: string }
+  overrides: Partial<DashboardTab> & { url: string },
 ): DashboardTab {
   return {
     rawUrl: overrides.url,
@@ -20,7 +20,7 @@ export function makeDashboardTab(
     groupId: -1,
     isTabOut: false,
     isApp: false,
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -34,7 +34,7 @@ export function collectDashboardChips(vm: DashboardCardVM): DashboardChipData[] 
     for (const websitePathSection of section.websitePathSections) {
       chips.push(
         ...websitePathSection.flatVisibleChips,
-        ...websitePathSection.flatHiddenChips
+        ...websitePathSection.flatHiddenChips,
       )
       for (const cluster of websitePathSection.clusters) {
         chips.push(...cluster.visibleChips, ...cluster.hiddenChips)
@@ -47,12 +47,12 @@ export function collectDashboardChips(vm: DashboardCardVM): DashboardChipData[] 
 export function dashboardChipFor(
   tabs: DashboardTab[],
   url: string,
-  domain = 'example.com'
+  domain = 'example.com',
 ): DashboardChipData | undefined {
   const group: DomainGroup = { domain, tabs }
   const vm = computeDomainCardViewModel(group, {
     currentWindowId: 1,
-    allowMutations: false
+    allowMutations: false,
   })
   return collectDashboardChips(vm).find((chip) => chip.tabUrl === url)
 }

@@ -26,7 +26,7 @@ type DashboardItemSearchableParts = {
 }
 
 const TOKEN_MATCH_ALIASES = new Map<string, readonly string[]>([
-  ['pr', ['pull request']]
+  ['pr', ['pull request']],
 ])
 
 function separatorMatchVariants(value: string): string[] {
@@ -65,7 +65,7 @@ export function parseFilterQuery(input = ''): FilterQuery {
 
   return {
     raw: input,
-    terms
+    terms,
   }
 }
 
@@ -87,8 +87,8 @@ export function compileFilterQuery(input = ''): CompiledFilterQuery {
     active: query.raw.trim().length > 0,
     terms: query.terms.map((term) => ({
       ...term,
-      matchValues: matchValuesForFilterTerm(term)
-    }))
+      matchValues: matchValuesForFilterTerm(term),
+    })),
   }
 }
 

@@ -47,7 +47,7 @@ export const CHIP_TRIM_TOKENS = {
   expanded: 'page-chip-expanded',
   hoverMatch: 'page-chip-hover-match',
   savedClosed: 'page-chip-saved-closed',
-  folded: 'page-chip-folded'
+  folded: 'page-chip-folded',
 } as const
 
 export type ChipTrimFacts = {
@@ -60,7 +60,7 @@ export type ChipTrimFacts = {
   titleVariantGroup: boolean
   iconOnly: boolean
   isApp: boolean
-  expanded: null | { grewTaller: boolean; y: 'down' | 'up' }
+  expanded: null | { grewTaller: boolean, y: 'down' | 'up' }
 }
 
 export type ChipTrim = {
@@ -92,7 +92,7 @@ export type ChipTrim = {
       resting seam stay 1px clear (a bordered neighbour's line paints on the
       overlapped row and must show through the chip's translucent fill);
       grown edges extend fully so nothing bleeds through the overlay. */
-  expandedFill: null | { classes: string; top: string; bottom: string; background: string }
+  expandedFill: null | { classes: string, top: string, bottom: string, background: string }
 }
 
 const EXPANDED_FILL_CLASSES = 'page-chip-expanded-fill pointer-events-none absolute inset-x-0 -z-1 rounded-[9px] opacity-0 [corner-shape:squircle] group-hover/page-chip:opacity-100 group-focus-visible/page-chip:opacity-100 group-[.page-chip-expanded]/page-chip:opacity-100 group-[.page-chip-context-menu-open]/page-chip:opacity-100 group-[.page-chip-tooltip-open]/page-chip:opacity-100'
@@ -116,7 +116,7 @@ export function chipTrim(facts: ChipTrimFacts): ChipTrim {
     isCurrentActiveFrame && 'current-active-chip bg-neutral-50 text-tab-live shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
     isCurrentTabOutFrame && 'current-tab-out-chip bg-neutral-100 text-tab-live shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
     hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && ACTIVE_OTHER_INTERACTION_CLASSES,
-    isGroupKind && !hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && GROUP_INTERACTION_CLASSES
+    isGroupKind && !hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && GROUP_INTERACTION_CLASSES,
   ].filter(Boolean).join(' ')
 
   const iconChipClasses = facts.iconOnly
@@ -124,7 +124,7 @@ export function chipTrim(facts: ChipTrimFacts): ChipTrim {
         facts.isApp
           ? 'overflow-visible border border-[rgba(115,115,115,0.32)] outline-none'
           : 'overflow-hidden border-0 [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-1',
-        hasActiveChipFrame && 'bg-(--chip-rest-bg) [outline:1px_solid_rgba(82,82,82,0.32)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)]'
+        hasActiveChipFrame && 'bg-(--chip-rest-bg) [outline:1px_solid_rgba(82,82,82,0.32)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)]',
       ].filter(Boolean).join(' ')
     : ''
 
@@ -140,8 +140,8 @@ export function chipTrim(facts: ChipTrimFacts): ChipTrim {
             ? 'active-history-entry-frame current-tab-out-chip-frame shadow-[inset_0_0_0_1px_rgba(82,82,82,0.48)]'
             : isCurrentActiveFrame
               ? 'current-active-chip-frame shadow-[inset_0_0_0_1px_rgba(82,82,82,0.48)]'
-              : 'shadow-[inset_0_0_0_1px_rgba(115,115,115,0.2)]'
-        ].join(' ')
+              : 'shadow-[inset_0_0_0_1px_rgba(115,115,115,0.2)]',
+        ].join(' '),
       }
     : null
 
@@ -168,7 +168,7 @@ export function chipTrim(facts: ChipTrimFacts): ChipTrim {
       : fadeBg,
     restBg: hasActiveChipFrame && !isCurrentTabOutFrame ? ACTIVE_OTHER_REST_BG : 'transparent',
     fadeBg,
-    hoverBorder: isPlainClickable ? CLICKABLE_HOVER_BORDER : GROUP_HOVER_BORDER
+    hoverBorder: isPlainClickable ? CLICKABLE_HOVER_BORDER : GROUP_HOVER_BORDER,
   }
 
   const expandedFill = facts.expanded && isPlainClickable && !facts.iconOnly
@@ -176,7 +176,7 @@ export function chipTrim(facts: ChipTrimFacts): ChipTrim {
         classes: EXPANDED_FILL_CLASSES,
         top: facts.expanded.y === 'up' && facts.expanded.grewTaller ? '0px' : '1px',
         bottom: facts.expanded.y === 'down' && facts.expanded.grewTaller ? '0px' : '1px',
-        background: fadeBg
+        background: fadeBg,
       }
     : null
 
@@ -201,6 +201,6 @@ export function chipTrim(facts: ChipTrimFacts): ChipTrim {
     slotClasses,
     frame,
     styleVars,
-    expandedFill
+    expandedFill,
   }
 }

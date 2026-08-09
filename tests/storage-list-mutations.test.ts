@@ -4,7 +4,7 @@ import test from 'node:test'
 import {
   applyPinnedDomainMutation,
   normalizePinnedDomains,
-  type PinnedDomainMutation
+  type PinnedDomainMutation,
 } from '../src/extension/domain-pins.js'
 import { isDashboardLocalStoragePinValue } from '../src/extension/dashboard-local-state.js'
 import {
@@ -13,17 +13,17 @@ import {
   pageChipPinId,
   pageChipPinKeyForUrl,
   pageChipPinScopeId,
-  type PinnedPageChipMutation
+  type PinnedPageChipMutation,
 } from '../src/extension/page-chip-pins.js'
 import {
   applyPinnedSectionMutation,
   normalizePinnedSections,
   subdomainPinId,
-  type PinnedSectionMutation
+  type PinnedSectionMutation,
 } from '../src/extension/section-pins.js'
 import {
   createStorageListMutationStore,
-  type StorageListMutationAdapter
+  type StorageListMutationAdapter,
 } from '../src/extension/storage-list-mutations.js'
 
 function createSharedExclusiveRunner() {
@@ -46,10 +46,10 @@ function createSharedExclusiveRunner() {
       })
       queue = result.then(
         () => undefined,
-        () => undefined
+        () => undefined,
       )
       return result
-    }
+    },
   }
 }
 
@@ -58,7 +58,7 @@ async function assertIndependentContextsPreservePins<Operation>({
   firstOperation,
   normalize,
   secondOperation,
-  expected
+  expected,
 }: {
   applyOperation: (value: unknown, operation: Operation) => string[]
   firstOperation: Operation
@@ -87,7 +87,7 @@ async function assertIndependentContextsPreservePins<Operation>({
         }
         stored = [...value]
       },
-      runExclusive: (task) => exclusive.run(task)
+      runExclusive: (task) => exclusive.run(task),
     }
   }
 
@@ -97,13 +97,13 @@ async function assertIndependentContextsPreservePins<Operation>({
     adapter: createAdapter(),
     applyOperation,
     isStoredValue: isDashboardLocalStoragePinValue,
-    normalize
+    normalize,
   })
   const secondContext = createStorageListMutationStore({
     adapter: createAdapter(),
     applyOperation,
     isStoredValue: isDashboardLocalStoragePinValue,
-    normalize
+    normalize,
   })
 
   const first = firstContext.mutate(firstOperation)
@@ -126,7 +126,7 @@ test('two contexts preserve different Domain Card pin intents', async () => {
     firstOperation: { type: 'set-pinned', domain: 'alpha.test', pinned: true },
     normalize: normalizePinnedDomains,
     secondOperation: { type: 'set-pinned', domain: 'bravo.test', pinned: true },
-    expected: ['alpha.test', 'bravo.test']
+    expected: ['alpha.test', 'bravo.test'],
   })
 })
 
@@ -149,11 +149,11 @@ test('one context serializes overlapping mutations without a Web Lock', async ()
           await releaseFirstWrite.promise
         }
         stored = [...value]
-      }
+      },
     },
     applyOperation: applyPinnedDomainMutation,
     isStoredValue: isDashboardLocalStoragePinValue,
-    normalize: normalizePinnedDomains
+    normalize: normalizePinnedDomains,
   })
 
   const first = store.mutate({ type: 'set-pinned', domain: 'alpha.test', pinned: true })
@@ -175,7 +175,7 @@ test('two stale contexts setting the same pin do not toggle it back off', async 
     firstOperation: { type: 'set-pinned', domain: 'alpha.test', pinned: true },
     normalize: normalizePinnedDomains,
     secondOperation: { type: 'set-pinned', domain: 'alpha.test', pinned: true },
-    expected: ['alpha.test']
+    expected: ['alpha.test'],
   })
 })
 
@@ -187,7 +187,7 @@ test('two contexts preserve different section pin intents', async () => {
     firstOperation: { type: 'set-pinned', id: firstId, pinned: true },
     normalize: normalizePinnedSections,
     secondOperation: { type: 'set-pinned', id: secondId, pinned: true },
-    expected: [firstId, secondId]
+    expected: [firstId, secondId],
   })
 })
 
@@ -200,7 +200,7 @@ test('two contexts preserve different Page Chip pin intents', async () => {
     firstOperation: { type: 'set-pinned', id: firstId, pinned: true },
     normalize: normalizePinnedPageChips,
     secondOperation: { type: 'set-pinned', id: secondId, pinned: true },
-    expected: [firstId, secondId]
+    expected: [firstId, secondId],
   })
 })
 
@@ -221,20 +221,20 @@ test('a Domain Card reorder replays against the latest cross-context order', asy
         }
         stored = [...value]
       },
-      runExclusive: (task) => exclusive.run(task)
+      runExclusive: (task) => exclusive.run(task),
     }
   }
   const firstContext = createStorageListMutationStore<PinnedDomainMutation>({
     adapter: createAdapter(),
     applyOperation: applyPinnedDomainMutation,
     isStoredValue: isDashboardLocalStoragePinValue,
-    normalize: normalizePinnedDomains
+    normalize: normalizePinnedDomains,
   })
   const secondContext = createStorageListMutationStore<PinnedDomainMutation>({
     adapter: createAdapter(),
     applyOperation: applyPinnedDomainMutation,
     isStoredValue: isDashboardLocalStoragePinValue,
-    normalize: normalizePinnedDomains
+    normalize: normalizePinnedDomains,
   })
 
   const pin = firstContext.mutate({ type: 'set-pinned', domain: 'delta.test', pinned: true })
@@ -242,7 +242,7 @@ test('a Domain Card reorder replays against the latest cross-context order', asy
   const reorder = secondContext.mutate({
     type: 'reorder',
     domain: 'charlie.test',
-    placement: { targetDomain: 'alpha.test', position: 'before' }
+    placement: { targetDomain: 'alpha.test', position: 'before' },
   })
   releaseFirstWrite.resolve()
   await Promise.all([pin, reorder])
@@ -264,11 +264,11 @@ test('a storage read failure aborts before write and does not poison the local q
       write: async (value) => {
         writes += 1
         stored = [...value]
-      }
+      },
     },
     applyOperation: applyPinnedDomainMutation,
     isStoredValue: isDashboardLocalStoragePinValue,
-    normalize: normalizePinnedDomains
+    normalize: normalizePinnedDomains,
   })
 
   const failed = await store.mutate({ type: 'set-pinned', domain: 'alpha.test', pinned: true })
@@ -293,11 +293,11 @@ test('a storage write failure exposes the freshly read rollback value and later 
         writes += 1
         if (writes === 1) throw new Error('storage write failed')
         stored = [...value]
-      }
+      },
     },
     applyOperation: applyPinnedDomainMutation,
     isStoredValue: isDashboardLocalStoragePinValue,
-    normalize: normalizePinnedDomains
+    normalize: normalizePinnedDomains,
   })
 
   const failed = await store.mutate({ type: 'set-pinned', domain: 'bravo.test', pinned: true })
@@ -324,11 +324,11 @@ test('a rejected exclusive lock releases the local serializer for the next mutat
         lockAttempts += 1
         if (lockAttempts === 1) throw new Error('lock unavailable')
         return task()
-      }
+      },
     },
     applyOperation: applyPinnedDomainMutation,
     isStoredValue: isDashboardLocalStoragePinValue,
-    normalize: normalizePinnedDomains
+    normalize: normalizePinnedDomains,
   })
 
   const failed = await store.mutate({ type: 'set-pinned', domain: 'alpha.test', pinned: true })
@@ -352,14 +352,14 @@ test('a schema-invalid stored list aborts before mutation or write', async () =>
       write: async (value) => {
         writes += 1
         stored = [...value]
-      }
+      },
     },
     applyOperation: (value, operation) => {
       operationCalls += 1
       return applyPinnedDomainMutation(value, operation)
     },
     isStoredValue: isDashboardLocalStoragePinValue,
-    normalize: normalizePinnedDomains
+    normalize: normalizePinnedDomains,
   })
 
   const failed = await store.mutate({ type: 'set-pinned', domain: 'alpha.test', pinned: true })

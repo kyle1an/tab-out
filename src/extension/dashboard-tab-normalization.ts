@@ -17,8 +17,8 @@ export function normalizeChromeTabToDashboardItem(
   {
     previousTab,
     runtimeId = null,
-    windowType
-  }: DashboardTabNormalizationContext = {}
+    windowType,
+  }: DashboardTabNormalizationContext = {},
 ): DashboardTab {
   const rawUrl = tab.url || ''
   const effectiveUrl = unwrapSuspenderUrl(rawUrl)
@@ -56,6 +56,6 @@ export function normalizeChromeTabToDashboardItem(
     groupId: typeof tab.groupId === 'number' ? tab.groupId : -1,
     isTabOut: isTabOutPageUrl(rawUrl, runtimeId),
     isApp: windowType === 'app' || windowType === 'popup',
-    index: tab.index
+    index: tab.index,
   }
 }

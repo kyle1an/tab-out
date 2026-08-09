@@ -3,7 +3,7 @@ import { Schema } from 'effect'
 import type {
   WorkingSetActivityEvent,
   WorkingSetActivityRecord,
-  WorkingSetActivityStore
+  WorkingSetActivityStore,
 } from '../../src/extension/types'
 import { WORKING_SET_ACTIVITY_VERSION } from '../../src/extension/working-set.js'
 
@@ -18,7 +18,7 @@ export const workingSetStorageProfileNameSchema = Schema.Literals([
   '500x20',
   '500x80',
   '250-live-250-expired',
-  '2000x80'
+  '2000x80',
 ])
 
 export type WorkingSetStorageProfileName =
@@ -52,7 +52,7 @@ function exactLengthValue(prefix: string, length: number, fill: string): string 
 
 function latestEventAt(
   events: readonly WorkingSetActivityEvent[],
-  kind: WorkingSetActivityEvent['kind']
+  kind: WorkingSetActivityEvent['kind'],
 ): number | undefined {
   return events.findLast((event) => event.kind === kind)?.at
 }
@@ -60,23 +60,23 @@ function latestEventAt(
 function makeRecord(
   index: number,
   eventCount: number,
-  latestAt: number
+  latestAt: number,
 ): WorkingSetActivityRecord {
   const label = indexedLabel(index)
   const domain = `working-set-${label}.example.test`
   const url = exactLengthValue(
     `https://${domain}/page/${label}?fixture=`,
     FIXTURE_URL_LENGTH,
-    'x'
+    'x',
   )
   const title = exactLengthValue(
     `Working Set ${label} `,
     FIXTURE_TITLE_LENGTH,
-    't'
+    't',
   )
   const events = Array.from({ length: eventCount }, (_, eventIndex) => ({
     kind: eventIndex % 2 === 0 ? 'activation' : 'navigation',
-    at: latestAt - ((eventCount - eventIndex - 1) * EVENT_STEP_MS)
+    at: latestAt - ((eventCount - eventIndex - 1) * EVENT_STEP_MS),
   })) satisfies WorkingSetActivityEvent[]
   const lastActivatedAt = latestEventAt(events, 'activation')
   const lastNavigatedAt = latestEventAt(events, 'navigation')
@@ -89,7 +89,7 @@ function makeRecord(
     lastSeenAt: latestAt,
     ...(lastActivatedAt === undefined ? {} : { lastActivatedAt }),
     ...(lastNavigatedAt === undefined ? {} : { lastNavigatedAt }),
-    events
+    events,
   }
 }
 
@@ -99,7 +99,7 @@ function makeActivity(now: number, shape: ProfileShape): WorkingSetActivityStore
     const record = makeRecord(
       index,
       shape.eventsPerRecord,
-      now - (index * LIVE_RECORD_STEP_MS)
+      now - (index * LIVE_RECORD_STEP_MS),
     )
     records[record.key] = record
   }
@@ -109,13 +109,13 @@ function makeActivity(now: number, shape: ProfileShape): WorkingSetActivityStore
       recordIndex,
       shape.eventsPerRecord,
       now - ACTIVITY_RETENTION_MS - EVENT_STEP_MS -
-        (index * LIVE_RECORD_STEP_MS)
+      (index * LIVE_RECORD_STEP_MS),
     )
     records[record.key] = record
   }
   return {
     version: WORKING_SET_ACTIVITY_VERSION,
-    records
+    records,
   }
 }
 
@@ -136,7 +136,7 @@ function profileShape(name: WorkingSetStorageProfileName): ProfileShape {
 
 export function makeWorkingSetStorageProfile(
   name: WorkingSetStorageProfileName,
-  now: number
+  now: number,
 ): WorkingSetStorageProfile {
   if (!Number.isFinite(now)) {
     throw new Error('Working Set storage fixture time must be finite')
@@ -146,18 +146,18 @@ export function makeWorkingSetStorageProfile(
     name,
     now,
     ...shape,
-    activity: makeActivity(now, shape)
+    activity: makeActivity(now, shape),
   }
 }
 
 export function makeWorkingSetStorageProfiles(
-  now: number
+  now: number,
 ): readonly WorkingSetStorageProfile[] {
   return [
     makeWorkingSetStorageProfile('empty', now),
     makeWorkingSetStorageProfile('500x20', now),
     makeWorkingSetStorageProfile('500x80', now),
     makeWorkingSetStorageProfile('250-live-250-expired', now),
-    makeWorkingSetStorageProfile('2000x80', now)
+    makeWorkingSetStorageProfile('2000x80', now),
   ]
 }

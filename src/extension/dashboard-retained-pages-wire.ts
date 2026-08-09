@@ -2,12 +2,12 @@ import { Schema } from 'effect'
 
 import {
   RETAINED_PAGE_CAPACITY,
-  type RetainedPageRecord
+  type RetainedPageRecord,
 } from './retained-pages-ledger.js'
 import { parseRetainedPageLedgerValue } from './retained-pages-storage.js'
 import {
   decodeGzipBase64Json,
-  encodeGzipBase64Text
+  encodeGzipBase64Text,
 } from './gzip-base64-json.js'
 
 export const DASHBOARD_RETAINED_PAGES_WIRE_ENCODING = 'gzip-base64-json-v1'
@@ -23,15 +23,15 @@ export const dashboardRetainedPagesWireSchema = Schema.Struct({
   schemaVersion: Schema.Literals([1]),
   identityVersion: Schema.Literals([1]),
   encoding: Schema.Literals([DASHBOARD_RETAINED_PAGES_WIRE_ENCODING]),
-  data: Schema.String
+  data: Schema.String,
 })
 
 export class DashboardRetainedPagesWireError extends Schema.TaggedErrorClass<DashboardRetainedPagesWireError>()(
   'DashboardRetainedPagesWireError',
   {
     operation: Schema.Literals(['encode', 'decode']),
-    cause: Schema.Defect()
-  }
+    cause: Schema.Defect(),
+  },
 ) {}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -42,7 +42,7 @@ const wireKeys = new Set([
   'schemaVersion',
   'identityVersion',
   'encoding',
-  'data'
+  'data',
 ])
 const compactPayloadKeys = new Set(['pages', 'titles'])
 
@@ -56,7 +56,7 @@ type CompactRetainedPage = readonly [
   favIconUrl: string | null,
   closedAt: number,
   closureToken: string,
-  canonicalKeyOverride: string | null
+  canonicalKeyOverride: string | null,
 ]
 
 interface CompactRetainedPagesPayload {
@@ -77,13 +77,13 @@ function parseWire(value: unknown): DashboardRetainedPagesWire | null {
     schemaVersion: 1,
     identityVersion: 1,
     encoding: DASHBOARD_RETAINED_PAGES_WIRE_ENCODING,
-    data: value.data
+    data: value.data,
   }
 }
 
 function validateDecodedPages(
   value: unknown,
-  now: number
+  now: number,
 ): RetainedPageRecord[] {
   if (!Array.isArray(value) || value.length > RETAINED_PAGE_CAPACITY) {
     throw new Error('Invalid retained-page projection size')
@@ -107,7 +107,7 @@ function validateDecodedPages(
     schemaVersion: 1,
     identityVersion: 1,
     pages,
-    removalBoundaries: {}
+    removalBoundaries: {},
   }, now)
   if (
     parsed.status !== 'valid' ||
@@ -160,7 +160,7 @@ function expandDashboardRetainedPagesPayload(value: unknown): unknown {
       favIconUrl,
       closedAt,
       closureToken,
-      canonicalKeyOverride
+      canonicalKeyOverride,
     ] = candidate
     if (
       typeof identityDigest !== 'string' ||
@@ -190,7 +190,7 @@ function expandDashboardRetainedPagesPayload(value: unknown): unknown {
       title,
       ...(favIconUrl === null ? {} : { favIconUrl }),
       closedAt,
-      closureToken
+      closureToken,
     }
   })
 
@@ -201,7 +201,7 @@ function expandDashboardRetainedPagesPayload(value: unknown): unknown {
 }
 
 function serializeDashboardRetainedPages(
-  pages: readonly RetainedPageRecord[]
+  pages: readonly RetainedPageRecord[],
 ): string {
   if (pages.length > RETAINED_PAGE_CAPACITY) {
     throw new Error('Retained-page projection exceeds capacity')
@@ -224,25 +224,25 @@ function serializeDashboardRetainedPages(
       page.favIconUrl ?? null,
       page.closedAt,
       page.closureToken,
-      page.canonicalKey === page.url ? null : page.canonicalKey
+      page.canonicalKey === page.url ? null : page.canonicalKey,
     ]
   })
   const payload: CompactRetainedPagesPayload = {
     titles,
-    pages: compactPages
+    pages: compactPages,
   }
   return JSON.stringify(payload)
 }
 
 async function encodeSerializedDashboardRetainedPages(
-  serialized: string
+  serialized: string,
 ): Promise<DashboardRetainedPagesWire> {
   try {
     return {
       schemaVersion: 1,
       identityVersion: 1,
       encoding: DASHBOARD_RETAINED_PAGES_WIRE_ENCODING,
-      data: await encodeGzipBase64Text(serialized)
+      data: await encodeGzipBase64Text(serialized),
     }
   } catch (cause) {
     throw DashboardRetainedPagesWireError.make({ operation: 'encode', cause })
@@ -250,15 +250,15 @@ async function encodeSerializedDashboardRetainedPages(
 }
 
 export function encodeDashboardRetainedPagesWire(
-  pages: readonly RetainedPageRecord[]
+  pages: readonly RetainedPageRecord[],
 ): Promise<DashboardRetainedPagesWire> {
   try {
     return encodeSerializedDashboardRetainedPages(
-      serializeDashboardRetainedPages(pages)
+      serializeDashboardRetainedPages(pages),
     )
   } catch (cause) {
     return Promise.reject(
-      DashboardRetainedPagesWireError.make({ operation: 'encode', cause })
+      DashboardRetainedPagesWireError.make({ operation: 'encode', cause }),
     )
   }
 }
@@ -272,7 +272,7 @@ export function createDashboardRetainedPagesWireEncodeCache() {
 
   return {
     encode(
-      pages: readonly RetainedPageRecord[]
+      pages: readonly RetainedPageRecord[],
     ): Promise<DashboardRetainedPagesWire> {
       if (
         cached?.pages.length === pages.length &&
@@ -284,7 +284,7 @@ export function createDashboardRetainedPagesWireEncodeCache() {
         serialized = serializeDashboardRetainedPages(pages)
       } catch (cause) {
         return Promise.reject(
-          DashboardRetainedPagesWireError.make({ operation: 'encode', cause })
+          DashboardRetainedPagesWireError.make({ operation: 'encode', cause }),
         )
       }
       if (cached?.serialized === serialized) {
@@ -298,22 +298,22 @@ export function createDashboardRetainedPagesWireEncodeCache() {
         if (cached?.flight === flight) cached = null
       })
       return flight
-    }
+    },
   }
 }
 
 export async function decodeDashboardRetainedPagesWire(
   value: unknown,
-  now = Date.now()
+  now = Date.now(),
 ): Promise<RetainedPageRecord[]> {
   try {
     const wire = parseWire(value)
     if (!wire) throw new Error('Invalid retained-page projection envelope')
     return validateDecodedPages(
       expandDashboardRetainedPagesPayload(
-        await decodeGzipBase64Json(wire.data)
+        await decodeGzipBase64Json(wire.data),
       ),
-      now
+      now,
     )
   } catch (cause) {
     throw DashboardRetainedPagesWireError.make({ operation: 'decode', cause })

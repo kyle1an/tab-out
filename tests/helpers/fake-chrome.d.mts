@@ -37,7 +37,7 @@ export type FakeChromeApi = ChromeTabsApi & {
     onChanged: FakeChromeEvent
   }
   bookmarks: { getTree(): Promise<unknown[]> } & Record<`on${string}`, FakeChromeEvent>
-  history: { search(): Promise<unknown[]>; deleteUrl(): Promise<void> } & Record<`on${string}`, FakeChromeEvent>
+  history: { search(): Promise<unknown[]>, deleteUrl(): Promise<void> } & Record<`on${string}`, FakeChromeEvent>
 }
 
 export declare function createFakeChromeApi(state?: FakeChromeState): FakeChromeApi

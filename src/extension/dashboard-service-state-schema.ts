@@ -2,17 +2,17 @@ import { Schema } from 'effect'
 
 import {
   dashboardRetainedPagesWireSchema,
-  type DashboardRetainedPagesWire
+  type DashboardRetainedPagesWire,
 } from './dashboard-retained-pages-wire.js'
 import {
   parseRetentionHealthEpisodeValue,
   retentionHealthEpisodeSchema,
-  type RetentionHealthEpisode
+  type RetentionHealthEpisode,
 } from './retention-health.js'
 import type { ChromeOpenTabsSnapshot } from './tabs.js'
 
 const serializedMutedInfoSchema = Schema.Struct({
-  muted: Schema.Boolean
+  muted: Schema.Boolean,
 })
 
 const serializedChromeTabSchema = Schema.Struct({
@@ -40,7 +40,7 @@ const serializedChromeTabSchema = Schema.Struct({
   sessionId: Schema.optionalKey(Schema.String),
   splitViewId: Schema.optionalKey(Schema.Int),
   groupId: Schema.optionalKey(Schema.Int),
-  lastAccessed: Schema.optionalKey(Schema.Finite)
+  lastAccessed: Schema.optionalKey(Schema.Finite),
 })
 
 type SerializedChromeTab = typeof serializedChromeTabSchema.Type
@@ -71,7 +71,7 @@ function normalizeSerializedChromeTab(tab: SerializedChromeTab): chrome.tabs.Tab
     ...(tab.height === undefined ? {} : { height: tab.height }),
     ...(tab.sessionId === undefined ? {} : { sessionId: tab.sessionId }),
     ...(tab.splitViewId === undefined ? {} : { splitViewId: tab.splitViewId }),
-    ...(tab.lastAccessed === undefined ? {} : { lastAccessed: tab.lastAccessed })
+    ...(tab.lastAccessed === undefined ? {} : { lastAccessed: tab.lastAccessed }),
   }
 }
 
@@ -86,7 +86,7 @@ const serializedChromeWindowSchema = Schema.Struct({
   type: Schema.optionalKey(Schema.Literals(['normal', 'popup', 'panel', 'app', 'devtools'])),
   id: Schema.optionalKey(Schema.Int),
   left: Schema.optionalKey(Schema.Finite),
-  sessionId: Schema.optionalKey(Schema.String)
+  sessionId: Schema.optionalKey(Schema.String),
 })
 
 type SerializedChromeWindow = typeof serializedChromeWindowSchema.Type
@@ -103,25 +103,25 @@ function normalizeSerializedChromeWindow(window: SerializedChromeWindow): chrome
     ...(window.type === undefined ? {} : { type: window.type }),
     ...(window.id === undefined ? {} : { id: window.id }),
     ...(window.left === undefined ? {} : { left: window.left }),
-    ...(window.sessionId === undefined ? {} : { sessionId: window.sessionId })
+    ...(window.sessionId === undefined ? {} : { sessionId: window.sessionId }),
   }
 }
 
 const dashboardServiceStateResponseSchema = Schema.Struct({
   ok: Schema.Literals([true]),
   tabHistory: Schema.Struct({
-    entries: Schema.mutable(Schema.Array(Schema.Unknown))
+    entries: Schema.mutable(Schema.Array(Schema.Unknown)),
   }),
   workingSetActivity: Schema.Struct({
     version: Schema.Literals([1]),
-    records: Schema.Record(Schema.String, Schema.Unknown)
+    records: Schema.Record(Schema.String, Schema.Unknown),
   }),
   openTabsSnapshot: Schema.Struct({
     tabs: Schema.mutable(Schema.Array(serializedChromeTabSchema)),
-    windows: Schema.mutable(Schema.Array(serializedChromeWindowSchema))
+    windows: Schema.mutable(Schema.Array(serializedChromeWindowSchema)),
   }),
   retainedPages: dashboardRetainedPagesWireSchema,
-  retentionHealth: Schema.NullOr(retentionHealthEpisodeSchema)
+  retentionHealth: Schema.NullOr(retentionHealthEpisodeSchema),
 })
 
 const isDashboardServiceStateResponse = Schema.is(dashboardServiceStateResponseSchema)
@@ -147,7 +147,7 @@ export function parseDashboardServiceStateResponse(value: unknown): ParsedDashbo
     retentionHealth,
     openTabsSnapshot: {
       tabs: value.openTabsSnapshot.tabs.map(normalizeSerializedChromeTab),
-      windows: value.openTabsSnapshot.windows.map(normalizeSerializedChromeWindow)
-    }
+      windows: value.openTabsSnapshot.windows.map(normalizeSerializedChromeWindow),
+    },
   }
 }

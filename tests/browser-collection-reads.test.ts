@@ -12,12 +12,12 @@ test('bookmark reads distinguish a confirmed empty tree from a rejected read', a
   })
 
   ;(globalThis as { chrome?: unknown }).chrome = {
-    bookmarks: { getTree: async () => [] }
+    bookmarks: { getTree: async () => [] },
   }
   assert.deepEqual(await fetchBookmarksSourceItemsResult(), { ok: true, value: [] })
 
   ;(globalThis as { chrome?: unknown }).chrome = {
-    bookmarks: { getTree: async () => { throw new Error('bookmark database unavailable') } }
+    bookmarks: { getTree: async () => { throw new Error('bookmark database unavailable') } },
   }
   assert.deepEqual(await fetchBookmarksSourceItemsResult(), { ok: false, value: [] })
 })
@@ -32,8 +32,8 @@ test('tab-group color refresh preserves known colors when Chrome rejects the rea
   ;(globalThis as { chrome?: unknown }).chrome = {
     tabs: { query: async () => [] },
     tabGroups: {
-      query: async () => [{ id: 7, color: 'red' }]
-    }
+      query: async () => [{ id: 7, color: 'red' }],
+    },
   }
   assert.equal(await fetchTabGroupColors(), true)
   assert.equal(groupDotColor(7), '#D93025')
@@ -41,8 +41,8 @@ test('tab-group color refresh preserves known colors when Chrome rejects the rea
   ;(globalThis as { chrome?: unknown }).chrome = {
     tabs: { query: async () => [] },
     tabGroups: {
-      query: async () => { throw new Error('group metadata unavailable') }
-    }
+      query: async () => { throw new Error('group metadata unavailable') },
+    },
   }
   assert.equal(await fetchTabGroupColors(), false)
   assert.equal(groupDotColor(7), '#D93025')

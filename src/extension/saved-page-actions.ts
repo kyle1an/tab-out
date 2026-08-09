@@ -8,11 +8,11 @@ import {
   restoreSavedPageToStore,
   type SavedPageRecord,
   type SavedPagesStore,
-  type SavedPagesStoreMutation
+  type SavedPagesStoreMutation,
 } from './saved-pages.js'
 import {
   mutateSavedPagesStore,
-  mutateSavedPagesStoreEffect
+  mutateSavedPagesStoreEffect,
 } from './saved-pages-mutations.js'
 import { showToast } from './toast.js'
 import type { DashboardTab } from './types'
@@ -28,12 +28,12 @@ type SavedPageActionDependencies = {
 
 class SavedPageMutationError extends Schema.TaggedErrorClass<SavedPageMutationError>()(
   'SavedPageMutationError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 class SavedPageRefreshError extends Schema.TaggedErrorClass<SavedPageRefreshError>()(
   'SavedPageRefreshError',
-  { cause: Schema.Defect() }
+  { cause: Schema.Defect() },
 ) {}
 
 /**
@@ -43,25 +43,25 @@ class SavedPageRefreshError extends Schema.TaggedErrorClass<SavedPageRefreshErro
  */
 export function createSavedPageActions({ mutate, mutateEffect, refresh, notify }: SavedPageActionDependencies) {
   function runMutation<Value>(
-    mutation: (store: SavedPagesStore) => SavedPagesStoreMutation<Value>
+    mutation: (store: SavedPagesStore) => SavedPagesStoreMutation<Value>,
   ): Effect.Effect<Value, SavedPageMutationError> {
     if (mutateEffect) {
       return mutateEffect(mutation).pipe(
-        Effect.mapError((error) => SavedPageMutationError.make({ cause: error.cause }))
+        Effect.mapError((error) => SavedPageMutationError.make({ cause: error.cause })),
       )
     }
     return Effect.tryPromise({
       try: () => mutate(mutation),
-      catch: (cause) => SavedPageMutationError.make({ cause })
+      catch: (cause) => SavedPageMutationError.make({ cause }),
     })
   }
 
-  const runSavePageTarget = Effect.fn('savedPageActions.savePageTarget')(function*(
-    target: SavedPageActionTarget
+  const runSavePageTarget = Effect.fn('savedPageActions.savePageTarget')(function* (
+    target: SavedPageActionTarget,
   ) {
     const mutationResult = yield* Effect.result(runMutation((store) => ({
       store: addSavedPageToStore(store, target),
-      value: undefined
+      value: undefined,
     })))
     if (Result.isFailure(mutationResult)) {
       notify("Couldn't save the page")
@@ -70,7 +70,7 @@ export function createSavedPageActions({ mutate, mutateEffect, refresh, notify }
 
     const refreshResult = yield* Effect.result(Effect.tryPromise({
       try: () => refresh({ animateCards: true }),
-      catch: (cause) => SavedPageRefreshError.make({ cause })
+      catch: (cause) => SavedPageRefreshError.make({ cause }),
     }))
     if (Result.isFailure(refreshResult)) {
       notify("Page saved, but couldn't refresh the dashboard")
@@ -80,12 +80,12 @@ export function createSavedPageActions({ mutate, mutateEffect, refresh, notify }
     notify('Page saved')
   })
 
-  const runRestoreSavedPage = Effect.fn('savedPageActions.restoreSavedPage')(function*(
-    removed: SavedPageRecord
+  const runRestoreSavedPage = Effect.fn('savedPageActions.restoreSavedPage')(function* (
+    removed: SavedPageRecord,
   ) {
     const mutationResult = yield* Effect.result(runMutation((store) => ({
       store: restoreSavedPageToStore(store, removed),
-      value: undefined
+      value: undefined,
     })))
     if (Result.isFailure(mutationResult)) {
       notify("Couldn't restore the saved page")
@@ -94,15 +94,15 @@ export function createSavedPageActions({ mutate, mutateEffect, refresh, notify }
 
     const refreshResult = yield* Effect.result(Effect.tryPromise({
       try: () => refresh({ animateCards: true }),
-      catch: (cause) => SavedPageRefreshError.make({ cause })
+      catch: (cause) => SavedPageRefreshError.make({ cause }),
     }))
     if (Result.isFailure(refreshResult)) {
       notify("Saved page restored, but couldn't refresh the dashboard")
     }
   })
 
-  const runRemoveSavedPageTarget = Effect.fn('savedPageActions.removeSavedPageTarget')(function*(
-    keyOrUrl: string
+  const runRemoveSavedPageTarget = Effect.fn('savedPageActions.removeSavedPageTarget')(function* (
+    keyOrUrl: string,
   ) {
     const mutationResult = yield* Effect.result(runMutation((store) => {
       const result = removeSavedPageFromStore(store, keyOrUrl)
@@ -118,13 +118,13 @@ export function createSavedPageActions({ mutate, mutateEffect, refresh, notify }
       ? {
           label: 'Undo',
           description: 'Restore this saved page.',
-          onClick: () => getAppRuntime().runPromise(runRestoreSavedPage(removed))
+          onClick: () => getAppRuntime().runPromise(runRestoreSavedPage(removed)),
         }
       : null
 
     const refreshResult = yield* Effect.result(Effect.tryPromise({
       try: () => refresh({ animateCards: true }),
-      catch: (cause) => SavedPageRefreshError.make({ cause })
+      catch: (cause) => SavedPageRefreshError.make({ cause }),
     }))
     if (Result.isFailure(refreshResult)) {
       if (undoAction) {
@@ -153,7 +153,7 @@ const savedPageActions = createSavedPageActions({
   mutate: mutateSavedPagesStore,
   mutateEffect: mutateSavedPagesStoreEffect,
   refresh: requestDashboardRefresh,
-  notify: showToast
+  notify: showToast,
 })
 
 export const { savePageTarget, removeSavedPageTarget } = savedPageActions

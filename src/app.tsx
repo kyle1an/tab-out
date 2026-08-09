@@ -8,14 +8,14 @@ import {
   setAppStartupFilterIntent,
   setAppStartupMaterialChangeHandler,
   updateAppStartupClosedGhostDismissals,
-  type AppStartupFrame
+  type AppStartupFrame,
 } from './app-startup.js'
 import { getAppRuntime } from './extension/app-runtime.js'
 import { filterInputFromSearch } from './extension/app-url.js'
 import { appDashboardStore, requestDashboardRefresh, settleDashboardRefresh, type DashboardRefreshOptions } from './extension/dashboard-intake.js'
 import {
   createDashboardPageRefreshScheduler,
-  dashboardTabUpdateRefreshOptions
+  dashboardTabUpdateRefreshOptions,
 } from './extension/dashboard-page-refresh.js'
 import { DASHBOARD_LOCAL_STORAGE_KEYS } from './extension/dashboard-local-state.js'
 import { groupColorChanged } from './extension/groups.js'
@@ -43,17 +43,17 @@ const startupAdmissionController = createStartupAdmissionController<AppStartupFr
           return
         }
         settle({ ok: false, error: exit.cause })
-      }
+      },
     })
     return { cancel: () => interrupt() }
-  }
+  },
 })
 
 const dashboardPageRefreshScheduler = createDashboardPageRefreshScheduler({
   isVisible: () => document.visibilityState === 'visible',
   refresh: (options) => {
     void settleDashboardRefresh(requestDashboardRefresh(options))
-  }
+  },
 })
 
 function scheduleDashboardRefresh(options: DashboardRefreshOptions = {}) {
@@ -80,7 +80,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   // can transiently remove a chip that should settle into its closed state.
   void chrome.runtime.sendMessage({
     type: CLOSED_TAB_RETENTION_SETTLE_MESSAGE,
-    tabId
+    tabId,
   }).catch(() => undefined).then(schedulePassiveDashboardRefresh)
 })
 chrome.tabs.onMoved.addListener(scheduleAnimatedDashboardRefresh)
@@ -121,7 +121,7 @@ const startupLocalStorageKeys = new Set<string>([
   ...DASHBOARD_LOCAL_STORAGE_KEYS,
   HISTORY_RANGE_STORAGE_KEY,
   RETAINED_PAGES_STORAGE_KEY,
-  SAVED_PAGES_STORAGE_KEY
+  SAVED_PAGES_STORAGE_KEY,
 ])
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -163,7 +163,7 @@ document.addEventListener('visibilitychange', () => {
 
 recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'attach-app')
 setAppStartupFilterIntent(
-  readFilterFocusPendingInput(filterInputFromSearch(window.location.search))
+  readFilterFocusPendingInput(filterInputFromSearch(window.location.search)),
 )
 attachApp()
 
@@ -192,8 +192,8 @@ startupAdmissionController.subscribe(() => {
       domainGroups: state.value.snapshot.dashboard.domainGroups.length,
       realTabs: state.value.snapshot.dashboard.realTabs.length,
       source: state.value.source,
-      workingSet: state.value.snapshot.workingSet.items.length
-    }
+      workingSet: state.value.snapshot.workingSet.items.length,
+    },
   })
   applyAppStartup(state.value)
 })
