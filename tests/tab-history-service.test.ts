@@ -3,7 +3,14 @@ import test from 'node:test'
 import { setImmediate } from 'node:timers/promises'
 import { Effect, Layer, ManagedRuntime } from 'effect'
 import * as TabHistoryService from '../src/extension/background/tab-history-service.js'
-import { makeWorkingSetActivityStorageLayer } from '../src/extension/background/working-set-activity-storage-layer.js'
+import {
+  readChromeStorageValue,
+  writeChromeStorageValue
+} from '../src/extension/background/chrome-storage.js'
+import {
+  WORKING_SET_ACTIVITY_KEY,
+  WorkingSetActivityStorage
+} from '../src/extension/background/working-set-activity-storage.js'
 import {
   effectiveUrlForHistoryIdentity,
   historyChanged,
@@ -21,9 +28,28 @@ test.after(async () => {
 })
 
 function createTabHistoryService(chromeApi: ChromeApi) {
+  const storage = chromeApi.storage?.local
+  const unavailable = (): Promise<never> => Promise.reject(
+    new Error('Chrome local storage is unavailable for Working Set activity')
+  )
+  const activityStorage = WorkingSetActivityStorage.layer({
+    read: () => storage
+      ? readChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY)
+      : unavailable(),
+    write: (change) => storage
+      ? writeChromeStorageValue(
+          storage,
+          WORKING_SET_ACTIVITY_KEY,
+          change.activity
+        )
+      : unavailable(),
+    replace: (activity) => storage
+      ? writeChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY, activity)
+      : unavailable()
+  })
   const runtime = ManagedRuntime.make(
     TabHistoryService.TabHistory.layer(chromeApi).pipe(
-      Layer.provide(makeWorkingSetActivityStorageLayer(chromeApi))
+      Layer.provide(activityStorage)
     )
   )
   runtime.runSync(Effect.void)

@@ -14,6 +14,7 @@ export interface WorkingSetActivityStorageBackend {
   readonly read: () => PromiseLike<unknown>
   readonly write: (change: WorkingSetActivityWrite) => PromiseLike<void>
   readonly replace: (activity: WorkingSetActivityStore) => PromiseLike<void>
+  readonly close?: () => PromiseLike<void>
 }
 
 export class WorkingSetActivityStorageError extends Schema.TaggedErrorClass<WorkingSetActivityStorageError>()(
@@ -90,10 +91,21 @@ export class WorkingSetActivityStorage extends Context.Service<WorkingSetActivit
       })
     })
 
-    return Layer.succeed(WorkingSetActivityStorage, WorkingSetActivityStorage.of({
+    const service = WorkingSetActivityStorage.of({
       read,
       write,
       replace
-    }))
+    })
+    const close = backend.close
+    if (close === undefined) {
+      return Layer.succeed(WorkingSetActivityStorage, service)
+    }
+    return Layer.effect(
+      WorkingSetActivityStorage,
+      Effect.acquireRelease(
+        Effect.succeed(service),
+        () => Effect.promise(() => Promise.resolve(close()))
+      )
+    )
   }
 }

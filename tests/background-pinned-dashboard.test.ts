@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { setImmediate } from 'node:timers/promises'
 import FakeTimers from '@sinonjs/fake-timers'
+import 'fake-indexeddb/auto'
+import { IDBFactory } from 'fake-indexeddb'
 import { STARTUP_SNAPSHOT_DEBOUNCE_MS } from '../src/extension/background/startup-snapshot-service.js'
 import { RETAINED_PAGES_EXPIRY_ALARM } from '../src/extension/background/retained-pages-expiry-alarm.js'
 import { CLOSED_TAB_RESTORE_STATE_MESSAGE } from '../src/extension/closed-tabs.js'
@@ -50,6 +52,7 @@ const backgroundUrl = new URL('../src/extension/background.ts', import.meta.url)
 const extensionUrl = 'chrome-extension://tab-out/index.html'
 let backgroundImportId = 0
 const backgroundClock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
+let activeBackgroundRuntime: { dispose: () => Promise<void> } | undefined
 
 type BackgroundMockCalls = {
   alarmsClear: string[]
@@ -111,8 +114,24 @@ type BackgroundRuntimeMessageMock = {
   }
 }
 
-test.after(() => backgroundClock.uninstall())
-test.beforeEach(() => backgroundClock.reset())
+async function disposeBackgroundRuntime(): Promise<void> {
+  const runtime = activeBackgroundRuntime
+  activeBackgroundRuntime = undefined
+  if (runtime === undefined) return
+  await flushBackgroundWork()
+  await runtime.dispose()
+  await flushBackgroundWork()
+}
+
+test.after(async () => {
+  await disposeBackgroundRuntime()
+  backgroundClock.uninstall()
+})
+test.beforeEach(async () => {
+  await disposeBackgroundRuntime()
+  backgroundClock.reset()
+  globalThis.indexedDB = new IDBFactory()
+})
 
 function valueAt<T>(values: readonly T[], index: number): T {
   const value = values[index]
@@ -712,13 +731,17 @@ function buildWorkingSetFromServiceState(response: CapturedDashboardServiceState
 }
 
 async function flushBackgroundWork() {
-  for (let pass = 0; pass < 6; pass += 1) await setImmediate()
+  for (let pass = 0; pass < 20; pass += 1) await setImmediate()
 }
 
 async function loadBackground(initialTabs: any[], options: any = {}) {
+  await disposeBackgroundRuntime()
   const mock = createChromeMock(initialTabs, options)
   ;(globalThis as any).chrome = mock.chrome
-  await import(`${backgroundUrl.href}?test=${backgroundImportId++}`)
+  const background = await import(
+    `${backgroundUrl.href}?test=${backgroundImportId++}`
+  )
+  activeBackgroundRuntime = background.backgroundRuntime
   if (!options.deferInitialOpenSurfaceReconciliation) {
     await backgroundClock.tickAsync(0)
   }

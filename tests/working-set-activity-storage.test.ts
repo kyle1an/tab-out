@@ -3,6 +3,9 @@ import test, { type TestContext } from 'node:test'
 import { Effect, ManagedRuntime, Result } from 'effect'
 
 import {
+  WorkingSetActivityAuthorityError
+} from '../src/extension/background/working-set-activity-authority.js'
+import {
   WorkingSetActivityStorage,
   type WorkingSetActivityWrite
 } from '../src/extension/background/working-set-activity-storage.js'
@@ -20,12 +23,14 @@ function makeStorage(
     readonly read: () => PromiseLike<unknown>
     readonly write?: (change: WorkingSetActivityWrite) => PromiseLike<void>
     readonly replace?: (activity: WorkingSetActivityStore) => PromiseLike<void>
+    readonly close?: () => PromiseLike<void>
   }
 ) {
   const runtime = ManagedRuntime.make(WorkingSetActivityStorage.layer({
     read: options.read,
     write: options.write ?? (() => Promise.resolve()),
-    replace: options.replace ?? (() => Promise.resolve())
+    replace: options.replace ?? (() => Promise.resolve()),
+    ...(options.close === undefined ? {} : { close: options.close })
   }))
   runtime.runSync(Effect.void)
   t.after(() => runtime.dispose())
@@ -129,5 +134,30 @@ test('Working Set storage treats an unavailable Chrome backend as unknown, not k
   assert.ok(Result.isFailure(result))
   assert.equal(result.failure.operation, 'read')
   assert.equal(result.failure.reason, 'backend')
-  assert.match(String(result.failure.cause), /local storage is unavailable/)
+  assert.ok(result.failure.cause instanceof WorkingSetActivityAuthorityError)
+  assert.equal(result.failure.cause.phase, 'marker-read')
+  assert.match(
+    String(result.failure.cause.cause),
+    /local storage is unavailable/
+  )
+})
+
+test('Working Set storage keeps Layer construction synchronous and closes its backend with the runtime', async () => {
+  let closeCount = 0
+  const runtime = ManagedRuntime.make(WorkingSetActivityStorage.layer({
+    read: () => Promise.resolve(undefined),
+    write: () => Promise.resolve(),
+    replace: () => Promise.resolve(),
+    close: () => {
+      closeCount += 1
+      return Promise.resolve()
+    }
+  }))
+
+  runtime.runSync(Effect.void)
+  assert.equal(closeCount, 0)
+
+  await runtime.dispose()
+
+  assert.equal(closeCount, 1)
 })

@@ -85,6 +85,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.ok(pkg.dependencies?.['@base-ui/react'])
   assert.equal(pkg.dependencies?.['class-variance-authority'], undefined)
   assert.ok(pkg.dependencies?.foxact)
+  assert.equal(pkg.dependencies?.idb, '8.0.3')
   assert.ok(pkg.devDependencies?.['@types/chrome'])
   assert.match(pkg.devDependencies?.['@types/node'], /^\^26\./)
   assert.ok(pkg.devDependencies?.['@rolldown/plugin-babel'])
