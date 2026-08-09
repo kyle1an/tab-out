@@ -6,7 +6,6 @@ import {
   removeChromeStorageValue,
   writeChromeStorageValue
 } from '../../../src/extension/background/chrome-storage.js'
-import { makeWorkingSetActivityStorageLayer as makeProductionWorkingSetActivityStorageLayer } from '../../../src/extension/background/working-set-activity-storage-layer.js'
 import {
   emptyWorkingSetActivity,
   parseWorkingSetActivityStorageValue
@@ -54,11 +53,29 @@ function fallbackValidActivity() {
 export function makeWorkingSetActivityStorageLayer(
   chromeApi: ChromeApi
 ): Layer.Layer<WorkingSetActivityStorage> {
-  const productionLayer = makeProductionWorkingSetActivityStorageLayer(chromeApi)
+  const storage = chromeApi.storage?.local
+  const unavailable = (): Promise<never> => Promise.reject(
+    new Error('Chrome local storage is unavailable for Working Set activity')
+  )
+  const legacyLayer = WorkingSetActivityStorage.layer({
+    read: () => storage
+      ? readChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY)
+      : unavailable(),
+    write: (change: WorkingSetActivityWrite) => storage
+      ? writeChromeStorageValue(
+          storage,
+          WORKING_SET_ACTIVITY_KEY,
+          change.activity
+        )
+      : unavailable(),
+    replace: (activity) => storage
+      ? writeChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY, activity)
+      : unavailable()
+  })
   return Layer.effect(
     WorkingSetActivityStorage,
     Effect.gen(function*() {
-      const productionStorage = yield* WorkingSetActivityStorage
+      const legacyStorage = yield* WorkingSetActivityStorage
       const read = realTabsProofEnabled
         ? Effect.fn('WorkingSetBenchmark.currentEnvelope.read')(
             function*() {
@@ -67,14 +84,14 @@ export function makeWorkingSetActivityStorageLayer(
                 lastReadStartedAtEpochMs = epochNow()
                 lastReadFinishedAtEpochMs = null
               })
-              return yield* productionStorage.read().pipe(
+              return yield* legacyStorage.read().pipe(
                 Effect.ensuring(Effect.sync(() => {
                   lastReadFinishedAtEpochMs = epochNow()
                 }))
               )
             }
           )
-        : productionStorage.read
+        : legacyStorage.read
       const write = Effect.fn('WorkingSetBenchmark.currentEnvelope.write')(
         function*(change: WorkingSetActivityWrite) {
           yield* Effect.sync(diagnostics.beginWrite)
@@ -90,7 +107,7 @@ export function makeWorkingSetActivityStorageLayer(
               cause: new Error('Synthetic Working Set benchmark write failure')
             }))
           }
-          yield* productionStorage.write(change)
+          yield* legacyStorage.write(change)
           yield* Effect.sync(() => diagnostics.commitMutation(
             [change.activity],
             [WORKING_SET_ACTIVITY_KEY]
@@ -100,10 +117,10 @@ export function makeWorkingSetActivityStorageLayer(
       return WorkingSetActivityStorage.of({
         read,
         write,
-        replace: productionStorage.replace
+        replace: legacyStorage.replace
       })
     })
-  ).pipe(Layer.provide(productionLayer))
+  ).pipe(Layer.provide(legacyLayer))
 }
 
 export const benchmarkBackend: WorkingSetBenchmarkBackend = {

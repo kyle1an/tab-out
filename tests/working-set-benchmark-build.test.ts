@@ -159,6 +159,21 @@ test('benchmark backend paths cover exactly the four compile-time variants', () 
   }
 })
 
+test('current benchmark backend freezes the legacy envelope independently of production', () => {
+  const currentBackendSource = readFileSync(
+    workingSetBenchmarkBackendModulePath(repositoryRoot, 'current'),
+    'utf8'
+  )
+
+  assert.doesNotMatch(
+    currentBackendSource,
+    /working-set-activity-storage-layer/
+  )
+  assert.match(currentBackendSource, /WorkingSetActivityStorage\.layer\(/)
+  assert.match(currentBackendSource, /readChromeStorageValue\(/)
+  assert.match(currentBackendSource, /writeChromeStorageValue\(/)
+})
+
 test('benchmark selection requires a marked mkdtemp path and a complete environment', () => {
   assert.throws(
     () => resolveWorkingSetBuildSelection(repositoryRoot, {
@@ -251,7 +266,7 @@ test('module graph guard accepts only the selected backend', () => {
     assertWorkingSetBackendModuleGraph(
       selection,
       repositoryRoot,
-      ['/virtual/unowned.ts', `${selectedBackend}?used`, productionBackend]
+      ['/virtual/unowned.ts', `${selectedBackend}?used`]
     ),
     [selectedBackend]
   )
@@ -267,7 +282,7 @@ test('module graph guard accepts only the selected backend', () => {
     () => assertWorkingSetBackendModuleGraph(
       selection,
       repositoryRoot,
-      [selectedBackend, otherBackend, productionBackend]
+      [selectedBackend, otherBackend]
     ),
     /exactly its selected backend/
   )
@@ -275,15 +290,15 @@ test('module graph guard accepts only the selected backend', () => {
     () => assertWorkingSetBackendModuleGraph(
       selection,
       repositoryRoot,
-      [selectedBackend]
+      [selectedBackend, productionBackend]
     ),
-    /production layer inclusion does not match/
+    /must exclude the production storage layer/
   )
   assert.throws(
     () => assertWorkingSetBackendModuleGraph(
       selection,
       repositoryRoot,
-      [selectedBackend, productionBackend, workingSetBenchmarkSelectorModulePath(repositoryRoot)]
+      [selectedBackend, workingSetBenchmarkSelectorModulePath(repositoryRoot)]
     ),
     /selector shim was not replaced/
   )

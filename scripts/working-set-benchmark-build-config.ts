@@ -353,10 +353,10 @@ export function assertWorkingSetBackendModuleGraph(
   const productionBackendIncluded = includedModuleIds.has(
     productionBackendModule
   )
-  if (productionBackendIncluded !== (selection.variant === 'current')) {
+  if (productionBackendIncluded) {
     throw new Error(
-      'Working Set benchmark production layer inclusion does not match the ' +
-      `selected variant (variant=${selection.variant}, included=${String(productionBackendIncluded)})`
+      'Working Set benchmark bundle must exclude the production storage layer ' +
+      `(variant=${selection.variant}, module=${productionBackendModule})`
     )
   }
   return includedBackendModules
