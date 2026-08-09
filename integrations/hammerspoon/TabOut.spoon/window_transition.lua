@@ -466,7 +466,7 @@ function M.new(options)
       return true
     end
 
-    local errorNumber = type(descriptor) == "table" and descriptor.NSAppleScriptErrorNumber or nil
+    local errorNumber = type(descriptor) == "table" and descriptor.OSAScriptErrorNumberKey or nil
     if errorNumber then
       return false, "Chrome AppleScript error " .. tostring(errorNumber)
     end
@@ -688,7 +688,7 @@ function M.new(options)
     local script = string.format([[
 tell application "Google Chrome"
   set candidateWindow to window id %d
-  if (id of front window) is not %d then error "The privately focused Chrome window changed before new-page finalization"
+  if (id of front window as text) is not "%d" then error "The privately focused Chrome window changed before new-page finalization"
   set bootstrapTab to active tab of candidateWindow
   if (URL of bootstrapTab) is not "%s" then error "The created new-page bootstrap tab changed before finalization"
   set URL of bootstrapTab to "%s"
@@ -700,7 +700,7 @@ end tell
       return true
     end
 
-    local errorNumber = type(descriptor) == "table" and descriptor.NSAppleScriptErrorNumber or nil
+    local errorNumber = type(descriptor) == "table" and descriptor.OSAScriptErrorNumberKey or nil
     if errorNumber then
       return false, "Chrome AppleScript error " .. tostring(errorNumber)
     end

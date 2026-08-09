@@ -156,7 +156,9 @@ local scenarios = {
     { createdFinalizationBrowserIdentityMismatch = true, targetHasChromeWindow = false },
     { addressBarFocused = false, createdBootstrapReplaced = false,
       createdBrowserIdentityCheckedBeforeFinalization = true,
-      failed = true, privateFocusUsed = true },
+      failed = true,
+      failureLog = "The Tab Out new page could not be prepared: Chrome AppleScript error -2700",
+      privateFocusUsed = true },
   },
   {
     "safe-abort created new-page finalization after its bootstrap tab changes", "newPage",

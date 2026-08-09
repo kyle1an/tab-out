@@ -51,6 +51,7 @@ local function runShortcut(kind, options)
   local remoteTopHidden = false
   local remoteTopApplication
   local failureAlert
+  local failureLog
   local focusedWindow
   local frontmostApplication
   local navigationAfterPrivateFocus = false
@@ -555,7 +556,11 @@ local function runShortcut(kind, options)
     },
     logger = {
       new = function()
-        return setmetatable({}, { __index = function() return noOp end })
+        return setmetatable({
+          ef = function(formatString, ...)
+            failureLog = string.format(formatString, ...)
+          end,
+        }, { __index = function() return noOp end })
       end,
     },
     mouse = {
@@ -639,7 +644,7 @@ local function runShortcut(kind, options)
             1,
             true
           ) ~= nil and script:find(
-            "if (id of front window) is not " .. createdBrowserWindowId,
+            'if (id of front window as text) is not "' .. createdBrowserWindowId .. '"',
             1,
             true
           ) ~= nil
@@ -652,13 +657,16 @@ local function runShortcut(kind, options)
             1,
             true
           ) ~= nil
+          if not createdBrowserIdentityCheckedBeforeFinalization then
+            return false, nil, { OSAScriptErrorNumberKey = -2700 }
+          end
           if options.createdFinalizationBrowserIdentityMismatch then
-            return false, nil, { NSAppleScriptErrorNumber = -2700 }
+            return false, nil, { OSAScriptErrorNumberKey = -2700 }
           end
           if options.createdFinalizationTabChanged
             and createdBootstrapTokenCheckedBeforeFinalization
           then
-            return false, nil, { NSAppleScriptErrorNumber = -2700 }
+            return false, nil, { OSAScriptErrorNumberKey = -2700 }
           elseif options.createdFinalizationTabChanged then
             nonBootstrapTabOverwritten = true
           end
@@ -1132,6 +1140,7 @@ local function runShortcut(kind, options)
     extensionFocusRequested = extensionFocusRequested,
     chromeLaunched = chromeLaunchCount > 0,
     failed = failureAlert ~= nil,
+    failureLog = failureLog,
     filterInputFocused = filterInputFocused,
     bridgeUsed = nativeBridgeRequest ~= nil,
     browserInventoryReadCount = browserInventoryReadCount,
