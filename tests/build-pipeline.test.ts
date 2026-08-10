@@ -148,7 +148,12 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.doesNotMatch(appRootContent, /filterFocusBootShell/)
   const dashboardViewBootScript = '<script src="dist/dashboard-view-boot.js"></script>'
   assert.ok(indexHtml.indexOf(dashboardViewBootScript) < indexHtml.indexOf('<div id="appRoot">'))
-  assert.match(indexHtml, /rel="modulepreload" href="dist\/app\.js"/)
+  const appModuleScript = '<script type="module" src="dist/app.js"></script>'
+  const appModuleScriptIndex = indexHtml.indexOf(appModuleScript)
+  assert.ok(appModuleScriptIndex >= 0)
+  assert.ok(appModuleScriptIndex < indexHtml.indexOf('</head>'))
+  assert.equal(indexHtml.match(/(?:href|src)="dist\/app\.js"/g)?.length, 1)
+  assert.doesNotMatch(indexHtml, /rel="(?:module)?preload" href="dist\/app\.js"/)
   assert.match(indexHtml, /href="dist\/assets\/app\.css"/)
   assert.match(indexHtml, /src="dist\/filter-focus-boot\.js"/)
   assert.doesNotMatch(indexHtml, /config\.local\.js/)
