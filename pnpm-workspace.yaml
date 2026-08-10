@@ -2,3 +2,7 @@ packages:
   - '.'
 
 trustPolicy: no-downgrade
+trustPolicyExclude:
+  # Legacy unprovenanced release; tarball verified against source.
+  # Exact integrity is pinned in pnpm-lock.yaml.
+  - 'semver@6.3.1'
