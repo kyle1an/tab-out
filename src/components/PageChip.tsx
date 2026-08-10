@@ -59,6 +59,7 @@ const CHIP_TEXT_CLAMP_WIDTH_TOLERANCE_PX = 0.5
 const PAGE_CHIP_EXPANDED_WIDTH_SEARCH_STEPS = 12
 const PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX = 1.5
 const PAGE_CHIP_TARGET_INTERACTION_BG = 'color-mix(in oklab, var(--color-neutral-600) 14%, transparent)'
+const DESTRUCTIVE_ICON_ACTION_CLASS_NAME = 'hover:bg-destructive/10 hover:text-destructive focus-visible:bg-destructive/10 focus-visible:text-destructive'
 const PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME = 'chip-title-suppression-marker inline rounded-lg border-0 bg-[rgba(115,115,115,0.08)] px-1 text-[12px] leading-[inherit] font-medium whitespace-nowrap text-muted-foreground align-baseline [corner-shape:squircle] [box-decoration-break:clone]'
 const PAGE_CHIP_TOOLTIP_STRUCTURAL_MARKER_CLASS_NAME = 'chip-strip-indicator inline-block max-w-full rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium whitespace-nowrap text-muted-foreground align-baseline [corner-shape:squircle]'
 // Expanded chips reveal the full path suffix, so the cloned/measured copy must
@@ -1093,6 +1094,7 @@ type ChipFaviconFrameProps = {
   showFaviconCloseAction: boolean
   dedupeBadgesClosing: boolean
   closeActionLabel: string
+  closeActionDestructive: boolean
   onCloseAction: (e: MouseEvent<HTMLButtonElement>) => void
   onToggleAudio: () => void
 }
@@ -1104,7 +1106,7 @@ type ChipFaviconFrameProps = {
  * chip — the image itself, not the frame, so dupe-stack rings and badges
  * keep their weight.
  */
-function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconCloseAction, dedupeBadgesClosing, closeActionLabel, onCloseAction, onToggleAudio }: ChipFaviconFrameProps) {
+function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconCloseAction, dedupeBadgesClosing, closeActionLabel, closeActionDestructive, onCloseAction, onToggleAudio }: ChipFaviconFrameProps) {
   const faviconDimmed = !!chip.suspended || isClosedSavedDashboardTab(chip)
   return (
     <span
@@ -1184,7 +1186,10 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
         <button
           type="button"
           data-tabout-part="close-button"
-          className="chip-action chip-close chip-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-4 inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-muted-foreground opacity-0 group-hover/favicon-frame:pointer-events-auto group-hover/favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-foreground hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-(--card-bg) focus-visible:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
+          className={cn(
+            'chip-action chip-close chip-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-4 inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-muted-foreground opacity-0 group-hover/favicon-frame:pointer-events-auto group-hover/favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-foreground hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-(--card-bg) focus-visible:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
+            closeActionDestructive && DESTRUCTIVE_ICON_ACTION_CLASS_NAME,
+          )}
           aria-label={closeActionLabel}
           onClick={onCloseAction}
         >
@@ -2117,11 +2122,20 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   const hiddenTitleLabel = suppressedTitleParts.length > 0 ? `Suppressed title text: ${suppressedTitleParts.join(' · ')}` : ''
   const titleVariantLabel = isTitleVariantGroup ? `${titleVariantChips.length} URL variants: ${titleVariantChips.map((variant) => variant.pathSuffix || variant.tabUrl).join(' · ')}` : ''
   const chipLabel = [chip.tooltip, loadingLabel, pinnedLabel, titleVariantLabel, hiddenTitleLabel, duplicateLabel, activeLabel, savedLabel].filter(Boolean).join(' · ')
-  const groupCloseCount = isTitleVariantGroup ? variantCloseCount : isFolded ? foldedCloseTargets.length : 1
-  const closeTargetsAllHistory = isTitleVariantGroup
-    ? variantCloseTargets.tabEnvs.length === 0 && variantCloseTargets.historyUrls.length > 0
+  const closeTabCount = isTitleVariantGroup
+    ? variantCloseTargets.tabEnvs.length
+    : isFolded
+      ? foldedCloseTargets.length
+      : isHistorySource
+        ? 0
+        : 1
+  const closeHistoryCount = isTitleVariantGroup
+    ? variantCloseTargets.historyUrls.length
     : isHistorySource
-  const closeActionLabel = groupCloseActionLabel({ count: groupCloseCount, allHistory: closeTargetsAllHistory })
+      ? 1
+      : 0
+  const closeActionDeletesHistory = closeHistoryCount > 0
+  const closeActionLabel = groupCloseActionLabel({ tabCount: closeTabCount, historyCount: closeHistoryCount })
   const savedActionLabel = chip.saved ? 'Remove saved page' : 'Save page'
   const pagePinActionLabel = chip.pagePinned ? 'Unpin' : 'Pin'
   const chipTitleText = titleTextForChip(chip)
@@ -2584,7 +2598,10 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
                 <button
                   type="button"
                   data-tabout-part="variant-close-button"
-                  className="chip-title-variant-action pointer-events-none absolute inset-0 inline-flex size-4.75 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-muted-foreground opacity-0 group-hover/title-variant-close-owner:pointer-events-auto group-hover/title-variant-close-owner:opacity-100 hover:bg-neutral-600/10 hover:text-foreground hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
+                  className={cn(
+                    'chip-title-variant-action pointer-events-none absolute inset-0 inline-flex size-4.75 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-muted-foreground opacity-0 group-hover/title-variant-close-owner:pointer-events-auto group-hover/title-variant-close-owner:opacity-100 hover:bg-neutral-600/10 hover:text-foreground hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
+                    variant.sourceType === 'history' && DESTRUCTIVE_ICON_ACTION_CLASS_NAME,
+                  )}
                   aria-label={titleVariantActionLabel(variant)}
                   onClick={(e) => onCloseTitleVariant(e, variant)}
                   onMouseEnter={() => onTitleVariantMouseEnter(variant)}
@@ -2894,6 +2911,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
           showFaviconCloseAction={showFaviconCloseAction}
           dedupeBadgesClosing={dedupeBadgesClosing}
           closeActionLabel={closeActionLabel}
+          closeActionDestructive={closeActionDeletesHistory}
           onCloseAction={isTitleVariantGroup ? onCloseAllVariants : isHistorySource ? onDeleteHistory : onClose}
           onToggleAudio={onToggleChipAudio}
         />

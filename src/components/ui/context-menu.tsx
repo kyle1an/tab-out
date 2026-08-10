@@ -3,10 +3,12 @@ import { ContextMenu as ContextMenuPrimitive } from '@base-ui/react/context-menu
 
 import { cn } from '@/lib/utils'
 import {
+  destructiveMenuItemClassName,
   menuItemClassName,
   menuPopupClassName,
   menuSeparatorClassName,
 } from './menu-styles'
+import type { MenuItemVariant } from './menu-styles'
 import { clearActiveContextMenu, setActiveContextMenu } from './context-menu-registry'
 
 const ContextMenuTrigger = ContextMenuPrimitive.Trigger
@@ -96,13 +98,16 @@ function ContextMenuContent({
 function ContextMenuItem({
   className,
   children,
+  variant = 'default',
   ...props
-}: ContextMenuPrimitive.Item.Props) {
+}: ContextMenuPrimitive.Item.Props & { variant?: MenuItemVariant }) {
   return (
     <ContextMenuPrimitive.Item
       data-slot="context-menu-item"
+      data-variant={variant}
       className={cn(
         menuItemClassName,
+        variant === 'destructive' && destructiveMenuItemClassName,
         className,
       )}
       {...props}

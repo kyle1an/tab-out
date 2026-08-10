@@ -3,10 +3,12 @@ import { Menu as MenuPrimitive } from '@base-ui/react/menu'
 
 import { cn } from '@/lib/utils'
 import {
+  destructiveMenuItemClassName,
   menuItemClassName,
   menuPopupClassName,
   menuSeparatorClassName,
 } from './menu-styles'
+import type { MenuItemVariant } from './menu-styles'
 
 const Menu = MenuPrimitive.Root
 const MenuTrigger = MenuPrimitive.Trigger
@@ -46,11 +48,21 @@ function MenuContent({
 }
 
 // react-doctor-disable-next-line react-doctor/no-multi-comp -- Base UI menu primitive family is intentionally colocated in one file.
-function MenuItem({ className, children, ...props }: MenuPrimitive.Item.Props) {
+function MenuItem({
+  className,
+  children,
+  variant = 'default',
+  ...props
+}: MenuPrimitive.Item.Props & { variant?: MenuItemVariant }) {
   return (
     <MenuPrimitive.Item
       data-slot="menu-item"
-      className={cn(menuItemClassName, className)}
+      data-variant={variant}
+      className={cn(
+        menuItemClassName,
+        variant === 'destructive' && destructiveMenuItemClassName,
+        className,
+      )}
       {...props}
     >
       {children}

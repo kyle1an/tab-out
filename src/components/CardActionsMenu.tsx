@@ -73,7 +73,7 @@ export function CardActionsMenu({
         {closeSuspendedLabel && onCloseSuspended && (
           <MenuItem
             data-tabout-part="close-suspended-button"
-            className="card-actions-close-suspended-item data-highlighted:text-(--status-abandoned)!"
+            className="card-actions-close-suspended-item"
             disabled={!closeSuspendedEnabled}
             label={closeSuspendedLabel}
             onClick={onCloseSuspended}
@@ -85,7 +85,7 @@ export function CardActionsMenu({
         {onClose && (
           <MenuItem
             data-tabout-part="close-button"
-            className="card-actions-close-item data-highlighted:text-(--status-abandoned)!"
+            className="card-actions-close-item"
             label={label}
             onClick={onClose}
           >
@@ -97,7 +97,8 @@ export function CardActionsMenu({
         {removeFromTabsLabel && onRemoveFromTabs && (
           <MenuItem
             data-tabout-part="remove-from-tabs-button"
-            className="card-actions-remove-from-tabs-item data-highlighted:text-(--status-abandoned)!"
+            className="card-actions-remove-from-tabs-item"
+            variant="destructive"
             label={removeFromTabsLabel}
             onClick={onRemoveFromTabs}
           >

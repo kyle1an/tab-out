@@ -93,11 +93,12 @@ export function titleVariantGroupRemovalConfirmed({
   return tabsRemoved && historyDeleteFullyRemoved(requestedHistoryCount, historyResult)
 }
 
-/**
- * groupCloseActionLabel({ count, allHistory }) — count-aware aria-label.
- * count === 1 reproduces the single-chip wording exactly (no regression).
- */
-export function groupCloseActionLabel({ count, allHistory }: { count: number, allHistory: boolean }): string {
-  if (allHistory) return count > 1 ? `Delete ${count} from history` : 'Delete from history'
-  return count > 1 ? `Close ${count} tabs` : 'Close this tab'
+export function groupCloseActionLabel({ tabCount, historyCount }: { tabCount: number, historyCount: number }): string {
+  if (tabCount > 0 && historyCount > 0) {
+    const closeLabel = tabCount > 1 ? `Close ${tabCount} tabs` : 'Close 1 tab'
+    const deleteLabel = historyCount > 1 ? `delete ${historyCount} from history` : 'delete 1 from history'
+    return `${closeLabel} and ${deleteLabel}`
+  }
+  if (historyCount > 0) return historyCount > 1 ? `Delete ${historyCount} from history` : 'Delete from history'
+  return tabCount > 1 ? `Close ${tabCount} tabs` : 'Close this tab'
 }

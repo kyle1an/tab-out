@@ -78,13 +78,18 @@ test('foldedTabCloseTargets excludes closed Saved and retained envs in either di
 })
 
 test('groupCloseActionLabel: singular labels match single-chip wording', () => {
-  assert.equal(groupCloseActionLabel({ count: 1, allHistory: false }), 'Close this tab')
-  assert.equal(groupCloseActionLabel({ count: 1, allHistory: true }), 'Delete from history')
+  assert.equal(groupCloseActionLabel({ tabCount: 1, historyCount: 0 }), 'Close this tab')
+  assert.equal(groupCloseActionLabel({ tabCount: 0, historyCount: 1 }), 'Delete from history')
 })
 
 test('groupCloseActionLabel: plural labels are count-aware', () => {
-  assert.equal(groupCloseActionLabel({ count: 3, allHistory: false }), 'Close 3 tabs')
-  assert.equal(groupCloseActionLabel({ count: 2, allHistory: true }), 'Delete 2 from history')
+  assert.equal(groupCloseActionLabel({ tabCount: 3, historyCount: 0 }), 'Close 3 tabs')
+  assert.equal(groupCloseActionLabel({ tabCount: 0, historyCount: 2 }), 'Delete 2 from history')
+})
+
+test('groupCloseActionLabel: mixed groups name both destructive operations', () => {
+  assert.equal(groupCloseActionLabel({ tabCount: 1, historyCount: 1 }), 'Close 1 tab and delete 1 from history')
+  assert.equal(groupCloseActionLabel({ tabCount: 2, historyCount: 3 }), 'Close 2 tabs and delete 3 from history')
 })
 
 test('historyDeleteFullyRemoved rejects partial history deletion', () => {

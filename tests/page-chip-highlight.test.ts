@@ -783,6 +783,61 @@ test('PageChip renders a favicon-slot close action without right-side actions', 
   assert.doesNotMatch(html, /<div[^>]*class="chip-actions\b/)
 })
 
+test('PageChip warns on browser-history deletion without coloring ordinary tab close', () => {
+  const historyHtml = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({ sourceType: 'history', faviconUrl: '' }),
+    }),
+  )
+  const tabHtml = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({ sourceType: 'tab', faviconUrl: '' }),
+    }),
+  )
+  const historyDeleteMatch = historyHtml.match(/<button[^>]*class="([^"]*\bchip-close\b[^"]*)"/)
+  const tabCloseMatch = tabHtml.match(/<button[^>]*class="([^"]*\bchip-close\b[^"]*)"/)
+
+  assert.ok(historyDeleteMatch, 'history delete action should render')
+  assert.ok(tabCloseMatch, 'tab close action should render')
+  assert.match(historyHtml, /aria-label="Delete from history"/)
+  assert.match(requiredAt(historyDeleteMatch, 1), /\bhover:bg-destructive\/10\b/)
+  assert.match(requiredAt(historyDeleteMatch, 1), /\bhover:text-destructive\b/)
+  assert.match(requiredAt(historyDeleteMatch, 1), /\bfocus-visible:bg-destructive\/10\b/)
+  assert.match(requiredAt(historyDeleteMatch, 1), /\bfocus-visible:text-destructive\b/)
+  assert.doesNotMatch(requiredAt(tabCloseMatch, 1), /(?:^|\s)(?:hover:|focus-visible:)?(?:bg-|text-)destructive/)
+
+  const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
+  assert.match(pageChipSource, /closeActionDestructive=\{closeActionDeletesHistory\}/)
+  assert.match(pageChipSource, /variant\.sourceType === 'history' && DESTRUCTIVE_ICON_ACTION_CLASS_NAME/)
+})
+
+test('PageChip names both operations when a title-variant group mixes tabs and History', () => {
+  const html = renderWithDomainCardContext(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        sourceType: 'tab',
+        tabUrl: 'https://mixed-actions.example.test/page?variant=tab',
+        rawUrl: 'https://mixed-actions.example.test/page?variant=tab',
+        titleVariantChips: [
+          makeChip({
+            sourceType: 'tab',
+            tabUrl: 'https://mixed-actions.example.test/page?variant=tab',
+            rawUrl: 'https://mixed-actions.example.test/page?variant=tab',
+          }),
+          makeChip({
+            sourceType: 'history',
+            tabUrl: 'https://mixed-actions.example.test/page?variant=history',
+            rawUrl: 'https://mixed-actions.example.test/page?variant=history',
+          }),
+        ],
+      }),
+    }),
+  )
+
+  assert.match(html, /aria-label="Close 1 tab and delete 1 from history"/)
+  assert.match(html, /\bhover:text-destructive\b/)
+})
+
 test('PageChip renders saved open tabs with remove-saved in the context menu and close in the favicon slot', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
@@ -1474,6 +1529,8 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   assert.match(contextMenuContentSource, /className="page-chip-duplicate-menu-item"/)
   assert.match(contextMenuContentSource, /className="page-chip-save-menu-item"/)
   assert.match(contextMenuContentSource, /className="page-chip-remove-from-tabs-menu-item"/)
+  assert.match(contextMenuContentSource, /className="page-chip-save-menu-item"[\s\S]*?variant=\{saved \? 'destructive' : 'default'\}/)
+  assert.match(contextMenuContentSource, /className="page-chip-remove-from-tabs-menu-item"[\s\S]*?variant="destructive"/)
   assert.match(contextMenuContentSource, /className="page-chip-pin-menu-item"/)
   assert.match(contextMenuContentSource, /className="page-chip-pin-menu-item"[\s\S]*className="page-chip-save-menu-item"/)
   assert.match(contextMenuContentSource, /className="page-chip-copy-title-menu-item"/)

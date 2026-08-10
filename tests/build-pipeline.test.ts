@@ -280,7 +280,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.match(contextMenuSource, /import \{ clearActiveContextMenu, setActiveContextMenu \} from '\.\/context-menu-registry'/)
   assert.match(
     contextMenuSource,
-    /import \{\s*menuItemClassName,\s*menuPopupClassName,\s*menuSeparatorClassName,\s*\} from '\.\/menu-styles'/,
+    /import \{\s*destructiveMenuItemClassName,\s*menuItemClassName,\s*menuPopupClassName,\s*menuSeparatorClassName,\s*\} from '\.\/menu-styles'/,
   )
   assert.match(contextMenuSource, /onOpenChange=\{handleOpenChange\}/)
   assert.match(contextMenuSource, /ContextMenuPrimitive\.Backdrop/)

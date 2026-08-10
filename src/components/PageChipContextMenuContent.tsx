@@ -88,6 +88,7 @@ export function PageChipContextMenuContent({
       {savedActionLabel && onSavedSelect && (
         <ContextMenuItem
           className="page-chip-save-menu-item"
+          variant={saved ? 'destructive' : 'default'}
           label={savedActionLabel}
           onClick={onSavedSelect}
         >
@@ -98,6 +99,7 @@ export function PageChipContextMenuContent({
       {onRemoveFromTabsSelect && (
         <ContextMenuItem
           className="page-chip-remove-from-tabs-menu-item"
+          variant="destructive"
           label="Remove from Tabs"
           onClick={onRemoveFromTabsSelect}
         >

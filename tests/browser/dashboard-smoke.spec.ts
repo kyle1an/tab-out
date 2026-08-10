@@ -6794,6 +6794,84 @@ test('domain card menu keeps close suspended visible and disabled at zero', asyn
   await expect(closeSuspended).toHaveAttribute('data-disabled', '')
 })
 
+test('destructive menu actions stay red at rest and through pointer and keyboard highlight', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?retainedFocus=1&retainedMixedFocus=1')
+
+  const retainedChip = page.locator(
+    '[data-tabout="domain-card"][data-tabout-domain="retained-focus-only.test"] [data-tabout="page-chip"]',
+  ).first()
+  await expect(retainedChip).toBeVisible()
+  await retainedChip.click({ button: 'right' })
+
+  const contextMenu = page.locator('[data-slot="context-menu-content"]:visible')
+  const saveItem = contextMenu.locator('[data-slot="context-menu-item"]', { hasText: 'Save page' })
+  const removeItem = contextMenu.locator('[data-slot="context-menu-item"]', { hasText: 'Remove from Tabs' })
+  await expect(contextMenu).toBeVisible()
+  await expect(saveItem).toHaveAttribute('data-variant', 'default')
+  await expect(removeItem).toHaveAttribute('data-variant', 'destructive')
+
+  await page.mouse.move(0, 0)
+  await expect(removeItem).not.toHaveAttribute('data-highlighted', '')
+  const saveRestColor = await saveItem.evaluate((element) => getComputedStyle(element).color)
+  const removeRestColor = await removeItem.evaluate((element) => getComputedStyle(element).color)
+  const removeRestBackground = await removeItem.evaluate((element) => getComputedStyle(element).backgroundColor)
+  const destructiveColor = await page.evaluate(() => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--color-destructive)'
+    document.body.append(probe)
+    const color = getComputedStyle(probe).color
+    probe.remove()
+    return color
+  })
+  expect(removeRestColor).toBe(destructiveColor)
+  expect(removeRestColor).not.toBe(saveRestColor)
+
+  await removeItem.hover()
+  await expect(removeItem).toHaveAttribute('data-highlighted', '')
+  const removePointerColor = await removeItem.evaluate((element) => getComputedStyle(element).color)
+  const removePointerBackground = await removeItem.evaluate((element) => getComputedStyle(element).backgroundColor)
+  expect(removePointerColor).toBe(removeRestColor)
+  expect(removePointerBackground).not.toBe(removeRestBackground)
+
+  await page.mouse.move(0, 0)
+  await expect(removeItem).not.toHaveAttribute('data-highlighted', '')
+  await page.keyboard.press('Home')
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowDown')
+  await expect(removeItem).toHaveAttribute('data-highlighted', '')
+  const removeKeyboardColor = await removeItem.evaluate((element) => getComputedStyle(element).color)
+  const removeKeyboardBackground = await removeItem.evaluate((element) => getComputedStyle(element).backgroundColor)
+  expect(removeKeyboardColor).toBe(removeRestColor)
+  expect(removeKeyboardBackground).toBe(removePointerBackground)
+
+  await page.keyboard.press('Escape')
+  await expect(contextMenu).toHaveCount(0)
+
+  const retainedCard = page.locator('[data-tabout="domain-card"][data-tabout-domain="retained-focus-only.test"]')
+  await retainedCard.hover()
+  await retainedCard.locator('[data-tabout-part="card-menu"]').click()
+  const cardMenu = page.locator('[data-slot="menu-content"]:visible')
+  const cardRemoveItem = cardMenu.locator('[data-tabout-part="remove-from-tabs-button"]')
+  await expect(cardMenu).toBeVisible()
+  await page.keyboard.press('End')
+  await expect(cardRemoveItem).toHaveAttribute('data-variant', 'destructive')
+  await expect(cardRemoveItem).toHaveAttribute('data-highlighted', '')
+  const cardRemoveColor = await cardRemoveItem.evaluate((element) => getComputedStyle(element).color)
+  expect(cardRemoveColor).toBe(destructiveColor)
+
+  await page.keyboard.press('Escape')
+  await expect(cardMenu).toHaveCount(0)
+
+  const card = page.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-01.com"]')
+  await card.hover()
+  await card.locator('[data-tabout-part="card-menu"]').click()
+  const closeItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="close-button"]')
+  await expect(closeItem).toHaveAttribute('data-variant', 'default')
+  const closeRestColor = await closeItem.evaluate((element) => getComputedStyle(element).color)
+  expect(closeRestColor).toBe(saveRestColor)
+  expect(closeRestColor).not.toBe(removeRestColor)
+})
+
 test('Page Chip context-menu separators stay conditional for retained and copy-only pages', async ({ page }) => {
   async function expectContextMenuSequence(domain: string, sequence: string[]) {
     const trigger = page.locator(

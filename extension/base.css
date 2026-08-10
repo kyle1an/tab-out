@@ -18,7 +18,7 @@
   --warm-gray: #ededed; /* soft neutral border */
   --accent-amber: #525252; /* neutral-600 — primary accent */
   --accent-slate: #737373; /* neutral-500 */
-  --status-abandoned: #ef4444; /* red-500 — danger */
+  --destructive-foreground: #b91c1c; /* red-700 — accessible destructive text */
   --card-bg: #ffffff;
   --shadow: rgba(10, 10, 10, 0.06);
   --dashboard-shell-max-width: 1600px;

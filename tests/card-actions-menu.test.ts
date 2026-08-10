@@ -8,6 +8,16 @@ import { CardActionsMenu } from '../src/components/CardActionsMenu.js'
 import { DomainCard } from '../src/components/DomainCard.js'
 import type { DashboardCardVM, DomainGroup } from '../src/extension/types'
 
+function menuItemOpeningTag(source: string, part: string) {
+  const partIndex = source.indexOf(`data-tabout-part="${part}"`)
+  assert.notEqual(partIndex, -1, `expected ${part} menu item`)
+  const tagStart = source.lastIndexOf('<MenuItem', partIndex)
+  const tagEnd = source.indexOf('>', partIndex)
+  assert.notEqual(tagStart, -1, `expected ${part} MenuItem start`)
+  assert.notEqual(tagEnd, -1, `expected ${part} MenuItem end`)
+  return source.slice(tagStart, tagEnd + 1)
+}
+
 test('CardActionsMenu renders a kebab trigger and hides the close item until opened', () => {
   const html = renderToStaticMarkup(
     React.createElement(CardActionsMenu, {
@@ -101,6 +111,37 @@ test('CardActionsMenu separates pinning, orders live-tab actions narrowly to bro
   assert.match(source, /icon-\[lucide--circle-x\]/)
   assert.match(source, /icon-\[lucide--list-x\]/)
   assert.match(source, /disabled=\{!closeSuspendedEnabled\}/)
+})
+
+test('CardActionsMenu reserves destructive styling for retained-page removal', () => {
+  const source = readFileSync(new URL('../src/components/CardActionsMenu.tsx', import.meta.url), 'utf8')
+  const closeSuspendedItem = menuItemOpeningTag(source, 'close-suspended-button')
+  const closeItem = menuItemOpeningTag(source, 'close-button')
+  const removeFromTabsItem = menuItemOpeningTag(source, 'remove-from-tabs-button')
+
+  assert.doesNotMatch(closeSuspendedItem, /variant="destructive"/)
+  assert.doesNotMatch(closeItem, /variant="destructive"/)
+  assert.match(removeFromTabsItem, /variant="destructive"/)
+  assert.doesNotMatch(closeSuspendedItem, /status-abandoned|text-destructive/)
+  assert.doesNotMatch(closeItem, /status-abandoned|text-destructive/)
+})
+
+test('menu primitives share one persistent destructive variant', () => {
+  const menuSource = readFileSync(new URL('../src/components/ui/menu.tsx', import.meta.url), 'utf8')
+  const contextMenuSource = readFileSync(new URL('../src/components/ui/context-menu.tsx', import.meta.url), 'utf8')
+  const menuStylesSource = readFileSync(new URL('../src/components/ui/menu-styles.ts', import.meta.url), 'utf8')
+
+  assert.match(menuStylesSource, /export type MenuItemVariant = 'default' \| 'destructive'/)
+  assert.match(menuStylesSource, /destructiveMenuItemClassName\s*=\s*\n?\s*'[^']*text-destructive/)
+  assert.match(menuStylesSource, /destructiveMenuItemClassName\s*=\s*\n?\s*'[^']*data-highlighted:bg-destructive\/10/)
+  assert.match(menuStylesSource, /destructiveMenuItemClassName\s*=\s*\n?\s*'[^']*data-highlighted:text-destructive/)
+
+  for (const primitiveSource of [menuSource, contextMenuSource]) {
+    assert.match(primitiveSource, /variant = 'default'/)
+    assert.match(primitiveSource, /variant\?: MenuItemVariant/)
+    assert.match(primitiveSource, /data-variant=\{variant\}/)
+    assert.match(primitiveSource, /variant === 'destructive' && destructiveMenuItemClassName/)
+  }
 })
 
 test('DomainCard keeps close suspended visible and disables it at zero', () => {

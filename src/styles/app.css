@@ -25,7 +25,7 @@
   --color-input: var(--warm-gray);
   --color-border: var(--warm-gray);
   --color-ring: var(--accent-amber);
-  --color-destructive: var(--status-abandoned);
+  --color-destructive: var(--destructive-foreground);
   --color-muted: color-mix(in srgb, var(--card-bg) 92%, var(--accent-amber));
   --color-accent: color-mix(in srgb, var(--card-bg) 92%, var(--accent-amber));
   --color-accent-foreground: var(--color-foreground);
