@@ -525,6 +525,26 @@ test('computeDomainCardViewModel labels closing every suspended tab in a card', 
   assert.equal(vm.closableSuspendedCountLabel, 'Close all 2 suspended tabs')
 })
 
+test('computeDomainCardViewModel omits all when one suspended tab is the only suspended target', () => {
+  const group = {
+    domain: 'example.com',
+    tabs: [
+      makeTab({ url: 'https://example.com/a', title: 'Alpha' }),
+      makeTab({
+        id: 2,
+        url: 'https://example.com/b',
+        rawUrl: 'chrome-extension://suspender/suspended.html#uri=https%3A%2F%2Fexample.com%2Fb',
+        suspended: true,
+        title: 'Bravo',
+      }),
+    ],
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  assert.equal(vm.closableSuspendedCount, 1)
+  assert.equal(vm.closableSuspendedCountLabel, 'Close 1 suspended tab')
+})
+
 test('computeDomainCardViewModel excludes the current Tab Out page from pinned dedupe counts', () => {
   const group = {
     domain: '__tab-out__',

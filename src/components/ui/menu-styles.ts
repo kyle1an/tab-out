@@ -5,3 +5,6 @@ export const menuPopupClassName =
 
 export const menuItemClassName =
   'relative flex min-h-6 min-w-36 cursor-default items-center gap-1.5 rounded-lg px-2 py-1 text-[13px] leading-tight text-foreground outline-none select-none [corner-shape:squircle] data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-accent data-highlighted:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0'
+
+export const menuSeparatorClassName =
+  'pointer-events-none mx-1 my-1 h-px bg-border'

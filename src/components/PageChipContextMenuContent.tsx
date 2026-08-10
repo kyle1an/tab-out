@@ -1,4 +1,8 @@
-import { ContextMenuContent, ContextMenuItem } from './ui/context-menu'
+import {
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+} from './ui/context-menu'
 import { SavedPageIcon } from './SavedPageIcon'
 
 type StopPropagationEvent = {
@@ -40,6 +44,14 @@ export function PageChipContextMenuContent({
   suspendEnabled,
   onSuspendSelect,
 }: PageChipContextMenuContentProps) {
+  const hasChromeTabActions = !!(onReloadSelect || onDuplicateSelect)
+  const hasPageManagementActions = !!(
+    (pagePinActionLabel && onPagePinSelect)
+    || (savedActionLabel && onSavedSelect)
+    || onRemoveFromTabsSelect
+    || onSuspendSelect
+  )
+
   return (
     <ContextMenuContent>
       {onReloadSelect && (
@@ -62,6 +74,7 @@ export function PageChipContextMenuContent({
           <span className="min-w-0 flex-1">Duplicate</span>
         </ContextMenuItem>
       )}
+      {hasChromeTabActions && <ContextMenuSeparator />}
       {pagePinActionLabel && onPagePinSelect && (
         <ContextMenuItem
           className="page-chip-pin-menu-item"
@@ -103,6 +116,7 @@ export function PageChipContextMenuContent({
           <span className="min-w-0 flex-1">Suspend</span>
         </ContextMenuItem>
       )}
+      {hasPageManagementActions && <ContextMenuSeparator />}
       <ContextMenuItem
         className="page-chip-copy-title-menu-item"
         disabled={!titleText}

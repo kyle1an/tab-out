@@ -2,7 +2,11 @@ import * as React from 'react'
 import { ContextMenu as ContextMenuPrimitive } from '@base-ui/react/context-menu'
 
 import { cn } from '@/lib/utils'
-import { menuItemClassName, menuPopupClassName } from './menu-styles'
+import {
+  menuItemClassName,
+  menuPopupClassName,
+  menuSeparatorClassName,
+} from './menu-styles'
 import { clearActiveContextMenu, setActiveContextMenu } from './context-menu-registry'
 
 const ContextMenuTrigger = ContextMenuPrimitive.Trigger
@@ -108,9 +112,24 @@ function ContextMenuItem({
   )
 }
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- shadcn context-menu primitive family is intentionally colocated in one file.
+function ContextMenuSeparator({
+  className,
+  ...props
+}: ContextMenuPrimitive.Separator.Props) {
+  return (
+    <ContextMenuPrimitive.Separator
+      data-slot="context-menu-separator"
+      className={cn(menuSeparatorClassName, className)}
+      {...props}
+    />
+  )
+}
+
 export {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 }

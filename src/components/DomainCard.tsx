@@ -219,7 +219,9 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
   const closableSuspendedCount = vm.closableSuspendedCount ?? Math.max(0, closableCount - suspendableCount)
   const closeSuspendedLabel = vm.closableSuspendedCountLabel ?? (
     closableCount === (vm.tabCount ?? closableCount)
-      ? `Close all ${closableSuspendedCount} suspended tab${closableSuspendedCount === 1 ? '' : 's'}`
+      ? closableSuspendedCount === 1
+        ? 'Close 1 suspended tab'
+        : `Close all ${closableSuspendedCount} suspended tabs`
       : `Close ${closableSuspendedCount} suspended ungrouped tab${closableSuspendedCount === 1 ? '' : 's'}`
   )
   const sections = vm.sections ?? []

@@ -1,4 +1,4 @@
-import { Menu, MenuContent, MenuItem, MenuTrigger } from './ui/menu'
+import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from './ui/menu'
 
 interface CardActionsMenuProps {
   displayName: string
@@ -30,6 +30,12 @@ export function CardActionsMenu({
   onRemoveFromTabs,
 }: CardActionsMenuProps) {
   const pinLabel = pinned ? 'Unpin card' : 'Pin card'
+  const hasLiveTabActions = Boolean(
+    (suspendLabel && onSuspend)
+    || (closeSuspendedLabel && onCloseSuspended)
+    || onClose,
+  )
+  const hasRemoveFromTabsAction = Boolean(removeFromTabsLabel && onRemoveFromTabs)
 
   return (
     <Menu>
@@ -52,6 +58,7 @@ export function CardActionsMenu({
             <span className="min-w-0 flex-1">{pinLabel}</span>
           </MenuItem>
         )}
+        {onTogglePin && (hasLiveTabActions || hasRemoveFromTabsAction) && <MenuSeparator />}
         {suspendLabel && onSuspend && (
           <MenuItem
             data-tabout-part="suspend-button"
@@ -75,17 +82,6 @@ export function CardActionsMenu({
             <span className="min-w-0 flex-1">{closeSuspendedLabel}</span>
           </MenuItem>
         )}
-        {removeFromTabsLabel && onRemoveFromTabs && (
-          <MenuItem
-            data-tabout-part="remove-from-tabs-button"
-            className="card-actions-remove-from-tabs-item data-highlighted:text-(--status-abandoned)!"
-            label={removeFromTabsLabel}
-            onClick={onRemoveFromTabs}
-          >
-            <span className="icon-[lucide--list-x] size-3.5" aria-hidden="true" />
-            <span className="min-w-0 flex-1">{removeFromTabsLabel}</span>
-          </MenuItem>
-        )}
         {onClose && (
           <MenuItem
             data-tabout-part="close-button"
@@ -95,6 +91,18 @@ export function CardActionsMenu({
           >
             <span className="icon-[lucide--x] size-3.5" aria-hidden="true" />
             {label && <span className="min-w-0 flex-1">{label}</span>}
+          </MenuItem>
+        )}
+        {hasLiveTabActions && hasRemoveFromTabsAction && <MenuSeparator />}
+        {removeFromTabsLabel && onRemoveFromTabs && (
+          <MenuItem
+            data-tabout-part="remove-from-tabs-button"
+            className="card-actions-remove-from-tabs-item data-highlighted:text-(--status-abandoned)!"
+            label={removeFromTabsLabel}
+            onClick={onRemoveFromTabs}
+          >
+            <span className="icon-[lucide--list-x] size-3.5" aria-hidden="true" />
+            <span className="min-w-0 flex-1">{removeFromTabsLabel}</span>
           </MenuItem>
         )}
       </MenuContent>

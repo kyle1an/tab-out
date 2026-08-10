@@ -2,7 +2,11 @@ import * as React from 'react'
 import { Menu as MenuPrimitive } from '@base-ui/react/menu'
 
 import { cn } from '@/lib/utils'
-import { menuItemClassName, menuPopupClassName } from './menu-styles'
+import {
+  menuItemClassName,
+  menuPopupClassName,
+  menuSeparatorClassName,
+} from './menu-styles'
 
 const Menu = MenuPrimitive.Root
 const MenuTrigger = MenuPrimitive.Trigger
@@ -54,4 +58,15 @@ function MenuItem({ className, children, ...props }: MenuPrimitive.Item.Props) {
   )
 }
 
-export { Menu, MenuContent, MenuItem, MenuTrigger }
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- Base UI menu primitive family is intentionally colocated in one file.
+function MenuSeparator({ className, ...props }: MenuPrimitive.Separator.Props) {
+  return (
+    <MenuPrimitive.Separator
+      data-slot="menu-separator"
+      className={cn(menuSeparatorClassName, className)}
+      {...props}
+    />
+  )
+}
+
+export { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger }

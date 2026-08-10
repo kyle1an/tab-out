@@ -1537,6 +1537,38 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   assert.match(tabHistoryPanelSource, /onDuplicateSelect=\{canShowSuspend \? onDuplicateEntry : undefined\}/)
 })
 
+test('PageChip context menus group browser, page-management, and copy actions with shared inset separators', () => {
+  const contentSource = readFileSync(new URL('../src/components/PageChipContextMenuContent.tsx', import.meta.url), 'utf8')
+  const contextMenuSource = readFileSync(new URL('../src/components/ui/context-menu.tsx', import.meta.url), 'utf8')
+  const menuSource = readFileSync(new URL('../src/components/ui/menu.tsx', import.meta.url), 'utf8')
+  const menuStylesSource = readFileSync(new URL('../src/components/ui/menu-styles.ts', import.meta.url), 'utf8')
+
+  const reloadIndex = contentSource.indexOf('className="page-chip-reload-menu-item"')
+  const duplicateIndex = contentSource.indexOf('className="page-chip-duplicate-menu-item"')
+  const firstSeparatorIndex = contentSource.indexOf('{hasChromeTabActions && <ContextMenuSeparator />}')
+  const pinIndex = contentSource.indexOf('className="page-chip-pin-menu-item"')
+  const suspendIndex = contentSource.indexOf('className="page-chip-suspend-menu-item"')
+  const secondSeparatorIndex = contentSource.indexOf('{hasPageManagementActions && <ContextMenuSeparator />}')
+  const copyTitleIndex = contentSource.indexOf('className="page-chip-copy-title-menu-item"')
+  const copyUrlIndex = contentSource.indexOf('className="page-chip-copy-url-menu-item"')
+
+  assert.match(contentSource, /const hasChromeTabActions = !!\(onReloadSelect \|\| onDuplicateSelect\)/)
+  assert.match(contentSource, /const hasPageManagementActions = !!\([\s\S]*pagePinActionLabel && onPagePinSelect[\s\S]*savedActionLabel && onSavedSelect[\s\S]*onRemoveFromTabsSelect[\s\S]*onSuspendSelect[\s\S]*\)/)
+  assert.ok(reloadIndex < duplicateIndex)
+  assert.ok(duplicateIndex < firstSeparatorIndex)
+  assert.ok(firstSeparatorIndex < pinIndex)
+  assert.ok(pinIndex < suspendIndex)
+  assert.ok(suspendIndex < secondSeparatorIndex)
+  assert.ok(secondSeparatorIndex < copyTitleIndex)
+  assert.ok(copyTitleIndex < copyUrlIndex)
+
+  assert.match(menuStylesSource, /menuSeparatorClassName =\s*'pointer-events-none mx-1 my-1 h-px bg-border'/)
+  assert.doesNotMatch(menuStylesSource, /-mx-1/)
+  assert.match(menuSource, /data-slot="menu-separator"[\s\S]*className=\{cn\(menuSeparatorClassName, className\)\}/)
+  assert.match(contextMenuSource, /data-slot="context-menu-separator"[\s\S]*className=\{cn\(menuSeparatorClassName, className\)\}/)
+  assert.match(contextMenuSource, /ContextMenuSeparator,/)
+})
+
 test('PageChip outlines same-title variant groups when external hover matches a variant URL', () => {
   const chip = makeChip({
     sourceType: 'tab',

@@ -3268,12 +3268,35 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
       expression: `(() => {
         const visibleMenus = Array.from(document.querySelectorAll('[data-slot="context-menu-content"]'))
           .filter((menu) => !menu.hidden && menu.getClientRects().length > 0 && window.getComputedStyle(menu).visibility !== 'hidden')
+        const menuStates = visibleMenus.map((menu) => {
+          const menuRect = menu.getBoundingClientRect()
+          const directChildren = Array.from(menu.children)
+            .filter((child) => child instanceof HTMLElement && child.dataset.slot)
+          return {
+            sequence: directChildren.map((child) => (
+              child.dataset.slot === 'context-menu-separator'
+                ? 'separator'
+                : child.textContent?.trim() || ''
+            )),
+            separatorInsets: directChildren
+              .filter((child) => child.dataset.slot === 'context-menu-separator')
+              .map((separator) => {
+                const rect = separator.getBoundingClientRect()
+                return {
+                  left: rect.left - menuRect.left,
+                  right: menuRect.right - rect.right
+                }
+              })
+          }
+        })
         return {
           visibleMenuCount: visibleMenus.length,
           itemTexts: visibleMenus.flatMap((menu) =>
             Array.from(menu.querySelectorAll('[data-slot="context-menu-item"]'))
               .map((item) => item.textContent?.trim() || '')
           ),
+          sequence: menuStates.flatMap((state) => state.sequence),
+          separatorInsets: menuStates.flatMap((state) => state.separatorInsets),
           backdropCount: document.querySelectorAll('[data-slot="context-menu-backdrop"]:not([hidden])').length
         }
       })()`,
@@ -5834,6 +5857,26 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   const contextMenuSave = await measurePageChipContextMenuSave(session)
   assert.ok(contextMenuSave.firstOpenState.itemTexts.includes('Reload'), `right-clicking a live page chip should show Reload: ${JSON.stringify(contextMenuSave)}`)
   assert.ok(contextMenuSave.firstOpenState.itemTexts.includes('Duplicate'), `right-clicking a live page chip should show Duplicate: ${JSON.stringify(contextMenuSave)}`)
+  assert.deepEqual(
+    contextMenuSave.firstOpenState.sequence,
+    [
+      'Reload',
+      'Duplicate',
+      'separator',
+      'Pin',
+      'Save page',
+      'Suspend',
+      'separator',
+      'Copy page title text',
+      'Copy URL',
+    ],
+    `a live page chip context menu should group browser, page-management, and copy actions: ${JSON.stringify(contextMenuSave)}`,
+  )
+  assert.equal(contextMenuSave.firstOpenState.separatorInsets.length, 2, `a live page chip context menu should render two separators: ${JSON.stringify(contextMenuSave)}`)
+  for (const inset of contextMenuSave.firstOpenState.separatorInsets) {
+    assert.ok(Math.abs(inset.left - 8) <= 1, `context menu separators should be inset 8px from the left edge: ${JSON.stringify(contextMenuSave)}`)
+    assert.ok(Math.abs(inset.right - 8) <= 1, `context menu separators should be inset 8px from the right edge: ${JSON.stringify(contextMenuSave)}`)
+  }
   assert.equal(contextMenuSave.copyItem.text, 'Copy page title text', `right-clicking a live page chip should show the copy-title action: ${JSON.stringify(contextMenuSave)}`)
   assert.equal(contextMenuSave.copyResult.copiedText, 'Short title', `Copy page title text should copy the chip title: ${JSON.stringify(contextMenuSave)}`)
   assert.equal(contextMenuSave.copyResult.menuOpen, false, `context menu should close after choosing Copy page title text: ${JSON.stringify(contextMenuSave)}`)
@@ -6749,6 +6792,136 @@ test('domain card menu keeps close suspended visible and disabled at zero', asyn
   await expect(closeSuspended).toBeVisible()
   await expect(closeSuspended).toContainText('Close all 0 suspended tabs')
   await expect(closeSuspended).toHaveAttribute('data-disabled', '')
+})
+
+test('Page Chip context-menu separators stay conditional for retained and copy-only pages', async ({ page }) => {
+  async function expectContextMenuSequence(domain: string, sequence: string[]) {
+    const trigger = page.locator(
+      `[data-tabout="domain-card"][data-tabout-domain="${domain}"] [data-tabout="page-chip"]`,
+    ).first()
+    await expect(trigger).toBeVisible()
+    await trigger.click({ button: 'right' })
+
+    const menu = page.locator('[data-slot="context-menu-content"]:visible')
+    await expect(menu).toBeVisible()
+    const actualSequence = await menu.locator(':scope > [data-slot]').evaluateAll((elements) => (
+      elements.map((element) => (
+        element.getAttribute('data-slot') === 'context-menu-separator'
+          ? 'separator'
+          : element.textContent?.trim() || ''
+      ))
+    ))
+    expect(actualSequence).toEqual(sequence)
+
+    await page.keyboard.press('Escape')
+    await expect(menu).toHaveCount(0)
+  }
+
+  await page.goto('/tests/fixtures/dashboard-resize.html?retainedFocus=1')
+  await expectContextMenuSequence('retained-focus-only.test', [
+    'Pin',
+    'Save page',
+    'Remove from Tabs',
+    'separator',
+    'Copy page title text',
+    'Copy URL',
+  ])
+
+  await page.goto('/tests/fixtures/dashboard-resize.html?initialBookmarks=1')
+  await page.getByRole('tab', { name: 'Bookmarks' }).click()
+  await expectContextMenuSequence('bookmark-smoke-0001.test', [
+    'Copy page title text',
+    'Copy URL',
+  ])
+})
+
+test('domain card menu conditionally groups actions and puts retained-page removal last', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?retainedFocus=1&retainedMixedFocus=1')
+
+  async function expectCardMenuSequence(domain: string, sequence: string[], labels?: string[]) {
+    const card = page.locator(`[data-tabout="domain-card"][data-tabout-domain="${domain}"]`)
+    await expect(card).toBeVisible()
+    await card.hover()
+    await card.locator('[data-tabout-part="card-menu"]').click()
+
+    const menu = page.locator('[data-slot="menu-content"]:visible')
+    await expect(menu).toBeVisible()
+    const actualSequence = await menu.locator(':scope > [data-slot]').evaluateAll((elements) => (
+      elements.map((element) => element.getAttribute('data-tabout-part') ?? element.getAttribute('data-slot'))
+    ))
+    expect(actualSequence).toEqual(sequence)
+    const separatorInsets = await menu.locator(':scope > [data-slot="menu-separator"]').evaluateAll((separators) => {
+      return separators.map((separator) => {
+        const popupRect = separator.parentElement?.getBoundingClientRect()
+        const rect = separator.getBoundingClientRect()
+        return {
+          left: popupRect ? rect.left - popupRect.left : 0,
+          right: popupRect ? popupRect.right - rect.right : 0,
+        }
+      })
+    })
+    for (const inset of separatorInsets) {
+      expect(inset.left).toBeCloseTo(8, 0)
+      expect(inset.right).toBeCloseTo(8, 0)
+    }
+    if (labels) await expect(menu.locator('[data-slot="menu-item"]')).toHaveText(labels)
+
+    await page.keyboard.press('Escape')
+    await expect(menu).toHaveCount(0)
+  }
+
+  await expectCardMenuSequence('contentful.com', [
+    'pin-button',
+    'menu-separator',
+    'suspend-button',
+    'close-suspended-button',
+    'close-button',
+  ])
+  await expectCardMenuSequence('__hostless-pages__', [
+    'remove-from-tabs-button',
+  ])
+  await expectCardMenuSequence('retained-focus-only.test', [
+    'pin-button',
+    'menu-separator',
+    'remove-from-tabs-button',
+  ])
+
+  await page.evaluate(async () => {
+    await chrome.tabs.create({
+      active: false,
+      url: 'https://retained-focus.test/live',
+    })
+    await chrome.tabs.create({
+      active: false,
+      url: 'chrome-extension://suspender/suspended.html#uri=https%3A%2F%2Fretained-focus.test%2Fsleep',
+    })
+
+    const dispatch = Reflect.get(chrome.tabs.onCreated, 'dispatch')
+    if (typeof dispatch !== 'function') throw new Error('Fake Chrome tabs.onCreated dispatch is unavailable')
+    Reflect.apply(dispatch, chrome.tabs.onCreated, [])
+  })
+
+  const mixedCard = page.locator('[data-tabout="domain-card"][data-tabout-domain="retained-focus.test"]')
+  await expect(mixedCard.locator('[data-tabout="page-chip"]')).toHaveCount(5)
+  await expectCardMenuSequence(
+    'retained-focus.test',
+    [
+      'pin-button',
+      'menu-separator',
+      'suspend-button',
+      'close-suspended-button',
+      'close-button',
+      'menu-separator',
+      'remove-from-tabs-button',
+    ],
+    [
+      'Pin card',
+      'Suspend 1 active tab',
+      'Close 1 suspended tab',
+      'Close all 2 tabs',
+      'Remove 3 from Tabs',
+    ],
+  )
 })
 
 test('rapid domain pin writes preserve the latest optimistic state', async ({ page }) => {
