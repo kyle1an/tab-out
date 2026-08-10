@@ -11,7 +11,8 @@ import {
   type AppStartupFrame,
 } from './app-startup.js'
 import { getAppRuntime } from './extension/app-runtime.js'
-import { filterInputFromSearch } from './extension/app-url.js'
+import { dashboardViewFromSearch, filterInputFromSearch } from './extension/app-url.js'
+import { dashboardSourceForView } from './extension/dashboard-view.js'
 import { appDashboardStore, requestDashboardRefresh, settleDashboardRefresh, type DashboardRefreshOptions } from './extension/dashboard-intake.js'
 import {
   createDashboardPageRefreshScheduler,
@@ -164,6 +165,9 @@ document.addEventListener('visibilitychange', () => {
 recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'attach-app')
 setAppStartupFilterIntent(
   readFilterFocusPendingInput(filterInputFromSearch(window.location.search)),
+)
+appDashboardStore.selectStartupSource(
+  dashboardSourceForView(dashboardViewFromSearch(window.location.search)),
 )
 attachApp()
 

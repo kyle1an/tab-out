@@ -959,7 +959,7 @@ export function createAppDashboardStore(
 
   function failSourceSwitch(requestId: number): void {
     dispatch({ type: 'sourceRequestFailed', requestId })
-    showSourceSwitchToast('Could not switch source')
+    showSourceSwitchToast('Could not switch view')
   }
 
   const runSourceSwitch = Effect.fn('dashboardIntake.runSourceSwitch')(function* (

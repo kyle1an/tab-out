@@ -11,11 +11,18 @@ import { captureAppStartupFrameEffect } from '../src/extension/startup-frame.js'
 
 function installChrome(options: {
   failDismissalRead?: boolean
+  failBookmarkRead?: boolean
+  bookmarkReadFailures?: number
   bookmarks?: chrome.bookmarks.BookmarkTreeNode[]
+  historyItems?: chrome.history.HistoryItem[]
   localReadBarrier?: Promise<void>
   onServiceStateRequest?: () => void
 } = {}) {
+  let bookmarkReadCount = 0
+  let bookmarkReadFailuresRemaining = options.bookmarkReadFailures ??
+    (options.failBookmarkRead ? Number.POSITIVE_INFINITY : 0)
   let historySearchCount = 0
+  const historySearchQueries: chrome.history.HistoryQuery[] = []
   ;(globalThis as any).chrome = {
     runtime: {
       id: 'tab-out',
@@ -53,10 +60,21 @@ function installChrome(options: {
     },
     tabGroups: { query: async () => [] },
     sessions: { getRecentlyClosed: async () => [] },
-    bookmarks: { getTree: async () => options.bookmarks ?? [] },
+    bookmarks: {
+      getTree: async () => {
+        bookmarkReadCount += 1
+        if (bookmarkReadFailuresRemaining > 0) {
+          bookmarkReadFailuresRemaining -= 1
+          throw new Error('Bookmarks unavailable')
+        }
+        return options.bookmarks ?? []
+      },
+    },
     history: {
-      search: async () => {
+      search: async (query: chrome.history.HistoryQuery) => {
         historySearchCount += 1
+        historySearchQueries.push(query)
+        if (options.historyItems) return options.historyItems
         throw new Error('History unavailable')
       },
     },
@@ -74,7 +92,11 @@ function installChrome(options: {
       },
     },
   }
-  return { historySearchCount: () => historySearchCount }
+  return {
+    bookmarkReadCount: () => bookmarkReadCount,
+    historySearchCount: () => historySearchCount,
+    historySearchQueries: () => historySearchQueries,
+  }
 }
 
 test('startup frame admits confirmed-empty live authorities as one complete value', async () => {
@@ -152,5 +174,76 @@ test('Bookmarks startup follows the latest source without requiring hidden Tabs 
   assert.equal(chromeState.historySearchCount(), 0)
 
   appDashboardStore.selectStartupSource('tabs')
+  setAppStartupFilterIntent('')
+})
+
+test('Bookmarks startup falls back to the complete Tabs frame when Bookmarks cannot load', async () => {
+  installChrome({ failBookmarkRead: true })
+  appDashboardStore.selectStartupSource('bookmarks')
+  setAppStartupFilterIntent('')
+
+  const frame = await getAppRuntime().runPromise(captureAppStartupFrameEffect())
+
+  assert.equal(frame.source, 'tabs')
+  assert.equal(appDashboardStore.read().sourceSelection, 'tabs')
+  assert.deepEqual(frame.snapshot.dashboard.realTabs, [])
+})
+
+test('Bookmarks startup failure prepares the complete filtered Tabs fallback', async () => {
+  const chromeState = installChrome({
+    bookmarkReadFailures: 1,
+    bookmarks: [{
+      id: 'root',
+      title: '',
+      syncing: false,
+      children: [{
+        id: 'bookmark-1',
+        title: 'Bookmark Needle',
+        syncing: false,
+        url: 'https://bookmark.example.test/needle',
+      }],
+    }],
+    historyItems: [{
+      id: 'history-1',
+      title: 'History Needle',
+      url: 'https://history.example.test/needle',
+    }],
+  })
+  appDashboardStore.selectStartupSource('bookmarks')
+  setAppStartupFilterIntent('needle')
+
+  const frame = await getAppRuntime().runPromise(captureAppStartupFrameEffect())
+
+  assert.equal(frame.source, 'tabs')
+  assert.equal(appDashboardStore.read().sourceSelection, 'tabs')
+  assert.equal(chromeState.bookmarkReadCount(), 2)
+  assert.equal(frame.snapshot.dashboard.bookmarkSearchReady, true)
+  assert.deepEqual(frame.snapshot.dashboard.bookmarkTabs?.map((tab) => tab.url), [
+    'https://bookmark.example.test/needle',
+  ])
+  assert.equal(frame.snapshot.dashboard.historySearchQuery, 'needle')
+  assert.equal(frame.snapshot.dashboard.historySearchStatus, 'ready')
+  assert.deepEqual(frame.snapshot.dashboard.historyTabs?.map((tab) => tab.url), [
+    'https://history.example.test/needle',
+  ])
+  assert.deepEqual(
+    chromeState.historySearchQueries().map((query) => query.text),
+    ['needle'],
+  )
+
+  setAppStartupFilterIntent('')
+})
+
+test('persistent filtered Bookmarks failure rolls back without admitting an incomplete Tabs frame', async () => {
+  installChrome({ failBookmarkRead: true })
+  appDashboardStore.selectStartupSource('bookmarks')
+  setAppStartupFilterIntent('needle')
+
+  await assert.rejects(
+    getAppRuntime().runPromise(captureAppStartupFrameEffect()),
+    (error: any) => error?._tag === 'DashboardStartupSnapshotFetchError',
+  )
+
+  assert.equal(appDashboardStore.read().sourceSelection, 'tabs')
   setAppStartupFilterIntent('')
 })

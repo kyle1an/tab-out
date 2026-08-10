@@ -336,7 +336,7 @@ test('dashboard attaches before storage resolves and fills startup surfaces atom
     return {
       filter: rect('[data-tabout="filter-query"]'),
       header: rect('.pinned-top'),
-      sourceSwitch: rect('[data-tabout="source-switch"]'),
+      sourceSwitch: rect('[data-tabout="dashboard-view"]'),
     }
   })
 
@@ -396,7 +396,7 @@ test('dashboard attaches before storage resolves and fills startup surfaces atom
     return {
       filter: rect('[data-tabout="filter-query"]'),
       header: rect('.pinned-top'),
-      sourceSwitch: rect('[data-tabout="source-switch"]'),
+      sourceSwitch: rect('[data-tabout="dashboard-view"]'),
     }
   })).toEqual(shellGeometry)
 })
@@ -503,7 +503,7 @@ test('startup failure keeps the shell truthful and visually quiet', async ({ pag
 })
 
 test('a source choice made in the shell selects the admitted startup frame', async ({ page }) => {
-  await page.goto('/tests/fixtures/dashboard-resize.html?slowInitialStorage=1')
+  await page.goto('/tests/fixtures/dashboard-resize.html?slowInitialStorage=1&marker=kept#results')
   await expect.poll(() => page.evaluate(() =>
     (window as typeof window & { __tabOutInitialStoragePending?: boolean })
       .__tabOutInitialStoragePending === true,
@@ -524,6 +524,20 @@ test('a source choice made in the shell selects the admitted startup frame', asy
   const bookmarksSource = page.getByRole('tab', { name: 'Bookmarks' })
   await bookmarksSource.click()
   await expect(bookmarksSource).toHaveAttribute('data-active', '')
+  await expect.poll(() => page.evaluate(() => {
+    const url = new URL(window.location.href)
+    return {
+      hash: url.hash,
+      marker: url.searchParams.get('marker'),
+      slowInitialStorage: url.searchParams.get('slowInitialStorage'),
+      view: url.searchParams.get('view'),
+    }
+  })).toEqual({
+    hash: '#results',
+    marker: 'kept',
+    slowInitialStorage: '1',
+    view: 'bookmarks',
+  })
   const bookmarkCard = page.locator(
     '[data-tabout="domain-card"][data-tabout-domain="bookmark-smoke-0001.test"]',
   )
@@ -801,7 +815,7 @@ async function measureDashboard(session: CdpSession, width: number) {
         const rects = cards.map((card) => card.getBoundingClientRect()).filter((rect) => rect.width > 0)
         const lefts = Array.from(new Set(rects.map((rect) => Math.round(rect.left))))
         const round = (value) => Math.round(value * 100) / 100
-        const sourceSwitchRect = document.querySelector('[data-tabout="source-switch"]')?.getBoundingClientRect()
+        const sourceSwitchRect = document.querySelector('[data-tabout="dashboard-view"]')?.getBoundingClientRect()
         const headerControlsRect = document.querySelector('.header-controls')?.getBoundingClientRect()
         const missionsRect = document.querySelector('.missions:not(.missions-empty)')?.getBoundingClientRect()
         resolve({
@@ -886,7 +900,7 @@ async function measureLargeBookmarkProgressiveRender(session: CdpSession) {
     returnByValue: true,
     expression: `new Promise((resolve) => {
       window.__tabOutSmokeSetBookmarks?.(1008)
-      const trigger = Array.from(document.querySelectorAll('[data-tabout-part="source-option"]'))
+      const trigger = Array.from(document.querySelectorAll('[data-tabout-part="dashboard-view-option"]'))
         .find((candidate) => candidate.textContent?.trim() === 'Bookmarks')
       const start = performance.now()
       let initial = null
@@ -3744,7 +3758,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     () => {
       const active = document.querySelector('.source-switch-option[data-active]')?.textContent?.trim()
       const menu = document.querySelector('[data-slot="context-menu-content"]')
-      return active === 'Tabs' && (!menu || menu.getClientRects().length === 0)
+      return active === 'All Tabs' && (!menu || menu.getClientRects().length === 0)
     },
     'outside click should close the context menu without activating Bookmarks',
   )
@@ -4564,7 +4578,7 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
         const historyTrack = document.querySelector('.history-entry-scrollbar-track')
         const historyThumb = document.querySelector('.history-entry-scrollbar-thumb')
         const filter = document.querySelector('[data-tabout="filter-query"]')
-        const sourceSwitch = document.querySelector('[data-tabout="source-switch"]')
+        const sourceSwitch = document.querySelector('[data-tabout="dashboard-view"]')
         const headerControls = document.querySelector('.header-controls')
         const missions = document.querySelector('.missions:not(.missions-empty)')
         const card = document.querySelector('[data-tabout="domain-card"] .mission-card') || document.querySelector('.mission-card')
@@ -5884,8 +5898,8 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.equal(contextMenuSave.saveResult.menuOpen, false, `context menu should close after choosing Save page: ${JSON.stringify(contextMenuSave)}`)
   assert.ok(contextMenuSave.saveResult.pageKeys.includes('https://tab-out-smoke-01.com/docs/1'), `Save page should persist the chip URL: ${JSON.stringify(contextMenuSave)}`)
   assert.ok(contextMenuSave.saveResult.setCount > 0, `Save page should write through chrome.storage.local: ${JSON.stringify(contextMenuSave)}`)
-  assert.equal(contextMenuSave.outsideClickResult.activeBefore, 'Tabs', `outside-click smoke should start on the Tabs source: ${JSON.stringify(contextMenuSave)}`)
-  assert.equal(contextMenuSave.outsideClickResult.activeAfter, 'Tabs', `clicking outside an open context menu should dismiss it without activating the underlying source button: ${JSON.stringify(contextMenuSave)}`)
+  assert.equal(contextMenuSave.outsideClickResult.activeBefore, 'All Tabs', `outside-click smoke should start on All Tabs: ${JSON.stringify(contextMenuSave)}`)
+  assert.equal(contextMenuSave.outsideClickResult.activeAfter, 'All Tabs', `clicking outside an open context menu should dismiss it without activating the underlying Dashboard View option: ${JSON.stringify(contextMenuSave)}`)
   assert.equal(contextMenuSave.outsideClickResult.menuOpen, false, `outside click should dismiss the context menu: ${JSON.stringify(contextMenuSave)}`)
 
   const expansion = await measureTooltipFreeze(session)

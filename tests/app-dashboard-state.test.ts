@@ -416,7 +416,7 @@ test('a failed source switch restores the active source and reports the failure'
 
   assert.equal(store.read().source, 'tabs')
   assert.equal(store.read().sourceSelection, 'tabs')
-  assert.deepEqual(toasts, ['Could not switch source'])
+  assert.deepEqual(toasts, ['Could not switch view'])
 })
 
 test('closed-tab intake waits for restore settlement and ignores an overtaken read', async () => {

@@ -22,6 +22,7 @@ import { useDashboardIntakeSnapshot } from '../hooks/useDashboardIntakeSnapshot'
 import { useDashboardRefresh } from '../hooks/useDashboardRefresh'
 import { useDashboardLocalState } from '../hooks/useDashboardLocalState'
 import { useDashboardViewModels, useMissionOrderMemory, type DashboardChipOrderMemoryMap } from '../hooks/useDashboardViewModels'
+import { useDashboardViewRouting } from '../hooks/useDashboardViewRouting'
 import { FILTER_SEARCH_UPDATE_DELAY_MS, useFilterRouting } from '../hooks/useFilterRouting'
 import { useHoverMatch } from '../hooks/useHoverMatch'
 import type { UrlPreviewStore } from '../hooks/useUrlPreview'
@@ -42,6 +43,7 @@ import type {
   DashboardStats,
   TabHistorySnapshot,
 } from './types'
+import { dashboardSourceForView, dashboardViewOptionId, type DashboardView } from '../extension/dashboard-view.js'
 import type { HistorySearchSummary, RetainedPageSurfaceMatch, WorkingSetSnapshot } from '../extension/types'
 import type { CardPositionMap, MissionContainer } from '../extension/card-move-animation'
 
@@ -68,6 +70,8 @@ const HistoryRangeSelect = lazy(() => loadHistoryRangeSelect().then((module) => 
 
 type DashboardMissionSection = {
   cards: DashboardCardEntry[]
+  emptyStateHint?: string | undefined
+  emptyStateLabel?: string | undefined
   filter?: string
   gridEmpty?: boolean
   gridId: string
@@ -91,6 +95,8 @@ type DashboardMissionSectionsOptions = {
   historySearchSummary: HistorySearchSummary | null
   isReady: boolean
   matchedCards: DashboardCardEntry[]
+  primaryEmptyStateHint?: string | undefined
+  primaryEmptyStateLabel?: string | undefined
   primaryMissionsEmpty: boolean
   primaryMissionsRef: Ref<HTMLDivElement>
   showBookmarkMatches: boolean
@@ -149,6 +155,8 @@ function dashboardMissionSections({
   historySearchSummary,
   isReady,
   matchedCards,
+  primaryEmptyStateHint,
+  primaryEmptyStateLabel,
   primaryMissionsEmpty,
   primaryMissionsRef,
   showBookmarkMatches,
@@ -162,6 +170,8 @@ function dashboardMissionSections({
   const sections: DashboardMissionSection[] = [
     {
       cards: matchedCards,
+      emptyStateHint: primaryEmptyStateHint,
+      emptyStateLabel: primaryEmptyStateLabel,
       gridEmpty: primaryMissionsEmpty,
       gridId: 'openTabsMissions',
       gridRef: primaryMissionsRef,
@@ -211,6 +221,8 @@ function DashboardMissionsList({ filter, historyRangeAction, onRetryHistorySearc
           <MissionBlock
             key={section.gridId}
             cards={section.cards}
+            emptyStateHint={section.emptyStateHint}
+            emptyStateLabel={section.emptyStateLabel}
             filter={section.filter ?? filter}
             gridEmpty={section.gridEmpty}
             gridId={section.gridId}
@@ -241,6 +253,8 @@ function DashboardMissionsList({ filter, historyRangeAction, onRetryHistorySearc
 
 type DashboardShellProps = {
   closedTabs: readonly ClosedTabEntry[]
+  dashboardView: DashboardView
+  dashboardViewSelection: DashboardView
   dismissedClosedGhosts: ClosedGhostDismissals | null
   savedKeys?: readonly string[] | undefined
   retainedPageSurfaceMatches?: readonly RetainedPageSurfaceMatch[] | undefined
@@ -254,7 +268,7 @@ type DashboardShellProps = {
   onCloseFiltered: () => void
   onDedupAll: () => void
   onRetryHistorySearch: () => void
-  onSourceChange: (nextSource: DashboardSource) => void
+  onDashboardViewChange: (nextView: DashboardView) => void
   onTabsChange: () => void
   setFilterInput: (value: string) => void
   setHistoryRange: (value: string) => void
@@ -270,6 +284,8 @@ type DashboardShellProps = {
 
 function DashboardShell({
   closedTabs,
+  dashboardView,
+  dashboardViewSelection,
   dismissedClosedGhosts,
   savedKeys,
   retainedPageSurfaceMatches,
@@ -283,7 +299,7 @@ function DashboardShell({
   onCloseFiltered,
   onDedupAll,
   onRetryHistorySearch,
-  onSourceChange,
+  onDashboardViewChange,
   onTabsChange,
   setFilterInput,
   setHistoryRange,
@@ -304,6 +320,8 @@ function DashboardShell({
     <TooltipProvider>
       <div
         data-tabout="dashboard-shell"
+        data-dashboard-view={dashboardView}
+        data-dashboard-view-selection={dashboardViewSelection}
         data-source={source}
         className={cn(
           'dashboard-shell relative z-1 mx-auto grid min-h-0 w-full max-w-(--dashboard-shell-max-width) flex-auto',
@@ -345,6 +363,7 @@ function DashboardShell({
             )}
           >
             <HeaderBar
+              dashboardView={dashboardViewSelection}
               source={source}
               sourceSelection={sourceSelection}
               stats={stats}
@@ -354,7 +373,7 @@ function DashboardShell({
               filterResultSearchSettled={filterResultSearchSettled}
               historyRange={historyRange}
               onFilterChange={setFilterInput}
-              onSourceChange={onSourceChange}
+              onDashboardViewChange={onDashboardViewChange}
               onCloseFiltered={onCloseFiltered}
               onDedupAll={onDedupAll}
             />
@@ -362,9 +381,11 @@ function DashboardShell({
 
           <div
             id="dashboardMissions"
-            role="group"
+            role="tabpanel"
+            tabIndex={0}
             data-tabout-part="scroll-region"
-            aria-label="Filter results"
+            aria-busy={(source !== sourceSelection && sourceSelection === 'bookmarks') || undefined}
+            aria-labelledby={dashboardViewOptionId(dashboardViewSelection)}
             className={cn(
               'scroll-region relative z-1 flex-auto min-h-0 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain mr-[calc(0px-var(--dashboard-edge-bleed))] pt-1.5 pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))] pb-12.5 scrollbar-gutter-stable max-[900px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-size)-var(--dashboard-scrollbar-thumb-size)-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-size)+var(--dashboard-scrollbar-thumb-size))]',
               source === 'bookmarks'
@@ -403,6 +424,15 @@ export function App() {
   const startupReady = startupState?.phase === 'ready'
   const appDashboard = useDashboardIntakeSnapshot()
   const { closedTabs, dashboard, historyRange, historySearchPending, source, sourceSelection, startupPriorityWorkingSet, tabHistory, workingSet } = appDashboard
+  const {
+    dashboardViewRoutingReady,
+    dashboardViewSelection,
+    setDashboardViewSelection,
+    visibleDashboardView,
+  } = useDashboardViewRouting({
+    source,
+    sourceSelection,
+  })
   const { hoverStateStore, urlPreviewStore, handleHoverUrlChange, clearHoverUrlNow } = useHoverMatch()
   const setHistoryRange = useCallback(async function setHistoryRange(nextHistoryRange: string) {
     dispatchAppDashboard({ type: 'historyRange', historyRange: nextHistoryRange })
@@ -442,10 +472,11 @@ export function App() {
     const frame = requestAnimationFrame(() => setDashboardContentVisible(true))
     return () => cancelAnimationFrame(frame)
   }, [])
-  const dynamicContentVisible = dashboardContentVisible && startupReady
+  const dynamicContentVisible = dashboardContentVisible && startupReady && dashboardViewRoutingReady
   const visibleDashboard = dynamicContentVisible ? dashboard : null
   const isReady = !!visibleDashboard
   const historyFilterEnabled = isHistoryFilterEnabled(historyRange)
+
   const { packMissionsMasonryNow, scheduleMissionsMasonry } = useMissionsMasonry(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, {
     onAfterLayout: validatePageChipTextLayoutsAfterMasonry,
     onBeforePack: prepareDomainCardMoveAnimation,
@@ -564,7 +595,7 @@ export function App() {
     }
     packMissionsMasonryNow({ unpin: true })
     if (previousRects) animateDomainCardMoves(containers, previousRects)
-  }, [visibleDashboard, filter, source, isReady, historyFilterEnabled, clearHoverUrlNow, packMissionsMasonryNow])
+  }, [visibleDashboard, visibleDashboardView, filter, source, isReady, historyFilterEnabled, clearHoverUrlNow, packMissionsMasonryNow])
 
   useLayoutEffect(() => {
     animateQueuedPageChipRefreshMoves()
@@ -582,9 +613,12 @@ export function App() {
     showHistoryMatches,
     showHistoryRange,
     showPrimaryEmptyState,
+    retainedPagesAvailable,
+    hiddenRetainedFilterMatch,
   } = useDashboardViewModels({
     dashboard: visibleDashboard,
     source,
+    view: visibleDashboardView,
     filter,
     historyRange,
     historyFilterEnabled,
@@ -690,16 +724,27 @@ export function App() {
     void settleDashboardRefresh(refreshDashboard({ animateCards: true }))
   }, [refreshDashboard])
 
-  const onSourceChange = useCallback(function onSourceChange(nextSource: DashboardSource) {
-    if (nextSource === sourceSelection) return
+  const onDashboardViewChange = useCallback(function onDashboardViewChange(nextView: DashboardView) {
+    if (nextView === dashboardViewSelection) return
+    const nextSource = dashboardSourceForView(nextView)
+    setDashboardViewSelection(nextView)
     if (!startupReady) {
-      appDashboardStore.selectStartupSource(nextSource)
-      notifyAppStartupMaterialChange()
+      if (nextSource !== sourceSelection) {
+        appDashboardStore.selectStartupSource(nextSource)
+        notifyAppStartupMaterialChange()
+      }
       return
     }
     if (nextSource === source) {
+      const previousRects = prepareDomainCardMoveAnimation(currentMissionContainers())
       pendingSourceSwitchRectsRef.current = null
+      appDashboardStore.clearStartupPriority()
+      clearHoverUrlNow()
       appDashboardStore.switchSource(nextSource)
+      layoutMoveRectsRef.current = previousRects
+      return
+    }
+    if (nextSource === sourceSelection) {
       return
     }
     const previousRects = prepareDomainCardMoveAnimation(currentMissionContainers())
@@ -709,12 +754,24 @@ export function App() {
     if (requestId !== null) {
       pendingSourceSwitchRectsRef.current = { rects: previousRects, requestId }
     }
-  }, [source, sourceSelection, startupReady, clearHoverUrlNow, currentMissionContainers])
+  }, [clearHoverUrlNow, currentMissionContainers, dashboardViewSelection, setDashboardViewSelection, source, sourceSelection, startupReady])
 
   const primaryMissionsEmpty = matchedCards.length === 0
   const showHistorySection = showHistoryRange || showHistoryMatches
   const bookmarkMatchesFlush = primaryMissionsEmpty && !showHistorySection
   const historyMatchesFlush = primaryMissionsEmpty
+  const primaryEmptyStateLabel = visibleDashboardView === 'open-saved' && !filter.trim() && retainedPagesAvailable
+    ? 'No open or saved pages.'
+    : undefined
+  const primaryEmptyStateHint = visibleDashboardView === 'open-saved'
+    ? filter.trim()
+      ? hiddenRetainedFilterMatch
+        ? 'Retained matches are available in All Tabs.'
+        : undefined
+      : retainedPagesAvailable
+        ? 'Retained pages are available in All Tabs.'
+        : undefined
+    : undefined
   // react-doctor-disable-next-line react-hooks-js/refs -- the mission grid refs are forwarded to the masonry container elements; they're attached by React, not read for render output.
   const missionSections = useMemo(() => dashboardMissionSections({
     bookmarkMatchedCards,
@@ -728,6 +785,8 @@ export function App() {
     historySearchSummary,
     isReady,
     matchedCards,
+    primaryEmptyStateHint,
+    primaryEmptyStateLabel,
     primaryMissionsEmpty,
     primaryMissionsRef,
     showBookmarkMatches,
@@ -735,13 +794,14 @@ export function App() {
     showHistoryRange,
     showPrimaryEmptyState: showSettledEmptyState,
     source,
-  }), [bookmarkMatchedCards, bookmarkMatchesFlush, filter, historyMatchedCards, historyMatchesFlush, historyResultsFilter, historySearchSummary, isReady, matchedCards, primaryMissionsEmpty, showBookmarkMatches, showHistoryMatches, showHistoryRange, showSettledEmptyState, source])
+  }), [bookmarkMatchedCards, bookmarkMatchesFlush, filter, historyMatchedCards, historyMatchesFlush, historyResultsFilter, historySearchSummary, isReady, matchedCards, primaryEmptyStateHint, primaryEmptyStateLabel, primaryMissionsEmpty, showBookmarkMatches, showHistoryMatches, showHistoryRange, showSettledEmptyState, source])
 
   useMissionOrderMemory({
     previousOrderRef,
     chipOrderRef,
     enabled: dynamicContentVisible,
     source,
+    view: visibleDashboardView,
     filter,
     matchedCards,
     bookmarkMatchedCards,
@@ -765,6 +825,8 @@ export function App() {
       <HoverStateProvider store={hoverStateStore}>
         <DashboardShell
           closedTabs={dynamicContentVisible ? closedTabs : EMPTY_CLOSED_TABS}
+          dashboardView={visibleDashboardView}
+          dashboardViewSelection={dashboardViewSelection}
           dismissedClosedGhosts={startupReady ? startupState.closedGhostDismissals : null}
           savedKeys={visibleDashboard?.savedKeys}
           retainedPageSurfaceMatches={visibleDashboard?.retainedPageSurfaceMatches}
@@ -778,7 +840,7 @@ export function App() {
           onCloseFiltered={onCloseFiltered}
           onDedupAll={onDedupAll}
           onRetryHistorySearch={retryHistorySearch}
-          onSourceChange={onSourceChange}
+          onDashboardViewChange={onDashboardViewChange}
           onTabsChange={onTabsChange}
           setFilterInput={handleFilterInputChange}
           setHistoryRange={setHistoryRange}

@@ -146,6 +146,8 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.equal(appRootContent.trim(), appRootContent)
   assert.match(appRootContent, /^<div data-tabout="dashboard-shell"/)
   assert.doesNotMatch(appRootContent, /filterFocusBootShell/)
+  const dashboardViewBootScript = '<script src="dist/dashboard-view-boot.js"></script>'
+  assert.ok(indexHtml.indexOf(dashboardViewBootScript) < indexHtml.indexOf('<div id="appRoot">'))
   assert.match(indexHtml, /rel="modulepreload" href="dist\/app\.js"/)
   assert.match(indexHtml, /href="dist\/assets\/app\.css"/)
   assert.match(indexHtml, /src="dist\/filter-focus-boot\.js"/)
@@ -812,7 +814,7 @@ test('built extension bundle is packaged locally', () => {
   const assetFiles = readdirSync('extension/dist/assets').sort()
   const assetJsFiles = assetFiles.filter((name) => name.endsWith('.js'))
   const indexHtml = readFileSync('extension/index.html', 'utf8')
-  assert.deepEqual(distFiles, ['app.js', 'assets', 'background.js', 'filter-focus-boot.js'])
+  assert.deepEqual(distFiles, ['app.js', 'assets', 'background.js', 'dashboard-view-boot.js', 'filter-focus-boot.js'])
   assert.ok(assetFiles.includes('app.css'))
   assert.equal(assetJsFiles.length, 8)
   assert.ok(assetJsFiles.some((name) => /^startup-order-debug-heavy-[A-Za-z0-9_-]+\.js$/.test(name)))

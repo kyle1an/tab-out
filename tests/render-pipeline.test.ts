@@ -2112,6 +2112,7 @@ test('useDashboardViewModels holds tabs chip order during the startup freeze and
   const base = {
     dashboard,
     source: 'tabs' as const,
+    view: 'all-tabs' as const,
     filter: '',
     historyRange: DEFAULT_HISTORY_RANGE,
     historyFilterEnabled: false,
@@ -2792,6 +2793,7 @@ test('history range changes retain same-query results while requiring an exact r
   }
   const options = {
     source: 'tabs' as const,
+    view: 'all-tabs' as const,
     filter: 'openai',
     historyRange: '7d',
     historyFilterEnabled: true,
@@ -2855,6 +2857,7 @@ test('failed history searches settle without becoming usable result snapshots', 
   }
   const options = {
     source: 'tabs' as const,
+    view: 'all-tabs' as const,
     filter: 'example',
     historyRange: '7d',
     historyFilterEnabled: true,
@@ -2969,6 +2972,7 @@ test('a history result suppressed by an open tab appears immediately after that 
   )
   const options = {
     source: 'tabs' as const,
+    view: 'all-tabs' as const,
     filter: 'world',
     historyRange: '7d',
     historyFilterEnabled: true,
@@ -3051,6 +3055,7 @@ test('filter companion results dedupe by tabs, then history, then bookmarks', as
   const viewModels = renderHookValue(() => useDashboardViewModels({
     dashboard,
     source: 'tabs',
+    view: 'all-tabs',
     filter: 'world',
     historyRange: '7d',
     historyFilterEnabled: true,

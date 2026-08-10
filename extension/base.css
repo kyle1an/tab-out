@@ -128,6 +128,43 @@ body {
    has-history context rules) and for arbitrary-variant selectors in
    sibling components (e.g. TabHistoryPanel's `.dashboard-shell.has-history`). */
 
+/* A direct Bookmarks URL is known before React can attach to the build-time
+   Tabs shell. The classic boot script marks the document root so the existing
+   DOM paints in its final one-column geometry without mutating hydrated nodes.
+   App removes the marker in a layout effect once the requested source settles. */
+html[data-tabout-startup-view='bookmarks'] .dashboard-shell.has-history {
+  --dashboard-page-gutter: inherit;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+html[data-tabout-startup-view='bookmarks'] [data-tabout='activation-history'] {
+  display: none;
+}
+
+html[data-tabout-startup-view='bookmarks'] .dashboard-shell.has-history .dashboard-main {
+  grid-column: 1;
+  padding-inline: var(--dashboard-page-gutter);
+}
+
+html[data-tabout-startup-view='bookmarks'] .dashboard-shell.has-history .dashboard-main > .pinned-top {
+  --header-shadow-padding-fade: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter) + var(--dashboard-scrollbar-size));
+  --header-shadow-left-reserve: 56px;
+  margin-left: calc(0px - var(--dashboard-edge-bleed));
+  padding-left: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter));
+  padding-right: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter) + var(--dashboard-scrollbar-size));
+  clip-path: none;
+}
+
+html[data-tabout-startup-view='bookmarks'] .dashboard-shell.has-history [data-tabout='filter-query'] [data-tabout-part='input'] {
+  width: 17.5rem;
+}
+
+html[data-tabout-startup-view='bookmarks'] .dashboard-shell.has-history .dashboard-main > .scroll-region {
+  margin-left: calc(0px - var(--dashboard-edge-bleed) - var(--dashboard-card-shadow-bleed));
+  padding-left: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter) + var(--dashboard-card-shadow-bleed));
+}
+
 /* The trigger is scoped to each dashboard main so a future second dashboard
    instance cannot bind its header animation to another instance's scroller. */
 .dashboard-main {
@@ -179,6 +216,7 @@ body {
   }
 }
 
+html[data-tabout-startup-view='bookmarks'] .dashboard-shell.has-history .dashboard-main > .pinned-top::after,
 .dashboard-shell.is-bookmarks .dashboard-main > .pinned-top::after {
   mask-image: linear-gradient(
     to right,

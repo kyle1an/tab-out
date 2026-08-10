@@ -13,6 +13,82 @@ test('dashboard avoids eager tooltip measurement surfaces', async ({ page }) => 
   expect(pageErrors).toEqual([])
 })
 
+for (const viewport of [
+  { label: 'wide', width: 1200 },
+  { label: 'compressed', width: 920 },
+  { label: 'narrow', width: 800 },
+]) {
+  test(`direct Bookmarks URL keeps the filter in its first-paint position at ${viewport.label} layout`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: 800 })
+    await page.addInitScript(() => {
+      const measurements = {
+        count: 0,
+        maxLeft: Number.NEGATIVE_INFINITY,
+        maxTop: Number.NEGATIVE_INFINITY,
+        maxWidth: Number.NEGATIVE_INFINITY,
+        minLeft: Number.POSITIVE_INFINITY,
+        minTop: Number.POSITIVE_INFINITY,
+        minWidth: Number.POSITIVE_INFINITY,
+      }
+      Reflect.set(window, '__tabOutBookmarksFilterPositions', measurements)
+
+      const sampleFilterPosition = () => {
+        const input = document.querySelector('[data-tabout="filter-query"] [data-tabout-part="input"]')
+        if (input instanceof HTMLInputElement) {
+          const rect = input.getBoundingClientRect()
+          measurements.count += 1
+          measurements.maxLeft = Math.max(measurements.maxLeft, rect.left)
+          measurements.maxTop = Math.max(measurements.maxTop, rect.top)
+          measurements.maxWidth = Math.max(measurements.maxWidth, rect.width)
+          measurements.minLeft = Math.min(measurements.minLeft, rect.left)
+          measurements.minTop = Math.min(measurements.minTop, rect.top)
+          measurements.minWidth = Math.min(measurements.minWidth, rect.width)
+        }
+        requestAnimationFrame(sampleFilterPosition)
+      }
+      requestAnimationFrame(sampleFilterPosition)
+    })
+
+    await page.goto('/tests/fixtures/dashboard-resize.html?view=bookmarks&initialBookmarks=3&slowInitialStorage=1', {
+      waitUntil: 'domcontentloaded',
+    })
+
+    await expect(page.locator('[data-tabout="activation-history"]')).toBeHidden()
+    await expect(page.locator('[data-tabout="domain-card"][data-tabout-domain="bookmark-smoke-0001.test"]')).toBeVisible()
+    await expect(page.locator('html')).not.toHaveAttribute('data-tabout-startup-view')
+    await expect(page.locator('[data-tabout="activation-history"]')).toHaveCount(0)
+
+    const positions = await page.evaluate(() => {
+      const measurements = Reflect.get(window, '__tabOutBookmarksFilterPositions')
+      if (typeof measurements !== 'object' || measurements === null) {
+        throw new Error('Bookmarks filter-position measurements are unavailable')
+      }
+      const count = Reflect.get(measurements, 'count')
+      const maxLeft = Reflect.get(measurements, 'maxLeft')
+      const maxTop = Reflect.get(measurements, 'maxTop')
+      const maxWidth = Reflect.get(measurements, 'maxWidth')
+      const minLeft = Reflect.get(measurements, 'minLeft')
+      const minTop = Reflect.get(measurements, 'minTop')
+      const minWidth = Reflect.get(measurements, 'minWidth')
+      if (
+        typeof count !== 'number' ||
+        typeof maxLeft !== 'number' ||
+        typeof maxTop !== 'number' ||
+        typeof maxWidth !== 'number' ||
+        typeof minLeft !== 'number' ||
+        typeof minTop !== 'number' ||
+        typeof minWidth !== 'number'
+      ) throw new Error('Bookmarks filter-position measurements are invalid')
+      return { count, maxLeft, maxTop, maxWidth, minLeft, minTop, minWidth }
+    })
+
+    expect(positions.count).toBeGreaterThan(5)
+    expect(positions.maxLeft - positions.minLeft).toBeLessThanOrEqual(0.5)
+    expect(positions.maxTop - positions.minTop).toBeLessThanOrEqual(0.5)
+    expect(positions.maxWidth - positions.minWidth).toBeLessThanOrEqual(0.5)
+  })
+}
+
 test('toast renderer stays off startup and loads for the first notification', async ({
   page,
 }) => {

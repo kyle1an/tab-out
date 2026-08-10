@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Tab Out Resize Smoke</title>
+    <script src="/extension/dist/dashboard-view-boot.js"></script>
     <link rel="stylesheet" href="/extension/dist/assets/app.css" />
   </head>
   <body>
@@ -609,6 +610,8 @@
           }
         })]
 
+      if (fixtureParams.has('retainedOnly')) tabs.splice(0)
+
       function workingSetActivityFromTabs() {
         const now = 1800000000000
         const records = {}
@@ -772,10 +775,14 @@
 
       let delayNextDashboardServiceState = false
       let dashboardServiceStateRequestCount = 0
+      window.__tabOutSmokeDashboardServiceStateRequestCount = () => dashboardServiceStateRequestCount
       const chromeApi = createFakeChromeApi({
         tabs,
         windows,
-        getBookmarkTree: () => bookmarkTree,
+        getBookmarkTree: () => {
+          if (fixtureParams.has('failBookmarks')) throw new Error('Fixture Bookmarks failure')
+          return bookmarkTree
+        },
         storageSeed: localStorageStore,
         getURL: (path) => `${window.location.origin}${path}`,
         sendMessage: async (message) => {

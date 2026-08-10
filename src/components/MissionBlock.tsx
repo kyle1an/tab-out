@@ -10,6 +10,8 @@ const PROGRESSIVE_CARD_CHUNK_SIZE = 24
 
 type MissionBlockProps = {
   cards: DashboardCardEntry[]
+  emptyStateHint?: string | undefined
+  emptyStateLabel?: string | undefined
   filter: string
   gridEmpty?: boolean | undefined
   gridId: string
@@ -106,6 +108,8 @@ function progressiveCardListKey(cards: DashboardCardEntry[]) {
 
 export function MissionBlock({
   cards,
+  emptyStateHint,
+  emptyStateLabel,
   filter,
   gridEmpty = false,
   gridId,
@@ -127,6 +131,8 @@ export function MissionBlock({
     <MissionsGrid empty={gridEmpty} id={gridId} ref={gridRef}>
       <Missions
         cards={progressiveCards.cards}
+        emptyStateHint={emptyStateHint}
+        emptyStateLabel={emptyStateLabel}
         filter={filter}
         source={source}
         showEmptyState={showEmptyState}

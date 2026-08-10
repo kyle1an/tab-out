@@ -28,15 +28,16 @@ The agent will walk you through it. Takes about 1 minute.
 - **Duplicate detection** flags when you have the same page open twice, with one-click Dedupe per card, a global Dedupe in the header, and a toolbar badge that shows how many duplicates can be safely closed and dedupes them when clicked
 - **Pin domain cards** to keep important sites at the top of the dashboard, plus per-card section and page-chip pins that keep important pages first inside their card
 - **Click any tab to jump to it** across Chrome windows
+- **Dashboard views** — start with **All Tabs**, narrow the page to open tabs and Saved Pages with **Open + Saved**, or browse **Bookmarks**
 - **Move or open with a modifier-click** — Cmd/Ctrl-click any chip or history row to pull that tab into the current window in the background, Cmd/Ctrl+Shift-click to pull it here and switch to it, or Shift-click to move the tab into a new Chrome window; if the page has no live tab, the current-window move gesture opens it in a new tab and Shift-click opens it in a new window
 - **Activation history column** — your chronological tab-switching path with working-set hints and recently closed rows you can restore or forget
 - **Saved pages** — explicitly keep a page on its card after the tab closes, and reopen it with one click (local state, not a Chrome bookmark)
-- **Closed-page retention** — genuinely closed pages remain on their usual cards for up to 30 days, using the same closed-chip presentation as Saved Pages; reopen them, save them permanently, or remove them from Tabs
+- **Closed-page retention** — genuinely closed pages remain available in **All Tabs** on their usual cards for up to 30 days, using the same closed-chip presentation as Saved Pages; reopen them, save them permanently, or remove them from Tabs
 - **Audio at a glance** — chips and history rows show Chrome-style play/mute indicators with a click-to-mute toggle
 - **Suspend tabs** — bulk-suspend a card from its actions menu, or suspend a single page from its right-click menu, through your own suspender extension
 - **Right-click menus** — copy a page title, save a page, or suspend it from any chip or history row; group chips can close all their URL variants at once
 - **Filter-match highlighting** — matched terms are marked in chip and history-row titles while you filter
-- **Live filter** — type in the filter input to show only matching dashboard items; the clear button restores the full source. Matching bookmarks and recent history appear below Tabs-source matches, with a remembered history range menu for last day/week/month/3 months
+- **Live filter** — type in the filter input to show only matching dashboard items; the clear button restores the selected Dashboard View. Matching bookmarks and recent history appear below Tabs-source matches, with a remembered history range menu for last day/week/month/3 months
 - **Keyboard-driven filter results** — typing keeps selection in the filter input; press Arrow Down to select the first visible result or Arrow Up to select the last, then use those arrows to move in result order and Arrow Left/Right to move by the results' on-screen positions. Enter opens or switches to the selected result (or the first result before selection), Shift+Enter uses a new window, Cmd/Ctrl+Enter brings it into the current window in the background, and Cmd/Ctrl+Shift+Enter brings it here and switches
 - **Filter keyboard shortcut** — press Cmd+K on macOS or Ctrl+K on Windows/Linux to focus the filter input
 - **Filter shortcut support** — assign "Open Tab Out with the filter focused" in `chrome://extensions/shortcuts` to open a fresh dashboard tab ready for typing

@@ -3,6 +3,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs'
 import { HeaderStats } from './HeaderStats'
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs'
+import { dashboardViewOptionId, type DashboardView } from '../extension/dashboard-view.js'
 import { isHistoryFilterEnabled } from '../extension/history-range.js'
 import { isFilterFocusShortcut } from '../extension/app-url.js'
 import {
@@ -19,18 +20,21 @@ import {
 import { cn } from '@/lib/utils'
 import type { DashboardSource, DashboardStats } from './types'
 
-interface SourceSwitchProps {
-  source: DashboardSource
-  onSourceChange: (source: DashboardSource) => void | Promise<void>
+interface DashboardViewSwitchProps {
+  dashboardView: DashboardView
+  onDashboardViewChange: (dashboardView: DashboardView) => void | Promise<void>
 }
 
-const SOURCE_SWITCH_OPTIONS = [
-  { value: 'tabs', label: 'Tabs' },
+const DASHBOARD_VIEW_OPTIONS = [
+  { value: 'open-saved', label: 'Open + Saved' },
+  { value: 'all-tabs', label: 'All Tabs' },
   { value: 'bookmarks', label: 'Bookmarks' },
 ] as const
 
-function isSourceSwitchValue(value: unknown): value is DashboardSource {
-  return typeof value === 'string' && SOURCE_SWITCH_OPTIONS.some((option) => option.value === value)
+const ALL_TABS_DESCRIPTION_ID = 'dashboard-view-all-tabs-description'
+
+function isDashboardViewValue(value: unknown): value is DashboardView {
+  return typeof value === 'string' && DASHBOARD_VIEW_OPTIONS.some((option) => option.value === value)
 }
 
 interface HeaderBarProps {
@@ -42,7 +46,8 @@ interface HeaderBarProps {
   onFilterChange: (filter: string) => void
   onCloseFiltered: () => void | Promise<void>
   onDedupAll: () => void | Promise<void>
-  onSourceChange: (source: DashboardSource) => void | Promise<void>
+  dashboardView: DashboardView
+  onDashboardViewChange: (dashboardView: DashboardView) => void | Promise<void>
   source?: DashboardSource
   sourceSelection?: DashboardSource
   ready?: boolean
@@ -154,31 +159,34 @@ function moveFilterResultSelection(
   return selectHorizontalFilterResult(current, query, positionedCandidates, direction)
 }
 
-function SourceSwitch({ source, onSourceChange }: SourceSwitchProps) {
-  function handleSourceChange(nextValue: unknown) {
-    if (!isSourceSwitchValue(nextValue)) return
-    if (nextValue === source) return
-    void onSourceChange(nextValue)
+function DashboardViewSwitch({ dashboardView, onDashboardViewChange }: DashboardViewSwitchProps) {
+  function handleDashboardViewChange(nextValue: unknown) {
+    if (!isDashboardViewValue(nextValue)) return
+    if (nextValue === dashboardView) return
+    void onDashboardViewChange(nextValue)
   }
 
   return (
     <Tabs
-      data-tabout="source-switch"
+      value={dashboardView}
+      data-tabout="dashboard-view"
       className="source-switch-root inline-flex box-border h-(--header-control-height) rounded-(--header-control-radius) border border-(--warm-gray) [corner-shape:squircle]"
-      value={source}
-      onValueChange={handleSourceChange}
+      onValueChange={handleDashboardViewChange}
     >
       <TabsList
         variant="line"
         className="source-switch relative z-0 flex h-full box-border items-center gap-1 rounded-none px-1 py-0"
-        aria-label="Dashboard source"
+        aria-label="Dashboard view"
       >
-        {SOURCE_SWITCH_OPTIONS.map((option) => (
+        {DASHBOARD_VIEW_OPTIONS.map((option) => (
           <TabsTrigger
             key={option.value}
-            data-tabout-part="source-option"
-            className="source-switch-option relative z-1 inline-flex h-8 flex-none box-border cursor-pointer select-none items-center justify-center whitespace-nowrap border-0 bg-transparent px-2 py-0 text-(length:--header-control-font-size) leading-(--header-control-line-height) font-normal text-muted-foreground outline-none font-[inherit] [transition:color_0.15s_ease] after:hidden before:pointer-events-none before:absolute before:inset-x-0 before:inset-y-1 before:rounded-[calc(var(--header-control-radius)-6px)] before:outline-2 before:-outline-offset-1 before:outline-transparent before:[corner-shape:squircle] before:content-[''] hover:text-foreground focus-visible:ring-0 focus-visible:outline-none focus-visible:before:outline-(--accent-amber) data-active:bg-transparent data-active:text-foreground data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-transparent"
+            id={dashboardViewOptionId(option.value)}
             value={option.value}
+            data-tabout-part="dashboard-view-option"
+            className="source-switch-option relative z-1 inline-flex h-8 flex-none box-border cursor-pointer select-none items-center justify-center whitespace-nowrap border-0 bg-transparent px-2 py-0 text-(length:--header-control-font-size) leading-(--header-control-line-height) font-normal text-muted-foreground outline-none font-[inherit] [transition:color_0.15s_ease] after:hidden before:pointer-events-none before:absolute before:inset-x-0 before:inset-y-1 before:rounded-[calc(var(--header-control-radius)-6px)] before:outline-2 before:-outline-offset-1 before:outline-transparent before:[corner-shape:squircle] before:content-[''] hover:text-foreground focus-visible:ring-0 focus-visible:outline-none focus-visible:before:outline-(--accent-amber) data-active:bg-transparent data-active:text-foreground data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-transparent"
+            aria-controls="dashboardMissions"
+            aria-describedby={option.value === 'all-tabs' ? ALL_TABS_DESCRIPTION_ID : undefined}
           >
             {option.label}
           </TabsTrigger>
@@ -186,19 +194,21 @@ function SourceSwitch({ source, onSourceChange }: SourceSwitchProps) {
         {/* Animates width (not scaleX): scaling would distort the squircle corners mid-slide. */}
         <TabsPrimitive.Indicator className="source-switch-indicator absolute top-1/2 left-0 z-0 h-6 w-(--active-tab-width) rounded-[calc(var(--header-control-radius)-6px)] bg-[rgba(115,115,115,0.12)] [corner-shape:squircle] transform-[translateX(var(--active-tab-left))_translateY(-50%)] transition-[width,transform] duration-200 ease-swift motion-reduce:transition-none" />
       </TabsList>
+      <span id={ALL_TABS_DESCRIPTION_ID} className="sr-only">Includes retained pages</span>
     </Tabs>
   )
 }
 
 export function HeaderBar({
+  dashboardView,
   filter,
   filterResultCandidates = EMPTY_FILTER_RESULT_CANDIDATES,
   filterResultSearchSettled = true,
   historyRange,
   onFilterChange,
   onCloseFiltered,
+  onDashboardViewChange,
   onDedupAll,
-  onSourceChange,
   source = 'tabs',
   sourceSelection = source,
   ready = true,
@@ -208,7 +218,7 @@ export function HeaderBar({
   const pendingFilterResultActionRef = useRef<PendingFilterResultAction | null>(null)
   const selectedFilterResultElementRef = useRef<HTMLElement | null>(null)
   const filterResultSelectionRef = useRef(EMPTY_FILTER_RESULT_SELECTION)
-  const filterResultSourceRef = useRef({ source, sourceSelection })
+  const filterResultContextRef = useRef({ dashboardView, source, sourceSelection })
   const filterResultNavigationEnabled = source === sourceSelection
   const availableCandidates = filterResultNavigationEnabled
     ? filterResultCandidates
@@ -220,11 +230,12 @@ export function HeaderBar({
   }
 
   useLayoutEffect(() => {
-    const previousSource = filterResultSourceRef.current
-    filterResultSourceRef.current = { source, sourceSelection }
+    const previousContext = filterResultContextRef.current
+    filterResultContextRef.current = { dashboardView, source, sourceSelection }
     if (
-      previousSource.source === source &&
-      previousSource.sourceSelection === sourceSelection
+      previousContext.dashboardView === dashboardView &&
+      previousContext.source === source &&
+      previousContext.sourceSelection === sourceSelection
     ) return
 
     pendingFilterResultActionRef.current = null
@@ -236,7 +247,7 @@ export function HeaderBar({
       selectedFilterResultElementRef.current,
       false,
     )
-  }, [source, sourceSelection])
+  }, [dashboardView, source, sourceSelection])
 
   useLayoutEffect(() => {
     const pendingAction = pendingFilterResultActionRef.current
@@ -438,7 +449,7 @@ export function HeaderBar({
               data-tabout-part="input"
               className={cn(
                 'h-8 w-full min-w-0 rounded-lg border border-transparent bg-transparent px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40',
-                'tab-filter relative z-1 box-border h-(--header-control-height) w-70 rounded-(--header-control-radius) border border-transparent bg-transparent px-3 py-1 text-(length:--header-control-font-size) leading-(--header-control-line-height) text-foreground caret-blue-500 shadow-none transition-colors outline-none font-[inherit] [corner-shape:squircle] placeholder:select-none placeholder:text-muted-foreground min-[900px]:max-[960px]:[.dashboard-shell.has-history_&]:w-55 md:text-sm [&::-webkit-search-cancel-button]:[-webkit-appearance:none]',
+                'tab-filter relative z-1 box-border h-(--header-control-height) w-70 rounded-(--header-control-radius) border border-transparent bg-transparent px-3 py-1 text-(length:--header-control-font-size) leading-(--header-control-line-height) text-foreground caret-blue-500 shadow-none transition-colors outline-none font-[inherit] [corner-shape:squircle] placeholder:select-none placeholder:text-muted-foreground min-[900px]:max-[960px]:[.dashboard-shell.has-history_&]:w-39 md:text-sm [&::-webkit-search-cancel-button]:[-webkit-appearance:none]',
               )}
               autoComplete="off"
               spellCheck="false"
@@ -471,7 +482,10 @@ export function HeaderBar({
           />
         </div>
         <div className="header-controls inline-flex items-center gap-2.5">
-          <SourceSwitch source={sourceSelection} onSourceChange={onSourceChange} />
+          <DashboardViewSwitch
+            dashboardView={dashboardView}
+            onDashboardViewChange={onDashboardViewChange}
+          />
         </div>
       </div>
     </header>

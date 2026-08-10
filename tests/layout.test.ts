@@ -105,7 +105,7 @@ test('domain card mission names use the heaviest title weight', () => {
   assert.doesNotMatch(missionNameMatch[0], /\bfont-semibold\b/)
 })
 
-test('source switch keeps one primed card-move refresh', () => {
+test('Dashboard View source transitions keep one primed card-move refresh', () => {
   const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
   const intakeSource = readFileSync(new URL('../src/extension/dashboard-intake.ts', import.meta.url), 'utf8')
 
@@ -252,7 +252,7 @@ test('app bootstrap admits one complete live startup frame after the generated s
   assert.match(appSource, /firstDashboardLayoutRecordedRef/)
   assert.match(appSource, /const \[dashboardContentVisible, setDashboardContentVisible\] = useState\(false\)/)
   assert.match(appSource, /requestAnimationFrame\(\(\) => setDashboardContentVisible\(true\)\)/)
-  assert.match(appSource, /const dynamicContentVisible = dashboardContentVisible && startupReady/)
+  assert.match(appSource, /const dynamicContentVisible = dashboardContentVisible && startupReady && dashboardViewRoutingReady/)
   assert.match(appSource, /const visibleDashboard = dynamicContentVisible \? dashboard : null/)
   assert.match(appSource, /waitForInitialState: !startupReady/)
   assert.match(appSource, /startupState\?\.phase !== 'ready'/)
@@ -286,7 +286,7 @@ test('app bootstrap admits one complete live startup frame after the generated s
   assert.match(intakeSource, /await refreshRunner\.requestEffect/)
   assert.match(intakeSource, /animatedRefreshPending/)
   assert.match(intakeSource, /buildTabsDashboardStartupSnapshotEffect\(/)
-  assert.match(viewModelSource, /useLayoutEffect\(\(\) => \{[\s\S]*previousOrderRef\.current\[source\]/)
+  assert.match(viewModelSource, /useLayoutEffect\(\(\) => \{[\s\S]*rememberMissionOrder\(\{[\s\S]*previousOrder: previousOrderRef\.current/)
   assert.match(startupFrameSource, /captureAppStartupFrameEffect = Effect\.fn/)
   assert.match(startupFrameSource, /loadDashboardLocalStateResultEffect\(\)/)
   assert.match(startupFrameSource, /loadHistoryRangePreferenceResultEffect\(\)/)
@@ -370,7 +370,7 @@ test('recently closed rows and dismissals stay behind startup readiness', () => 
   assert.match(closedTabsStarter[0], /getAppRuntime\(\)\.runCallback\(Effect\.scoped\(runClosedTabUpdates\(\)\)\)/)
 })
 
-test('source switch indicator keeps transform-based transition', () => {
+test('Dashboard View indicator keeps transform-based transition', () => {
   const source = readFileSync(new URL('../src/components/HeaderBar.tsx', import.meta.url), 'utf8')
 
   assert.match(source, /transform-\[translateX\(var\(--active-tab-left\)\)_translateY\(-50%\)\]/)

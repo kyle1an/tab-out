@@ -1,0 +1,1 @@
+new URLSearchParams(window.location.search).get(`view`)===`bookmarks`&&document.documentElement.setAttribute(`data-tabout-startup-view`,`bookmarks`);

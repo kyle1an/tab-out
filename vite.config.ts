@@ -27,6 +27,7 @@ const buildInputs: Record<string, string> =
   buildEntry === 'app'
     ? {
         app: resolve(repoRoot, 'src/app.tsx'),
+        'dashboard-view-boot': resolve(repoRoot, 'src/extension/dashboard-view-boot.ts'),
         'filter-focus-boot': resolve(repoRoot, 'src/extension/filter-focus-boot.ts'),
       }
     : buildEntry === 'background'

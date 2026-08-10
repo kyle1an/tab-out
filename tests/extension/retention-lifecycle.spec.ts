@@ -196,7 +196,7 @@ async function closePageAndWaitForRetention(
   )).retainedPage
 }
 
-test('real chrome APIs retain, present, and remove a closed internal page', async ({
+test('a clean dashboard shows retained pages and Open + Saved can focus them out', async ({
   installedExtension,
 }) => {
   const targetUrl = 'chrome://settings/privacy'
@@ -214,7 +214,22 @@ test('real chrome APIs retain, present, and remove a closed internal page', asyn
   const chip = dashboard.locator('[data-tabout="page-chip"]')
     .filter({ hasText: retainedPage.title })
     .first()
+  await expect(dashboard.getByRole('tab', { name: 'All Tabs' }))
+    .toHaveAttribute('data-active', '')
   await expect(chip).toBeVisible()
+  expect(new URL(dashboard.url()).searchParams.get('view')).toBeNull()
+
+  await dashboard.getByRole('tab', { name: 'Open + Saved' }).click()
+  await expect(dashboard.getByRole('tab', { name: 'Open + Saved' }))
+    .toHaveAttribute('data-active', '')
+  await expect(chip).toHaveCount(0)
+  expect(new URL(dashboard.url()).searchParams.get('view')).toBe('open-saved')
+
+  await dashboard.getByRole('tab', { name: 'All Tabs' }).click()
+  await expect(dashboard.getByRole('tab', { name: 'All Tabs' }))
+    .toHaveAttribute('data-active', '')
+  await expect(chip).toBeVisible()
+  expect(new URL(dashboard.url()).searchParams.get('view')).toBeNull()
   const card = dashboard.locator('[data-tabout="domain-card"]', { has: chip })
   await expect(card).toContainText('1 closed')
   await expect(chip).not.toHaveAttribute('aria-label', /open copies/)

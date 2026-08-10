@@ -54,6 +54,69 @@ type DirectPointerEntry = FirstPointerEntry & {
 const HISTORY_REORDER_INITIAL_KEYS = ['stack:1:9103', 'stack:1:9102', 'stack:1:9101']
 const HISTORY_REORDER_NEXT_KEYS = ['stack:1:9101', 'stack:1:9103', 'stack:1:9102']
 
+async function dashboardServiceStateRequestCount(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const readCount = Reflect.get(window, '__tabOutSmokeDashboardServiceStateRequestCount')
+    if (typeof readCount !== 'function') throw new Error('Dashboard service-state counter is unavailable')
+    const count = Reflect.apply(readCount, window, [])
+    if (typeof count !== 'number') throw new Error('Dashboard service-state counter returned an invalid value')
+    return count
+  })
+}
+
+async function releaseDashboardViewFailure(page: Page, gateName: string): Promise<void> {
+  await page.evaluate((name) => {
+    const release = Reflect.get(window, name)
+    if (typeof release !== 'function') throw new Error(`Dashboard View failure gate ${name} is unavailable`)
+    Reflect.apply(release, window, [])
+  }, gateName)
+}
+
+async function installDashboardServiceStateGate(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const blocked = Promise.withResolvers<void>()
+    const gate = {
+      completedCount: 0,
+      release: blocked.resolve,
+      started: false,
+    }
+    Reflect.set(window, '__tabOutDashboardServiceStateGate', gate)
+
+    const runtime = window.chrome.runtime
+    const originalSendMessage = runtime.sendMessage.bind(runtime)
+    Reflect.set(runtime, 'sendMessage', async (...args: unknown[]) => {
+      const message = args.find((value) => (
+        typeof value === 'object' && value !== null &&
+        Reflect.get(value, 'type') === 'tab-out:get-dashboard-service-state'
+      ))
+      if (message) {
+        gate.started = true
+        await blocked.promise
+      }
+      const result = await Reflect.apply(originalSendMessage, runtime, args)
+      if (message) gate.completedCount += 1
+      return result
+    })
+  })
+}
+
+async function releaseDashboardServiceStateGate(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const gate = Reflect.get(window, '__tabOutDashboardServiceStateGate')
+    if (typeof gate !== 'object' || gate === null) throw new Error('Dashboard service-state gate is unavailable')
+    const release = Reflect.get(gate, 'release')
+    if (typeof release !== 'function') throw new Error('Dashboard service-state gate release is unavailable')
+    Reflect.apply(release, gate, [])
+  })
+}
+
+async function waitForDashboardServiceStateGate(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const gate = Reflect.get(window, '__tabOutDashboardServiceStateGate')
+    return typeof gate === 'object' && gate !== null && Reflect.get(gate, 'started') === true
+  })
+}
+
 async function historyReorderKeys(page: Page) {
   return page.locator('[data-tabout-layout-key^="stack:1:91"]').evaluateAll((rows) => (
     rows.map((row) => (row as HTMLElement).dataset.taboutLayoutKey || '')
@@ -353,7 +416,7 @@ async function measureDashboard(page: Page, width: number): Promise<DashboardGeo
   const readGeometry = () => page.evaluate(() => {
     const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-tabout="domain-card"]'))
     const rects = cards.map((card) => card.getBoundingClientRect()).filter((rect) => rect.width > 0)
-    const sourceSwitchRect = document.querySelector('[data-tabout="source-switch"]')?.getBoundingClientRect()
+    const sourceSwitchRect = document.querySelector('[data-tabout="dashboard-view"]')?.getBoundingClientRect()
     const headerControlsRect = document.querySelector('.header-controls')?.getBoundingClientRect()
     const missionsRect = document.querySelector('.missions:not(.missions-empty)')?.getBoundingClientRect()
     const round = (value: number) => Math.round(value * 100) / 100
@@ -1650,7 +1713,7 @@ test('filter keyboard navigation starts in the input and selects the first true 
   expect(leftBounds.x + leftBounds.width).toBeLessThanOrEqual(rightBounds.x + 1)
 })
 
-test('filter result ownership exposes a labelled accessibility group', async ({ page }) => {
+test('filter result ownership points to the selected Dashboard View panel', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
 
@@ -1658,8 +1721,8 @@ test('filter result ownership exposes a labelled accessibility group', async ({ 
   await input.fill('Example')
 
   await expect(input).toHaveAttribute('aria-controls', 'dashboardMissions')
-  await expect(page.locator('#dashboardMissions')).toHaveAttribute('role', 'group')
-  await expect(page.locator('#dashboardMissions')).toHaveAccessibleName('Filter results')
+  await expect(page.locator('#dashboardMissions')).toHaveAttribute('role', 'tabpanel')
+  await expect(page.locator('#dashboardMissions')).toHaveAccessibleName('All Tabs')
 })
 
 test('filter Enter activates the current query and primary-modifier Shift Enter brings the tab here', async ({ page }) => {
@@ -2086,7 +2149,7 @@ test('returning to Tabs cancels a pending Bookmarks source switch', async ({ pag
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
   await installBookmarkFetchGate(page)
 
-  const tabsSource = page.getByRole('tab', { name: 'Tabs' })
+  const tabsSource = page.getByRole('tab', { name: 'All Tabs' })
   const bookmarksSource = page.getByRole('tab', { name: 'Bookmarks' })
   await bookmarksSource.click()
   await waitForBookmarkFetch(page)
@@ -2107,6 +2170,387 @@ test('returning to Tabs cancels a pending Bookmarks source switch', async ({ pag
   await expect(bookmarksSource).not.toHaveAttribute('data-active', '')
   await expect(page.locator('[data-tabout="domain-card"][data-tabout-domain="bookmark-smoke-0001.test"]')).toHaveCount(0)
   await expect(page.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-03.com"]')).toHaveCount(1)
+})
+
+test('returning to Bookmarks cancels a pending Tabs source switch', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?view=bookmarks&initialBookmarks=1#reverse-cancellation')
+
+  const allTabsView = page.getByRole('tab', { name: 'All Tabs' })
+  const bookmarksView = page.getByRole('tab', { name: 'Bookmarks' })
+  const scrollRegion = page.getByRole('tabpanel')
+  const bookmarkCard = page.locator('[data-tabout="domain-card"][data-tabout-domain="bookmark-smoke-0001.test"]')
+  await expect(bookmarksView).toHaveAttribute('data-active', '')
+  await expect(bookmarkCard).toHaveCount(1)
+  await installDashboardServiceStateGate(page)
+
+  await allTabsView.click()
+  await waitForDashboardServiceStateGate(page)
+  await expect(allTabsView).toHaveAttribute('data-active', '')
+  await expect(scrollRegion).not.toHaveAttribute('aria-busy', 'true')
+  await expect(page.locator('[data-tabout="dashboard-shell"]')).toHaveAttribute('data-dashboard-view', 'bookmarks')
+  await expect.poll(() => page.evaluate(() => new URL(window.location.href).searchParams.get('view'))).toBeNull()
+
+  await bookmarksView.click()
+  await expect(bookmarksView).toHaveAttribute('data-active', '')
+  await expect(scrollRegion).not.toHaveAttribute('aria-busy', 'true')
+  await expect(bookmarkCard).toHaveCount(1)
+  await expect.poll(() => page.evaluate(() => new URL(window.location.href).searchParams.get('view'))).toBe('bookmarks')
+
+  await releaseDashboardServiceStateGate(page)
+  await expect.poll(() => page.evaluate(() => {
+    const gate = Reflect.get(window, '__tabOutDashboardServiceStateGate')
+    return typeof gate === 'object' && gate !== null ? Reflect.get(gate, 'completedCount') : null
+  })).toBe(1)
+  await expect(bookmarksView).toHaveAttribute('data-active', '')
+  await expect(page.locator('[data-tabout="dashboard-shell"]')).toHaveAttribute('data-dashboard-view', 'bookmarks')
+  await expect(bookmarkCard).toHaveCount(1)
+  await expect(page.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-03.com"]')).toHaveCount(0)
+})
+
+test('Dashboard Views focus retained pages locally without losing URL state', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?retainedFocus=1&filter=Retained%20Focus&view=open-saved#view-proof')
+
+  const openSavedView = page.getByRole('tab', { name: 'Open + Saved' })
+  const allTabsView = page.getByRole('tab', { name: 'All Tabs' })
+  const bookmarksView = page.getByRole('tab', { name: 'Bookmarks' })
+  const retainedPages = page.locator('[data-tabout-retained-page-identity]')
+  const scrollRegion = page.getByRole('tabpanel')
+  const emptyState = page.locator('#openTabsMissions output')
+
+  await expect(page.getByRole('tablist', { name: 'Dashboard view' })).toBeVisible()
+  await expect(openSavedView).toHaveAttribute('data-active', '')
+  await expect(openSavedView).toHaveAttribute('aria-controls', 'dashboardMissions')
+  await expect(scrollRegion).toHaveAttribute('aria-labelledby', 'dashboard-view-option-open-saved')
+  await expect(scrollRegion).toHaveAttribute('tabindex', '0')
+  await expect(retainedPages).toHaveCount(0)
+  await expect(emptyState).toContainText('No matches for “Retained Focus”.')
+  await expect(emptyState).toContainText('Retained matches are available in All Tabs.')
+  await expect.poll(() => page.evaluate(() => ({
+    filter: new URL(window.location.href).searchParams.get('filter'),
+    hash: window.location.hash,
+    view: new URL(window.location.href).searchParams.get('view'),
+  }))).toEqual({ filter: 'Retained Focus', hash: '#view-proof', view: 'open-saved' })
+  const historyLength = await page.evaluate(() => window.history.length)
+
+  const serviceStateReads = await dashboardServiceStateRequestCount(page)
+
+  await openSavedView.focus()
+  await openSavedView.press('End')
+  await expect(bookmarksView).toBeFocused()
+  await expect(openSavedView).toHaveAttribute('data-active', '')
+  await bookmarksView.press('Home')
+  await expect(openSavedView).toBeFocused()
+  await openSavedView.press('ArrowRight')
+  await expect(allTabsView).toBeFocused()
+  await expect(openSavedView).toHaveAttribute('data-active', '')
+  await allTabsView.press('ArrowLeft')
+  await expect(openSavedView).toBeFocused()
+  await expect(openSavedView).toHaveAttribute('data-active', '')
+  await openSavedView.press('ArrowRight')
+  await expect(allTabsView).toBeFocused()
+  await allTabsView.press('Enter')
+  await expect(allTabsView).toHaveAttribute('data-active', '')
+  await expect(allTabsView).toHaveAttribute('aria-describedby', 'dashboard-view-all-tabs-description')
+  await expect(page.locator('#dashboard-view-all-tabs-description')).toHaveText('Includes retained pages')
+  await expect(scrollRegion).toHaveAttribute('aria-labelledby', 'dashboard-view-option-all-tabs')
+  await expect(retainedPages).not.toHaveCount(0)
+  await expect.poll(() => page.evaluate(() => ({
+    filter: new URL(window.location.href).searchParams.get('filter'),
+    hash: window.location.hash,
+    view: new URL(window.location.href).searchParams.get('view'),
+  }))).toEqual({ filter: 'Retained Focus', hash: '#view-proof', view: null })
+  await expect.poll(() => dashboardServiceStateRequestCount(page)).toBe(serviceStateReads)
+  await expect.poll(() => page.evaluate(() => window.history.length)).toBe(historyLength)
+
+  await page.reload()
+  await expect(page.getByRole('tab', { name: 'All Tabs' })).toHaveAttribute('data-active', '')
+  await expect(page.locator('[data-tabout-retained-page-identity]')).not.toHaveCount(0)
+  await expect(page.locator('[data-tabout="filter-query"] input')).toHaveValue('Retained Focus')
+  await expect(page.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'dashboard-view-option-all-tabs')
+
+  await page.getByRole('tab', { name: 'All Tabs' }).press('ArrowLeft')
+  await expect(page.getByRole('tab', { name: 'Open + Saved' })).toBeFocused()
+  await expect(page.getByRole('tab', { name: 'All Tabs' })).toHaveAttribute('data-active', '')
+  await page.getByRole('tab', { name: 'Open + Saved' }).press('Space')
+  await expect(page.getByRole('tab', { name: 'Open + Saved' })).toHaveAttribute('data-active', '')
+  await expect(page.locator('[data-tabout-retained-page-identity]')).toHaveCount(0)
+  await expect.poll(() => page.evaluate(() => ({
+    filter: new URL(window.location.href).searchParams.get('filter'),
+    hash: window.location.hash,
+    view: new URL(window.location.href).searchParams.get('view'),
+  }))).toEqual({ filter: 'Retained Focus', hash: '#view-proof', view: 'open-saved' })
+  await expect.poll(() => page.evaluate(() => window.history.length)).toBe(historyLength)
+})
+
+test('default Dashboard View aliases canonicalize without dropping URL state', async ({ page }) => {
+  await page.addInitScript(() => {
+    const probe = {
+      initialLength: window.history.length,
+      pushStateCalls: 0,
+      replaceStateCalls: 0,
+    }
+    Reflect.set(window, '__tabOutViewHistoryProbe', probe)
+    const originalPushState = window.history.pushState.bind(window.history)
+    const originalReplaceState = window.history.replaceState.bind(window.history)
+    window.history.pushState = (...args) => {
+      probe.pushStateCalls += 1
+      return originalPushState(...args)
+    }
+    window.history.replaceState = (...args) => {
+      probe.replaceStateCalls += 1
+      return originalReplaceState(...args)
+    }
+  })
+
+  for (const view of ['all-tabs', 'unknown']) {
+    await page.goto(`/tests/fixtures/dashboard-resize.html?view=${view}&filter=tab-out&marker=${view}#canonical-view`)
+
+    await expect(page.getByRole('tab', { name: 'All Tabs' })).toHaveAttribute('data-active', '')
+    await expect.poll(() => page.evaluate(() => {
+      const url = new URL(window.location.href)
+      return {
+        filter: url.searchParams.get('filter'),
+        hash: url.hash,
+        marker: url.searchParams.get('marker'),
+        view: url.searchParams.get('view'),
+      }
+    })).toEqual({
+      filter: 'tab-out',
+      hash: '#canonical-view',
+      marker: view,
+      view: null,
+    })
+    await expect.poll(() => page.evaluate(() => {
+      const probe = Reflect.get(window, '__tabOutViewHistoryProbe')
+      if (typeof probe !== 'object' || probe === null) throw new Error('Dashboard View history probe is unavailable')
+      const initialLength = Reflect.get(probe, 'initialLength')
+      const pushStateCalls = Reflect.get(probe, 'pushStateCalls')
+      const replaceStateCalls = Reflect.get(probe, 'replaceStateCalls')
+      if (
+        typeof initialLength !== 'number' ||
+        typeof pushStateCalls !== 'number' ||
+        typeof replaceStateCalls !== 'number'
+      ) throw new Error('Dashboard View history probe is invalid')
+      return {
+        historyLengthUnchanged: window.history.length === initialLength,
+        pushStateCalls,
+        replaceStateCalls,
+      }
+    })).toEqual({
+      historyLengthUnchanged: true,
+      pushStateCalls: 0,
+      replaceStateCalls: 1,
+    })
+  }
+
+  await page.goto('/tests/fixtures/dashboard-resize.html?view=open-saved&filter=tab-out&marker=focused#canonical-view')
+  await expect(page.getByRole('tab', { name: 'Open + Saved' })).toHaveAttribute('data-active', '')
+  await expect.poll(() => page.evaluate(() => {
+    const url = new URL(window.location.href)
+    return {
+      filter: url.searchParams.get('filter'),
+      hash: url.hash,
+      marker: url.searchParams.get('marker'),
+      view: url.searchParams.get('view'),
+    }
+  })).toEqual({
+    filter: 'tab-out',
+    hash: '#canonical-view',
+    marker: 'focused',
+    view: 'open-saved',
+  })
+})
+
+test('Open + Saved explains an unfiltered retained-only dashboard', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?retainedFocus=1&retainedOnly=1&view=open-saved')
+
+  const emptyState = page.locator('#openTabsMissions output')
+  await expect(page.getByRole('tab', { name: 'Open + Saved' })).toHaveAttribute('data-active', '')
+  await expect(page.locator('[data-tabout-retained-page-identity]')).toHaveCount(0)
+  await expect(emptyState).toContainText('No open or saved pages.')
+  await expect(emptyState).toContainText('Retained pages are available in All Tabs.')
+
+  await page.getByRole('tab', { name: 'All Tabs' }).click()
+  await expect(page.locator('[data-tabout-retained-page-identity]')).not.toHaveCount(0)
+  await expect(emptyState).toHaveCount(0)
+})
+
+test('local Tabs-derived view changes preserve scroll and perform no service-state reads', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?retainedFocus=1&largeTabs=120&view=open-saved')
+
+  const scrollRegion = page.getByRole('tabpanel')
+  await expect.poll(() => page.locator('[data-tabout-domain^="bulk-tab-"]').count()).toBeGreaterThan(0)
+  const scrollTop = await scrollRegion.evaluate((element) => {
+    element.scrollTop = 700
+    return element.scrollTop
+  })
+  expect(scrollTop).toBeGreaterThan(0)
+  const serviceStateReads = await dashboardServiceStateRequestCount(page)
+
+  await page.getByRole('tab', { name: 'All Tabs' }).click()
+  await expect(page.locator('[data-tabout="dashboard-shell"]')).toHaveAttribute('data-dashboard-view', 'all-tabs')
+  await expect.poll(() => scrollRegion.evaluate((element) => element.scrollTop)).toBeCloseTo(scrollTop, 0)
+  await expect.poll(() => dashboardServiceStateRequestCount(page)).toBe(serviceStateReads)
+
+  await page.getByRole('tab', { name: 'Open + Saved' }).click()
+  await expect(page.locator('[data-tabout="dashboard-shell"]')).toHaveAttribute('data-dashboard-view', 'open-saved')
+  await expect.poll(() => scrollRegion.evaluate((element) => element.scrollTop)).toBeCloseTo(scrollTop, 0)
+  await expect.poll(() => dashboardServiceStateRequestCount(page)).toBe(serviceStateReads)
+})
+
+test('a successful All Tabs load keeps Bookmarks applied until the Tabs snapshot settles', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?view=bookmarks&initialBookmarks=1&marker=kept#reverse-success')
+
+  const allTabsView = page.getByRole('tab', { name: 'All Tabs' })
+  const bookmarksView = page.getByRole('tab', { name: 'Bookmarks' })
+  const scrollRegion = page.getByRole('tabpanel')
+  const dashboardShell = page.locator('[data-tabout="dashboard-shell"]')
+  const bookmarkCard = page.locator('[data-tabout="domain-card"][data-tabout-domain="bookmark-smoke-0001.test"]')
+  await expect(bookmarksView).toHaveAttribute('data-active', '')
+  await expect(bookmarkCard).toHaveCount(1)
+  await installDashboardServiceStateGate(page)
+
+  await allTabsView.click()
+  await waitForDashboardServiceStateGate(page)
+  await expect(allTabsView).toHaveAttribute('data-active', '')
+  await expect(scrollRegion).not.toHaveAttribute('aria-busy', 'true')
+  await expect(dashboardShell).toHaveAttribute('data-dashboard-view', 'bookmarks')
+  await expect(bookmarkCard).toHaveCount(1)
+  await expect.poll(() => page.evaluate(() => ({
+    hash: window.location.hash,
+    marker: new URL(window.location.href).searchParams.get('marker'),
+    view: new URL(window.location.href).searchParams.get('view'),
+  }))).toEqual({ hash: '#reverse-success', marker: 'kept', view: null })
+
+  await releaseDashboardServiceStateGate(page)
+  await expect(dashboardShell).toHaveAttribute('data-dashboard-view', 'all-tabs')
+  await expect(page.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-03.com"]')).toHaveCount(1)
+  await expect(bookmarkCard).toHaveCount(0)
+  await expect(allTabsView).toHaveAttribute('data-active', '')
+  await expect(scrollRegion).not.toHaveAttribute('aria-busy', 'true')
+})
+
+test('a failed Bookmarks view load restores the applied view and URL after marking Bookmarks busy', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?retainedFocus=1&initialBookmarks=1#rollback-proof')
+  await expect(page.getByRole('tab', { name: 'All Tabs' })).toHaveAttribute('data-active', '')
+  await expect(page.locator('[data-tabout-retained-page-identity]')).not.toHaveCount(0)
+
+  await page.evaluate(() => {
+    const failure = Promise.withResolvers<void>()
+    Reflect.set(window, '__tabOutBookmarkFailureRelease', () => failure.resolve())
+    window.chrome.bookmarks.getTree = async () => {
+      await failure.promise
+      throw new Error('Fixture Bookmarks failure')
+    }
+  })
+
+  const bookmarksView = page.getByRole('tab', { name: 'Bookmarks' })
+  const scrollRegion = page.getByRole('tabpanel')
+  await bookmarksView.click()
+  await expect(bookmarksView).toHaveAttribute('data-active', '')
+  await expect(scrollRegion).toHaveAttribute('aria-busy', 'true')
+  await expect.poll(() => page.evaluate(() => ({
+    hash: window.location.hash,
+    view: new URL(window.location.href).searchParams.get('view'),
+  }))).toEqual({ hash: '#rollback-proof', view: 'bookmarks' })
+  await releaseDashboardViewFailure(page, '__tabOutBookmarkFailureRelease')
+
+  await expect(page.getByText('Could not switch view', { exact: true })).toBeVisible()
+  await expect(page.getByRole('tab', { name: 'All Tabs' })).toHaveAttribute('data-active', '')
+  await expect(scrollRegion).not.toHaveAttribute('aria-busy', 'true')
+  await expect(page.locator('[data-tabout-retained-page-identity]')).not.toHaveCount(0)
+  await expect.poll(() => page.evaluate(() => ({
+    hash: window.location.hash,
+    view: new URL(window.location.href).searchParams.get('view'),
+  }))).toEqual({ hash: '#rollback-proof', view: null })
+  await expect(page.getByRole('tab', { name: 'All Tabs' })).toBeFocused()
+})
+
+test('a failed All Tabs view load restores Bookmarks without marking its applied content busy', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?view=bookmarks&initialBookmarks=1&marker=kept#reverse-rollback')
+
+  const bookmarksView = page.getByRole('tab', { name: 'Bookmarks' })
+  const allTabsView = page.getByRole('tab', { name: 'All Tabs' })
+  const scrollRegion = page.getByRole('tabpanel')
+  const bookmarkCard = page.locator('[data-tabout="domain-card"][data-tabout-domain="bookmark-smoke-0001.test"]')
+  await expect(bookmarksView).toHaveAttribute('data-active', '')
+  await expect(bookmarkCard).toHaveCount(1)
+  await expect(scrollRegion).not.toHaveAttribute('aria-busy', 'true')
+
+  await page.evaluate(() => {
+    const failure = Promise.withResolvers<void>()
+    Reflect.set(window, '__tabOutTabsFailureRelease', () => failure.resolve())
+    const runtime = window.chrome.runtime
+    const originalSendMessage = runtime.sendMessage.bind(runtime)
+    Reflect.set(runtime, 'sendMessage', async (...args: unknown[]) => {
+      const message = args.find((value) => (
+        typeof value === 'object' && value !== null &&
+        Reflect.get(value, 'type') === 'tab-out:get-dashboard-service-state'
+      ))
+      if (!message) return Reflect.apply(originalSendMessage, runtime, args)
+      await failure.promise
+      throw new Error('Fixture Tabs failure')
+    })
+  })
+
+  await allTabsView.click()
+  await expect(allTabsView).toHaveAttribute('data-active', '')
+  await expect(scrollRegion).not.toHaveAttribute('aria-busy', 'true')
+  await expect(page.locator('[data-tabout="dashboard-shell"]')).toHaveAttribute('data-dashboard-view', 'bookmarks')
+  await expect(bookmarkCard).toHaveCount(1)
+  await expect.poll(() => page.evaluate(() => ({
+    hash: window.location.hash,
+    marker: new URL(window.location.href).searchParams.get('marker'),
+    view: new URL(window.location.href).searchParams.get('view'),
+  }))).toEqual({ hash: '#reverse-rollback', marker: 'kept', view: null })
+  await releaseDashboardViewFailure(page, '__tabOutTabsFailureRelease')
+
+  await expect(page.getByText('Could not switch view', { exact: true })).toBeVisible()
+  await expect(bookmarksView).toHaveAttribute('data-active', '')
+  await expect(scrollRegion).not.toHaveAttribute('aria-busy', 'true')
+  await expect(page.locator('[data-tabout="dashboard-shell"]')).toHaveAttribute('data-dashboard-view', 'bookmarks')
+  await expect(bookmarkCard).toHaveCount(1)
+  await expect.poll(() => page.evaluate(() => ({
+    hash: window.location.hash,
+    marker: new URL(window.location.href).searchParams.get('marker'),
+    view: new URL(window.location.href).searchParams.get('view'),
+  }))).toEqual({ hash: '#reverse-rollback', marker: 'kept', view: 'bookmarks' })
+  await expect(bookmarksView).toBeFocused()
+})
+
+test('a failed direct Bookmarks load falls back to the default view and canonical URL', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?view=bookmarks&failBookmarks=1&marker=kept#startup-rollback')
+
+  await expect(page.getByRole('tab', { name: 'All Tabs' })).toHaveAttribute('data-active', '')
+  await expect(page.locator('html')).not.toHaveAttribute('data-tabout-startup-view')
+  await expect(page.getByRole('tabpanel')).not.toHaveAttribute('aria-busy', 'true')
+  await expect(page.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-03.com"]')).toHaveCount(1)
+  await expect.poll(() => page.evaluate(() => ({
+    hash: window.location.hash,
+    marker: new URL(window.location.href).searchParams.get('marker'),
+    view: new URL(window.location.href).searchParams.get('view'),
+  }))).toEqual({ hash: '#startup-rollback', marker: 'kept', view: null })
+})
+
+test('a persistent filtered Bookmarks startup failure rolls back the route and keeps the shell quiet', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?view=bookmarks&failBookmarks=1&filter=tab-out&marker=kept#filtered-startup-rollback')
+
+  await expect(page.getByRole('tab', { name: 'All Tabs' })).toHaveAttribute('data-active', '')
+  await expect(page.locator('html')).not.toHaveAttribute('data-tabout-startup-view')
+  await expect(page.getByRole('tabpanel')).not.toHaveAttribute('aria-busy', 'true')
+  await expect(page.locator('[data-tabout="domain-card"]')).toHaveCount(0)
+  await expect(page.locator('[data-tabout="filter-query"] input')).toHaveValue('tab-out')
+  await expect.poll(() => page.evaluate(() => ({
+    filter: new URL(window.location.href).searchParams.get('filter'),
+    hash: window.location.hash,
+    marker: new URL(window.location.href).searchParams.get('marker'),
+    view: new URL(window.location.href).searchParams.get('view'),
+  }))).toEqual({
+    filter: 'tab-out',
+    hash: '#filtered-startup-rollback',
+    marker: 'kept',
+    view: null,
+  })
 })
 
 test('filter Enter cannot activate stale Tabs results during a Bookmarks switch', async ({ page }) => {
@@ -2150,6 +2594,32 @@ test('a pending filter Enter is cancelled when the selected source changes', asy
     ).length
   ))).toBe(0)
 })
+
+for (const key of ['Enter', 'ArrowDown']) {
+  test(`a pending filter ${key} is cancelled when the Tabs-derived view changes`, async ({ page }) => {
+    await page.goto('/tests/fixtures/dashboard-resize.html')
+    await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+    await installBookmarkFetchGate(page)
+
+    const input = page.locator('[data-tabout="filter-query"] input')
+    await input.fill('Bookmark')
+    await input.press(key)
+    await waitForBookmarkFetch(page)
+    await expect(input).not.toHaveAttribute('aria-activedescendant', /.+/)
+
+    await page.getByRole('tab', { name: 'Open + Saved' }).click()
+    await expect(page.getByRole('tab', { name: 'Open + Saved' })).toHaveAttribute('data-active', '')
+    await releaseBookmarkFetchGate(page)
+
+    await expect(page.locator('#bookmarkMatchesMissions [data-tabout-filter-result]')).toHaveCount(1)
+    await expect(input).not.toHaveAttribute('aria-activedescendant', /.+/)
+    await expect.poll(() => page.evaluate(async () => (
+      (await window.chrome.tabs.query({})).filter(
+        (tab) => tab.url === 'https://bookmark-smoke-0001.test/docs/1',
+      ).length
+    ))).toBe(0)
+  })
+}
 
 test('a pending source switch rebuilds with the latest domain pins', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
@@ -2815,7 +3285,7 @@ test('global filtered close does not steal focus moved while closing settles', a
   const input = page.locator('[data-tabout="filter-query"] input')
   await input.fill('https://tab-out-smoke-02.com/docs/2')
   const closeFiltered = page.getByRole('button', { name: 'Close 1 matching open tab' })
-  const tabsSource = page.getByRole('tab', { name: 'Tabs' })
+  const tabsSource = page.getByRole('tab', { name: 'All Tabs' })
 
   await closeFiltered.click()
   await tabsSource.focus()

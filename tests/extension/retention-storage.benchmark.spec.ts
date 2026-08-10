@@ -1474,7 +1474,7 @@ async function openDashboardServiceController(
   const page = await installedExtension.context.newPage()
   const interceptedScriptPaths = new Set<string>()
   await page.route(
-    /\/dist\/(?:app|filter-focus-boot)\.js$/,
+    /\/dist\/(?:app|dashboard-view-boot|filter-focus-boot)\.js$/,
     async (route) => {
       interceptedScriptPaths.add(new URL(route.request().url()).pathname)
       await route.fulfill({
@@ -1490,6 +1490,7 @@ async function openDashboardServiceController(
   )
   expect([...interceptedScriptPaths].sort()).toEqual([
     '/dist/app.js',
+    '/dist/dashboard-view-boot.js',
     '/dist/filter-focus-boot.js',
   ])
   return page
@@ -2351,7 +2352,7 @@ async function measureColdSingleCloseState(
   let tabIds: readonly number[] = []
 
   await controlPage.route(
-    /\/dist\/(?:app|filter-focus-boot)\.js$/,
+    /\/dist\/(?:app|dashboard-view-boot|filter-focus-boot)\.js$/,
     async (route) => {
       interceptedScriptPaths.add(new URL(route.request().url()).pathname)
       await route.fulfill({
@@ -2382,6 +2383,7 @@ async function measureColdSingleCloseState(
     )
     expect([...interceptedScriptPaths].sort()).toEqual([
       '/dist/app.js',
+      '/dist/dashboard-view-boot.js',
       '/dist/filter-focus-boot.js',
     ])
 

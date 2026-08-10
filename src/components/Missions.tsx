@@ -7,12 +7,14 @@ import type { DashboardCardEntry, DashboardSource } from './types'
 
 interface MissionsProps {
   cards: DashboardCardEntry[]
+  emptyStateHint?: string | undefined
+  emptyStateLabel?: string | undefined
   filter?: string
   source?: DashboardSource
   showEmptyState?: boolean
 }
 
-function EmptyState({ source = 'tabs' }: { source?: DashboardSource }) {
+function EmptyState({ hint, label, source = 'tabs' }: { hint?: string | undefined, label?: string | undefined, source?: DashboardSource }) {
   const noun = dashboardSourceEmptyNoun(source)
   return (
     <output
@@ -20,12 +22,13 @@ function EmptyState({ source = 'tabs' }: { source?: DashboardSource }) {
       aria-atomic="true"
       className="[column-span:all] flex flex-col items-center justify-center gap-1.5 px-4 pt-10 pb-15 text-center"
     >
-      <span className="text-base font-normal text-foreground">No {noun}.</span>
+      <span className="text-base font-normal text-foreground">{label ?? `No ${noun}.`}</span>
+      {hint && <span className="text-sm font-normal text-muted-foreground">{hint}</span>}
     </output>
   )
 }
 
-function NoResultsState({ query = '' }: { query?: string }) {
+function NoResultsState({ hint, query = '' }: { hint?: string | undefined, query?: string }) {
   return (
     <output
       aria-live="polite"
@@ -33,14 +36,17 @@ function NoResultsState({ query = '' }: { query?: string }) {
       className="[column-span:all] flex flex-col items-center justify-center gap-1.5 px-4 pt-10 pb-15 text-center"
     >
       <span className={cn('text-base font-normal text-foreground', 'text-[15px]')}>{query ? `No matches for “${query}”.` : 'No matches.'}</span>
+      {hint && <span className="text-sm font-normal text-muted-foreground">{hint}</span>}
     </output>
   )
 }
 
-export function Missions({ cards, filter = '', source = 'tabs', showEmptyState = true }: MissionsProps) {
+export function Missions({ cards, emptyStateHint, emptyStateLabel, filter = '', source = 'tabs', showEmptyState = true }: MissionsProps) {
   if (!cards || cards.length === 0) {
     if (!showEmptyState) return null
-    return filter ? <NoResultsState query={filter} /> : <EmptyState source={source} />
+    return filter
+      ? <NoResultsState hint={emptyStateHint} query={filter} />
+      : <EmptyState hint={emptyStateHint} label={emptyStateLabel} source={source} />
   }
 
   const highlightTerms = highlightTermsForFilter(filter)

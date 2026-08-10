@@ -1,4 +1,4 @@
-import { Effect, Schema } from 'effect'
+import { Effect, Result, Schema } from 'effect'
 
 import { readAppStartupFilterIntent, type AppStartupFrame } from '../app-startup.js'
 import { appDashboardStore, fetchDashboardSnapshotEffect, fetchDashboardStartupSnapshotEffect, type MissionOrderMap } from './dashboard-intake.js'
@@ -69,17 +69,25 @@ export const captureAppStartupFrameEffect = Effect.fn(
     prefetchedServiceStateResult: serviceStateResult,
     previousOrder,
   }
+  const sourceSnapshotResult = source === 'tabs'
+    ? null
+    : yield* Effect.result(fetchDashboardSnapshotEffect(snapshotOptions))
+  const sourceSnapshot = sourceSnapshotResult && Result.isSuccess(sourceSnapshotResult)
+    ? sourceSnapshotResult.success
+    : null
+  const frameSource = sourceSnapshotResult && Result.isFailure(sourceSnapshotResult)
+    ? 'tabs'
+    : source
+  if (frameSource !== source) appDashboardStore.selectStartupSource(frameSource)
   const tabsSnapshot = yield* fetchDashboardStartupSnapshotEffect({
     ...snapshotOptions,
     source: 'tabs',
     // Tabs-side bookmark/history companions are visible only when Tabs is the
-    // selected source. A Bookmarks startup still captures the Tabs authorities
-    // needed by Activation History without reading hidden filter companions.
-    filter: source === 'tabs' ? filter : '',
+    // admitted source. A successful Bookmarks startup still captures the Tabs
+    // authorities needed by Activation History without reading hidden filter
+    // companions; a failed source must prepare the complete filtered fallback.
+    filter: frameSource === 'tabs' ? filter : '',
   })
-  const sourceSnapshot = source === 'tabs'
-    ? null
-    : yield* fetchDashboardSnapshotEffect(snapshotOptions)
   const snapshot = {
     ...tabsSnapshot,
     ...(sourceSnapshot ? { dashboard: sourceSnapshot.dashboard } : {}),
@@ -91,6 +99,6 @@ export const captureAppStartupFrameEffect = Effect.fn(
     historyRange: historyRangeResult.value,
     localState: localStateResult.state,
     snapshot,
-    source,
+    source: frameSource,
   } satisfies AppStartupFrame
 })

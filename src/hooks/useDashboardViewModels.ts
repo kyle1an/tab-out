@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, type RefObject } from 'react'
 import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { dashboardChipOrderAltKeyForChip, dashboardChipOrderKeyForChip } from '../extension/domain-card-view-model.js'
+import type { DashboardView } from '../extension/dashboard-view.js'
 import { canDisplayHistorySearchResults, canUseBookmarkSearchResults, canUseHistorySearchResults, isHistorySearchRequestSettled, shouldShowHistoryRange } from '../extension/filter-search.js'
 import { tabMatchesSourceFilter } from '../extension/filter-match.js'
 import { buildDashboardViewModel, dashboardChipPriorityFromWorkingSet, dedupeCompanionSearchTabs } from '../extension/render.js'
@@ -13,10 +14,10 @@ const EMPTY_DOMAIN_GROUPS: DomainGroup[] = []
 const EMPTY_CARD_ENTRIES: DashboardCardEntry[] = []
 const EMPTY_CHIP_ORDER_BY_CARD: DashboardChipOrderByCard = new Map()
 
-function retainDomainGroupTabs(groups: DomainGroup[], tabs: DashboardData['realTabs']): DomainGroup[] {
-  const retainedTabs = new Set(tabs)
+function filterDomainGroupsToTabs(groups: DomainGroup[], tabs: DashboardData['realTabs']): DomainGroup[] {
+  const includedTabs = new Set(tabs)
   return groups.flatMap((group) => {
-    const groupTabs = group.tabs.filter((tab) => retainedTabs.has(tab))
+    const groupTabs = group.tabs.filter((tab) => includedTabs.has(tab))
     if (groupTabs.length === 0) return []
     return groupTabs.length === group.tabs.length ? [group] : [{ ...group, tabs: groupTabs }]
   })
@@ -27,6 +28,7 @@ export type DashboardChipOrderMemoryMap = Record<DashboardSource, DashboardChipO
 type DashboardViewModelOptions = {
   dashboard: DashboardData | null
   source: DashboardSource
+  view: DashboardView
   filter: string
   historyRange: string
   historyFilterEnabled: boolean
@@ -39,10 +41,32 @@ type DashboardViewModelOptions = {
   freezeTabsChipOrder?: boolean
 }
 
-export function useDashboardViewModels({ dashboard, source, filter, historyRange, historyFilterEnabled, historySearchPending = false, isReady, chipOrder, workingSet, pinnedSections, pinnedPageChips, freezeTabsChipOrder }: DashboardViewModelOptions) {
+export function useDashboardViewModels({ dashboard, source, view, filter, historyRange, historyFilterEnabled, historySearchPending = false, isReady, chipOrder, workingSet, pinnedSections, pinnedPageChips, freezeTabsChipOrder }: DashboardViewModelOptions) {
   const filterSearchOptions = { source, filter, historyRange, historyFilterEnabled }
-  const realTabs = dashboard?.realTabs || EMPTY_TABS
-  const domainGroups = dashboard?.domainGroups || EMPTY_DOMAIN_GROUPS
+  const fullRealTabs = dashboard?.realTabs || EMPTY_TABS
+  const fullDomainGroups = dashboard?.domainGroups || EMPTY_DOMAIN_GROUPS
+  const hidesRetainedPages = source === 'tabs' && view === 'open-saved'
+  const tabsProjection = useMemo(
+    () => {
+      if (!hidesRetainedPages) {
+        return {
+          realTabs: fullRealTabs,
+          domainGroups: fullDomainGroups,
+        }
+      }
+      const realTabs = fullRealTabs.filter((tab) => tab.sourceType !== 'retained-page')
+      return {
+        realTabs,
+        domainGroups: filterDomainGroupsToTabs(fullDomainGroups, realTabs),
+      }
+    },
+    [fullDomainGroups, fullRealTabs, hidesRetainedPages],
+  )
+  const realTabs = tabsProjection.realTabs
+  const domainGroups = tabsProjection.domainGroups
+  const retainedPagesAvailable = hidesRetainedPages && fullRealTabs.some((tab) => tab.sourceType === 'retained-page')
+  const hiddenRetainedFilterMatch = retainedPagesAvailable && filter.trim() !== '' && fullRealTabs.some((tab) =>
+    tab.sourceType === 'retained-page' && tabMatchesSourceFilter(tab, filter))
   const currentWindowId = dashboard?.currentWindowId ?? null
   const bookmarkTabs = dashboard?.bookmarkTabs || EMPTY_TABS
   const bookmarkDomainGroups = dashboard?.bookmarkDomainGroups || EMPTY_DOMAIN_GROUPS
@@ -90,9 +114,9 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
       )
       return {
         bookmarkTabs: deduped.bookmarkTabs,
-        bookmarkDomainGroups: retainDomainGroupTabs(bookmarkDomainGroups, deduped.bookmarkTabs),
+        bookmarkDomainGroups: filterDomainGroupsToTabs(bookmarkDomainGroups, deduped.bookmarkTabs),
         historyTabs: deduped.historyTabs,
-        historyDomainGroups: retainDomainGroupTabs(historyDomainGroups, deduped.historyTabs),
+        historyDomainGroups: filterDomainGroupsToTabs(historyDomainGroups, deduped.historyTabs),
       }
     },
     [dashboard, source, filter, historyRange, historyFilterEnabled, realTabs, bookmarkTabs, bookmarkDomainGroups, historyTabs, historyDomainGroups],
@@ -177,6 +201,8 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
     showHistoryMatches,
     showHistoryRange: isReady && shouldShowHistoryRange(filterSearchOptions),
     showPrimaryEmptyState: !((showBookmarkMatches || showHistoryMatches) && matchedCards.length === 0),
+    retainedPagesAvailable,
+    hiddenRetainedFilterMatch,
   }
 }
 
@@ -185,6 +211,7 @@ type MissionOrderMemoryOptions = {
   chipOrderRef: RefObject<DashboardChipOrderMemoryMap>
   enabled: boolean
   source: DashboardSource
+  view: DashboardView
   filter: string
   matchedCards: DashboardCardEntry[]
   bookmarkMatchedCards: DashboardCardEntry[]
@@ -232,20 +259,72 @@ function chipOrderFromCards(cards: DashboardCardEntry[]): DashboardChipOrderByCa
   return orderByCard
 }
 
-export function useMissionOrderMemory({ previousOrderRef, chipOrderRef, enabled, source, filter, matchedCards, bookmarkMatchedCards, historyMatchedCards }: MissionOrderMemoryOptions): void {
+function mergeOrdinalMemory(current: ReadonlyMap<string, number>, observed: ReadonlyMap<string, number>): Map<string, number> {
+  const merged = new Map(current)
+  let nextOrder = Math.max(-1, ...merged.values()) + 1
+  const observedOrderAssignments = new Map<number, number>()
+
+  for (const [key, observedOrder] of observed) {
+    const currentOrder = merged.get(key)
+    if (currentOrder !== undefined) {
+      observedOrderAssignments.getOrInsert(observedOrder, currentOrder)
+      continue
+    }
+    const assignedOrder = observedOrderAssignments.get(observedOrder) ?? nextOrder++
+    observedOrderAssignments.set(observedOrder, assignedOrder)
+    merged.set(key, assignedOrder)
+  }
+
+  return merged
+}
+
+function mergeChipOrderMemory(current: DashboardChipOrderByCard, cards: DashboardCardEntry[]): DashboardChipOrderByCard {
+  const merged = new Map(current)
+  for (const [cardId, observedOrder] of chipOrderFromCards(cards)) {
+    const currentOrder = current.get(cardId)
+    merged.set(cardId, currentOrder ? mergeOrdinalMemory(currentOrder, observedOrder) : observedOrder)
+  }
+  return merged
+}
+
+type RememberMissionOrderOptions = Omit<MissionOrderMemoryOptions, 'previousOrderRef' | 'chipOrderRef' | 'enabled'> & {
+  previousOrder: MissionOrderMap
+  chipOrder: DashboardChipOrderMemoryMap
+}
+
+export function rememberMissionOrder({ previousOrder, chipOrder, source, view, filter, matchedCards, bookmarkMatchedCards, historyMatchedCards }: RememberMissionOrderOptions): void {
+  const preserveHiddenTabsOrder = source === 'tabs' && view === 'open-saved'
+  const observedCardOrder = new Map(matchedCards.map(({ group }, index) => [domainGroupCardId(group), index]))
+  previousOrder[source] = preserveHiddenTabsOrder
+    ? mergeOrdinalMemory(previousOrder.tabs, observedCardOrder)
+    : observedCardOrder
+  if (filter.trim() === '') {
+    chipOrder[source] = preserveHiddenTabsOrder
+      ? mergeChipOrderMemory(chipOrder.tabs, matchedCards)
+      : chipOrderFromCards(matchedCards)
+  }
+  if (source === 'tabs' && bookmarkMatchedCards.length > 0) {
+    previousOrder.bookmarks = new Map(bookmarkMatchedCards.map(({ group }, index) => [domainGroupCardId(group), index]))
+    chipOrder.bookmarks = chipOrderFromCards(bookmarkMatchedCards)
+  }
+  if (source === 'tabs' && historyMatchedCards.length > 0) {
+    previousOrder.history = new Map(historyMatchedCards.map(({ group }, index) => [domainGroupCardId(group), index]))
+    chipOrder.history = chipOrderFromCards(historyMatchedCards)
+  }
+}
+
+export function useMissionOrderMemory({ previousOrderRef, chipOrderRef, enabled, source, view, filter, matchedCards, bookmarkMatchedCards, historyMatchedCards }: MissionOrderMemoryOptions): void {
   useLayoutEffect(() => {
     if (!enabled) return
-    previousOrderRef.current[source] = new Map(matchedCards.map(({ group }, index) => [domainGroupCardId(group), index]))
-    if (filter.trim() === '') {
-      chipOrderRef.current[source] = chipOrderFromCards(matchedCards)
-    }
-    if (source === 'tabs' && bookmarkMatchedCards.length > 0) {
-      previousOrderRef.current.bookmarks = new Map(bookmarkMatchedCards.map(({ group }, index) => [domainGroupCardId(group), index]))
-      chipOrderRef.current.bookmarks = chipOrderFromCards(bookmarkMatchedCards)
-    }
-    if (source === 'tabs' && historyMatchedCards.length > 0) {
-      previousOrderRef.current.history = new Map(historyMatchedCards.map(({ group }, index) => [domainGroupCardId(group), index]))
-      chipOrderRef.current.history = chipOrderFromCards(historyMatchedCards)
-    }
-  }, [bookmarkMatchedCards, chipOrderRef, enabled, filter, historyMatchedCards, matchedCards, previousOrderRef, source])
+    rememberMissionOrder({
+      previousOrder: previousOrderRef.current,
+      chipOrder: chipOrderRef.current,
+      source,
+      view,
+      filter,
+      matchedCards,
+      bookmarkMatchedCards,
+      historyMatchedCards,
+    })
+  }, [bookmarkMatchedCards, chipOrderRef, enabled, filter, historyMatchedCards, matchedCards, previousOrderRef, source, view])
 }

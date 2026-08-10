@@ -26,6 +26,7 @@ This repo is a Chrome Manifest V3 extension. Treat `AGENTS.md` as the day-to-day
 - Dashboard page generation lives in `src/index-html.tsx`, beside `src/app.tsx`, because it renders UI rather than extension-layer logic; its static wrapper lives in `src/index-html.template.html`. `pnpm build` imports that wrapper as text and regenerates `extension/index.html`. The generator prerenders the same `AppRoot` that `src/app.tsx` attaches, so the generated shell and the client's first render share one component declaration.
 - Vite builds:
   - `src/app.tsx` to `extension/dist/app.js`
+  - `src/extension/dashboard-view-boot.ts` to `extension/dist/dashboard-view-boot.js`
   - `src/extension/filter-focus-boot.ts` to `extension/dist/filter-focus-boot.js`
   - `src/extension/background.ts` to `extension/dist/background.js`
   - `src/styles/app.css` plus extension styles to `extension/dist/assets/app.css`
@@ -125,7 +126,7 @@ pnpm dev
 - Place `data-tabout` and `data-tabout-part` near the front of JSX props, after element-defining props such as `type`, `role`, `href`, `value`, or `tabIndex`, and before `className`, accessibility props, and event handlers.
 - Use explicit `data-*` state attributes instead of semantic class names when a marker exists only for tests, QA, or state inspection and is not consumed by CSS, layout, animation, or runtime selectors.
 - Tests may use UI anchors for layout surfaces, repeated dashboard items, and extension/browser-smoke checks where role or text selectors are weak. Prefer role, label, or text selectors for true controls when those selectors are stable and user-meaningful.
-- Do not mass-retrofit UI anchors across untouched surfaces. Add or adjust anchors when changing or debugging that surface; a focused pass is acceptable only for frequently referenced top-level landmarks such as the dashboard shell, source switch, filter, Domain Card, Page Chip, Activation History, Working Set, tooltip content, or menu content.
+- Do not mass-retrofit UI anchors across untouched surfaces. Add or adjust anchors when changing or debugging that surface; a focused pass is acceptable only for frequently referenced top-level landmarks such as the dashboard shell, Dashboard View, filter, Domain Card, Page Chip, Activation History, Working Set, tooltip content, or menu content.
 - Add `corner-shape: squircle` to non-round UI elements that use `border-radius`.
 - Do not add squircle styling to true circles or pills such as `border-radius: 50%` or `999px`.
 - Squircle corners read less rounded than ordinary rounded corners. As a visual rule of thumb, a `4px` squircle looks similar to a `2px` non-squircle corner.

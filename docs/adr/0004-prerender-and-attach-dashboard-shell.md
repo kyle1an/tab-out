@@ -27,10 +27,12 @@ cannot participate in the client's attaching render.
   resolve. Recoverable hydration errors are logged as defects rather than
   suppressed.
 - The server and client's attaching render both use build-time defaults. Before
-  attachment, the classic boot script may seed the existing input's DOM value
-  from the URL and buffer edits without changing that render tree. React-owned
-  filter state, stored history range, cached dashboard data, and local pin state
-  arrive only after attachment.
+  attachment, classic boot scripts may seed the existing input's DOM value from
+  the URL and buffer edits without changing that render tree. A blocking head
+  bootstrap marks the document root for a direct Bookmarks URL before the
+  prerendered shell can paint, so CSS holds its one-column geometry until the
+  requested source settles. React-owned filter state, stored history range,
+  cached dashboard data, and local pin state arrive only after attachment.
 - Cached snapshot, local state, and history range cross one external startup
   boundary. The app applies them together before paint; dashboard, Activation
   History, Working Set, and recently closed rows remain one startup update.
@@ -44,9 +46,10 @@ cannot participate in the client's attaching render.
 ## Consequences
 
 `extension/index.html` grows from roughly 4.3 KB to 16.4 KB, while the app bundle
-remains roughly 759 KB. In exchange, the real header and reserved Activation
-History column paint before the bundle or storage, the input remains one DOM
-node through interactivity, and the structural replica is gone.
+remains roughly 759 KB. In exchange, the real header and Tabs-derived reserved
+Activation History column paint before the bundle or storage, a direct
+Bookmarks URL paints its final one-column shell geometry, the input remains one
+DOM node through interactivity, and the structural replica is gone.
 
 Top-level App changes now affect committed HTML as well as the client bundle.
 The build test guards direct root content and browser tests guard node identity,

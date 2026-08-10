@@ -14,6 +14,10 @@
        (chrome://settings/fonts). The Base UI toast uses the docs fallback stack.
        No web fonts are loaded. -->
 
+    <!-- This blocking local script marks a direct Bookmarks URL before the
+       prerendered Tabs shell exists, so its first paint uses Bookmarks geometry. -->
+    <script src="dist/dashboard-view-boot.js"></script>
+
     <!-- Vite bundles Tailwind plus the semantic extension styles from
        base.css into one packaged stylesheet. Component class names remain
        stable for code and design discussion. -->
