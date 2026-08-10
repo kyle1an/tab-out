@@ -145,6 +145,10 @@ test('extension HTML loads the Vite-built React entry', async () => {
   const appRootContent = indexHtml.slice(appRootStart, appRootEnd)
   assert.equal(appRootContent.trim(), appRootContent)
   assert.match(appRootContent, /^<div data-tabout="dashboard-shell"/)
+  assert.match(appRootContent, /data-tabout="tab-actions"/)
+  assert.match(appRootContent, /data-tabout-part="menu-trigger"/)
+  assert.match(appRootContent, /aria-label="Tab actions"/)
+  assert.match(appRootContent, /<button(?=[^>]*aria-label="Tab actions")(?=[^>]*disabled="")[^>]*>/)
   assert.doesNotMatch(appRootContent, /filterFocusBootShell/)
   const dashboardViewBootScript = '<script src="dist/dashboard-view-boot.js"></script>'
   assert.ok(indexHtml.indexOf(dashboardViewBootScript) < indexHtml.indexOf('<div id="appRoot">'))
@@ -828,10 +832,10 @@ test('built extension bundle is packaged locally', () => {
   assert.ok(assetJsFiles.some((name) => /^history-source-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^mountToast-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(!assetJsFiles.some((name) => /^PageChipContextMenuLoaded-[A-Za-z0-9_-]+\.js$/.test(name)))
-  assert.ok(assetJsFiles.some((name) => /^ReactStore-[A-Za-z0-9_-]+\.js$/.test(name)))
+  assert.ok(assetJsFiles.some((name) => /^utils-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^rolldown-runtime-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(!assetJsFiles.some((name) => /^TitleSuppressionTokenContextMenuLoaded-[A-Za-z0-9_-]+\.js$/.test(name)))
-  assert.ok(assetJsFiles.some((name) => /^getPseudoElementBounds-[A-Za-z0-9_-]+\.js$/.test(name)))
+  assert.ok(assetJsFiles.some((name) => /^createLucideIcon-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.deepEqual(readdirSync('extension').filter((name) => name.endsWith('.js')), [])
   assert.doesNotMatch(indexHtml, /config\.local\.js/)
 

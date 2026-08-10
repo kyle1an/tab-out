@@ -465,6 +465,97 @@ test('dashboard repacks across viewport sizes', async ({ page }) => {
   expect(pageErrors).toEqual([])
 })
 
+test('header Tab actions closes suspended tabs from Bookmarks with single-flight and zero feedback', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?initialBookmarks=1')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  const tabActions = page.locator('[data-tabout="tab-actions"]')
+  const trigger = tabActions.getByRole('button', { name: 'Tab actions' })
+  const dashboardView = page.locator('[data-tabout="dashboard-view"]')
+  await expect(trigger).toBeEnabled()
+  await expect.poll(() => page.evaluate(() => {
+    const triggerRect = document.querySelector('[data-tabout="tab-actions"]')?.getBoundingClientRect()
+    const dashboardViewRect = document.querySelector('[data-tabout="dashboard-view"]')?.getBoundingClientRect()
+    return triggerRect && dashboardViewRect
+      ? Math.round((dashboardViewRect.left - triggerRect.right) * 100) / 100
+      : null
+  })).toBe(10)
+
+  await page.getByRole('tab', { name: 'Bookmarks' }).click()
+  await expect(page.locator('[data-tabout="dashboard-shell"]')).toHaveAttribute('data-dashboard-view', 'bookmarks')
+  await expect(trigger).toBeEnabled()
+  await expect(dashboardView).toBeVisible()
+
+  const suspendedRawUrl = 'chrome-extension://suspender/suspended.html#ttl=Example&uri=https%3A%2F%2Fglobal-close.example.test%2Fdocs'
+  await page.evaluate(async (url) => {
+    await window.chrome.tabs.create({
+      active: false,
+      pinned: true,
+      url,
+      windowId: 1,
+    })
+
+    const tabsApi = window.chrome.tabs
+    const queryTabs = tabsApi.query.bind(tabsApi)
+    const blocked = Promise.withResolvers<void>()
+    const gate = {
+      queryCount: 0,
+      reentered: false,
+      release: blocked.resolve,
+      started: false,
+    }
+    Reflect.set(window, '__tabOutCloseSuspendedQueryGate', gate)
+    Reflect.set(tabsApi, 'query', async (...args: unknown[]) => {
+      gate.queryCount += 1
+      if (!gate.started) {
+        gate.started = true
+        const item = document.querySelector<HTMLElement>('[data-tabout-part="close-suspended-button"]')
+        if (!item) throw new Error('Close-suspended item is unavailable for reentry')
+        item.click()
+        gate.reentered = true
+      }
+      await blocked.promise
+      return Reflect.apply(queryTabs, tabsApi, args)
+    })
+  }, suspendedRawUrl)
+
+  await trigger.focus()
+  await page.keyboard.press('Enter')
+  let closeItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="close-suspended-button"]')
+  await expect(closeItem).toHaveText('Close all suspended tabs')
+  await expect(closeItem).toHaveAttribute('data-variant', 'default')
+  await expect(closeItem).not.toHaveAttribute('data-disabled', '')
+  await closeItem.click()
+
+  await expect.poll(() => page.evaluate(() => (
+    Reflect.get(window, '__tabOutCloseSuspendedQueryGate')?.started === true
+  ))).toBe(true)
+  await expect.poll(() => page.evaluate(() => (
+    Reflect.get(window, '__tabOutCloseSuspendedQueryGate')?.reentered === true
+  ))).toBe(true)
+  expect(await page.evaluate(() => (
+    Reflect.get(window, '__tabOutCloseSuspendedQueryGate')?.queryCount
+  ))).toBe(1)
+  await trigger.click()
+  closeItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="close-suspended-button"]')
+  await expect(closeItem).toHaveAttribute('data-disabled', '')
+
+  await page.evaluate(() => {
+    const release = Reflect.get(window, '__tabOutCloseSuspendedQueryGate')?.release
+    if (typeof release !== 'function') throw new Error('Close-suspended query gate is unavailable')
+    Reflect.apply(release, window, [])
+  })
+  await expect.poll(() => page.evaluate(async (url) => (
+    !(await window.chrome.tabs.query({})).some((tab) => tab.url === url)
+  ), suspendedRawUrl)).toBe(true)
+  await expect(page.getByText('Closed 1 tab', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Undo' })).toBeVisible()
+
+  await expect(closeItem).not.toHaveAttribute('data-disabled', '')
+  await closeItem.click()
+  await expect(page.getByText('Nothing suspended to close', { exact: true })).toBeVisible()
+})
+
 test('header stats keep counts and actions compact and accessible', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html?filter=Duplicate%20Stack')
 

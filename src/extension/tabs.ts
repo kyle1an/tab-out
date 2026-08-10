@@ -28,11 +28,15 @@ type SnapshotTab = Pick<chrome.tabs.Tab, 'url' | 'pendingUrl' | 'title' | 'pinne
 type SnapshotOptions = {
   includeTabOutUrls?: boolean
 }
+type ResolvedCloseOptions = SnapshotOptions & {
+  isSingleRemoveStillEligible?: (tab: chrome.tabs.Tab) => boolean | Promise<boolean>
+}
 type CloseOptions = {
   preserveGroups?: boolean
   preservePinnedTabOut?: boolean
 }
 type TargetCloseOptions = CloseOptions & {
+  allowedWindowIds?: ReadonlySet<number>
   requireSuspended?: boolean
 }
 type DedupeOptions = {
@@ -192,7 +196,10 @@ function emptyTabCloseResult(status: 'complete' | 'unknown'): TabCloseResult {
  */
 export const closeResolvedTabsEffect = Effect.fn('tabs.closeResolved')(function* (
   tabs: readonly chrome.tabs.Tab[],
-  { includeTabOutUrls = false }: SnapshotOptions = {},
+  {
+    includeTabOutUrls = false,
+    isSingleRemoveStillEligible,
+  }: ResolvedCloseOptions = {},
 ) {
   const seenIds = new Set<number>()
   const attemptedTabs = tabs.filter((tab) => {
@@ -214,10 +221,14 @@ export const closeResolvedTabsEffect = Effect.fn('tabs.closeResolved')(function*
       const expectedTab = attemptedTabsById.get(tabId)
       const liveTab = await getTab(tabId)
       if (!expectedTab || !liveTab) return false
-      return !!liveTabByValidatedId([liveTab], {
+      const validatedTab = liveTabByValidatedId([liveTab], {
         tabId,
         url: liveTabUrlForIdentity(expectedTab),
       })
+      if (!validatedTab) return false
+      return isSingleRemoveStillEligible
+        ? isSingleRemoveStillEligible(validatedTab)
+        : true
     },
   }))
   const removedTabs = attemptedTabs.filter((tab) => typeof tab.id === 'number' && removedIds.has(tab.id))
@@ -291,14 +302,20 @@ export const closeTabsByTargetsEffect = Effect.fn('tabs.closeByTargets')(functio
   opts: TargetCloseOptions = {},
 ) {
   if (targets.length === 0) return emptyTabCloseResult('complete')
-  const { preserveGroups = false, preservePinnedTabOut = true, requireSuspended = false } = opts
+  const {
+    allowedWindowIds,
+    preserveGroups = false,
+    preservePinnedTabOut = true,
+    requireSuspended = false,
+  } = opts
   const expectedUrlById = new Map(targets.map((target) => [target.tabId, target.tabUrl]))
   const browserTabs = yield* BrowserTabs
   const allTabsResult = yield* browserTabs.queryAllTabsResult()
   if (!allTabsResult.ok) return emptyTabCloseResult('unknown')
   const allTabs = allTabsResult.value
-  const toCloseTabs = allTabs.filter((tab) => {
+  const targetRemainsEligible = (tab: chrome.tabs.Tab) => {
     if (typeof tab.id !== 'number') return false
+    if (allowedWindowIds && !allowedWindowIds.has(tab.windowId)) return false
     const expectedUrl = expectedUrlById.get(tab.id)
     if (!expectedUrl) return false
     const rawUrl = liveTabUrlForIdentity(tab)
@@ -307,8 +324,12 @@ export const closeTabsByTargetsEffect = Effect.fn('tabs.closeByTargets')(functio
     if (requireSuspended && !isSuspended(rawUrl, effectiveUrl)) return false
     if (preserveGroups && isGroupedTab(tab)) return false
     return !(preservePinnedTabOut && tab.pinned && isTabOutPageUrl(effectiveUrl))
+  }
+  const toCloseTabs = allTabs.filter(targetRemainsEligible)
+  return yield* closeResolvedTabsEffect(toCloseTabs, {
+    includeTabOutUrls: true,
+    isSingleRemoveStillEligible: targetRemainsEligible,
   })
-  return yield* closeResolvedTabsEffect(toCloseTabs, { includeTabOutUrls: true })
 })
 
 export function closeTabsByTargetsResult(

@@ -2,6 +2,7 @@ import { Effect, Schema } from 'effect'
 
 import { getAppRuntime } from './app-runtime.js'
 import { BrowserTabs } from './browser-tabs-service.js'
+import { isBrowserInternalUrl } from './browser-url-policy.js'
 import { requestDashboardRefresh, settleDashboardRefresh } from './dashboard-intake.js'
 import { isClosedSavedDashboardTab } from './dashboard-source.js'
 import { isGroupedTab } from './groups.js'
@@ -189,6 +190,17 @@ function emptyTabActionResult(): TabActionResult {
   }
 }
 
+function unreadableTabCloseResult(): TabCloseResult {
+  return {
+    ok: false,
+    status: 'unknown',
+    value: [],
+    attemptedCount: 0,
+    removedCount: 0,
+    failedCount: 0,
+  }
+}
+
 const finishTabCloseAction = Effect.fn('tabActions.finishClose')(function* ({
   closeResult,
   kind = 'tabs',
@@ -320,6 +332,56 @@ export function closeSuspendedDomainTabs(
   options: CloseDomainTabsOptions,
 ): Promise<TabActionResult> {
   return runTabAction(runCloseSuspendedDomainTabs(options))
+}
+
+function closeAllSuspendedTabTargets(
+  tabs: readonly chrome.tabs.Tab[],
+  normalWindowIds: ReadonlySet<number>,
+): DashboardTabMutationTarget[] {
+  return tabs.flatMap((tab) => {
+    if (typeof tab.id !== 'number' || !normalWindowIds.has(tab.windowId)) return []
+    const rawUrl = liveTabUrlForIdentity(tab)
+    const effectiveUrl = unwrapSuspenderUrl(rawUrl)
+    if (!isSuspended(rawUrl, effectiveUrl) || isGroupedTab(tab)) return []
+    if (isBrowserInternalUrl(effectiveUrl) && !isTabOutPageUrl(effectiveUrl)) return []
+    if (tab.pinned && isTabOutPageUrl(effectiveUrl)) return []
+    return [{ tabId: tab.id, tabUrl: effectiveUrl }]
+  })
+}
+
+const runCloseAllSuspendedTabs = Effect.fn('tabActions.closeAllSuspendedTabs')(function* () {
+  const browserTabs = yield* BrowserTabs
+  const [allTabsResult, allWindowsResult] = yield* Effect.all([
+    browserTabs.queryAllTabsResult(),
+    browserTabs.getAllWindowsResult(),
+  ], { concurrency: 'unbounded' })
+
+  let closeResult: TabCloseResult
+  if (!allTabsResult.ok || !allWindowsResult.ok) {
+    closeResult = unreadableTabCloseResult()
+  } else {
+    const normalWindowIds = new Set(
+      allWindowsResult.value.flatMap((window) => (
+        typeof window.id === 'number' && window.type === 'normal' ? [window.id] : []
+      )),
+    )
+    const targets = closeAllSuspendedTabTargets(allTabsResult.value, normalWindowIds)
+    closeResult = yield* closeTabsByTargetsEffect(targets, {
+      allowedWindowIds: normalWindowIds,
+      preserveGroups: true,
+      preservePinnedTabOut: true,
+      requireSuspended: true,
+    })
+  }
+
+  return yield* finishTabCloseAction({
+    closeResult,
+    nothingMessage: 'Nothing suspended to close',
+  })
+})
+
+export function closeAllSuspendedTabs(): Promise<TabActionResult> {
+  return runTabAction(runCloseAllSuspendedTabs())
 }
 
 const suspendMutationTargetsEffect = Effect.fn('tabActions.suspendMutationTargets')(function* (

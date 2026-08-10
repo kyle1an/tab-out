@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { replaceDashboardRefreshForTesting } from '../src/extension/dashboard-intake.js'
-import { closeChipTarget, closeDomainTabs, closeExactTabSection, closeExactTabTargets, closeFilteredTabs, closeSuspendedDomainTabs, dedupeTabs, tabCloseProgressLabel } from '../src/extension/tab-actions.js'
+import { closeAllSuspendedTabs, closeChipTarget, closeDomainTabs, closeExactTabSection, closeExactTabTargets, closeFilteredTabs, closeSuspendedDomainTabs, dedupeTabs, tabCloseProgressLabel } from '../src/extension/tab-actions.js'
 import { closeHistoryEntry, focusHistoryEntryResult } from '../src/extension/tab-history.js'
 import { focusExactTabTargetResult, focusExistingTabTargetResult, tabFocusResultToastMessage } from '../src/extension/tab-focus.js'
 import { closeTabsByTargetsResult, closeTabsExactResult, focusExactTabOrOpenResult, focusTab, openTabUrl, openTabUrlInNewWindow, snapshotChromeTabs } from '../src/extension/tabs.js'
@@ -1008,6 +1008,234 @@ test('close suspended domain tabs preserves a target that woke before the action
     cleanup()
     ;(globalThis as { document?: unknown }).document = previousDocument
   }
+})
+
+test('close all suspended tabs applies the browser-wide eligibility policy', async () => {
+  const suspendedUrl = (effectiveUrl: string) => (
+    `chrome-extension://suspender/suspended.html#ttl=Example&uri=${encodeURIComponent(effectiveUrl)}`
+  )
+  const eligibleUrl = 'https://eligible.example.test/'
+  const pinnedUrl = 'https://pinned.example.test/'
+  const groupedUrl = 'https://grouped.example.test/'
+  const popupUrl = 'https://popup.example.test/'
+  const appUrl = 'https://app.example.test/'
+  const tabOutUrl = 'chrome-extension://tab-out/index.html'
+  const { calls, tabs } = createChromeMock([
+    { id: 1, windowId: 1, url: 'https://awake.example.test/', title: 'Awake', active: false, pinned: false, groupId: -1 },
+    { id: 2, windowId: 1, url: suspendedUrl(eligibleUrl), title: 'Eligible', active: false, pinned: false, groupId: -1 },
+    { id: 3, windowId: 1, url: suspendedUrl(pinnedUrl), title: 'Pinned audible active', active: true, audible: true, pinned: true, groupId: -1 },
+    { id: 4, windowId: 1, url: suspendedUrl(groupedUrl), title: 'Grouped', active: false, pinned: false, groupId: 7 },
+    { id: 5, windowId: 2, url: suspendedUrl(popupUrl), title: 'Popup', active: false, pinned: false, groupId: -1 },
+    { id: 6, windowId: 3, url: suspendedUrl(appUrl), title: 'App', active: false, pinned: false, groupId: -1 },
+    { id: 7, windowId: 1, url: suspendedUrl('chrome://settings/'), title: 'Internal', active: false, pinned: false, groupId: -1 },
+    { id: 8, windowId: 1, url: suspendedUrl('chrome-extension://other-extension/page.html'), title: 'Other extension', active: false, pinned: false, groupId: -1 },
+    { id: 9, windowId: 1, url: suspendedUrl(tabOutUrl), title: 'Pinned Tab Out', active: false, pinned: true, groupId: -1 },
+    { id: 10, windowId: 1, url: suspendedUrl(tabOutUrl), title: 'Ordinary Tab Out', active: false, pinned: false, groupId: -1 },
+    { id: 11, windowId: 1, url: 'chrome-extension://suspender/suspended.html#ttl=Missing%20URL', title: 'Malformed suspender page', active: false, pinned: false, groupId: -1 },
+    { id: 12, windowId: 1, url: 'chrome-extension://suspender/options.html', title: 'Extension page', active: false, pinned: false, groupId: -1 },
+  ])
+  ;(globalThis as any).chrome.windows.getAll = async () => [
+    { id: 1, type: 'normal' },
+    { id: 2, type: 'popup' },
+    { id: 3, type: 'app' },
+  ]
+
+  const result = await closeAllSuspendedTabs()
+
+  assert.deepEqual(calls.remove, [2, 3, 10])
+  assert.equal(calls.tabsQuery, 2)
+  assert.deepEqual(tabs.map((tab) => tab.id), [1, 4, 5, 6, 7, 8, 9, 11, 12])
+  assert.deepEqual(result, {
+    ok: true,
+    status: 'complete',
+    snapshot: [
+      {
+        url: eligibleUrl,
+        rawUrl: suspendedUrl(eligibleUrl),
+        title: 'Eligible',
+        pinned: false,
+        groupId: -1,
+        windowId: 1,
+      },
+      {
+        url: pinnedUrl,
+        rawUrl: suspendedUrl(pinnedUrl),
+        title: 'Pinned audible active',
+        pinned: true,
+        groupId: -1,
+        windowId: 1,
+      },
+      {
+        url: tabOutUrl,
+        rawUrl: suspendedUrl(tabOutUrl),
+        title: 'Ordinary Tab Out',
+        pinned: false,
+        groupId: -1,
+        windowId: 1,
+      },
+    ],
+    attemptedCount: 3,
+    removedCount: 3,
+    failedCount: 0,
+  })
+})
+
+test('close all suspended tabs preserves targets that wake or leave a normal window during revalidation', async () => {
+  const wakingUrl = 'https://waking.example.test/docs'
+  const movingUrl = 'https://moving.example.test/docs'
+  const suspendedUrl = (url: string) => (
+    'chrome-extension://suspender/suspended.html#uri=' + encodeURIComponent(url)
+  )
+  const { calls, tabs } = createChromeMock([
+    { id: 2, windowId: 1, url: suspendedUrl(wakingUrl), title: 'Waking', active: false, pinned: false, groupId: -1 },
+    { id: 3, windowId: 1, url: suspendedUrl(movingUrl), title: 'Moving', active: false, pinned: false, groupId: -1 },
+  ])
+  ;(globalThis as any).chrome.windows.getAll = async () => [
+    { id: 1, type: 'normal' },
+    { id: 2, type: 'popup' },
+  ]
+  const queryTabs = (globalThis as any).chrome.tabs.query.bind((globalThis as any).chrome.tabs)
+  let queryCount = 0
+  ;(globalThis as any).chrome.tabs.query = async () => {
+    queryCount += 1
+    if (queryCount === 2) {
+      tabs[0].url = wakingUrl
+      tabs[1].windowId = 2
+    }
+    return queryTabs()
+  }
+
+  const result = await closeAllSuspendedTabs()
+
+  assert.equal(calls.tabsQuery, 2)
+  assert.deepEqual(calls.remove, [])
+  assert.deepEqual(tabs.map((tab) => ({ id: tab.id, url: tab.url, windowId: tab.windowId })), [
+    { id: 2, url: wakingUrl, windowId: 1 },
+    { id: 3, url: suspendedUrl(movingUrl), windowId: 2 },
+  ])
+  assert.deepEqual(result, {
+    ok: true,
+    status: 'complete',
+    snapshot: [],
+    attemptedCount: 0,
+    removedCount: 0,
+    failedCount: 0,
+  })
+})
+
+test('close all suspended tabs preserves targets that become protected during fallback', async () => {
+  const suspendedUrl = (effectiveUrl: string) => (
+    'chrome-extension://suspender/suspended.html#uri=' + encodeURIComponent(effectiveUrl)
+  )
+  const managedUrl = 'https://managed.example.test/'
+  const groupedUrl = 'https://grouped.example.test/'
+  const wakesUrl = 'https://wakes.example.test/'
+  const movesUrl = 'https://moves.example.test/'
+  const tabOutUrl = 'chrome-extension://tab-out/index.html'
+  const { calls, tabs } = createChromeMock([
+    { id: 2, windowId: 1, url: suspendedUrl(managedUrl), title: 'Managed', active: false, pinned: false, groupId: -1 },
+    { id: 3, windowId: 1, url: suspendedUrl(groupedUrl), title: 'Becomes grouped', active: false, pinned: false, groupId: -1 },
+    { id: 4, windowId: 1, url: suspendedUrl(tabOutUrl), title: 'Becomes pinned', active: false, pinned: false, groupId: -1 },
+    { id: 5, windowId: 1, url: suspendedUrl(wakesUrl), title: 'Wakes', active: false, pinned: false, groupId: -1 },
+    { id: 6, windowId: 1, url: suspendedUrl(movesUrl), title: 'Moves', active: false, pinned: false, groupId: -1 },
+  ])
+  ;(globalThis as any).chrome.windows.getAll = async () => [
+    { id: 1, type: 'normal' },
+    { id: 2, type: 'popup' },
+  ]
+  const removeTab = (globalThis as any).chrome.tabs.remove.bind((globalThis as any).chrome.tabs)
+  ;(globalThis as any).chrome.tabs.remove = async (tabIds: number | number[]) => {
+    if (Array.isArray(tabIds)) throw new Error('Batch removal unavailable')
+    if (tabIds === 2) {
+      const groupedTab = tabs.find((tab) => tab.id === 3)
+      const pinnedTabOut = tabs.find((tab) => tab.id === 4)
+      const awakenedTab = tabs.find((tab) => tab.id === 5)
+      const movedTab = tabs.find((tab) => tab.id === 6)
+      groupedTab.groupId = 7
+      pinnedTabOut.pinned = true
+      awakenedTab.url = wakesUrl
+      movedTab.windowId = 2
+      throw new Error('Tab is managed')
+    }
+    await removeTab(tabIds)
+  }
+
+  const result = await closeAllSuspendedTabs()
+
+  assert.deepEqual(calls.remove, [])
+  assert.deepEqual(tabs.map((tab) => ({
+    groupId: tab.groupId,
+    id: tab.id,
+    pinned: tab.pinned,
+    url: tab.url,
+    windowId: tab.windowId,
+  })), [
+    { groupId: -1, id: 2, pinned: false, url: suspendedUrl(managedUrl), windowId: 1 },
+    { groupId: 7, id: 3, pinned: false, url: suspendedUrl(groupedUrl), windowId: 1 },
+    { groupId: -1, id: 4, pinned: true, url: suspendedUrl(tabOutUrl), windowId: 1 },
+    { groupId: -1, id: 5, pinned: false, url: wakesUrl, windowId: 1 },
+    { groupId: -1, id: 6, pinned: false, url: suspendedUrl(movesUrl), windowId: 2 },
+  ])
+  assert.deepEqual(result, {
+    ok: false,
+    status: 'failed',
+    snapshot: [],
+    attemptedCount: 5,
+    removedCount: 0,
+    failedCount: 5,
+  })
+})
+
+test('close all suspended tabs preserves confirmed Undo snapshots after a partial removal', async () => {
+  const keptUrl = 'https://kept.example.test/'
+  const closedUrl = 'https://closed.example.test/'
+  const suspendedUrl = (effectiveUrl: string) => (
+    `chrome-extension://suspender/suspended.html#uri=${encodeURIComponent(effectiveUrl)}`
+  )
+  const { calls, tabs } = createChromeMock([
+    { id: 2, windowId: 1, url: suspendedUrl(keptUrl), title: 'Kept', active: false, pinned: false, groupId: -1 },
+    { id: 3, windowId: 1, url: suspendedUrl(closedUrl), title: 'Closed', active: false, pinned: false, groupId: -1 },
+  ])
+  const removeTab = (globalThis as any).chrome.tabs.remove.bind((globalThis as any).chrome.tabs)
+  ;(globalThis as any).chrome.tabs.remove = async (tabIds: number | number[]) => {
+    if (Array.isArray(tabIds)) throw new Error('Batch removal unavailable')
+    if (tabIds === 2) throw new Error('Tab is managed')
+    await removeTab(tabIds)
+  }
+
+  const result = await closeAllSuspendedTabs()
+
+  assert.equal(calls.tabsQuery, 2)
+  assert.deepEqual(calls.remove, [3])
+  assert.deepEqual(tabs.map((tab) => tab.id), [2])
+  assert.equal(result.ok, false)
+  assert.equal(result.status, 'partial')
+  assert.equal(result.attemptedCount, 2)
+  assert.equal(result.removedCount, 1)
+  assert.equal(result.failedCount, 1)
+  assert.deepEqual(result.snapshot.map((tab) => ({ url: tab.url, rawUrl: tab.rawUrl })), [
+    { url: closedUrl, rawUrl: suspendedUrl(closedUrl) },
+  ])
+})
+
+test('close all suspended tabs reports a confirmed zero result when no target is eligible', async () => {
+  const { calls, tabs } = createChromeMock([
+    { id: 1, windowId: 1, url: 'https://awake.example.test/', title: 'Awake', active: true, pinned: false, groupId: -1 },
+  ])
+
+  const result = await closeAllSuspendedTabs()
+
+  assert.equal(calls.tabsQuery, 1)
+  assert.deepEqual(calls.remove, [])
+  assert.deepEqual(tabs.map((tab) => tab.id), [1])
+  assert.deepEqual(result, {
+    ok: true,
+    status: 'complete',
+    snapshot: [],
+    attemptedCount: 0,
+    removedCount: 0,
+    failedCount: 0,
+  })
 })
 
 test('focusTab asks the owning suspender extension to unsuspend an exact suspended match', async () => {
