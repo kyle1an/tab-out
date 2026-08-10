@@ -202,13 +202,6 @@ export function mutateSavedPagesStoreEffect<Value>(
   return savedPagesMutationStore.mutateEffect(mutation)
 }
 
-export function persistSavedPageMetadataUpdates(
-  baseStore: Partial<SavedPagesStore> | null | undefined,
-  mergedStore: Partial<SavedPagesStore> | null | undefined,
-): Promise<void> {
-  return savedPagesMutationStore.persistMetadataUpdates(baseStore, mergedStore)
-}
-
 export function persistSavedPageMetadataUpdatesEffect(
   baseStore: Partial<SavedPagesStore> | null | undefined,
   mergedStore: Partial<SavedPagesStore> | null | undefined,

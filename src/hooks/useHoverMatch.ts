@@ -4,10 +4,6 @@ import { createHoverStateStore } from '../components/DashboardInteractionContext
 import { createNativeTabHighlightController } from '../extension/native-tab-highlight.js'
 import type { HoverUrlSource } from '../components/types'
 
-function sameHoverUrls(a: readonly string[], b: readonly string[]) {
-  return a.length === b.length && a.every((url, index) => url === b[index])
-}
-
 /**
  * Owns the cross-dashboard hover-match state (which url/source is being hovered
  * and the related urls to highlight) together with the url preview it drives.
@@ -24,19 +20,13 @@ export function useHoverMatch() {
       ? [...new Set((matchUrls && matchUrls.length > 0 ? matchUrls : [nextUrl]).filter(Boolean))]
       : []
     const nextSource = nextUrls.length > 0 ? source : null
-    const current = hoverStateStore.getSnapshot()
-    if (current.url !== nextUrl || current.source !== nextSource || !sameHoverUrls(current.urls, nextUrls)) {
-      hoverStateStore.setSnapshot({ url: nextUrl, urls: nextUrls, source: nextSource })
-    }
+    hoverStateStore.setSnapshot({ url: nextUrl, urls: nextUrls, source: nextSource })
     setUrlPreview(nextUrl)
     return nativeTabHighlightController.setTarget(nextUrl ? tabId : null)
   }, [hoverStateStore, nativeTabHighlightController, setUrlPreview])
 
   const clearHoverUrlNow = useCallback(function clearHoverUrlNow() {
-    const current = hoverStateStore.getSnapshot()
-    if (current.url || current.urls.length > 0 || current.source) {
-      hoverStateStore.setSnapshot({ url: '', urls: [], source: null })
-    }
+    hoverStateStore.setSnapshot({ url: '', urls: [], source: null })
     clearUrlPreviewNow()
     return nativeTabHighlightController.clear()
   }, [clearUrlPreviewNow, hoverStateStore, nativeTabHighlightController])

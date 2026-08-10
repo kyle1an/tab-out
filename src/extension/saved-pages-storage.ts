@@ -154,7 +154,3 @@ export const loadSavedPagesStoreEffect = Effect.fn(
 )(function* () {
   return (yield* loadSavedPagesStoreResultEffect()).value
 })
-
-export function loadSavedPagesStore(): Promise<SavedPagesStore> {
-  return getAppRuntime().runPromise(loadSavedPagesStoreEffect())
-}

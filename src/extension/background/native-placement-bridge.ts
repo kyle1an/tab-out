@@ -1,5 +1,4 @@
 import {
-  Context,
   Effect,
   Layer,
   Queue,
@@ -162,22 +161,13 @@ export const handleNativePlacementBridgeMessageEffect = Effect.fn('nativePlaceme
   }
 })
 
-export class NativePlacementBridge extends Context.Service<NativePlacementBridge, {
-  readonly version: typeof NATIVE_PLACEMENT_BRIDGE_VERSION
-}>()('@tab-out/background/NativePlacementBridge') {
-  static layer(chromeApi: ChromeApi): Layer.Layer<NativePlacementBridge> {
-    return makeNativePlacementBridgeLayer(chromeApi)
-  }
-}
-
-function makeNativePlacementBridgeLayer(
+export function makeNativePlacementBridgeLayer(
   chromeApi: ChromeApi,
-): Layer.Layer<NativePlacementBridge> {
-  return Layer.effect(NativePlacementBridge, Effect.gen(function* () {
+): Layer.Layer<never> {
+  return Layer.effectDiscard(Effect.gen(function* () {
     const scope = yield* Effect.scope
     const runtimeApi = chromeApi.runtime
-    const service = NativePlacementBridge.of({ version: NATIVE_PLACEMENT_BRIDGE_VERSION })
-    if (!runtimeApi || typeof runtimeApi.connectNative !== 'function') return service
+    if (!runtimeApi || typeof runtimeApi.connectNative !== 'function') return
     let reconnectAttempt = 0
 
     const replyToNativeMessage = Effect.fn('NativePlacementBridge.reply')(function* (
@@ -276,7 +266,5 @@ function makeNativePlacementBridgeLayer(
       Effect.forever,
       Effect.forkIn(scope, { startImmediately: true }),
     )
-
-    return service
   }))
 }

@@ -11,10 +11,6 @@ export type ExistingTabTarget = PageTarget & {
   windowId?: number
 }
 
-export type ExactTabFocusResult = {
-  status: 'focused' | 'activated' | 'failed' | 'not-found' | 'unknown'
-}
-
 /**
  * `activated` is a real partial success: Chrome accepted the tab update but
  * rejected focusing its window. `failed` means the exact tab still existed
@@ -124,10 +120,6 @@ export const unsuspendExistingTabEffect = Effect.fn('tabFocus.unsuspendExistingT
   return (yield* applyUnsuspend(tab, tabTargetEffectiveUrl(target, tab.url || ''))) === 'ready'
 })
 
-export function unsuspendExistingTab(tab: chrome.tabs.Tab, target: PageTarget): Promise<boolean> {
-  return getAppRuntime().runPromise(unsuspendExistingTabEffect(tab, target))
-}
-
 /**
  * Focus a tab that the caller already resolved from a successful live-browser
  * read or move. The identity guard stays at this seam, but the caller does not
@@ -141,13 +133,6 @@ export const focusResolvedTabTargetEffect = Effect.fn('tabFocus.focusResolvedTar
   if (!match) return focusResult('not-found')
   return yield* focusMatchedTabResult(match, tabTargetEffectiveUrl(target, match.url || ''))
 })
-
-export function focusResolvedTabTargetResult(
-  tab: chrome.tabs.Tab,
-  target: ExistingTabTarget,
-): Promise<ExistingTabFocusResult> {
-  return getAppRuntime().runPromise(focusResolvedTabTargetEffect(tab, target))
-}
 
 export const focusExistingTabTargetEffect = Effect.fn('tabFocus.focusExistingTarget')(function* (
   target: ExistingTabTarget,
@@ -185,7 +170,7 @@ export const focusExactTabTargetEffect = Effect.fn('tabFocus.focusExactTarget')(
   return yield* focusMatchedTabResult(match, targetEffective)
 })
 
-export function focusExactTabTargetResult(url: string): Promise<ExactTabFocusResult> {
+export function focusExactTabTargetResult(url: string): Promise<ExistingTabFocusResult> {
   return getAppRuntime().runPromise(focusExactTabTargetEffect(url))
 }
 
@@ -215,7 +200,3 @@ export const focusTabTargetEffect = Effect.fn('tabFocus.focusTarget')(function* 
   if (!match) return false
   return (yield* focusMatchedTabResult(match, targetEffective)).status === 'focused'
 })
-
-export function focusTabTarget(url: string): Promise<boolean> {
-  return getAppRuntime().runPromise(focusTabTargetEffect(url))
-}

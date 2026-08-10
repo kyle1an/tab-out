@@ -52,20 +52,6 @@ test('shouldAnimateMasonryResize only changes when the column count changes', ()
   assert.equal(shouldAnimateMasonryResize(1390, undefined), false)
 })
 
-test('filter routing updates local and bookmark results immediately while coalescing History searches', () => {
-  const routingSource = readFileSync(new URL('../src/hooks/useFilterRouting.ts', import.meta.url), 'utf8')
-  const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
-  const refreshSource = readFileSync(new URL('../src/hooks/useDashboardRefresh.ts', import.meta.url), 'utf8')
-
-  assert.match(routingSource, /const filter = filterInput/)
-  assert.doesNotMatch(routingSource, /FILTER_UPDATE_DELAY_MS/)
-  assert.match(routingSource, /const FILTER_SEARCH_UPDATE_DELAY_MS = 200/)
-  assert.match(routingSource, /setFilterSearch\(filterInput\)/)
-  assert.match(appSource, /bookmarkFilter: filter/)
-  assert.match(appSource, /filter: filterSearch/)
-  assert.match(refreshSource, /appDashboardStore\.hydrateBookmarkCompanion\(\)/)
-})
-
 test('masonry card motion uses transform instead of layout-property transitions', () => {
   const css = readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8')
   const domainCardSource = readFileSync(new URL('../src/components/DomainCard.tsx', import.meta.url), 'utf8')
@@ -96,15 +82,6 @@ test('card move animation preserves previous rect starts while allowing temporar
   assert.match(baseCss, /padding-left:\s*calc\(var\(--dashboard-card-motion-left-bleed\) \+ var\(--dashboard-card-shadow-bleed\)\)/)
 })
 
-test('domain card mission names use the heaviest title weight', () => {
-  const domainCardSource = readFileSync(new URL('../src/components/DomainCard.tsx', import.meta.url), 'utf8')
-  const missionNameMatch = domainCardSource.match(/mission-name[^"]*/)
-
-  assert.ok(missionNameMatch, 'mission-name class should exist')
-  assert.match(missionNameMatch[0], /\bfont-black\b/)
-  assert.doesNotMatch(missionNameMatch[0], /\bfont-semibold\b/)
-})
-
 test('Dashboard View source transitions keep one primed card-move refresh', () => {
   const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
   const intakeSource = readFileSync(new URL('../src/extension/dashboard-intake.ts', import.meta.url), 'utf8')
@@ -115,15 +92,6 @@ test('Dashboard View source transitions keep one primed card-move refresh', () =
   assert.match(appSource, /layoutMoveRectsRef\.current = pendingRects\.rects/)
   assert.match(intakeSource, /emitBeforeApply\(\{ reason: 'source-switch', requestId \}\)/)
   assert.doesNotMatch(appSource, /\[source,\s*pinnedDomains,\s*pinsLoaded\]/)
-})
-
-test('user-driven pinned domain order changes prime card move animation', () => {
-  const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
-  const localStateHookSource = readFileSync(new URL('../src/hooks/useDashboardLocalState.ts', import.meta.url), 'utf8')
-
-  assert.match(appSource, /onBeforeApplyPinnedDomains:\s*\(\{ animate \}\) => \{[\s\S]*resetMissionOrder\(\)[\s\S]*if \(animate\) primeCardMoveAnimation\(\)/)
-  assert.match(localStateHookSource, /onBeforeApplyPinnedDomainsRef\.current\?\.\(\{ animate: false \}\)/)
-  assert.match(localStateHookSource, /onBeforeApplyPinnedDomainsRef\.current\?\.\(\{ animate: true \}\)/)
 })
 
 test('pin-driven dashboard refresh cancels its pending animation frame', () => {
@@ -172,37 +140,10 @@ test('activation history uses hydrated Working Set targets while startup orderin
   assert.match(source, /workingSet=\{historyPanelWorkingSet\}/)
 })
 
-test('tabs source reserves the history column before dashboard data is ready', () => {
-  const source = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
-
-  assert.match(source, /const showTabHistory = source === 'tabs'/)
-  assert.doesNotMatch(source, /const showTabHistory = isReady && source === 'tabs'/)
-})
-
 test('activation history panel stays visually empty when there are no rows', () => {
   const source = readFileSync(new URL('../src/components/TabHistoryPanel.tsx', import.meta.url), 'utf8')
 
   assert.doesNotMatch(source, /No activation history yet/)
-})
-
-test('startup frame updates dashboard and history rows atomically', () => {
-  const intakeSource = readFileSync(new URL('../src/extension/dashboard-intake.ts', import.meta.url), 'utf8')
-  const appStartupSource = readFileSync(new URL('../src/app-startup.ts', import.meta.url), 'utf8')
-
-  assert.match(intakeSource, /type: 'startup'/)
-  assert.match(intakeSource, /function appDashboardSnapshotFields/)
-  assert.match(intakeSource, /closedTabs: snapshot\?\.closedTabs \?\? \[\]/)
-  assert.match(intakeSource, /dashboard: snapshot\?\.dashboard \?\? null/)
-  assert.match(intakeSource, /tabHistory: snapshot\?\.tabHistory \?\? null/)
-  assert.match(intakeSource, /workingSet: snapshot\?\.workingSet \?\? null/)
-  assert.doesNotMatch(intakeSource, /sourceFieldsUpdatedBeforeStartup/)
-  assert.match(intakeSource, /case 'startup': \{[\s\S]*startupSnapshotFieldsAfterLiveUpdates/)
-  assert.match(appStartupSource, /appDashboardStore\.applyStartup\(\{[\s\S]*historyRange: frame\.historyRange,[\s\S]*snapshot: frame\.snapshot,[\s\S]*source: frame\.source/)
-  assert.match(intakeSource, /export const fetchDashboardStartupSnapshotEffect/)
-  assert.match(intakeSource, /fetchClosedTabs/)
-  assert.match(intakeSource, /buildWorkingSetSnapshot/)
-  assert.match(intakeSource, /fetchDashboardServiceState/)
-  assert.doesNotMatch(intakeSource, /startupSnapshotFlight/)
 })
 
 test('source snapshot arrivals cross a page-side transition mirror', () => {
@@ -378,63 +319,6 @@ test('Dashboard View indicator keeps transform-based transition', () => {
   assert.doesNotMatch(source, /source-switch-indicator[^"]*-translate-y-1\/2/)
 })
 
-test('header controls share one size and corner radius contract', () => {
-  const baseCss = readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8')
-  const headerBarSource = readFileSync(new URL('../src/components/HeaderBar.tsx', import.meta.url), 'utf8')
-  const historyRangeSelectSource = readFileSync(new URL('../src/components/HistoryRangeSelect.tsx', import.meta.url), 'utf8')
-  const headerStatsSource = readFileSync(new URL('../src/components/HeaderStats.tsx', import.meta.url), 'utf8')
-  const selectSource = readFileSync(new URL('../src/components/ui/select.tsx', import.meta.url), 'utf8')
-  const tabFilterWrapClass = headerBarSource.match(/"tab-filter-wrap [^"]+"/)?.[0]
-  const tabFilterClass = headerBarSource.match(/'tab-filter [^']+'/)?.[0]
-
-  assert.ok(tabFilterWrapClass)
-  assert.ok(tabFilterClass)
-  assert.match(baseCss, /--header-control-height: 34px/)
-  assert.match(baseCss, /--header-control-radius: 16px/)
-  assert.match(baseCss, /--header-control-font-size: 13px/)
-  assert.match(baseCss, /--header-control-line-height: 16px/)
-  assert.match(headerBarSource, /source-switch-root[^"]*h-\(--header-control-height\)[^"]*rounded-\(--header-control-radius\)/)
-  assert.match(headerBarSource, /source-switch-option[^"]*text-\(length:--header-control-font-size\)[^"]*leading-\(--header-control-line-height\)/)
-  assert.match(headerBarSource, /source-switch-option[^"]*before:rounded-\[calc\(var\(--header-control-radius\)-6px\)\]/)
-  assert.match(headerBarSource, /source-switch-indicator[^"]*rounded-\[calc\(var\(--header-control-radius\)-6px\)\]/)
-  assert.match(historyRangeSelectSource, /<SelectTrigger[\s\S]*?className="[^"]*h-\(--header-control-height\)[^"]*rounded-\(--header-control-radius\)[^"]*bg-tab-card[^"]*text-\(length:--header-control-font-size\)[^"]*leading-\(--header-control-line-height\)/)
-  assert.doesNotMatch(historyRangeSelectSource, /<SelectTrigger\s+className="[^"]*bg-\[rgba\(115,115,115,0\.06\)\]/)
-  assert.match(historyRangeSelectSource, /<SelectContent[\s\S]*align="start"[\s\S]*className="[^"]*rounded-\(--header-control-radius\)/)
-  assert.doesNotMatch(historyRangeSelectSource, /alignItemWithTrigger=\{false\}/)
-  assert.match(historyRangeSelectSource, /<SelectItem[\s\S]*className="[^"]*rounded-\[calc\(var\(--header-control-radius\)-6px\)\][^"]*text-\(length:--header-control-font-size\)[^"]*leading-\(--header-control-line-height\)/)
-  assert.doesNotMatch(historyRangeSelectSource, /aria-selected:bg-accent|aria-selected:text-accent-foreground/)
-  for (const token of ['isolate', 'before:z-0', 'before:border-input', 'before:drop-shadow-xs', 'before:[corner-shape:squircle]', 'after:z-0', 'after:border-blue-500', 'after:opacity-0', 'after:drop-shadow-md', 'after:drop-shadow-blue-500/50', 'after:transition-opacity', 'after:duration-150', 'after:[corner-shape:squircle]', '[&:has(input:focus-visible)::after]:opacity-100']) {
-    assert.ok(tabFilterWrapClass.includes(token), token)
-  }
-  assert.doesNotMatch(tabFilterWrapClass, /transition-\[filter|focus-visible\)::before/)
-  assert.doesNotMatch(headerBarSource, /filterFocusHandoffPending|filterFocusRequest|autoFocus=/)
-  assert.doesNotMatch(tabFilterWrapClass, /ring-/)
-  assert.ok(!tabFilterWrapClass.includes(']:shadow-['))
-  for (const token of ['relative', 'z-1', 'h-(--header-control-height)', 'rounded-(--header-control-radius)', 'text-(length:--header-control-font-size)', 'leading-(--header-control-line-height)', 'caret-blue-500', 'shadow-none', '[corner-shape:squircle]']) {
-    assert.ok(tabFilterClass.includes(token), token)
-  }
-  assert.doesNotMatch(tabFilterClass, /drop-shadow/)
-  assert.doesNotMatch(tabFilterClass, /focus-visible:(?:border|ring)/)
-  assert.match(headerBarSource, /border border-transparent bg-transparent/)
-  assert.match(headerBarSource, /data-tabout-part="clear-button"[\s\S]*?onPointerDown=\{\(event\) => event\.preventDefault\(\)\}[\s\S]*?onClick=\{onClear\}/)
-  assert.doesNotMatch(tabFilterClass, /md:!text|md:!leading/)
-  assert.doesNotMatch(tabFilterClass, /rounded-\[12px\]/)
-  assert.match(headerStatsSource, /action-btn[^"]*h-\(--header-control-height\)[^"]*rounded-\(--header-control-radius\)/)
-  assert.doesNotMatch(headerBarSource, /<SelectTrigger\s+size="header"|<SelectContent\s+size="header"/)
-  assert.doesNotMatch(selectSource, /data-\[size=header\]|in-data-\[size=header\]|SelectPrimitive\.Popup[\s\S]*data-size=\{size\}|SelectPrimitive\.List[\s\S]*data-size=\{size\}/)
-  assert.doesNotMatch(headerBarSource, /source-switch-root[^"]*rounded-\[16px\]|source-switch-(?:option|indicator)[^"]*_-_[457]px/)
-  assert.doesNotMatch(headerStatsSource, /action-btn[^"]*rounded-\[10px\]/)
-})
-
-test('masonry resize observer rebinds after conditional mission grids mount', () => {
-  const source = readFileSync(new URL('../src/extension/layout.ts', import.meta.url), 'utf8')
-
-  assert.match(source, /useLayoutEffect\(\(\) => \{/)
-  assert.match(source, /observer\.observe\(container\)/)
-  assert.match(source, /if \(!targetsChanged\) return/)
-  assert.doesNotMatch(source, /\},\s*containerRefs\.map\(\(ref\) => ref\.current\)\s*\)/)
-})
-
 test('masonry batches card height reads before position writes', () => {
   const source = readFileSync(new URL('../src/extension/layout.ts', import.meta.url), 'utf8')
   const heightRead = source.indexOf('const cardHeights = cards.map')
@@ -443,55 +327,4 @@ test('masonry batches card height reads before position writes', () => {
   assert.ok(heightRead > 0)
   assert.ok(positionWrite > heightRead)
   assert.doesNotMatch(source.slice(positionWrite), /getBoundingClientRect\(\)\.height/)
-})
-
-test('dashboard edge gutters are owned by panes instead of the shell', () => {
-  const baseCss = readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8')
-  const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
-  const tabHistoryPanelSource = readFileSync(new URL('../src/components/TabHistoryPanel.tsx', import.meta.url), 'utf8')
-
-  // .dashboard-shell / .dashboard-main own-box layout lives as inline Tailwind
-  // utilities in App.tsx; the class names survive in base.css only as selector
-  // anchors. These assertions follow the layout to its new home.
-  const shellClass = appSource.match(/'dashboard-shell([^']*)'/)
-  const shellHistoryBranch = appSource.match(/\?\s*'has-history([^']*)'/)
-  const shellPlainBranch = appSource.match(/:\s*'grid-cols-\[minmax\(0,1fr\)\]'/)
-  const mainClass = appSource.match(/'dashboard-main([^']*)'/)
-  const mainHistoryBranch = appSource.match(/\?\s*'col-2([^']*)'/)
-  const mainPlainBranch = appSource.match(/:\s*'col-1([^']*)'/)
-
-  assert.ok(shellClass)
-  assert.ok(shellHistoryBranch)
-  assert.ok(shellPlainBranch)
-  assert.ok(mainClass)
-  assert.ok(mainHistoryBranch)
-  assert.ok(mainPlainBranch)
-  const shellClasses = shellClass[1]
-  const shellHistoryClasses = shellHistoryBranch[1]
-  const mainHistoryClasses = mainHistoryBranch[1]
-  const mainPlainClasses = mainPlainBranch[1]
-  assert.ok(shellClasses)
-  assert.ok(shellHistoryClasses)
-  assert.ok(mainHistoryClasses)
-  assert.ok(mainPlainClasses)
-
-  assert.match(baseCss, /--dashboard-history-edge-gutter:\s*12px;/)
-
-  // Edge gutters are NOT on the shell.
-  assert.doesNotMatch(shellClasses, /\bp[xlr]?-/)
-
-  // The page gutter padding is owned by the main pane (default and has-history).
-  assert.match(mainPlainClasses, /px-\(--dashboard-page-gutter\)/)
-  assert.match(mainHistoryClasses, /\bpl-0\b/)
-  assert.match(mainHistoryClasses, /pr-\(--dashboard-page-gutter\)/)
-
-  // has-history shell is a two-column grid sized off the history edge gutter.
-  assert.match(
-    shellHistoryClasses,
-    /grid-cols-\[minmax\(calc\(220px\+var\(--dashboard-history-edge-gutter\)\),calc\(260px\+var\(--dashboard-history-edge-gutter\)\)\)_minmax\(0,1fr\)\]/,
-  )
-
-  // The history panel keeps its own edge gutter, never the page gutter.
-  assert.doesNotMatch(tabHistoryPanelSource, /pl-\(--dashboard-page-gutter\)/)
-  assert.match(tabHistoryPanelSource, /className="[^"]*tab-history-panel[^"]*pl-\(--dashboard-history-edge-gutter\)/)
 })

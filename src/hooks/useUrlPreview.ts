@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export const URL_PREVIEW_HIDE_DELAY_MS = 120
 
@@ -78,10 +78,12 @@ export function createUrlPreviewController(): UrlPreviewController {
 
 export function useUrlPreview() {
   const [controller] = useState(createUrlPreviewController)
-  const setUrlPreview = useCallback((url: string) => controller.setUrlPreview(url), [controller])
-  const clearUrlPreviewNow = useCallback(() => controller.clearUrlPreviewNow(), [controller])
 
   useEffect(() => () => controller.dispose(), [controller])
 
-  return { urlPreviewStore: controller.store, setUrlPreview, clearUrlPreviewNow }
+  return {
+    urlPreviewStore: controller.store,
+    setUrlPreview: controller.setUrlPreview,
+    clearUrlPreviewNow: controller.clearUrlPreviewNow,
+  }
 }

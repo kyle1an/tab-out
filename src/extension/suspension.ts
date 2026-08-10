@@ -312,10 +312,6 @@ const suspendTargetStore = createSuspendTargetStore({
   write: writeStoredSuspendTarget,
 })
 
-export function getSuspendTarget(): Promise<SuspendTarget | null> {
-  return suspendTargetStore.get()
-}
-
 export const getSuspendTargetEffect = Effect.fn('suspension.getTarget')(function* () {
   return yield* suspendTargetStore.getEffect()
 })

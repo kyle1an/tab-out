@@ -49,6 +49,11 @@ import {
   makeWorkingSetStorageProfile,
 } from '../helpers/working-set-storage-profile.js'
 import {
+  distribution,
+  makeRandom,
+  percentile,
+} from './benchmark-helpers.js'
+import {
   launchInstalledExtensionFromArtifact,
   type LaunchedInstalledExtension,
 } from './installed-extension.js'
@@ -135,14 +140,6 @@ interface ColdReadSample extends DashboardReadResult {
   readonly workerAbsentBeforeRequest: true
 }
 
-interface Distribution {
-  readonly count: number
-  readonly min: number
-  readonly p50: number
-  readonly p95: number
-  readonly max: number
-}
-
 function invariant(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
 }
@@ -177,23 +174,6 @@ const MEASURED_RUNS = configuredCount(
   30,
   1,
 )
-
-function percentile(values: readonly number[], fraction: number): number {
-  invariant(values.length > 0, 'A percentile requires measurements')
-  const sorted = [...values].sort((left, right) => left - right)
-  return sorted[Math.max(0, Math.ceil(sorted.length * fraction) - 1)] ?? 0
-}
-
-function distribution(values: readonly number[]): Distribution | null {
-  if (values.length === 0) return null
-  return {
-    count: values.length,
-    min: Math.min(...values),
-    p50: percentile(values, 0.5),
-    p95: percentile(values, 0.95),
-    max: Math.max(...values),
-  }
-}
 
 function canonicalActivitySha256(activity: WorkingSetActivityStore): string {
   const records = Object.keys(activity.records).sort().map((key) => {
@@ -772,16 +752,6 @@ function measuredSamples(
 ): readonly ColdReadSample[] {
   return samples.filter((sample) =>
     sample.phase === 'measured' && sample.variant === variant)
-}
-
-function makeRandom(seed: number): () => number {
-  let state = seed >>> 0
-  return () => {
-    state ^= state << 13
-    state ^= state >>> 17
-    state ^= state << 5
-    return (state >>> 0) / 0x1_0000_0000
-  }
 }
 
 function pairedColdBootstrap(

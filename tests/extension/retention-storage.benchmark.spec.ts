@@ -59,6 +59,7 @@ import {
   test,
   type InstalledExtension,
 } from './installed-extension.js'
+import { benchmarkCount, percentile } from './benchmark-helpers.js'
 
 const CHROME_LOCAL_QUOTA_BYTES = 10 * 1_024 * 1_024
 const RETAINED_LOCAL_BUDGET_BYTES = CHROME_LOCAL_QUOTA_BYTES * 0.5
@@ -77,16 +78,6 @@ const QUOTA_FILLER_STORAGE_KEY = 'tabOutBenchmarkQuotaFiller'
 const STARTUP_SEED_WRITE_LOCK = 'tab-out:startup-snapshot-cache-write'
 const SEED_BARRIER_TRACKER_KEY = '__tabOutRetentionBenchmarkSeedBarrier'
 const COLD_CLOSE_CONTROLLER_KEY = '__tabOutRetentionBenchmarkColdCloseController'
-
-function benchmarkCount(name: string, fallback: number): number {
-  const raw = process.env[name]
-  if (raw === undefined) return fallback
-  const parsed = Number(raw)
-  if (!Number.isSafeInteger(parsed) || parsed < 0) {
-    throw new Error(`${name} must be a non-negative integer`)
-  }
-  return parsed
-}
 
 const WARMUP_PAIR_COUNT = benchmarkCount(
   'TAB_OUT_RETENTION_BENCHMARK_WARMUPS',
@@ -287,12 +278,6 @@ function refreshRepresentativeProfileLiveTimes(
       workingSetPriority: { ...workingSetPriority, epoch: now },
     },
   }
-}
-
-function percentile(values: readonly number[], fraction: number): number {
-  if (values.length === 0) throw new Error('A percentile requires measurements')
-  const sorted = [...values].sort((left, right) => left - right)
-  return sorted[Math.max(0, Math.ceil(sorted.length * fraction) - 1)] ?? 0
 }
 
 function distribution(values: readonly number[]) {

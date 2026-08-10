@@ -40,8 +40,6 @@ import { isSuspended, unwrapSuspenderTitle, unwrapSuspenderUrl } from '../suspen
 import type { ChromeOpenTabsSnapshot } from '../tabs.js'
 import type { TabHistorySnapshot, WorkingSetActivityStore } from '../types'
 
-export { TAB_HISTORY_GET_MESSAGE, TAB_HISTORY_SWITCH_MESSAGE } from '../runtime-messages.js'
-
 export const TAB_HISTORY_STORAGE_KEY = 'globalTabHistory'
 const TAB_HISTORY_KEY = TAB_HISTORY_STORAGE_KEY
 const TAB_HISTORY_STORAGE_VERSION = 2

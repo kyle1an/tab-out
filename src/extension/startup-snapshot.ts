@@ -37,10 +37,6 @@ export type DashboardStartupSnapshot = {
 }
 
 export type DashboardStartupSeed = DashboardStartupSeedBoundary
-export type DashboardStartupSeedLoadResult = {
-  ok: boolean
-  value: DashboardStartupSeed | null
-}
 export type DashboardStartupSeedSource = {
   cardOrder: readonly string[]
   workingSet: WorkingSetSnapshot
@@ -381,12 +377,6 @@ export const loadDashboardStartupSeedResultEffect = Effect.fn(
     value: newerSeed(warmRead.seed, durableSeed, true),
   }
 })
-
-export function loadDashboardStartupSeedResult(
-  now = Date.now(),
-): Promise<DashboardStartupSeedLoadResult> {
-  return getAppRuntime().runPromise(loadDashboardStartupSeedResultEffect(now))
-}
 
 export const loadDashboardStartupSeedEffect = Effect.fn(
   'startupSeedCache.loadValue',

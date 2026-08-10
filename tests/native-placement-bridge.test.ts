@@ -4,9 +4,9 @@ import FakeTimers from '@sinonjs/fake-timers'
 import { Effect, ManagedRuntime } from 'effect'
 
 import {
-  NativePlacementBridge,
   NATIVE_PLACEMENT_BRIDGE_VERSION,
   handleNativePlacementBridgeMessageEffect,
+  makeNativePlacementBridgeLayer,
 } from '../src/extension/background/native-placement-bridge.js'
 import type { ChromeApi } from '../src/extension/background/chrome-api.js'
 
@@ -299,7 +299,7 @@ test('native placement bridge reconnects after the host port disconnects', async
   } as unknown as ChromeApi
 
   try {
-    const runtime = ManagedRuntime.make(NativePlacementBridge.layer(chromeApi))
+    const runtime = ManagedRuntime.make(makeNativePlacementBridgeLayer(chromeApi))
     runtime.runSync(Effect.void)
     assert.equal(connectionCount, 1)
 
@@ -335,7 +335,7 @@ test('native placement bridge escalates delays across connection failures', asyn
   } as unknown as ChromeApi
 
   try {
-    const runtime = ManagedRuntime.make(NativePlacementBridge.layer(chromeApi))
+    const runtime = ManagedRuntime.make(makeNativePlacementBridgeLayer(chromeApi))
     disposeRuntime = () => runtime.dispose()
     runtime.runSync(Effect.void)
     assert.equal(connectionCount, 1)
@@ -369,7 +369,7 @@ test('native placement bridge backs off beyond the MV3 idle window when the host
   }
 
   try {
-    const runtime = ManagedRuntime.make(NativePlacementBridge.layer(chromeApi))
+    const runtime = ManagedRuntime.make(makeNativePlacementBridgeLayer(chromeApi))
     disposeRuntime = () => runtime.dispose()
     runtime.runSync(Effect.void)
     assert.equal(connectionCount, 1)
@@ -424,7 +424,7 @@ test('native placement bridge resets backoff after a native message', async () =
   } as unknown as ChromeApi
 
   try {
-    const runtime = ManagedRuntime.make(NativePlacementBridge.layer(chromeApi))
+    const runtime = ManagedRuntime.make(makeNativePlacementBridgeLayer(chromeApi))
     disposeRuntime = () => runtime.dispose()
     runtime.runSync(Effect.void)
     disconnectListeners[0]!()
@@ -467,7 +467,7 @@ test('disposing the native placement bridge cancels reconnect sleep', async () =
   } as unknown as ChromeApi
 
   try {
-    const runtime = ManagedRuntime.make(NativePlacementBridge.layer(chromeApi))
+    const runtime = ManagedRuntime.make(makeNativePlacementBridgeLayer(chromeApi))
     runtime.runSync(Effect.void)
     disconnectListeners[0]!()
     await runtime.dispose()

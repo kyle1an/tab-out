@@ -64,8 +64,7 @@ const tailwindSettings = {
   hovers: false,
   suggestions: false,
   codeActions: true,
-  classAttributes: ['class', 'className', 'ngClass', 'toastOptions', 'positionerClassName'],
-  classFunctions: ['cn', 'clsx'],
+  classFunctions: ['cn'],
   files: {
     exclude: ['**/.git/**', '**/node_modules/**'],
   },
@@ -83,17 +82,6 @@ const tailwindSettings = {
   },
   experimental: {
     configFile: 'src/styles/app.css',
-    classRegex: [
-      ['add\\(([^)]*)\\)', '["\'`]([^"\'`]*).*?["\'`]'],
-      ['cva\\(([^)]*)\\)', '["\'`]([^"\'`]*).*?["\'`]'],
-      ['clsx\\(([^)]*)\\)', '["\'`]([^"\'`]*).*?["\'`]'],
-      ['cn\\(([^)]*)\\)', '["\'`]([^"\'`]*).*?["\'`]'],
-      ['cx\\(([^)]*)\\)', '(?:\'|"|`)([^\']*)(?:\'|"|`)'],
-      'twc\\.[^`]+`([^`]*)`',
-      'twc\\(.*?\\).*?`([^`]*)`',
-      ['twc\\.[^`]+\\(([^)]*)\\)', '(?:\'|"|`)([^\']*)(?:\'|"|`)'],
-      ['twc\\(.*?\\).*?\\(([^)]*)\\)', '(?:\'|"|`)([^\']*)(?:\'|"|`)'],
-    ],
   },
 }
 

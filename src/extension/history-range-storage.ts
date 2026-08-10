@@ -35,11 +35,6 @@ class HistoryRangePreferenceError extends Schema.TaggedErrorClass<HistoryRangePr
   { cause: Schema.Defect() },
 ) {}
 
-export type HistoryRangePreferenceLoadResult = {
-  ok: boolean
-  value: string
-}
-
 /**
  * Keep writes in invocation order. Production requests one origin-wide Web
  * Lock synchronously for every save, so a later page cannot publish its value

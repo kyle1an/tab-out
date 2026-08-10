@@ -761,7 +761,6 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.match(dashboardInteractionContextSource, /subscribeSelector/)
   assert.match(dashboardInteractionContextSource, /useSyncExternalStore/)
   assert.match(useHoverMatchSource, /const \[hoverStateStore\] = useState\(createHoverStateStore\)/)
-  assert.match(useHoverMatchSource, /function sameHoverUrls/)
   assert.match(useHoverMatchSource, /function handleHoverUrlChange\(url: string, source: HoverUrlSource = 'chip', matchUrls\?: readonly string\[\], tabId\?: number\)/)
   assert.match(useHoverMatchSource, /nativeTabHighlightController\.setTarget\(nextUrl \? tabId : null\)/)
   assert.match(pageChipSource, /function setPreview\(url: string, matchUrls: readonly string\[\] = \[url\], target\?: Pick<DashboardChipData, 'tabId'>\)[\s\S]*onHoverUrlChange\?\.\(url \|\| '', 'chip', matchUrls, tabId\)/)

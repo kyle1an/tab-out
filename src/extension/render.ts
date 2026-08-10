@@ -15,7 +15,6 @@
 import { Effect, Schema } from 'effect'
 
 import { getAppRuntime } from './app-runtime.js'
-import type { BrowserReadResult } from './browser-tabs-gateway.js'
 import { BrowserTabs } from './browser-tabs-service.js'
 import { DEFAULT_HISTORY_RANGE } from './history-range.js'
 import { annotateSavedPageHints, savedPageKeyForUrl, savedPageKeysFromStore, type SavedPageMetadataUpdates, type SavedPagesStore } from './saved-pages.js'
@@ -173,10 +172,6 @@ export const getCurrentWindowIdResultEffect = Effect.fn(
   }
   return { ok: true as const, value: currentWindowId as number }
 })
-
-export function getCurrentWindowIdResult(): Promise<BrowserReadResult<number | null>> {
-  return getAppRuntime().runPromise(getCurrentWindowIdResultEffect())
-}
 
 function dashboardItemIdentityKey(tab: Pick<DashboardTab, 'url' | 'rawUrl'>): string {
   return savedPageKeyForUrl(unwrapSuspenderUrl(tab.url || tab.rawUrl || ''))

@@ -68,7 +68,7 @@ test('shared runtimes retain their required service graphs', () => {
     'constretentionHealth=RetentionHealth.layer(',
     'constretainedPages=RetainedPages.layer(',
     'constactivityServices=Layer.mergeAll(TabHistory.layer(chromeApi),WorkingSet.layer(chromeApi)).pipe(Layer.provideMerge(workingSetActivityStorage))',
-    'constcoreServices=Layer.mergeAll(BrowserTabs.layer(),Badge.layer(chromeApi),NativePlacementBridge.layer(chromeApi),retainedPages,retentionHealth,activityServices)',
+    'constcoreServices=Layer.mergeAll(BrowserTabs.layer(),Badge.layer(chromeApi),makeNativePlacementBridgeLayer(chromeApi),retainedPages,retentionHealth,activityServices)',
     'construntimeLayer=StartupSnapshot.layer({alarms:chromeApi.alarms,getDashboardServiceState:captureDashboardServiceStateEffect}).pipe(Layer.provideMerge(coreServices))',
     'construntime=ManagedRuntime.make(runtimeLayer)',
   ]

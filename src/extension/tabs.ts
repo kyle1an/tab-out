@@ -44,10 +44,6 @@ export type ChromeOpenTabsSnapshot = {
   tabs: chrome.tabs.Tab[]
   windows: chrome.windows.Window[]
 }
-export type OpenTabsFetchResult = {
-  ok: boolean
-  tabs: DashboardTab[]
-}
 type TabCloseMutationStatus = 'complete' | 'partial' | 'failed' | 'unknown'
 export type TabCloseResult = {
   ok: boolean
@@ -166,12 +162,6 @@ export const fetchOpenTabsSnapshotEffect = Effect.fn('tabs.fetchOpenSnapshot')(f
   )
 })
 
-export function fetchOpenTabsSnapshotResult(
-  capturedBrowserSnapshot: ChromeOpenTabsSnapshot | null = null,
-): Promise<OpenTabsFetchResult> {
-  return getAppRuntime().runPromise(fetchOpenTabsSnapshotEffect(capturedBrowserSnapshot))
-}
-
 export function fetchOpenTabsSnapshot(): Promise<DashboardTab[]> {
   return getAppRuntime().runPromise(fetchOpenTabsSnapshotEffect().pipe(
     Effect.map((result) => result.tabs),
@@ -246,13 +236,6 @@ export const closeResolvedTabsEffect = Effect.fn('tabs.closeResolved')(function*
     failedCount,
   }
 })
-
-export function closeResolvedTabsResult(
-  tabs: readonly chrome.tabs.Tab[],
-  options: SnapshotOptions = {},
-): Promise<TabCloseResult> {
-  return getAppRuntime().runPromise(closeResolvedTabsEffect(tabs, options))
-}
 
 /**
  * closeTabsExactResult(urls, opts) — closes tabs by exact URL match.

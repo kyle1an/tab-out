@@ -867,8 +867,6 @@ end tell
     end
   end
 
-  function transition:handleCloseGesture(event) return handleCreatedWindowCloseGesture(event) end
-
   function transition:start()
     closeGestureTap = hs.eventtap.new({
       hs.eventtap.event.types.keyDown,
@@ -885,14 +883,6 @@ end tell
       return intercepted == true
     end):start()
     return transition
-  end
-
-  function transition:stop()
-    if closeGestureTap then
-      closeGestureTap:stop()
-      closeGestureTap = nil
-    end
-    releaseTransitionShield()
   end
 
   return transition

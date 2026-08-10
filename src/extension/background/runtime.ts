@@ -24,7 +24,7 @@ import {
   removeChromeStorageValue,
   writeChromeStorageValue,
 } from './chrome-storage.js'
-import { NativePlacementBridge } from './native-placement-bridge.js'
+import { makeNativePlacementBridgeLayer } from './native-placement-bridge.js'
 import { recoverRetainedPageSnapshot } from './retained-page-recovery.js'
 import { RetainedPages } from './retained-pages-service.js'
 import { StartupSnapshot } from './startup-snapshot-service.js'
@@ -171,7 +171,7 @@ export function createBackgroundRuntime(chromeApi: ChromeApi) {
   const coreServices = Layer.mergeAll(
     BrowserTabs.layer(),
     Badge.layer(chromeApi),
-    NativePlacementBridge.layer(chromeApi),
+    makeNativePlacementBridgeLayer(chromeApi),
     retainedPages,
     retentionHealth,
     activityServices,
