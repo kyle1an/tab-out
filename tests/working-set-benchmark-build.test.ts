@@ -80,7 +80,6 @@ test('normal builds retain the production Working Set paths and no benchmark ali
     ),
     distDirectory: resolve(repositoryRoot, 'extension/dist'),
     extensionDirectory: resolve(repositoryRoot, 'extension'),
-    instrumentation: 'none',
     variant: 'current',
   })
   assert.equal(

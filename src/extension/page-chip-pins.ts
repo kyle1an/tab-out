@@ -102,16 +102,11 @@ function normalizedPageChipPinId(id: unknown): string | null {
 }
 
 export function normalizePinnedPageChips(ids: unknown = []): string[] {
-  if (!Array.isArray(ids)) return []
-  const seen = new Set<string>()
-  const normalized: string[] = []
-  for (const id of ids) {
-    const normalizedId = normalizedPageChipPinId(id)
-    if (!normalizedId || seen.has(normalizedId)) continue
-    seen.add(normalizedId)
-    normalized.push(normalizedId)
-  }
-  return normalized
+  return [...new Set(
+    (Array.isArray(ids) ? ids : [])
+      .map(normalizedPageChipPinId)
+      .filter((id) => id !== null),
+  )]
 }
 
 function setPinnedPageChipInList(ids: unknown = [], id: unknown, pinned: boolean): string[] {

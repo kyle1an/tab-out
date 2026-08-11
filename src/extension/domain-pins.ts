@@ -22,14 +22,9 @@ export function isPinnableDomain(domain: unknown): domain is string {
 }
 
 export function normalizePinnedDomains(domains: unknown = []): string[] {
-  const seen = new Set<string>()
-  const normalized: string[] = []
-  for (const domain of Array.isArray(domains) ? domains : []) {
-    if (!isPinnableDomain(domain) || seen.has(domain)) continue
-    seen.add(domain)
-    normalized.push(domain)
-  }
-  return normalized
+  return [...new Set(
+    (Array.isArray(domains) ? domains : []).filter(isPinnableDomain),
+  )]
 }
 
 function setPinnedDomainInList(

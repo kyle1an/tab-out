@@ -73,15 +73,9 @@ function isPinnableSectionId(id: unknown): id is string {
 }
 
 export function normalizePinnedSections(ids: unknown = []): string[] {
-  if (!Array.isArray(ids)) return []
-  const seen = new Set<string>()
-  const normalized: string[] = []
-  for (const id of ids) {
-    if (!isPinnableSectionId(id) || seen.has(id)) continue
-    seen.add(id)
-    normalized.push(id)
-  }
-  return normalized
+  return [...new Set(
+    (Array.isArray(ids) ? ids : []).filter(isPinnableSectionId),
+  )]
 }
 
 function setPinnedSectionInList(ids: unknown = [], id: unknown, pinned: boolean): string[] {

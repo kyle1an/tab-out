@@ -48,13 +48,6 @@ export const WORKING_SET_BENCHMARK_VARIANTS: readonly WorkingSetBenchmarkVariant
   'idb',
 ]
 
-export const workingSetBenchmarkInstrumentationSchema = Schema.Literals([
-  'none',
-])
-
-export type WorkingSetBenchmarkInstrumentation =
-  typeof workingSetBenchmarkInstrumentationSchema.Type
-
 const workingSetBenchmarkCandidateFilename: Readonly<
   Record<WorkingSetBenchmarkVariant, string>
 > = {
@@ -81,7 +74,6 @@ export type WorkingSetProductionBuildSelection = {
   readonly backendModulePath: string
   readonly distDirectory: string
   readonly extensionDirectory: string
-  readonly instrumentation: 'none'
   readonly variant: 'current'
 }
 
@@ -91,7 +83,6 @@ export type WorkingSetBenchmarkBuildSelection = {
   readonly benchmarkRoot: string
   readonly distDirectory: string
   readonly extensionDirectory: string
-  readonly instrumentation: WorkingSetBenchmarkInstrumentation
   readonly moduleGraphPath: string
   readonly variant: WorkingSetBenchmarkVariant
 }
@@ -203,7 +194,6 @@ export function resolveWorkingSetBuildSelection(
       backendModulePath: workingSetProductionBackendModulePath(repositoryRoot),
       distDirectory: resolve(extensionDirectory, 'dist'),
       extensionDirectory,
-      instrumentation: 'none',
       variant: 'current',
     }
   }
@@ -261,7 +251,6 @@ export function resolveWorkingSetBuildSelection(
     benchmarkRoot,
     distDirectory: resolve(extensionDirectory, 'dist'),
     extensionDirectory,
-    instrumentation: 'none',
     moduleGraphPath: resolve(
       variantDirectory,
       WORKING_SET_BENCHMARK_MODULE_GRAPH,
@@ -359,7 +348,7 @@ export function workingSetBenchmarkModuleGraphPlugin(
         `${JSON.stringify({
           schemaVersion: 1,
           variant: selection.variant,
-          instrumentation: selection.instrumentation,
+          instrumentation: 'none',
           selectedBackendModule: selection.backendModulePath,
           includedBackendModules,
           moduleIds: [...new Set(moduleIds)].sort(),

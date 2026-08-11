@@ -28,7 +28,6 @@ import { Effect, Schema } from 'effect'
 import {
   assertWorkingSetBackendModuleGraph,
   resolveWorkingSetBuildSelection,
-  workingSetBenchmarkInstrumentationSchema,
   workingSetBenchmarkBackendModulePath,
   workingSetBenchmarkSelectorModulePath,
   WORKING_SET_BENCHMARK_BACKEND_ENV,
@@ -38,7 +37,6 @@ import {
   WORKING_SET_BENCHMARK_TEMP_PREFIX,
   WORKING_SET_BENCHMARK_VARIANTS,
   type WorkingSetBenchmarkBuildSelection,
-  type WorkingSetBenchmarkInstrumentation,
   type WorkingSetBenchmarkVariant,
 } from './working-set-benchmark-build-config.ts'
 
@@ -71,7 +69,7 @@ const generatedExtensionEntries = new Set([
 const moduleGraphSchema = Schema.Struct({
   schemaVersion: Schema.Literals([1]),
   variant: Schema.Literals(WORKING_SET_BENCHMARK_VARIANTS),
-  instrumentation: workingSetBenchmarkInstrumentationSchema,
+  instrumentation: Schema.Literals(['none']),
   selectedBackendModule: Schema.String,
   includedBackendModules: Schema.Array(Schema.String),
   moduleIds: Schema.Array(Schema.String),
@@ -90,7 +88,7 @@ export interface WorkingSetBenchmarkArtifactHashes {
 export interface WorkingSetBenchmarkArtifactSidecar {
   readonly schemaVersion: 1
   readonly variant: WorkingSetBenchmarkVariant
-  readonly instrumentation: WorkingSetBenchmarkInstrumentation
+  readonly instrumentation: 'none'
   readonly extensionDirectory: string
   readonly controllerPage: string
   readonly moduleGraphPath: string
@@ -103,7 +101,7 @@ export interface WorkingSetBenchmarkBuildSidecar {
   readonly benchmarkRoot: string
   readonly buildNonce: string
   readonly createdAt: string
-  readonly instrumentation: WorkingSetBenchmarkInstrumentation
+  readonly instrumentation: 'none'
   readonly trackedExtension: {
     readonly beforeSha256: string
     readonly afterSha256: string
@@ -309,7 +307,7 @@ async function readAndValidateModuleGraph(
   }
   if (
     parsed.variant !== selection.variant ||
-    parsed.instrumentation !== selection.instrumentation ||
+    parsed.instrumentation !== 'none' ||
     parsed.selectedBackendModule !== selection.backendModulePath
   ) {
     throw new Error(
@@ -373,7 +371,7 @@ async function buildVariant(
   const artifact: WorkingSetBenchmarkArtifactSidecar = {
     schemaVersion: 1,
     variant,
-    instrumentation: selection.instrumentation,
+    instrumentation: 'none',
     extensionDirectory: selection.extensionDirectory,
     controllerPage: WORKING_SET_BENCHMARK_CONTROLLER_PAGE,
     moduleGraphPath: selection.moduleGraphPath,
