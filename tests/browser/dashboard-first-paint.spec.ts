@@ -13,6 +13,82 @@ test('dashboard avoids eager tooltip measurement surfaces', async ({ page }) => 
   expect(pageErrors).toEqual([])
 })
 
+test('direct Bookmarks URL paints its final filter placeholder before React', async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: 'dark' })
+  const hydrationErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error' && /hydration|didn't match/i.test(message.text())) {
+      hydrationErrors.push(message.text())
+    }
+  })
+  const appModuleGate = Promise.withResolvers<void>()
+  await page.route('**/extension/dist/app.js', async (route) => {
+    await appModuleGate.promise
+    await route.continue()
+  })
+
+  const navigation = page.goto('/tests/fixtures/dashboard-resize.html?view=bookmarks')
+
+  const filterInput = page.locator(
+    '[data-tabout="filter-query"] [data-tabout-part="input"]',
+  )
+  const startupPlaceholder = page.locator('.bookmarks-filter-startup-placeholder')
+  try {
+    await expect(filterInput).toBeVisible()
+    await expect(page.locator('html')).toHaveAttribute('data-tabout-startup-view', 'bookmarks')
+    await expect(filterInput).toHaveAttribute('placeholder', 'Filter tabs, bookmarks, history…')
+    await expect(filterInput).toHaveAccessibleName('Filter dashboard')
+    await expect(startupPlaceholder).toBeVisible()
+    await expect(startupPlaceholder).toHaveText('Filter bookmarks…')
+    expect(await filterInput.evaluate((input) => input.matches(':placeholder-shown'))).toBe(true)
+    const startupPaint = await filterInput.evaluate(async (input) => {
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      })
+      const startupPlaceholder = input.parentElement?.querySelector<HTMLElement>(
+        '.bookmarks-filter-startup-placeholder',
+      )
+      const inputStyle = getComputedStyle(input)
+      const inputRect = input.getBoundingClientRect()
+      const startupPlaceholderRect = startupPlaceholder?.getBoundingClientRect()
+      return {
+        placeholderOpacity: getComputedStyle(input, '::placeholder').opacity,
+        textInsetMatches: startupPlaceholderRect
+          ? startupPlaceholderRect.left === inputRect.left +
+          Number.parseFloat(inputStyle.borderLeftWidth) +
+          Number.parseFloat(inputStyle.paddingLeft)
+          : false,
+        textStylesMatch: startupPlaceholder
+          ? ['color', 'font-family', 'font-size', 'font-weight'].every(
+              (property) => getComputedStyle(startupPlaceholder).getPropertyValue(property) ===
+                getComputedStyle(input, '::placeholder').getPropertyValue(property),
+            ) && getComputedStyle(startupPlaceholder).lineHeight === getComputedStyle(input).lineHeight
+          : false,
+      }
+    })
+    expect(startupPaint).toEqual({
+      placeholderOpacity: '0',
+      textInsetMatches: true,
+      textStylesMatch: true,
+    })
+    await filterInput.fill('Example Query')
+    await expect(startupPlaceholder).toBeHidden()
+    await filterInput.fill('')
+    await expect(startupPlaceholder).toBeVisible()
+  } finally {
+    appModuleGate.resolve()
+    await navigation
+  }
+
+  await expect(page.locator('html')).not.toHaveAttribute('data-tabout-startup-view')
+  await expect(page.locator('.bookmarks-filter-startup-placeholder')).toBeHidden()
+  await expect(filterInput).toHaveAttribute('placeholder', 'Filter bookmarks…')
+  await expect(filterInput).toHaveAccessibleName('Filter dashboard')
+  expect(hydrationErrors).toEqual([])
+})
+
 for (const viewport of [
   { label: 'wide', width: 1200 },
   { label: 'compressed', width: 920 },

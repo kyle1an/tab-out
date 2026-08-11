@@ -33,6 +33,7 @@ const DASHBOARD_VIEW_OPTIONS = [
 ] as const
 
 const ALL_TABS_DESCRIPTION_ID = 'dashboard-view-all-tabs-description'
+const BOOKMARKS_FILTER_PLACEHOLDER = 'Filter bookmarks…'
 
 function isDashboardViewValue(value: unknown): value is DashboardView {
   return typeof value === 'string' && DASHBOARD_VIEW_OPTIONS.some((option) => option.value === value)
@@ -342,7 +343,7 @@ export function HeaderBar({
     return () => window.removeEventListener('keydown', onWindowKeyDown)
   }, [])
 
-  const filterPlaceholder = source === 'bookmarks' ? 'Filter bookmarks…' : isHistoryFilterEnabled(historyRange) ? 'Filter tabs, bookmarks, history…' : 'Filter tabs and bookmarks…'
+  const filterPlaceholder = source === 'bookmarks' ? BOOKMARKS_FILTER_PLACEHOLDER : isHistoryFilterEnabled(historyRange) ? 'Filter tabs, bookmarks, history…' : 'Filter tabs and bookmarks…'
 
   function onFilterKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
     const intent = filterResultKeyboardIntent({
@@ -443,6 +444,12 @@ export function HeaderBar({
               filter && 'has-value [&_.tab-filter]:pr-7.5 [&_.tab-filter-clear]:inline-flex',
             )}
           >
+            <span
+              aria-hidden="true"
+              className="bookmarks-filter-startup-placeholder pointer-events-none absolute top-1/2 left-[calc(var(--spacing)*3+1px)] z-2 hidden -translate-y-1/2 select-none whitespace-nowrap text-(length:--header-control-font-size) leading-(--header-control-line-height) text-muted-foreground font-[inherit] md:text-sm"
+            >
+              {BOOKMARKS_FILTER_PLACEHOLDER}
+            </span>
             <input
               ref={inputRef}
               type="search"
@@ -454,7 +461,7 @@ export function HeaderBar({
               )}
               autoComplete="off"
               spellCheck="false"
-              aria-label={filterPlaceholder}
+              aria-label="Filter dashboard"
               placeholder={filterPlaceholder}
               value={filter}
               aria-controls={filter.trim() ? 'dashboardMissions' : undefined}

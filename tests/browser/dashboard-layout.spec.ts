@@ -2612,8 +2612,10 @@ test('a failed All Tabs view load restores Bookmarks without marking its applied
 test('a failed direct Bookmarks load falls back to the default view and canonical URL', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html?view=bookmarks&failBookmarks=1&marker=kept#startup-rollback')
 
+  const filterInput = page.locator('[data-tabout="filter-query"] input')
   await expect(page.getByRole('tab', { name: 'All Tabs' })).toHaveAttribute('data-active', '')
   await expect(page.locator('html')).not.toHaveAttribute('data-tabout-startup-view')
+  await expect(filterInput).toHaveAttribute('placeholder', 'Filter tabs, bookmarks, history…')
   await expect(page.getByRole('tabpanel')).not.toHaveAttribute('aria-busy', 'true')
   await expect(page.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-03.com"]')).toHaveCount(1)
   await expect.poll(() => page.evaluate(() => ({
@@ -2662,7 +2664,7 @@ test('filter Enter cannot activate stale Tabs results during a Bookmarks switch'
 
   await expect.poll(() => page.evaluate(async () => (await window.chrome.tabs.get(2)).active)).toBe(false)
   await releaseBookmarkFetchGate(page)
-  await expect(input).toHaveAttribute('aria-label', 'Filter bookmarks…')
+  await expect(input).toHaveAttribute('placeholder', 'Filter bookmarks…')
   await expect.poll(() => page.evaluate(async () => (await window.chrome.tabs.get(2)).active)).toBe(false)
 })
 

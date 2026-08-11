@@ -130,8 +130,9 @@ body {
 
 /* A direct Bookmarks URL is known before React can attach to the build-time
    Tabs shell. The classic boot script marks the document root so the existing
-   DOM paints in its final one-column geometry without mutating hydrated nodes.
-   App removes the marker in a layout effect once the requested source settles. */
+   DOM paints its final one-column geometry and prompt without mutating hydrated
+   nodes. App removes the marker in a layout effect once the requested source
+   settles. */
 html[data-tabout-startup-view='bookmarks'] .dashboard-shell.has-history {
   --dashboard-page-gutter: inherit;
   grid-template-columns: minmax(0, 1fr);
@@ -158,6 +159,14 @@ html[data-tabout-startup-view='bookmarks'] .dashboard-shell.has-history .dashboa
 
 html[data-tabout-startup-view='bookmarks'] .dashboard-shell.has-history [data-tabout='filter-query'] [data-tabout-part='input'] {
   width: 17.5rem;
+}
+
+html[data-tabout-startup-view='bookmarks'] .dashboard-shell.has-history [data-tabout='filter-query']:has([data-tabout-part='input']:placeholder-shown) .bookmarks-filter-startup-placeholder {
+  display: block;
+}
+
+html[data-tabout-startup-view='bookmarks'] .dashboard-shell.has-history [data-tabout='filter-query'] [data-tabout-part='input']::placeholder {
+  opacity: 0;
 }
 
 html[data-tabout-startup-view='bookmarks'] .dashboard-shell.has-history .dashboard-main > .scroll-region {
