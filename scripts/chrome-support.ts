@@ -18,7 +18,7 @@ import {
   type ChromePlatform,
   type ChromeStableVersions,
   type ChromeSupportPolicy,
-} from '../src/extension/chrome-support.js'
+} from '../src/extension/chrome-support.ts'
 
 const REPO_ROOT = resolve(import.meta.dirname, '..')
 const POLICY_FILE = join(REPO_ROOT, 'chrome-support.json')

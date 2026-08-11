@@ -44,7 +44,7 @@ test('requests one explicitly newest Stable version per supported platform', () 
 test('check CLI runs the deterministic offline consistency check', () => {
   const result = spawnSync(
     process.execPath,
-    ['--import', 'tsx', 'scripts/chrome-support.ts', 'check'],
+    ['scripts/chrome-support.ts', 'check'],
     { encoding: 'utf8' },
   )
 
@@ -58,7 +58,7 @@ test('check CLI runs the deterministic offline consistency check', () => {
 test('CLI rejects an unknown command with the usage exit code', () => {
   const result = spawnSync(
     process.execPath,
-    ['--import', 'tsx', 'scripts/chrome-support.ts', 'unknown'],
+    ['scripts/chrome-support.ts', 'unknown'],
     { encoding: 'utf8' },
   )
 

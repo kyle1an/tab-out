@@ -244,9 +244,7 @@ function canonicalActivityRows(activity: WorkingSetActivityStore): readonly unkn
 async function sha256Hex(value: unknown): Promise<string> {
   const bytes = new TextEncoder().encode(JSON.stringify(value))
   const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes)
-  return Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, '0'),
-  ).join('')
+  return new Uint8Array(digest).toHex()
 }
 
 async function fingerprintActivity(

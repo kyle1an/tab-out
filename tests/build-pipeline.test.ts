@@ -55,6 +55,19 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.equal(pkg.scripts?.serve, 'node scripts/serve.ts')
   assert.equal(pkg.scripts?.build, 'node --experimental-import-text --import tsx scripts/build-extension.ts')
   assert.equal(pkg.scripts?.['build:debug'], 'node --experimental-import-text --import tsx scripts/build-extension.ts --sourcemap')
+  assert.equal(
+    pkg.scripts?.['build:working-set-storage-benchmark'],
+    'node scripts/build-working-set-storage-benchmark.ts',
+  )
+  assert.equal(pkg.scripts?.['chrome-support:check'], 'node scripts/chrome-support.ts check')
+  assert.equal(
+    pkg.scripts?.['chrome-support:bump'],
+    'node scripts/chrome-support.ts bump && pnpm build && pnpm chrome-support:check',
+  )
+  assert.equal(
+    pkg.scripts?.['chrome-support:release-check'],
+    'node scripts/chrome-support.ts release-check',
+  )
   assert.match(pkg.scripts?.typecheck, /tsconfig\.node\.json/)
   assert.match(pkg.scripts?.test, /--experimental-import-text/)
   assert.equal(pkg.scripts?.lint, 'eslint . --max-warnings=0')
@@ -113,7 +126,9 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.equal(nodeTsconfig.compilerOptions?.moduleResolution, 'NodeNext')
   assert.deepEqual(nodeTsconfig.compilerOptions?.types, ['node'])
   assert.deepEqual(nodeTsconfig.compilerOptions?.paths, {})
+  assert.ok(nodeTsconfig.files?.includes('scripts/build-working-set-storage-benchmark.ts'))
   assert.ok(nodeTsconfig.files?.includes('scripts/check-tailwind-diagnostics.ts'))
+  assert.ok(nodeTsconfig.files?.includes('scripts/chrome-support.ts'))
   assert.ok(nodeTsconfig.files?.includes('scripts/react-compiler-check.ts'))
   assert.ok(nodeTsconfig.files?.includes('scripts/serve.ts'))
   assert.ok(nodeTsconfig.files?.includes('scripts/watch-build.ts'))

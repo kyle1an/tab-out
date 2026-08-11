@@ -5,12 +5,11 @@ import {
   cp,
   lstat,
   mkdir,
-  mkdtemp,
+  mkdtempDisposable,
   readFile,
   readdir,
   readlink,
   realpath,
-  rm,
   writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -41,7 +40,7 @@ import {
   type WorkingSetBenchmarkBuildSelection,
   type WorkingSetBenchmarkInstrumentation,
   type WorkingSetBenchmarkVariant,
-} from './working-set-benchmark-build-config.js'
+} from './working-set-benchmark-build-config.ts'
 
 export const WORKING_SET_BENCHMARK_BUILD_SIDECAR =
   'working-set-storage-benchmark-build.json'
@@ -420,14 +419,16 @@ async function buildWorkingSetStorageBenchmarkArtifactsUnsafe(
 ): Promise<WorkingSetBenchmarkBuildResult> {
   const repositoryRoot = await realpath(repositoryRootInput)
   const trackedExtensionBefore = await trackedExtensionSha256(repositoryRoot)
-  let benchmarkRoot: string | undefined
+  let benchmarkDirectory: Awaited<ReturnType<typeof mkdtempDisposable>> | undefined
 
   try {
     await assertBenchmarkSourcesExist(repositoryRoot)
     const temporaryParent = await realpath(tmpdir())
-    benchmarkRoot = await mkdtemp(
+    const acquiredBenchmarkDirectory = await mkdtempDisposable(
       join(temporaryParent, WORKING_SET_BENCHMARK_TEMP_PREFIX),
     )
+    benchmarkDirectory = acquiredBenchmarkDirectory
+    const benchmarkRoot = acquiredBenchmarkDirectory.path
     const nonce = randomUUID()
     await writeFile(
       resolve(benchmarkRoot, WORKING_SET_BENCHMARK_ROOT_MARKER),
@@ -479,11 +480,7 @@ async function buildWorkingSetStorageBenchmarkArtifactsUnsafe(
       `${JSON.stringify(sidecar, null, 2)}\n`,
       { encoding: 'utf8', flag: 'wx' },
     )
-    const retainedBenchmarkRoot = benchmarkRoot
-    const dispose = () => rm(
-      retainedBenchmarkRoot,
-      { force: true, recursive: true },
-    )
+    const dispose = acquiredBenchmarkDirectory.remove
     return {
       sidecar,
       sidecarPath,
@@ -500,8 +497,8 @@ async function buildWorkingSetStorageBenchmarkArtifactsUnsafe(
     } catch (hashCause) {
       extensionHashFailure = hashCause
     }
-    if (benchmarkRoot !== undefined) {
-      await rm(benchmarkRoot, { force: true, recursive: true })
+    if (benchmarkDirectory !== undefined) {
+      await benchmarkDirectory.remove()
     }
     if (extensionHashFailure !== undefined) {
       throw new Error(

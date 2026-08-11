@@ -270,8 +270,10 @@ function mergeOrdinalMemory(current: ReadonlyMap<string, number>, observed: Read
       observedOrderAssignments.getOrInsert(observedOrder, currentOrder)
       continue
     }
-    const assignedOrder = observedOrderAssignments.get(observedOrder) ?? nextOrder++
-    observedOrderAssignments.set(observedOrder, assignedOrder)
+    const assignedOrder = observedOrderAssignments.getOrInsertComputed(
+      observedOrder,
+      () => nextOrder++,
+    )
     merged.set(key, assignedOrder)
   }
 

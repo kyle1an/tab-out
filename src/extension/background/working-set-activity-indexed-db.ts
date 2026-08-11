@@ -528,10 +528,8 @@ async function openPhysicalDatabase(
   const name = databaseNameForGeneration(generation)
   let opened: WorkingSetActivityDatabaseConnection | undefined
   let blocked = false
-  let rejectBlocked: (cause: unknown) => void = () => {}
-  const blockedPromise = new Promise<never>((_resolve, reject) => {
-    rejectBlocked = reject
-  })
+  const { promise: blockedPromise, reject: rejectBlocked } =
+    Promise.withResolvers<never>()
   const opening = openDB<WorkingSetActivityDatabase>(
     name,
     WORKING_SET_ACTIVITY_INDEXED_DB_VERSION,
@@ -598,10 +596,8 @@ async function deleteStaleCandidateDatabases(
 }
 
 async function deleteCandidateDatabase(name: string): Promise<void> {
-  let rejectBlocked: (cause: unknown) => void = () => {}
-  const blocked = new Promise<never>((_resolve, reject) => {
-    rejectBlocked = reject
-  })
+  const { promise: blocked, reject: rejectBlocked } =
+    Promise.withResolvers<never>()
   const deleting = deleteDB(name, {
     blocked() {
       rejectBlocked(new Error(

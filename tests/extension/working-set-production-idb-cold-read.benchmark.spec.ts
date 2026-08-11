@@ -1,9 +1,8 @@
 import { createHash } from 'node:crypto'
 import {
   cp,
-  mkdtemp,
+  mkdtempDisposable,
   readFile,
-  rm,
   writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -243,11 +242,11 @@ async function makeDisposableProductionArtifact(): Promise<
     'Production background bundle contains benchmark instrumentation',
   )
 
-  const temporaryDirectory = await mkdtemp(join(
+  const temporaryDirectory = await mkdtempDisposable(join(
     tmpdir(),
     'tab-out-production-idb-cold-read-',
   ))
-  const directory = resolve(temporaryDirectory, 'extension')
+  const directory = resolve(temporaryDirectory.path, 'extension')
   let disposed = false
   try {
     await cp(productionExtensionDirectory, directory, {
@@ -267,7 +266,7 @@ async function makeDisposableProductionArtifact(): Promise<
     const dispose = async (): Promise<void> => {
       if (disposed) return
       disposed = true
-      await rm(temporaryDirectory, { force: true, recursive: true })
+      await temporaryDirectory.remove()
     }
     return {
       controllerPage: PRODUCTION_CONTROLLER_PAGE,
@@ -282,7 +281,7 @@ async function makeDisposableProductionArtifact(): Promise<
       [Symbol.asyncDispose]: dispose,
     }
   } catch (cause) {
-    await rm(temporaryDirectory, { force: true, recursive: true })
+    await temporaryDirectory.remove()
     throw cause
   }
 }

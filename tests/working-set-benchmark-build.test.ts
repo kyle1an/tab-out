@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import {
   mkdirSync,
   mkdtempDisposableSync,
@@ -308,6 +309,9 @@ test('builder contract keeps controllers and hash sidecars outside production ou
   assert.match(builderSource, /cliArguments\[0\] === '--retain'/)
   assert.match(builderSource, /try: result\.dispose/)
   assert.match(builderSource, /\[Symbol\.asyncDispose\]: dispose/)
+  assert.match(builderSource, /mkdtempDisposable/)
+  assert.doesNotMatch(builderSource, /\bmkdtemp\(/)
+  assert.doesNotMatch(builderSource, /\brm\(/)
   assert.match(
     installedExtensionSource,
     /export async function launchInstalledExtensionFromArtifact/,
@@ -321,4 +325,20 @@ test('builder contract keeps controllers and hash sidecars outside production ou
     () => assertTrackedExtensionHashUnchanged('before', 'after'),
     /Tracked extension files changed/,
   )
+})
+
+test('benchmark builder CLI uses native TypeScript and rejects unknown arguments', () => {
+  const result = spawnSync(
+    process.execPath,
+    ['scripts/build-working-set-storage-benchmark.ts', '--unknown'],
+    { encoding: 'utf8' },
+  )
+
+  assert.equal(result.status, 1)
+  const output = `${result.stdout}\n${result.stderr}`
+  assert.match(
+    output,
+    /Usage: build-working-set-storage-benchmark\.ts \[--retain\]/,
+  )
+  assert.doesNotMatch(output, /ERR_MODULE_NOT_FOUND/)
 })
