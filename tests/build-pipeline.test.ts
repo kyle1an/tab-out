@@ -49,7 +49,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.equal(pkg.scripts?.['setup:hooks'], 'git config core.hooksPath .githooks')
   assert.equal(
     pkg.scripts?.['commit-references:check'],
-    'tsx scripts/check-commit-references.ts',
+    'node scripts/check-commit-references.ts',
   )
   assert.equal(pkg.scripts?.dev, 'node scripts/watch-build.ts')
   assert.equal(pkg.scripts?.serve, 'node scripts/serve.ts')
@@ -797,8 +797,8 @@ test('repo hooks verify changes and reject unsafe commit references', () => {
   assert.notEqual(statSync('.githooks/pre-push').mode & 0o111, 0)
   assert.match(preCommitHook, /^#!\/bin\/sh/)
   assert.match(preCommitHook, /pnpm verify/)
-  assert.match(commitMessageHook, /check-commit-references\.ts --message-file/)
-  assert.match(prePushHook, /check-commit-references\.ts --pre-push/)
+  assert.match(commitMessageHook, /node scripts\/check-commit-references\.ts --message-file/)
+  assert.match(prePushHook, /node scripts\/check-commit-references\.ts --pre-push/)
 })
 
 test('commit reference policy records custom-autolink audit status', () => {

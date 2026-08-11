@@ -40,7 +40,7 @@ import {
   parseRetainedPageLedgerValue,
 } from '../src/extension/retained-pages-storage.js'
 import {
-  DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY,
+  DASHBOARD_STARTUP_SEED_CACHE_KEY,
   type DashboardStartupSeed,
 } from '../src/extension/startup-snapshot.js'
 import { parseDashboardStartupSeedBoundary } from '../src/extension/startup-snapshot-schema.js'
@@ -285,7 +285,6 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
   const commandsOnCommand = createEventSlot()
   const alarmsOnAlarm = createEventSlot()
   const actionOnClicked = createEventSlot()
-  const sessionsOnChanged = createEventSlot()
   const storageOnChanged = createEventSlot()
   const nativePortOnMessage = createEventSlot()
   const nativePortOnDisconnect = createEventSlot()
@@ -397,7 +396,6 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
     },
     sessions: {
       getRecentlyClosed: async () => clone(recentlyClosed),
-      onChanged: sessionsOnChanged.api,
     },
     action: {
       onClicked: actionOnClicked.api,
@@ -623,7 +621,6 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
       tabsOnReplaced: tabsOnReplaced.listeners,
       tabsOnUpdated: tabsOnUpdated.listeners,
       windowsOnFocusChanged: windowsOnFocusChanged.listeners,
-      sessionsOnChanged: sessionsOnChanged.listeners,
       commandsOnCommand: commandsOnCommand.listeners,
     },
     getWindowTabs(windowId: number) {
@@ -2242,10 +2239,10 @@ test('first installation seeds current surfaces before the deferred worker-resum
       mock.storageValues.local[OPEN_SURFACE_DURABLE_STORAGE_KEY],
     ).status === 'valid' &&
     parseDashboardStartupSeedBoundary(
-      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
+      mock.storageValues.session[DASHBOARD_STARTUP_SEED_CACHE_KEY],
     ) !== null &&
     parseDashboardStartupSeedBoundary(
-      mock.storageValues.local[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
+      mock.storageValues.local[DASHBOARD_STARTUP_SEED_CACHE_KEY],
     ) !== null
   ), 'first-install reconciliation and startup seed')
   await flushBackgroundWork()
@@ -2313,10 +2310,10 @@ test('extension update owns initial reconciliation and preserves surviving live 
       mock.storageValues.session[OPEN_SURFACE_SESSION_STORAGE_KEY],
     ).status === 'valid' &&
     parseDashboardStartupSeedBoundary(
-      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
+      mock.storageValues.session[DASHBOARD_STARTUP_SEED_CACHE_KEY],
     ) !== null &&
     parseDashboardStartupSeedBoundary(
-      mock.storageValues.local[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
+      mock.storageValues.local[DASHBOARD_STARTUP_SEED_CACHE_KEY],
     ) !== null
   ), 'extension-update reconciliation and startup seed')
   await flushBackgroundWork()
@@ -2386,13 +2383,13 @@ test('tab replacement rebases live state while the URL-keyed Warm seed remains s
   onInstalled({ reason: 'install' })
   await waitForBackgroundState(() => {
     const value = parseDashboardStartupSeedBoundary(
-      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
+      mock.storageValues.session[DASHBOARD_STARTUP_SEED_CACHE_KEY],
     )
     return value?.workingSetPriority.keys.includes('https://one.example.test/') ?? false
   }, 'first-install startup seed')
 
   const warmBefore = requireStartupSeed(
-    mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
+    mock.storageValues.session[DASHBOARD_STARTUP_SEED_CACHE_KEY],
   )
   assert.ok(warmBefore.workingSetPriority.keys.includes('https://one.example.test/'))
 
@@ -2402,7 +2399,7 @@ test('tab replacement rebases live state while the URL-keyed Warm seed remains s
   await flushBackgroundWork()
 
   const warmAfter = requireStartupSeed(
-    mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
+    mock.storageValues.session[DASHBOARD_STARTUP_SEED_CACHE_KEY],
   )
   assert.deepEqual(warmAfter.cardOrder, warmBefore.cardOrder)
   assert.deepEqual(warmAfter.workingSetPriority, warmBefore.workingSetPriority)
@@ -2457,7 +2454,7 @@ test('tab lifecycle events invalidate session-only title retention before the de
   ], {
     storageValues: {
       session: {
-        [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: {
+        [DASHBOARD_STARTUP_SEED_CACHE_KEY]: {
           schemaVersion: 2,
           savedAt: 10,
           captureStartedAt: 10,
@@ -2478,12 +2475,12 @@ test('tab lifecycle events invalidate session-only title retention before the de
   onCreated(clone(mock.state.tabsById[701]))
   await waitForBackgroundState(() => {
     const value = parseDashboardStartupSeedBoundary(
-      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
+      mock.storageValues.session[DASHBOARD_STARTUP_SEED_CACHE_KEY],
     )
     return value?.titleRetention?.map((entry) => entry.tabId).join(',') === '702,703,704'
   }, 'created-tab title invalidation')
   assert.deepEqual(
-    requireStartupSeed(mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY])
+    requireStartupSeed(mock.storageValues.session[DASHBOARD_STARTUP_SEED_CACHE_KEY])
       .titleRetention?.map((entry) => entry.tabId),
     [702, 703, 704],
   )
@@ -2491,12 +2488,12 @@ test('tab lifecycle events invalidate session-only title retention before the de
   await mock.chrome.tabs.remove(702)
   await waitForBackgroundState(() => {
     const value = parseDashboardStartupSeedBoundary(
-      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
+      mock.storageValues.session[DASHBOARD_STARTUP_SEED_CACHE_KEY],
     )
     return value?.titleRetention?.map((entry) => entry.tabId).join(',') === '703,704'
   }, 'removed-tab title invalidation')
   assert.deepEqual(
-    requireStartupSeed(mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY])
+    requireStartupSeed(mock.storageValues.session[DASHBOARD_STARTUP_SEED_CACHE_KEY])
       .titleRetention?.map((entry) => entry.tabId),
     [703, 704],
   )
@@ -2504,7 +2501,7 @@ test('tab lifecycle events invalidate session-only title retention before the de
   await mock.replaceTab(703, 704)
   await flushBackgroundWork()
   assert.equal(
-    requireStartupSeed(mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY])
+    requireStartupSeed(mock.storageValues.session[DASHBOARD_STARTUP_SEED_CACHE_KEY])
       .titleRetention,
     undefined,
   )
@@ -3361,57 +3358,6 @@ test('combined service state ignores title-only updates so idle tabs do not resh
   }
 })
 
-test('recently closed session changes do not rewrite the compact Warm seed', async () => {
-  const mock = await loadBackground([
-    {
-      id: 511,
-      windowId: 1,
-      url: 'https://open.example.test/',
-      title: 'Open page',
-      active: true,
-      pinned: false,
-      groupId: -1,
-      index: 0,
-    },
-  ])
-  const onInstalled = mock.listeners.runtimeOnInstalled[0]
-  const onSessionsChanged = mock.listeners.sessionsOnChanged[0]
-  assert.equal(typeof onInstalled, 'function')
-  assert.equal(typeof onSessionsChanged, 'function')
-
-  onInstalled({ reason: 'install' })
-  await waitForBackgroundState(() => (
-    parseDashboardStartupSeedBoundary(
-      mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
-    ) !== null
-  ), 'first-install startup seed')
-  const beforeSeed = requireStartupSeed(
-    mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
-  )
-  const tabQueriesBefore = mock.calls.tabQuery.length
-
-  mock.recentlyClosed.push({
-    lastModified: 1_700_000_000,
-    tab: {
-      sessionId: 'closed-report',
-      id: 512,
-      windowId: 1,
-      url: 'https://closed.example.test/report',
-      title: 'Closed report',
-      favIconUrl: '',
-    },
-  })
-  onSessionsChanged()
-  await backgroundClock.tickAsync(150 + STARTUP_SNAPSHOT_DEBOUNCE_MS)
-  await flushBackgroundWork()
-
-  const afterSeed = requireStartupSeed(
-    mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
-  )
-  assert.deepEqual(afterSeed, beforeSeed)
-  assert.equal(mock.calls.tabQuery.length, tabQueriesBefore)
-})
-
 test('background restore messages remain acknowledged without scheduling seed work', async () => {
   const mock = await loadBackground([
     {
@@ -3424,28 +3370,13 @@ test('background restore messages remain acknowledged without scheduling seed wo
       groupId: -1,
       index: 0,
     },
-  ], {
-    recentlyClosed: [{
-      lastModified: 1_700_000_000,
-      tab: {
-        sessionId: 'closed-slow',
-        id: 522,
-        windowId: 1,
-        url: 'https://closed.example.test/slow',
-        title: 'Slow restore',
-        favIconUrl: '',
-      },
-    }],
-  })
-  const onSessionsChanged = mock.listeners.sessionsOnChanged[0]
-  assert.equal(typeof onSessionsChanged, 'function')
+  ])
 
   assert.deepEqual(await sendRuntimeMessage(mock, {
     type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
     restoreId: 'restore-slow',
     phase: 'started',
   }), { ok: true })
-  onSessionsChanged()
 
   assert.deepEqual(await sendRuntimeMessage(mock, {
     type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
@@ -3454,7 +3385,7 @@ test('background restore messages remain acknowledged without scheduling seed wo
   }), { ok: true })
   await backgroundClock.tickAsync(STARTUP_SNAPSHOT_DEBOUNCE_MS * 2)
   await flushBackgroundWork()
-  assert.equal(mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY], undefined)
+  assert.equal(mock.storageValues.session[DASHBOARD_STARTUP_SEED_CACHE_KEY], undefined)
 })
 
 test('background rejects malformed restore message envelopes', async () => {

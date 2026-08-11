@@ -72,9 +72,6 @@ export type StartupSnapshotLayerDeps<Failure, Requirements> = {
 export class StartupSnapshot extends Context.Service<StartupSnapshot, {
   readonly invalidateTitleRetention: (tabId: number | undefined) => Effect.Effect<void>
   readonly scheduleRefresh: () => Effect.Effect<void>
-  readonly sessionsChanged: () => Effect.Effect<void>
-  readonly sessionRestoreStarted: (restoreId: string) => Effect.Effect<void>
-  readonly sessionRestoreSettled: (restoreId: string) => Effect.Effect<void>
   readonly promoteDurableCheckpoint: () => Effect.Effect<void>
   readonly refreshNow: () => Effect.Effect<void>
 }>()('@tab-out/background/StartupSnapshot') {
@@ -298,19 +295,12 @@ function makeStartupSnapshotLayer<Failure, Requirements>(
       },
     )
 
-    // Session restore notifications remain part of the background public API,
-    // but recently closed rows are no longer persisted in the compact seed.
-    const ignoreSessionChange = () => Effect.void
-
     return StartupSnapshot.of({
       invalidateTitleRetention: (tabId) => invalidateDashboardStartupTitleRetentionEffect(tabId).pipe(
         Effect.catchTag('StartupSnapshotCacheMutationError', () => Effect.void),
         Effect.asVoid,
       ),
       scheduleRefresh: scheduleRefreshState,
-      sessionsChanged: ignoreSessionChange,
-      sessionRestoreStarted: () => Effect.void,
-      sessionRestoreSettled: () => Effect.void,
       promoteDurableCheckpoint,
       refreshNow,
     })

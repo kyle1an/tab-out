@@ -1,4 +1,4 @@
 #!/bin/sh
 set -eu
 
-pnpm exec tsx scripts/check-commit-references.ts --pre-push "$1"
+node scripts/check-commit-references.ts --pre-push "$1"

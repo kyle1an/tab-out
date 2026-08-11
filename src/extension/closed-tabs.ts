@@ -89,9 +89,9 @@ const broadcastClosedTabRestoreState = Effect.fn('closedTabs.broadcastRestoreSta
 ) {
   const runtime = globalThis.chrome?.runtime
   if (!runtime?.sendMessage) return
-  // Await the start acknowledgement before invoking sessions.restore so the
-  // worker cannot observe an early sessions.onChanged without the pending
-  // restore guard already installed.
+  // Treat the worker acknowledgement as the sequencing barrier before
+  // sessions.restore. Peer dashboards use this same broadcast to arm their
+  // page-local suppression before Chrome emits sessions.onChanged.
   yield* Effect.tryPromise({
     try: () => runtime.sendMessage(message),
     catch: (cause) => ClosedTabRestoreError.make({ cause }),

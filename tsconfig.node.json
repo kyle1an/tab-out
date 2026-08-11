@@ -8,6 +8,7 @@
     "paths": {}
   },
   "files": [
+    "scripts/check-commit-references.ts",
     "scripts/check-tailwind-diagnostics.ts",
     "scripts/native-host/test-round-trip.ts",
     "scripts/react-compiler-check.ts",

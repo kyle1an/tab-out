@@ -92,7 +92,6 @@ function createStartupSnapshotService(
   return {
     refreshNow: () => runtime.runPromise(service.refreshNow()),
     scheduleRefresh: () => runtime.runPromise(service.scheduleRefresh()),
-    sessionsChanged: () => runtime.runPromise(service.sessionsChanged()),
     promoteDurableCheckpoint: () => runtime.runPromise(service.promoteDurableCheckpoint()),
   }
 }
@@ -311,22 +310,6 @@ test('unknown pin input preserves the prior Warm seed', async (t) => {
 
   assert.deepEqual(storage.sessionValues[DASHBOARD_STARTUP_SEED_CACHE_KEY], prior)
   assert.equal(storage.sessionWrites(), 0)
-})
-
-test('session changes no longer rebuild a seed that does not contain recently closed rows', async (t) => {
-  installWorkerChrome(t)
-  let stateReads = 0
-  const service = createStartupSnapshotService(t, {
-    getDashboardServiceState: async () => {
-      stateReads += 1
-      return dashboardServiceState([])
-    },
-  })
-
-  await service.refreshNow()
-  await service.sessionsChanged()
-
-  assert.equal(stateReads, 1)
 })
 
 test('seed scheduling uses a sliding quiet window with a fixed maximum wait', async (t) => {

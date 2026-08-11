@@ -1,5 +1,6 @@
 import { execFileSync, spawn } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
+import { once } from 'node:events'
 import {
   cp,
   lstat,
@@ -269,41 +270,34 @@ async function copyExtensionScaffold(
   })
 }
 
-function runExtensionBuild(
+async function runExtensionBuild(
   repositoryRoot: string,
   selection: WorkingSetBenchmarkBuildSelection,
   nonce: string,
 ): Promise<void> {
-  return new Promise((resolvePromise, reject) => {
-    const child = spawn(process.execPath, [
-      '--experimental-import-text',
-      '--import',
-      'tsx',
-      resolve(repositoryRoot, 'scripts/build-extension.ts'),
-    ], {
-      cwd: repositoryRoot,
-      env: {
-        ...process.env,
-        [WORKING_SET_BENCHMARK_BACKEND_ENV]: selection.variant,
-        [WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV]: selection.extensionDirectory,
-        [WORKING_SET_BENCHMARK_NONCE_ENV]: nonce,
-      },
-      stdio: 'inherit',
-    })
-
-    child.once('error', reject)
-    child.once('exit', (code, signal) => {
-      if (code === 0) {
-        resolvePromise()
-        return
-      }
-      reject(new Error(
-        signal === null
-          ? `Extension build exited with code ${String(code)}`
-          : `Extension build exited after signal ${signal}`,
-      ))
-    })
+  const child = spawn(process.execPath, [
+    '--experimental-import-text',
+    '--import',
+    'tsx',
+    resolve(repositoryRoot, 'scripts/build-extension.ts'),
+  ], {
+    cwd: repositoryRoot,
+    env: {
+      ...process.env,
+      [WORKING_SET_BENCHMARK_BACKEND_ENV]: selection.variant,
+      [WORKING_SET_BENCHMARK_EXTENSION_DIR_ENV]: selection.extensionDirectory,
+      [WORKING_SET_BENCHMARK_NONCE_ENV]: nonce,
+    },
+    stdio: 'inherit',
   })
+
+  const [code, signal] = await once(child, 'exit')
+  if (code === 0) return
+  throw new Error(
+    signal === null
+      ? `Extension build exited with code ${String(code)}`
+      : `Extension build exited after signal ${signal}`,
+  )
 }
 
 async function readAndValidateModuleGraph(

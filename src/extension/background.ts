@@ -394,10 +394,6 @@ chromeApi.tabGroups.onUpdated.addListener((group) => {
 chromeApi.tabGroups.onRemoved.addListener(scheduleStartupSnapshotRefresh)
 chromeApi.tabGroups.onMoved.addListener(scheduleStartupSnapshotRefresh)
 
-chromeApi.sessions.onChanged.addListener(() => {
-  backgroundRuntime.runSync(startupSnapshotService.sessionsChanged())
-})
-
 chromeApi.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === RETAINED_PAGES_EXPIRY_ALARM) {
     void backgroundRuntime.runPromise(settleBackgroundEffect(
@@ -462,15 +458,8 @@ chromeApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ ok: false })
       return true
     }
-    if (restoreState.phase === 'started') {
-      backgroundRuntime.runSync(
-        startupSnapshotService.sessionRestoreStarted(restoreState.restoreId),
-      )
-    } else {
-      backgroundRuntime.runSync(
-        startupSnapshotService.sessionRestoreSettled(restoreState.restoreId),
-      )
-    }
+    // Peer dashboards own restore suppression; the worker is the stable
+    // acknowledgement endpoint for their shared broadcast.
     sendResponse({ ok: true })
     return true
   }

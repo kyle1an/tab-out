@@ -53,9 +53,6 @@ export type SaveDashboardStartupSeedOptions = {
 // payloads stay read-only until a valid replacement is written successfully.
 export const DASHBOARD_STARTUP_SEED_CACHE_KEY = 'tab-out:startup-seed:v2'
 export const LEGACY_DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY = 'tab-out:startup-snapshot:v1'
-// Temporary source-compatibility alias for extension listeners and tests. The
-// value points at the compact v2 seed, never at the legacy render cache.
-export const DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY = DASHBOARD_STARTUP_SEED_CACHE_KEY
 
 export const DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS = 30 * 60_000
 export const DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS = 7 * 24 * 60 * 60_000

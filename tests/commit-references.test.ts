@@ -19,7 +19,6 @@ const ZERO_OBJECT_ID = '0'.repeat(40)
 const SCRIPT_FILE = fileURLToPath(
   new URL('../scripts/check-commit-references.ts', import.meta.url),
 )
-const TSX_BIN = fileURLToPath(new URL('../node_modules/.bin/tsx', import.meta.url))
 const GIT_LOCAL_ENVIRONMENT_VARIABLES = execFileSync(
   'git',
   ['rev-parse', '--local-env-vars'],
@@ -43,7 +42,7 @@ function git(cwd: string, ...args: string[]): string {
 }
 
 function runPrePush(cwd: string, input: string) {
-  return spawnSync(TSX_BIN, [SCRIPT_FILE, '--pre-push', 'origin'], {
+  return spawnSync(process.execPath, [SCRIPT_FILE, '--pre-push', 'origin'], {
     cwd,
     input,
     encoding: 'utf8',
