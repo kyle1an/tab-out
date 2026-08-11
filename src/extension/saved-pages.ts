@@ -266,17 +266,11 @@ export function annotateSavedPageHints(tabs: DashboardTab[], store: Partial<Save
 export function savedPagesStoresEqual(a: Partial<SavedPagesStore> | null | undefined, b: Partial<SavedPagesStore> | null | undefined): boolean {
   const left = normalizeSavedPagesStore(a)
   const right = normalizeSavedPagesStore(b)
-  const leftKeys = Object.keys(left.pages).sort()
-  const rightKeys = Object.keys(right.pages).sort()
-  if (leftKeys.length !== rightKeys.length) return false
-  for (let i = 0; i < leftKeys.length; i += 1) {
-    const key = leftKeys[i]
-    if (key === undefined || key !== rightKeys[i]) return false
-    const leftRecord = left.pages[key]
+  const leftEntries = Object.entries(left.pages)
+  return leftEntries.length === Object.keys(right.pages).length && leftEntries.every(([key, leftRecord]) => {
     const rightRecord = right.pages[key]
-    if (!leftRecord || !rightRecord || !savedPageRecordsEqual(leftRecord, rightRecord)) return false
-  }
-  return true
+    return rightRecord !== undefined && savedPageRecordsEqual(leftRecord, rightRecord)
+  })
 }
 
 export function savedPageRecordsEqual(a: SavedPageRecord, b: SavedPageRecord): boolean {

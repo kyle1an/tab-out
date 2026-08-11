@@ -9,6 +9,8 @@ test('filtered empty missions announce their result summary', () => {
   const html = renderToStaticMarkup(React.createElement(Missions, {
     cards: [],
     filter: 'missing page',
+    showEmptyState: true,
+    source: 'tabs',
   }))
 
   assert.match(html, /<output/)

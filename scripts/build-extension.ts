@@ -1,6 +1,5 @@
 import process from 'node:process'
 import { resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import * as NodeRuntime from '@effect/platform-node/NodeRuntime'
 import * as NodeServices from '@effect/platform-node/NodeServices'
@@ -15,7 +14,7 @@ import { createIndexHtml } from '../src/index-html.js'
 
 type BuildEntry = 'app' | 'background'
 
-const repositoryRoot = fileURLToPath(new URL('../', import.meta.url))
+const repositoryRoot = resolve(import.meta.dirname, '..')
 const extensionPackageDirectory = resolveWorkingSetBuildSelection(
   repositoryRoot,
 ).extensionDirectory

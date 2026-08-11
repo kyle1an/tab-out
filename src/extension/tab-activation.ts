@@ -92,7 +92,7 @@ function reportOpenFailure(): DashboardItemActivationResult {
  * with its local focus path. A failed modifier action remains terminal: falling
  * through could activate or open a different target than the user's gesture.
  */
-export const performDashboardItemActivationEffect = Effect.fn('tabActivation.perform')(function* (
+const performDashboardItemActivationEffect = Effect.fn('tabActivation.perform')(function* (
   mode: ChipActivationMode,
   target: DashboardItemActivationTarget,
   { moveExisting = true }: DashboardItemActivationOptions = {},

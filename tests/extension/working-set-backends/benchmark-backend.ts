@@ -7,7 +7,6 @@ import type {
 } from '../../../src/extension/types'
 import type {
   WorkingSetStorageBenchmarkBackend,
-  WorkingSetStorageBenchmarkOwnedStorage,
 } from '../working-set-storage-benchmark-protocol.js'
 
 export const DISPOSABLE_BENCHMARK_PREFIX =
@@ -20,14 +19,6 @@ export const compactActivityEventSchema = Schema.Tuple([
   Schema.Finite,
 ])
 
-export const compactActivityRowSchema = Schema.Tuple([
-  Schema.String,
-  Schema.String,
-  Schema.NullOr(Schema.Finite),
-  Schema.NullOr(Schema.Finite),
-  Schema.Array(compactActivityEventSchema),
-])
-
 const compactActivityStoredRowSchema = Schema.Tuple([
   Schema.String,
   Schema.String,
@@ -36,20 +27,20 @@ const compactActivityStoredRowSchema = Schema.Tuple([
   Schema.Array(Schema.Unknown),
 ])
 
-export const compactActivityEnvelopeSchema = Schema.Tuple([
-  Schema.Literals([COMPACT_ACTIVITY_ENCODING_VERSION]),
-  Schema.Array(compactActivityRowSchema),
-])
-
 const compactActivityStorageEnvelopeSchema = Schema.Tuple([
   Schema.Literals([COMPACT_ACTIVITY_ENCODING_VERSION]),
   Schema.Array(Schema.Unknown),
 ])
 
-export type CompactActivityRow = typeof compactActivityRowSchema.Type
-export type CompactActivityEnvelope = typeof compactActivityEnvelopeSchema.Type
+export type CompactActivityRow = [
+  string,
+  string,
+  number | null,
+  number | null,
+  Array<typeof compactActivityEventSchema.Type>,
+]
+export type CompactActivityEnvelope = [1, CompactActivityRow[]]
 
-export type BenchmarkOwnedStorage = WorkingSetStorageBenchmarkOwnedStorage
 export type WorkingSetBenchmarkBackend = WorkingSetStorageBenchmarkBackend
 
 export interface BenchmarkChromeStorageArea {
@@ -176,7 +167,7 @@ async function decodeCompactActivityRow(
   ]
 }
 
-export function materializeCompactActivityRows(
+function materializeCompactActivityRows(
   rows: readonly CompactActivityRow[],
 ): WorkingSetActivityStore {
   return {

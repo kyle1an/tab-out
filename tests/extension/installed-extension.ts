@@ -1,7 +1,6 @@
 import { cp, glob, mkdir, mkdtempDisposable, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import {
   chromium,
@@ -39,7 +38,7 @@ export interface LaunchedInstalledExtension
   readonly dispose: () => Promise<void>
 }
 
-const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url))
+const repositoryRoot = join(import.meta.dirname, '../..')
 const builtExtensionDirectory = join(repositoryRoot, 'extension')
 
 async function findInstrumentationMarker(

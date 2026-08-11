@@ -1,7 +1,6 @@
 import { DomainCard } from './DomainCard'
 import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { dashboardSourceEmptyNoun } from '../extension/dashboard-source.js'
-import { cn } from '@/lib/utils'
 import { highlightTermsForFilter } from './filter-highlight-text'
 import type { DashboardCardEntry, DashboardSource } from './types'
 
@@ -9,12 +8,12 @@ interface MissionsProps {
   cards: DashboardCardEntry[]
   emptyStateHint?: string | undefined
   emptyStateLabel?: string | undefined
-  filter?: string
-  source?: DashboardSource
-  showEmptyState?: boolean
+  filter: string
+  source: DashboardSource
+  showEmptyState: boolean
 }
 
-function EmptyState({ hint, label, source = 'tabs' }: { hint?: string | undefined, label?: string | undefined, source?: DashboardSource }) {
+function EmptyState({ hint, label, source }: { hint?: string | undefined, label?: string | undefined, source: DashboardSource }) {
   const noun = dashboardSourceEmptyNoun(source)
   return (
     <output
@@ -28,21 +27,21 @@ function EmptyState({ hint, label, source = 'tabs' }: { hint?: string | undefine
   )
 }
 
-function NoResultsState({ hint, query = '' }: { hint?: string | undefined, query?: string }) {
+function NoResultsState({ hint, query }: { hint?: string | undefined, query: string }) {
   return (
     <output
       aria-live="polite"
       aria-atomic="true"
       className="[column-span:all] flex flex-col items-center justify-center gap-1.5 px-4 pt-10 pb-15 text-center"
     >
-      <span className={cn('text-base font-normal text-foreground', 'text-[15px]')}>{query ? `No matches for “${query}”.` : 'No matches.'}</span>
+      <span className="font-normal text-foreground text-[15px]">No matches for “{query}”.</span>
       {hint && <span className="text-sm font-normal text-muted-foreground">{hint}</span>}
     </output>
   )
 }
 
-export function Missions({ cards, emptyStateHint, emptyStateLabel, filter = '', source = 'tabs', showEmptyState = true }: MissionsProps) {
-  if (!cards || cards.length === 0) {
+export function Missions({ cards, emptyStateHint, emptyStateLabel, filter, source, showEmptyState }: MissionsProps) {
+  if (cards.length === 0) {
     if (!showEmptyState) return null
     return filter
       ? <NoResultsState hint={emptyStateHint} query={filter} />

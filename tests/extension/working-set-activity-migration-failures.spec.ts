@@ -1,4 +1,4 @@
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 
 import {
   expect,
@@ -39,9 +39,7 @@ import {
 } from './installed-extension.js'
 import { terminateServiceWorkerAndProveAbsent } from './service-worker-cdp.js'
 
-const builtExtensionDirectory = fileURLToPath(
-  new URL('../../extension/', import.meta.url),
-)
+const builtExtensionDirectory = join(import.meta.dirname, '../../extension')
 const startupTraceKey = '__tabOutWorkingSetActivityFailureTrace'
 const markedSentinelStore = 'marked-schema-sentinel'
 const candidateSentinelStore = 'candidate-schema-sentinel'

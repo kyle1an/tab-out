@@ -361,7 +361,7 @@ function exactTabFocusOrOpenResult(
 }
 
 /** Open only when a successful browser read proves no matching tab exists. */
-export const focusExactTabOrOpenEffect = Effect.fn('tabs.focusExactOrOpen')(function* (url: string) {
+const focusExactTabOrOpenEffect = Effect.fn('tabs.focusExactOrOpen')(function* (url: string) {
   const result = yield* focusExactTabTargetEffect(url)
   if (result.status === 'not-found') {
     return exactTabFocusOrOpenResult(

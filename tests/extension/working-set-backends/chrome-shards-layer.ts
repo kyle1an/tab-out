@@ -22,7 +22,7 @@ import {
   type WorkingSetBenchmarkBackend,
 } from './benchmark-backend.js'
 
-export const CHROME_SHARD_COUNT = 32
+const CHROME_SHARD_COUNT = 32
 export const CHROME_SHARD_STORAGE_KEYS = Array.from(
   { length: CHROME_SHARD_COUNT },
   (_, index) =>

@@ -33,12 +33,12 @@ const activityRecordSchema = Schema.Struct({
   events: Schema.mutable(Schema.Array(activityEventSchema)),
 })
 
-export const workingSetActivityStoreMessageSchema = Schema.Struct({
+const workingSetActivityStoreMessageSchema = Schema.Struct({
   version: Schema.Literals([1]),
   records: Schema.Record(Schema.String, activityRecordSchema),
 }) satisfies Schema.Schema<WorkingSetActivityStore>
 
-export const workingSetStorageBenchmarkEventSchema = Schema.Struct({
+const workingSetStorageBenchmarkEventSchema = Schema.Struct({
   kind: Schema.Literals(['activation', 'navigation']),
   at: Schema.Finite,
   tabId: nonNegativeIntSchema,
@@ -125,13 +125,13 @@ const failNextMutationMessageSchema = Schema.Struct({
   operation: Schema.Literals(['fail-next-mutation']),
 })
 
-export const workingSetStorageBenchmarkCorruptionSchema = Schema.Literals([
+const workingSetStorageBenchmarkCorruptionSchema = Schema.Literals([
   'row',
   'outer-version',
   'missing-required-store',
 ])
 
-export type WorkingSetStorageBenchmarkCorruption =
+type WorkingSetStorageBenchmarkCorruption =
   typeof workingSetStorageBenchmarkCorruptionSchema.Type
 
 const corruptMessageSchema = Schema.Struct({
@@ -145,7 +145,7 @@ const diagnosticsMessageSchema = Schema.Struct({
   operation: Schema.Literals(['diagnostics']),
 })
 
-export const workingSetStorageBenchmarkMessageSchema = Schema.Union([
+const workingSetStorageBenchmarkMessageSchema = Schema.Union([
   seedProfileMessageSchema,
   replaceMessageSchema,
   storageReadMessageSchema,
@@ -245,10 +245,8 @@ const failureResponseSchema = Schema.Struct({
 
 export type WorkingSetStorageBenchmarkSuccessResponse =
   typeof successResponseSchema.Type
-export type WorkingSetStorageBenchmarkFailureResponse =
-  typeof failureResponseSchema.Type
 
-export const workingSetStorageBenchmarkResponseSchema = Schema.Union([
+const workingSetStorageBenchmarkResponseSchema = Schema.Union([
   successResponseSchema,
   failureResponseSchema,
 ])

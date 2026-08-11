@@ -27,15 +27,15 @@ import {
   type WorkingSetBenchmarkBackend,
 } from './benchmark-backend.js'
 
-export const DISPOSABLE_INDEXED_DB_NAME =
+const DISPOSABLE_INDEXED_DB_NAME =
   `${DISPOSABLE_BENCHMARK_PREFIX}:indexed-db`
-export const INDEXED_DB_RECORDS_STORE = 'page-activity'
-export const INDEXED_DB_LAST_EVENT_INDEX = 'last-event-at'
+const INDEXED_DB_RECORDS_STORE = 'page-activity'
+const INDEXED_DB_LAST_EVENT_INDEX = 'last-event-at'
 
 const DATABASE_VERSION = 1
 const ACTIVITY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
-export const indexedDbActivityValueSchema = Schema.Struct({
+const indexedDbActivityValueSchema = Schema.Struct({
   title: Schema.String,
   dismissedAt: Schema.optionalKey(Schema.Finite),
   dismissedUntil: Schema.optionalKey(Schema.Finite),
@@ -72,10 +72,6 @@ interface WorkingSetBenchmarkDatabase extends DBSchema {
   }
 }
 
-export interface IndexedDbBenchmarkTestOptions {
-  readonly shouldAbortTransaction?: () => boolean
-}
-
 const diagnostics = makeMutationDiagnostics()
 const closeConnections = new Set<() => Promise<void>>()
 let failNextWrite = false
@@ -83,18 +79,10 @@ let failNextWrite = false
 export function makeWorkingSetActivityStorageLayer(
   _chromeApi: ChromeApi,
 ): Layer.Layer<WorkingSetActivityStorage> {
-  return makeIndexedDbStorageLayer()
+  return WorkingSetActivityStorage.layer(makeIndexedDbBackend())
 }
 
-export function makeIndexedDbStorageLayer(
-  options: IndexedDbBenchmarkTestOptions = {},
-): Layer.Layer<WorkingSetActivityStorage> {
-  return WorkingSetActivityStorage.layer(makeIndexedDbBackend(options))
-}
-
-function makeIndexedDbBackend(
-  options: IndexedDbBenchmarkTestOptions,
-): WorkingSetActivityStorageBackend {
+function makeIndexedDbBackend(): WorkingSetActivityStorageBackend {
   const serialize = makePromiseSerializer()
   let databasePromise:
     | Promise<IDBPDatabase<WorkingSetBenchmarkDatabase>>
@@ -169,10 +157,8 @@ function makeIndexedDbBackend(
       entries.push(entry)
       operations.push(transaction.store.put(entry[1], entry[0]))
     }
-    const shouldAbort = failNextWrite ||
-      options.shouldAbortTransaction?.() === true
-    if (failNextWrite) failNextWrite = false
-    if (shouldAbort) {
+    if (failNextWrite) {
+      failNextWrite = false
       const settledOperations = Promise.allSettled(operations)
       transaction.abort()
       try {
@@ -202,7 +188,6 @@ function makeIndexedDbBackend(
     operations.push(...entries.map(([key, value]) =>
       transaction.store.put(value, key),
     ))
-    if (options.shouldAbortTransaction?.() === true) transaction.abort()
     await Promise.all([...operations, transaction.done])
     diagnostics.commitMutation(entries, [
       `${INDEXED_DB_RECORDS_STORE}:clear`,
