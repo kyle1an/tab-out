@@ -150,6 +150,25 @@ async function expectNoHistoryReorderMoves(page: Page) {
   expect((await historyReorderEvents(page)).filter((event) => event.type === 'move')).toHaveLength(0)
 }
 
+async function downstreamDomainCardGap(card: Locator): Promise<number> {
+  return card.evaluate((element) => {
+    if (!(element instanceof HTMLElement)) throw new Error('Masonry card is not an HTML element')
+    const container = element.closest('.missions')
+    if (!container) throw new Error('Masonry container is unavailable')
+
+    const cardRect = element.getBoundingClientRect()
+    const downstreamCard = Array.from(container.querySelectorAll<HTMLElement>('.domain-block:not(.closing)'))
+      .find((candidate) => (
+        candidate !== element &&
+        candidate.dataset.masonryCol === element.dataset.masonryCol &&
+        candidate.getBoundingClientRect().top >= cardRect.top
+      ))
+    if (!downstreamCard) throw new Error('Downstream masonry card is unavailable')
+
+    return downstreamCard.getBoundingClientRect().top - cardRect.bottom
+  })
+}
+
 async function expectHistoryReorderMove(page: Page) {
   await expect.poll(async () => (
     (await historyReorderEvents(page)).some((event) => event.type === 'move' && event.active)
@@ -3616,6 +3635,27 @@ test('Page Chip overflow expansion repacks downstream Domain Cards without overl
   })
 
   expect(overlaps, JSON.stringify(overlaps, null, 2)).toEqual([])
+})
+
+test('post-pack Domain Card content growth repacks downstream cards without overlap', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 })
+  await page.goto('/tests/fixtures/dashboard-resize.html?motion=1')
+
+  const card = page.locator('[data-tabout="domain-card"][data-tabout-domain="overflow-motion.test"]')
+  await expect(card).toBeVisible()
+  await expect.poll(() => downstreamDomainCardGap(card)).toBeGreaterThanOrEqual(9)
+
+  // Model a Page Chip's post-pack title-layout commit without depending on
+  // refresh timing or a test-only hook inside the title measurement path.
+  await card.locator('.mission-card').evaluate((element) => {
+    if (!(element instanceof HTMLElement)) throw new Error('Domain Card content is not an HTML element')
+    element.style.paddingBottom = '128px'
+  })
+
+  await expect.poll(
+    () => downstreamDomainCardGap(card),
+    { message: 'the next same-column Domain Card should move below the grown card', timeout: 1_000 },
+  ).toBeGreaterThanOrEqual(9)
 })
 
 test('closing the last rendered Page Chip keeps the overflow layout and retains the page', async ({ page }) => {

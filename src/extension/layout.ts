@@ -102,15 +102,28 @@ function shouldAnimateAnyMasonryResize(containers: Array<HTMLElement | null>, la
 
 export function packMissionsMasonry(
   containers: HTMLElement | null | Array<HTMLElement | null>,
-  { unpin = false, lastColCounts = null }: { unpin?: boolean, lastColCounts?: WeakMap<HTMLElement, number> | null } = {},
+  {
+    unpin = false,
+    lastColCounts = null,
+    packedCardHeights = null,
+  }: {
+    unpin?: boolean
+    lastColCounts?: WeakMap<HTMLElement, number> | null
+    packedCardHeights?: WeakMap<HTMLElement, number> | null
+  } = {},
 ): void {
   const targets = Array.isArray(containers) ? containers : [containers]
   for (const container of targets) {
-    packContainer(container, unpin, lastColCounts)
+    packContainer(container, unpin, lastColCounts, packedCardHeights)
   }
 }
 
-function packContainer(container: HTMLElement | null, unpin: boolean, lastColCounts: WeakMap<HTMLElement, number> | null) {
+function packContainer(
+  container: HTMLElement | null,
+  unpin: boolean,
+  lastColCounts: WeakMap<HTMLElement, number> | null,
+  packedCardHeights: WeakMap<HTMLElement, number> | null,
+) {
   if (!container) return
 
   const containerWidth = container.clientWidth
@@ -144,6 +157,7 @@ function packContainer(container: HTMLElement | null, unpin: boolean, lastColCou
   // height together before positioning any card so the loop below stays
   // write-only instead of forcing a layout after each left/top mutation.
   const cardHeights = cards.map((card) => card.getBoundingClientRect().height)
+  cards.forEach((card, index) => packedCardHeights?.set(card, cardHeights[index] ?? 0))
   const colHeights: number[] = new Array(colCount).fill(0)
   cards.forEach((card, index) => {
     let col = 0
@@ -170,9 +184,11 @@ export function useMissionsMasonry(...args: unknown[]) {
   const options = isMasonryHookOptions(args.at(-1)) ? args.pop() as MasonryHookOptions : {}
   const containerRefs = args as Array<RefObject<HTMLElement | null>>
   const { onAfterLayout = null, onBeforePack = null, onAfterPack = null } = options
+  const packedCardHeightsRef = useRef(new WeakMap<HTMLElement, number>())
   const lastColCountsRef = useRef(new WeakMap<HTMLElement, number>())
   const rafIdRef = useRef(0)
   const observerRef = useRef<ResizeObserver | null>(null)
+  const cardResizeObserverRef = useRef<ResizeObserver | null>(null)
   const mutationObserverRef = useRef<MutationObserver | null>(null)
   const observedContainersRef = useRef(new Set<HTMLElement>())
   const observedContainerWidthsRef = useRef(new WeakMap<HTMLElement, number>())
@@ -193,6 +209,7 @@ export function useMissionsMasonry(...args: unknown[]) {
       {
         unpin,
         lastColCounts: lastColCountsRef.current,
+        packedCardHeights: packedCardHeightsRef.current,
       },
     )
     onAfterLayout?.(containers)
@@ -201,7 +218,10 @@ export function useMissionsMasonry(...args: unknown[]) {
 
   const scheduleMissionsMasonry = useCallback(function scheduleMissionsMasonry({ unpin = false, animate = true }: { unpin?: boolean, animate?: boolean } = {}) {
     cancelAnimationFrame(rafIdRef.current)
-    rafIdRef.current = requestAnimationFrame(() => packMissionsMasonryNow({ unpin, animate }))
+    rafIdRef.current = requestAnimationFrame(() => {
+      rafIdRef.current = 0
+      packMissionsMasonryNow({ unpin, animate })
+    })
   }, [packMissionsMasonryNow])
 
   useLayoutEffect(() => {
@@ -221,12 +241,43 @@ export function useMissionsMasonry(...args: unknown[]) {
       const containers = currentContainersFromRefs(containerRefsRef)
       scheduleMissionsMasonry({ animate: shouldAnimateAnyMasonryResize(containers, lastColCountsRef.current) })
     })
+    let cardResizeObserver = cardResizeObserverRef.current
+    if (!cardResizeObserver) {
+      cardResizeObserver = new ResizeObserver((entries) => {
+        let heightChanged = false
+        for (const entry of entries) {
+          if (!(entry.target instanceof HTMLElement)) continue
+          const nextHeight = entry.borderBoxSize[0]?.blockSize ?? entry.contentRect.height
+          const packedHeight = packedCardHeightsRef.current.get(entry.target)
+          if (packedHeight === undefined) {
+            packedCardHeightsRef.current.set(entry.target, nextHeight)
+          } else if (Math.abs(packedHeight - nextHeight) > 0.1) {
+            heightChanged = true
+          }
+        }
+        // Explicit layout changes already have a coalesced pack waiting, often
+        // with the FLIP geometry needed to animate them. Otherwise a card's
+        // contents changed size independently (for example after title layout
+        // settles), so repack synchronously before the stale positions paint.
+        if (!heightChanged || rafIdRef.current !== 0) return
+        packMissionsMasonryNow()
+      })
+      cardResizeObserverRef.current = cardResizeObserver
+    }
     // Progressive reveal appends `.domain-block` children into a grid whose box
     // doesn't change (its height is set imperatively), so the ResizeObserver
     // alone never fires for it. A childList MutationObserver re-packs on append.
     // packContainer only mutates styles/height (never childList), so this can't
     // loop; scheduleMissionsMasonry rAF-coalesces bursts of appends into one pack.
-    const mutationObserver = mutationObserverRef.current ??= new MutationObserver(() => {
+    const mutationObserver = mutationObserverRef.current ??= new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.removedNodes) {
+          if (node instanceof HTMLElement && node.matches('.domain-block')) cardResizeObserver.unobserve(node)
+        }
+        for (const node of record.addedNodes) {
+          if (node instanceof HTMLElement && node.matches('.domain-block')) cardResizeObserver.observe(node)
+        }
+      }
       scheduleMissionsMasonry({ animate: false })
     })
     const nextContainers = new Set<HTMLElement>()
@@ -246,11 +297,13 @@ export function useMissionsMasonry(...args: unknown[]) {
     // selection update. Conditional grids still rebind on the first render
     // where their ref target actually changes.
     observer.disconnect()
+    cardResizeObserver.disconnect()
     mutationObserver.disconnect()
     nextContainers.forEach((container) => {
       observedContainerWidthsRef.current.getOrInsertComputed(container, () => container.clientWidth)
       observer.observe(container)
       mutationObserver.observe(container, { childList: true })
+      for (const card of container.querySelectorAll<HTMLElement>('.domain-block')) cardResizeObserver.observe(card)
     })
     observedContainersRef.current = nextContainers
   })
@@ -259,6 +312,7 @@ export function useMissionsMasonry(...args: unknown[]) {
     () => () => {
       cancelAnimationFrame(rafIdRef.current)
       observerRef.current?.disconnect()
+      cardResizeObserverRef.current?.disconnect()
       mutationObserverRef.current?.disconnect()
       observedContainersRef.current.clear()
     },
