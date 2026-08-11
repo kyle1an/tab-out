@@ -8,6 +8,7 @@ test_directory="$repository_root/integrations/hammerspoon/tests"
 escaped_test_directory=${test_directory//\\/\\\\}
 escaped_test_directory=${escaped_test_directory//\"/\\\"}
 
+"$script_directory/test-build"
 hs -c "return dofile(\"$escaped_test_directory/tab_out_spoon_spec.lua\")"
 hs -c "return dofile(\"$escaped_test_directory/tab_out_bridge_spec.lua\")"
 "$script_directory/test-install"

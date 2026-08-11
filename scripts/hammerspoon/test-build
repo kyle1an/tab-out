@@ -1,0 +1,71 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+script_directory=${0:A:h}
+build_script="$script_directory/build"
+temporary_root=$(mktemp -d)
+temporary_root=${temporary_root:A}
+trap 'rm -rf "$temporary_root"' EXIT
+
+fixture_root="$temporary_root/repository"
+fixture_script_directory="$fixture_root/scripts/hammerspoon"
+fixture_native_directory="$fixture_root/integrations/hammerspoon/TabOut.spoon/native"
+fixture_output_directory="$fixture_native_directory/build"
+fixture_build="$fixture_script_directory/build"
+fixture_output="$fixture_output_directory/tab_out_private_focus.dylib"
+fake_bin="$temporary_root/bin"
+fake_xcrun="$fake_bin/xcrun"
+
+mkdir -p "$fixture_script_directory" "$fixture_output_directory" "$fake_bin"
+cp "$build_script" "$fixture_build"
+chmod 755 "$fixture_build"
+: > "$fixture_native_directory/tab_out_private_focus.m"
+printf '%s\n' "known-good" > "$fixture_output"
+
+{
+  printf '%s\n' '#!/bin/zsh'
+  printf '%s\n' 'set -euo pipefail'
+  printf '%s\n' 'output_file='
+  printf '%s\n' 'while (( $# > 0 )); do'
+  printf '%s\n' '  if [[ $1 == -o ]]; then'
+  printf '%s\n' '    shift'
+  printf '%s\n' '    output_file=$1'
+  printf '%s\n' '  fi'
+  printf '%s\n' '  shift'
+  printf '%s\n' 'done'
+  printf '%s\n' '[[ -n $output_file ]]'
+  printf '%s\n' '[[ $output_file != "$TAB_OUT_TEST_FINAL_OUTPUT" ]]'
+  printf '%s\n' '[[ $(<"$TAB_OUT_TEST_FINAL_OUTPUT") == known-good ]]'
+  printf '%s\n' 'if [[ $TAB_OUT_TEST_XCRUN_MODE == fail ]]; then'
+  printf '%s\n' '  printf "%s\\n" partial-output > "$output_file"'
+  printf '%s\n' '  exit 42'
+  printf '%s\n' 'fi'
+  printf '%s\n' 'printf "%s\\n" replacement > "$output_file"'
+} > "$fake_xcrun"
+chmod 755 "$fake_xcrun"
+
+set +e
+PATH="$fake_bin:$PATH" \
+  TAB_OUT_TEST_FINAL_OUTPUT="$fixture_output" \
+  TAB_OUT_TEST_XCRUN_MODE=fail \
+  "$fixture_build" >/dev/null 2>&1
+failure_status=$?
+set -e
+
+[[ $failure_status -eq 42 ]]
+[[ $(<"$fixture_output") == "known-good" ]]
+temporary_outputs=("$fixture_output_directory"/.tab_out_private_focus.*(N))
+[[ ${#temporary_outputs} -eq 0 ]]
+
+build_output=$(PATH="$fake_bin:$PATH" \
+  TAB_OUT_TEST_FINAL_OUTPUT="$fixture_output" \
+  TAB_OUT_TEST_XCRUN_MODE=succeed \
+  "$fixture_build")
+
+[[ $build_output == "$fixture_output" ]]
+[[ $(<"$fixture_output") == "replacement" ]]
+temporary_outputs=("$fixture_output_directory"/.tab_out_private_focus.*(N))
+[[ ${#temporary_outputs} -eq 0 ]]
+
+printf '%s\n' "Hammerspoon private helper build regression: ok"

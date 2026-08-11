@@ -6,13 +6,22 @@
   "entry": [
     "src/app.tsx",
     "src/extension/background.ts",
+    "src/extension/dashboard-view-boot.ts",
     "src/extension/filter-focus-boot.ts",
+    "src/styles/app.css",
     "tests/**/*.test.ts",
     "tests/browser/**/*.spec.ts",
+    "tests/extension/working-set-storage-benchmark-background.ts",
+    "tests/extension/working-set-backends/*.ts",
     "tests/helpers/fake-chrome.mjs",
     "scripts/*.ts"
   ],
-  "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts", "tests/**/*.{ts,mjs}"],
+  "project": ["src/**/*.{css,ts,tsx}", "scripts/**/*.ts", "tests/**/*.{ts,mjs}"],
+  "ignoreIssues": {
+    // Shared UI primitives intentionally preserve the upstream-supported
+    // component family even when current product callers use only a subset.
+    "src/components/ui/select.tsx": ["exports"]
+  },
   "ignoreDependencies": [
     // Icon sets are consumed by @iconify/tailwind4 through CSS class names
     // (icon-[lucide--…] etc.) in src/styles/app.css — invisible to knip.

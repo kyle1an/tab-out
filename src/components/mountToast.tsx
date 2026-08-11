@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import type { ToastAction } from '../extension/toast.js'
+import type { ToastAction } from '../lib/toast-contract.js'
 import { Toast } from './Toast'
 import { showToastInMountedRoot } from './toast-runtime'
 

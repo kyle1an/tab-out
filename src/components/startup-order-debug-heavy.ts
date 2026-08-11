@@ -1,4 +1,4 @@
-import type { StartupOrderDebugCapture, StartupOrderVmSampleOptions } from './startup-order-debug'
+import type { StartupOrderDebugCapture, StartupOrderVmSampleOptions } from './startup-order-debug-types'
 
 const STARTUP_ORDER_DEBUG_FILTER_KEY = 'tab-out:debug-startup-order-filter'
 const STARTUP_ORDER_DEBUG_DURATION_MS = 3000

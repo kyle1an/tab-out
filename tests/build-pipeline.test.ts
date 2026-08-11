@@ -10,6 +10,40 @@ import {
 import { createIndexHtml } from '../src/index-html.js'
 import { createExtensionManifest } from '../src/extension/manifest.js'
 
+test('verification checks every tracked generated extension surface', () => {
+  const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
+
+  assert.equal(
+    pkg.scripts?.['verify:bundle'],
+    'node scripts/check-generated-extension-output.ts',
+  )
+  assert.match(pkg.scripts?.verify, /pnpm build && pnpm verify:bundle/)
+})
+
+test('browser proof scripts expose focused and complete harness runs', () => {
+  const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
+
+  assert.equal(pkg.scripts?.['test:browser'], 'pnpm test:browser:all')
+  assert.equal(
+    pkg.scripts?.['test:browser:all'],
+    'playwright test --config tests/playwright.config.ts',
+  )
+  assert.equal(
+    pkg.scripts?.['test:browser:smoke'],
+    'playwright test --config tests/playwright.config.ts tests/browser/dashboard-smoke.spec.ts',
+  )
+  assert.equal(
+    pkg.scripts?.['test:browser:layout'],
+    'playwright test --config tests/playwright.config.ts tests/browser/dashboard-layout.spec.ts',
+  )
+  assert.equal(
+    pkg.scripts?.['test:browser:first-paint'],
+    'playwright test --config tests/playwright.config.ts tests/browser/dashboard-first-paint.spec.ts',
+  )
+  assert.equal(pkg.scripts?.['verify:browser'], 'pnpm verify && pnpm test:browser:all')
+  assert.equal(pkg.scripts?.['verify:extension'], 'pnpm verify && pnpm test:extension')
+})
+
 test('extension HTML loads the Vite-built React entry', async () => {
   assert.ok(existsSync('package.json'), 'package.json should define the Vite build')
   assert.ok(existsSync('scripts/build-extension.ts'), 'scripts/build-extension.ts should generate package files and build extension entries without shared runtime chunks')
@@ -30,12 +64,13 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.ok(existsSync('src/extension/manifest.ts'), 'src/extension/manifest.ts should be the manifest source')
   assert.ok(existsSync('src/index-html.tsx'), 'src/index-html.tsx should be the dashboard page source')
   assert.ok(existsSync('src/index-html.template.html'), 'src/index-html.template.html should define the static dashboard page wrapper')
-  assert.ok(existsSync('src/index-html.template.d.html.ts'), 'the HTML template should expose its string type through an arbitrary-extension declaration')
+  assert.equal(existsSync('src/index-html.template.d.html.ts'), false, 'the Node generator should read the HTML template without an arbitrary-extension declaration')
   assert.ok(existsSync('components.json'), 'components.json should define the shadcn project setup')
   assert.ok(existsSync('.dependency-cruiser.cjs'), 'dependency-cruiser should define repository architecture rules')
-  assert.ok(
+  assert.equal(
     existsSync('.dependency-cruiser-known-violations.json'),
-    'dependency-cruiser should baseline existing graph debt',
+    false,
+    'dependency-cruiser should stay clean without a known-violations baseline',
   )
   assert.ok(existsSync('chrome-support.json'), 'chrome-support.json should be the tracked browser-support policy')
   assert.ok(existsSync('doctor.config.json'), 'doctor.config.json should define the React Doctor policy')
@@ -55,8 +90,8 @@ test('extension HTML loads the Vite-built React entry', async () => {
   )
   assert.equal(pkg.scripts?.dev, 'node scripts/watch-build.ts')
   assert.equal(pkg.scripts?.serve, 'node scripts/serve.ts')
-  assert.equal(pkg.scripts?.build, 'node --experimental-import-text --import tsx scripts/build-extension.ts')
-  assert.equal(pkg.scripts?.['build:debug'], 'node --experimental-import-text --import tsx scripts/build-extension.ts --sourcemap')
+  assert.equal(pkg.scripts?.build, 'node --import tsx scripts/build-extension.ts')
+  assert.equal(pkg.scripts?.['build:debug'], 'node --import tsx scripts/build-extension.ts --sourcemap')
   assert.equal(
     pkg.scripts?.['build:working-set-storage-benchmark'],
     'node scripts/build-working-set-storage-benchmark.ts',
@@ -71,11 +106,11 @@ test('extension HTML loads the Vite-built React entry', async () => {
     'node scripts/chrome-support.ts release-check',
   )
   assert.match(pkg.scripts?.typecheck, /tsconfig\.node\.json/)
-  assert.match(pkg.scripts?.test, /--experimental-import-text/)
+  assert.equal(pkg.scripts?.test, 'node --import tsx --test tests/*.test.ts')
   assert.equal(pkg.scripts?.lint, 'eslint . --max-warnings=0')
   assert.equal(
     pkg.scripts?.['deps:architecture'],
-    'depcruise --config .dependency-cruiser.cjs --ignore-known .dependency-cruiser-known-violations.json src',
+    'depcruise --config .dependency-cruiser.cjs src',
   )
   assert.equal(pkg.scripts?.['deps:peers'], 'pnpm peers check')
   assert.equal(pkg.scripts?.['deps:nolyfill'], 'pnpm dlx nolyfill --pm pnpm')
@@ -86,16 +121,12 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.equal(doctorConfig.noScore, true)
   assert.equal(doctorConfig.supplyChain?.enabled, false)
   assert.equal(doctorConfig.offline, undefined)
-  assert.match(pkg.scripts?.['test:browser'], /playwright test/)
-  assert.match(pkg.scripts?.['test:browser'], /dashboard-smoke\.spec\.ts/)
-  assert.doesNotMatch(pkg.scripts?.['test:browser'], /RUN_BROWSER_SMOKE/)
-  assert.match(pkg.scripts?.['test:browser:layout'], /dashboard-layout\.spec\.ts/)
-  assert.equal(pkg.scripts?.['verify:bundle'], 'git diff --exit-code -- extension/dist')
   assert.equal(pkg.scripts?.['verify:compiler'], 'node scripts/react-compiler-check.ts')
+  assert.match(pkg.scripts?.verify, /pnpm knip/)
   assert.equal(pkg.scripts?.['lint:tailwind'], 'node scripts/check-tailwind-diagnostics.ts')
   assert.equal(
     pkg.scripts?.['verify:quick'],
-    'pnpm run "/^(typecheck|lint|lint:tailwind|deps:architecture|deps:peers|react-doctor|verify:compiler)$/"',
+    'pnpm run "/^(typecheck|lint|lint:tailwind|deps:architecture|deps:peers|knip|react-doctor|verify:compiler)$/"',
   )
   assert.match(pkg.scripts?.verify, /pnpm lint:tailwind/)
   assert.match(pkg.scripts?.verify, /^pnpm chrome-support:check &&/)
@@ -103,7 +134,6 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.match(pkg.scripts?.verify, /pnpm deps:architecture/)
   assert.match(pkg.scripts?.verify, /pnpm deps:peers/)
   assert.match(pkg.scripts?.verify, /pnpm verify:bundle/)
-  assert.match(pkg.scripts?.['verify:browser'], /pnpm test:browser/)
   assert.ok(pkg.dependencies?.react)
   assert.ok(pkg.dependencies?.['react-dom'])
   assert.ok(pkg.dependencies?.['@base-ui/react'])
@@ -124,7 +154,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.ok(pkg.devDependencies?.['@sinonjs/fake-timers'])
   assert.equal(pkg.devDependencies?.['type-fest'], undefined)
   assert.ok(tsconfig.compilerOptions?.types?.includes('chrome'))
-  assert.equal(tsconfig.compilerOptions?.allowArbitraryExtensions, true)
+  assert.equal(tsconfig.compilerOptions?.allowArbitraryExtensions, undefined)
   assert.equal(tsconfig.compilerOptions?.allowUnreachableCode, false)
   assert.equal(tsconfig.compilerOptions?.noFallthroughCasesInSwitch, true)
   assert.equal(tsconfig.compilerOptions?.noImplicitReturns, true)
@@ -138,6 +168,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.deepEqual(nodeTsconfig.compilerOptions?.types, ['node'])
   assert.deepEqual(nodeTsconfig.compilerOptions?.paths, {})
   assert.ok(nodeTsconfig.files?.includes('scripts/build-working-set-storage-benchmark.ts'))
+  assert.ok(nodeTsconfig.files?.includes('scripts/check-generated-extension-output.ts'))
   assert.ok(nodeTsconfig.files?.includes('scripts/check-tailwind-diagnostics.ts'))
   assert.ok(nodeTsconfig.files?.includes('scripts/chrome-support.ts'))
   assert.ok(nodeTsconfig.files?.includes('scripts/react-compiler-check.ts'))
@@ -203,14 +234,18 @@ test('extension HTML loads the Vite-built React entry', async () => {
     'scripts/working-set-benchmark-build-config.ts',
     'utf8',
   )
+  const workingSetBenchmarkBuildScript = readFileSync(
+    'scripts/build-working-set-storage-benchmark.ts',
+    'utf8',
+  )
   const manifestSource = readFileSync('src/extension/manifest.ts', 'utf8')
   const indexHtmlSource = readFileSync('src/index-html.tsx', 'utf8')
   const serveScript = readFileSync('scripts/serve.ts', 'utf8')
   const watchScript = readFileSync('scripts/watch-build.ts', 'utf8')
   assert.match(indexHtmlSource, /import \{ prerender \} from 'react-dom\/static'/)
   assert.match(indexHtmlSource, /import \{ AppRoot \} from '\.\/components\/App\.js'/)
-  assert.match(indexHtmlSource, /import indexHtmlTemplate from '\.\/index-html\.template\.html' with \{ type: 'text' \}/)
-  assert.match(indexHtmlSource, /await prerender\(<AppRoot \/>\)/)
+  assert.doesNotMatch(indexHtmlSource, /with \{ type: 'text' \}/)
+  assert.doesNotMatch(workingSetBenchmarkBuildScript, /experimental-import-text/)
   assert.match(manifestSource, /chrome\.runtime\.ManifestV3/)
   assert.match(manifestSource, /minimum_chrome_version: MINIMUM_CHROME_VERSION/)
   assert.match(manifestSource, /permissions: \['tabs', 'tabGroups', 'bookmarks', 'history', 'sessions', 'storage', 'alarms', 'favicon', 'system\.display', 'nativeMessaging'\]/)
@@ -312,7 +347,6 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.match(`${appComponentSource}\n${toastSource}\n${mountToastSource}`, /react-dom\/client/)
   assert.doesNotMatch(appSource, /mountToast/)
   assert.doesNotMatch(toastClientSource, /@base-ui\/react\/toast/)
-  assert.match(toastClientSource, /import\('\.\.\/components\/mountToast'\)/)
   assert.match(contextMenuRegistrySource, /activeContextMenuId/)
   assert.match(contextMenuRegistrySource, /export function isContextMenuOpen\(\)/)
   assert.match(contextMenuSource, /import \{ clearActiveContextMenu, setActiveContextMenu \} from '\.\/context-menu-registry'/)

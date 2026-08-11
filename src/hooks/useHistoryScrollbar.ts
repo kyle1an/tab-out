@@ -170,11 +170,16 @@ export function useHistoryScrollbar(
         return
       }
       frameId = requestAnimationFrame(() => {
-        frameId = requestAnimationFrame(updateScrollbar)
+        frameId = requestAnimationFrame(() => {
+          frameId = requestAnimationFrame(() => {
+            frameId = requestAnimationFrame(updateScrollbar)
+          })
+        })
       })
     }
     function requestScrollbarUpdate() {
-      scheduleScrollbarUpdate(!hasMeasured)
+      const awaitingInitialMeasurement = !hasMeasured
+      scheduleScrollbarUpdate(awaitingInitialMeasurement, awaitingInitialMeasurement)
     }
     function requestUrgentScrollbarUpdate() {
       scheduleScrollbarUpdate(false, true)
@@ -186,10 +191,11 @@ export function useHistoryScrollbar(
 
     // The scrollbar is inactive and invisible at mount. ResizeObserver
     // guarantees an initial delivery, and the content observation also covers
-    // row hydration. Let the title clamp commit paint once before reading
-    // geometry: the extra frame keeps this hidden work from forcing layout
-    // between the first history-content paint and its next frame. A real scroll
-    // bypasses that initial delay so interaction feedback stays responsive.
+    // row hydration. Each delivery before the first measurement restarts the
+    // defer so an empty-list delivery cannot outrun hydrated rows or their title
+    // clamps. Leave the content paint and its following frame untouched before
+    // reading geometry. A real scroll bypasses that initial delay so interaction
+    // feedback stays responsive.
     listEl.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', requestScrollbarUpdate)
 

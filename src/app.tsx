@@ -31,7 +31,9 @@ import { SAVED_PAGES_STORAGE_KEY } from './extension/saved-pages.js'
 import { captureAppStartupFrameEffect } from './extension/startup-frame.js'
 import { createStartupAdmissionController } from './extension/startup-frame-controller.js'
 import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupTiming } from './components/startup-order-debug'
+import { installPageToastPresenter } from './components/installToastPresenter'
 
+installPageToastPresenter()
 recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'app-module-evaluated')
 const appRuntime = getAppRuntime()
 

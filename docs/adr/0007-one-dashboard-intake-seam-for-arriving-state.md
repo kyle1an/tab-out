@@ -32,18 +32,16 @@ loop that was suppressed with an equality check rather than removed.
   produce no read and no write, and a concurrent user mutation always wins
   over an advisory render snapshot.
 - The arrival paths consolidate behind one extension-layer Dashboard Intake
-  store consumed via `useSyncExternalStore`, migrated strangler-style: first
-  relocate the non-React fetch orchestration out of the hooks layer, then port
-  the app dashboard reducer wholesale (simplification comes after, as its own
-  slices), then move one arrival path per slice so no slice splits a protocol
-  across the seam.
+  store consumed via `useSyncExternalStore`. The migration landed
+  strangler-style: first relocate the non-React fetch orchestration out of the
+  hooks layer, then port the app dashboard reducer wholesale, then move one
+  arrival path per slice so no slice splits a protocol across the seam.
 - The store stays DOM-free. Pre-commit DOM work (card-move rect capture,
   hover-preview clearing) registers through a `subscribeBeforeApply(reason)`
   lifecycle notification; callers keep stating intent only.
-- The dashboard refresh trigger keeps its call sites but its settle and
-  option-merge semantics fold into the intake module; the register
-  indirection exists only because the handler lived inside a React hook and
-  is deleted once the store owns refresh.
+- The dashboard refresh trigger keeps its call sites, while its settle and
+  option-merge semantics live in the intake module. The former registration
+  indirection was deleted when the store took ownership of refresh.
 
 ## Consequences
 
@@ -61,9 +59,9 @@ therefore mirrors store snapshots and schedules only an arriving source
 snapshot inside a transition; all other arrivals remain synchronous. This is
 an adapter detail, not a seam change.
 
-Until the migration completes, arrival arbitration temporarily spans the
-intake store and the remaining page wiring; slices are ordered so each path
-moves whole.
+The migration is complete. Startup admission, live refresh, source switching,
+and closed-tab updates now arbitrate through the intake store; the React layer
+only subscribes to its snapshot and performs registered pre-commit DOM work.
 
 ## References
 

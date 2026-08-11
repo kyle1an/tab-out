@@ -91,6 +91,7 @@ function diagnosticsError(operation: string, cause: unknown): TailwindDiagnostic
 
 const sourceFiles = Effect.fn('tailwindDiagnostics.sourceFiles')(function* () {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+  const fileSystem = yield* FileSystem.FileSystem
   const output = yield* spawner.string(ChildProcess.make(
     'git',
     ['ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'extension/base.css'],
@@ -99,10 +100,17 @@ const sourceFiles = Effect.fn('tailwindDiagnostics.sourceFiles')(function* () {
     Effect.mapError((cause) => diagnosticsError('list source files', cause)),
   )
 
-  return [...new Set(output.split('\n'))]
+  const candidates = [...new Set(output.split('\n'))]
     .filter((file) => file.length > 0)
     .filter((file) => supportedExtensions.has(path.extname(file)))
     .sort()
+  return yield* Effect.filter(
+    candidates,
+    (file) => fileSystem.exists(path.join(workspaceRoot, file)).pipe(
+      Effect.mapError((cause) => diagnosticsError(`inspect ${file}`, cause)),
+    ),
+    { concurrency: 'unbounded' },
+  )
 })
 
 function languageIdFor(file: string): string {

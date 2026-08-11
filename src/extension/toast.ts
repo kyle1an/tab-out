@@ -1,33 +1,16 @@
-export type ToastAction = {
-  label: string
-  description?: string
-  onClick: () => void | Promise<void>
-}
+import type { ToastAction, ToastPresenter } from '../lib/toast-contract.js'
 
-type ToastRuntime = typeof import('../components/mountToast')
+export type { ToastAction } from '../lib/toast-contract.js'
 
-let toastRuntimePromise: Promise<ToastRuntime> | null = null
+let toastPresenter: ToastPresenter | null = null
 
-function loadToastRuntime(): Promise<ToastRuntime> {
-  toastRuntimePromise ??= import('../components/mountToast').catch((error) => {
-    toastRuntimePromise = null
-    throw error
-  })
-  return toastRuntimePromise
+export function installToastPresenter(presenter: ToastPresenter): () => void {
+  toastPresenter = presenter
+  return () => {
+    if (toastPresenter === presenter) toastPresenter = null
+  }
 }
 
 export function showToast(title: string, action: ToastAction | null = null): void {
-  // Toasts are a page-only enhancement. Some shared action modules also run
-  // in tests or worker-like contexts, where importing the React mount would
-  // fail after doing unnecessary chunk work.
-  if (
-    typeof document === 'undefined' ||
-    typeof document.getElementById !== 'function' ||
-    !document.body
-  ) return
-  void loadToastRuntime()
-    .then(({ showMountedToast }) => showMountedToast(title, action))
-    .catch((error: unknown) => {
-      console.error('Could not load toast UI', error)
-    })
+  toastPresenter?.(title, action)
 }

@@ -10,6 +10,7 @@
   "files": [
     "scripts/build-working-set-storage-benchmark.ts",
     "scripts/check-commit-references.ts",
+    "scripts/check-generated-extension-output.ts",
     "scripts/check-tailwind-diagnostics.ts",
     "scripts/chrome-support.ts",
     "scripts/native-host/test-round-trip.ts",

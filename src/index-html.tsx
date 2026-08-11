@@ -1,11 +1,13 @@
+import { readFile } from 'node:fs/promises'
+
 import { prerender } from 'react-dom/static'
 
 import { AppRoot } from './components/App.js'
-import indexHtmlTemplate from './index-html.template.html' with { type: 'text' }
 
 const APP_MARKUP_SLOT = '<!-- TAB_OUT_PRERENDERED_APP -->'
+const INDEX_HTML_TEMPLATE_URL = new URL('./index-html.template.html', import.meta.url)
 
-function injectAppMarkup(appMarkup: string): string {
+function injectAppMarkup(indexHtmlTemplate: string, appMarkup: string): string {
   const templateParts = indexHtmlTemplate.split(APP_MARKUP_SLOT)
   if (templateParts.length !== 2) {
     throw new Error('Dashboard HTML template must contain exactly one prerendered-app slot')
@@ -19,7 +21,10 @@ function injectAppMarkup(appMarkup: string): string {
  * attaches so the first-render markup has one declaration.
  */
 export async function createIndexHtml(): Promise<string> {
-  const { prelude } = await prerender(<AppRoot />)
+  const [indexHtmlTemplate, { prelude }] = await Promise.all([
+    readFile(INDEX_HTML_TEMPLATE_URL, 'utf8'),
+    prerender(<AppRoot />),
+  ])
   const appMarkup = await new Response(prelude).text()
-  return injectAppMarkup(appMarkup)
+  return injectAppMarkup(indexHtmlTemplate, appMarkup)
 }

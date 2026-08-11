@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import FakeTimers from '@sinonjs/fake-timers'
 
-import { createHoverStateStore } from '../src/components/DashboardInteractionContext.js'
+import { createHoverStateStore } from '../src/lib/hover-state.js'
 import { createUrlPreviewController, URL_PREVIEW_HIDE_DELAY_MS } from '../src/hooks/useUrlPreview.js'
 
 test('hover store notifies only old and new matches across hundreds of leaf selectors', () => {

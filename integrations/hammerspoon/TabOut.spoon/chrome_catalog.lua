@@ -137,7 +137,7 @@ local function markedMenuTitles(value, results, seen)
 end
 
 local function hammerspoonPlatform(options)
-  local hs = assert(options.hs, "hs or platform is required")
+  local hs = assert(options.hs, "hs is required")
   local bundleId = assert(options.chromeBundleId, "chromeBundleId is required")
   local userDataDirectory = assert(options.chromeUserDataDirectory, "chromeUserDataDirectory is required")
   local profilePath = userDataDirectory .. "/" .. options.configuredProfileDirectory
@@ -204,7 +204,7 @@ function M.new(options)
   local later = options.later
   local log = loggerOrNoOp(options.log)
   local onAsyncError = options.onAsyncError or noOp
-  local platform = options.platform or hammerspoonPlatform(options)
+  local platform = hammerspoonPlatform(options)
   local stopTimer = options.stopTimer
   local extensionId
   local profileByWindow = {}

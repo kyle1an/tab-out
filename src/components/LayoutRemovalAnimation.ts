@@ -1,5 +1,12 @@
-export const LAYOUT_REMOVAL_ANIMATION_MS = 160
-export const REDUCED_LAYOUT_REMOVAL_ANIMATION_MS = 120
+import {
+  LAYOUT_REMOVAL_ANIMATION_MS,
+  REDUCED_LAYOUT_REMOVAL_ANIMATION_MS,
+} from '../lib/layout-removal-motion.js'
+
+export {
+  LAYOUT_REMOVAL_ANIMATION_MS,
+  REDUCED_LAYOUT_REMOVAL_ANIMATION_MS,
+} from '../lib/layout-removal-motion.js'
 const DEFERRED_LAYOUT_REMOVAL_FALLBACK_MS = 1_000
 
 const LAYOUT_REMOVAL_EASING = 'cubic-bezier(0.2, 0, 0, 1)'

@@ -40,6 +40,7 @@ export function captureDomainCardFocusRecovery(
   let disposed = false
   let observer: MutationObserver | null = null
   let animationFrame = 0
+  let capturedCardFrameDeferred = false
 
   function dispose() {
     if (disposed) return
@@ -73,6 +74,19 @@ export function captureDomainCardFocusRecovery(
     )
     if (card) {
       const trigger = card.querySelector<HTMLElement>(CARD_MENU_TRIGGER_SELECTOR)
+      if (
+        card === domainCard &&
+        capturedTrigger &&
+        trigger === capturedTrigger &&
+        !capturedCardFrameDeferred
+      ) {
+        // The retained-page write can settle one frame before React commits
+        // the corresponding card removal. Give that commit one bounded frame;
+        // a child-list mutation will replace this scheduled retry if needed.
+        capturedCardFrameDeferred = true
+        schedule()
+        return
+      }
       if (trigger) {
         trigger.focus({ preventScroll: true })
         dispose()

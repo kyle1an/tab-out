@@ -268,7 +268,6 @@ async function runExtensionBuild(
   nonce: string,
 ): Promise<void> {
   const child = spawn(process.execPath, [
-    '--experimental-import-text',
     '--import',
     'tsx',
     resolve(repositoryRoot, 'scripts/build-extension.ts'),

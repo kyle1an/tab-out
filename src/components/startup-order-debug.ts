@@ -1,21 +1,16 @@
-import type { DashboardCardEntry, DashboardData, DashboardSource } from './types'
-import type { WorkingSetSnapshot } from '../extension/types'
+import type {
+  StartupOrderDebugCapture,
+  StartupOrderVmSampleOptions,
+  StartupTiming,
+} from './startup-order-debug-types'
+
+export type {
+  StartupOrderDebugCapture,
+  StartupOrderVmSampleOptions,
+} from './startup-order-debug-types'
 
 const STARTUP_ORDER_DEBUG_KEY = 'tab-out:debug-startup-order'
 
-export type StartupOrderDebugCapture = {
-  enabledAt: string
-  samples: unknown[]
-  shifts: unknown[]
-  timings: StartupTiming[]
-}
-export type StartupTiming = {
-  kind: 'timing'
-  label: string
-  t: number
-  durationMs?: number
-  detail?: Record<string, unknown>
-}
 type StartupTimingOptions = {
   startedAt?: number
   detail?: Record<string, unknown>
@@ -23,15 +18,6 @@ type StartupTimingOptions = {
 type StartupOrderDebugWindow = Window & {
   __tabOutStartupOrderDebug?: StartupOrderDebugCapture
 }
-export type StartupOrderVmSampleOptions = {
-  dashboard: DashboardData | null
-  filter: string
-  isReady: boolean
-  matchedCards: DashboardCardEntry[]
-  source: DashboardSource
-  workingSet?: WorkingSetSnapshot | null
-}
-
 type StartupOrderDebugDetails = typeof import('./startup-order-debug-heavy')
 
 let startupOrderDebugDetailsPromise: Promise<StartupOrderDebugDetails> | null = null

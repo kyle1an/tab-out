@@ -1,5 +1,5 @@
 import { Toast as BaseToast } from '@base-ui/react/toast'
-import type { ToastAction } from '../extension/toast.js'
+import type { ToastAction } from '../lib/toast-contract.js'
 
 const baseToastManager = BaseToast.createToastManager()
 const { promise: toastManagerReady, resolve: resolveToastManagerReady } = Promise.withResolvers<void>()

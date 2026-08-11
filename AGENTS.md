@@ -23,7 +23,7 @@ This repo is a Chrome Manifest V3 extension. Treat `AGENTS.md` as the day-to-day
 - Runtime source lives under `src/`.
 - The unpacked Chrome extension surface is `extension/`.
 - Manifest source lives in `src/extension/manifest.ts`; `pnpm build` regenerates `extension/manifest.json`.
-- Dashboard page generation lives in `src/index-html.tsx`, beside `src/app.tsx`, because it renders UI rather than extension-layer logic; its static wrapper lives in `src/index-html.template.html`. `pnpm build` imports that wrapper as text and regenerates `extension/index.html`. The generator prerenders the same `AppRoot` that `src/app.tsx` attaches, so the generated shell and the client's first render share one component declaration.
+- Dashboard page generation lives in `src/index-html.tsx`, beside `src/app.tsx`, because it renders UI rather than extension-layer logic; its static wrapper lives in `src/index-html.template.html`. `pnpm build` reads that wrapper as UTF-8 text and regenerates `extension/index.html`. The generator prerenders the same `AppRoot` that `src/app.tsx` attaches, so the generated shell and the client's first render share one component declaration.
 - Vite builds:
   - `src/app.tsx` to `extension/dist/app.js`
   - `src/extension/dashboard-view-boot.ts` to `extension/dist/dashboard-view-boot.js`
@@ -70,7 +70,7 @@ pnpm dev
 - `pnpm typecheck` intentionally resolves TypeScript 7's native `tsc` from the `@typescript/native` alias. Native Node entrypoints that do not import the browser render graph are additionally checked through `tsconfig.node.json` with `NodeNext` resolution; keep their syntax erasable so the pinned Node runtime can execute them directly. The build orchestrator is checked by the browser-aware root project because it imports the manifest and prerender generators. The dependency named `typescript` intentionally aliases `@typescript/typescript6` for legacy compiler-API consumers; use `tsc6` only for targeted bridge diagnosis, and do not collapse the bridge or introduce TypeScript-7-only source syntax until those consumers move to the new API. See [ADR 0006](docs/adr/0006-run-typescript-7-with-a-typescript-6-api-bridge.md).
 - Run `pnpm install` when dependencies are missing or `pnpm-lock.yaml` changes.
 - Run `pnpm dev` while editing source or bundled styles.
-- Use `pnpm verify:quick` for an iteration-only parallel pass over typechecking, lint, React Doctor, and the React Compiler baseline check. It does not replace the full verification pipeline.
+- Use `pnpm verify:quick` for an iteration-only parallel pass over typechecking, lint, architecture, peer dependencies, unused code, React Doctor, and the React Compiler baseline check. It does not replace the full verification pipeline.
 - Use `pnpm lint:tailwind` to run the official Tailwind language server across repository source documents; it checks all enabled diagnostics, including canonical-class suggestions and CSS conflicts, and runs inside both verification pipelines.
 - Refresh the Tab Out page for dashboard/UI changes.
 - Reload the extension in `chrome://extensions` for manifest, permission, service-worker, or extension package changes.
@@ -79,8 +79,8 @@ pnpm dev
 ## Verification
 
 - Code changes: run `pnpm verify` before handoff unless there is a clear blocker.
-- UI/layout changes: run `pnpm verify`; also run `pnpm test:browser`, `pnpm verify:browser`, or perform real Chrome visual inspection when practical. The Playwright harness runs its bundled Chromium at the declared minimum Chrome major, owns its local server instead of reusing another worktree's process, and accepts `TAB_OUT_PLAYWRIGHT_PORT` for concurrent worktree runs; install Chromium once with `pnpm exec playwright install chromium`. If browser verification is skipped, say why.
-- Extension API, shortcut, service-worker, tab/window, new-tab override, or focus behavior: prefer real Chrome inspection because harness tests cannot prove `chrome.*` runtime behavior.
+- UI/layout changes: run `pnpm verify`; use `pnpm test:browser:smoke`, `pnpm test:browser:layout`, or `pnpm test:browser:first-paint` for focused harness coverage. `pnpm test:browser` and `pnpm test:browser:all` run every HTTP-fixture browser spec; `pnpm verify:browser` runs the normal verification pipeline followed by that complete browser suite. The Playwright harness runs its bundled Chromium at the declared minimum Chrome major, owns its local server instead of reusing another worktree's process, and accepts `TAB_OUT_PLAYWRIGHT_PORT` for concurrent worktree runs; install Chromium once with `pnpm exec playwright install chromium`. Perform real Chrome visual inspection when practical, and say why if browser verification is skipped.
+- Extension API, shortcut, service-worker, tab/window, new-tab override, or focus behavior: use `pnpm verify:extension` for the complete non-benchmark packaged-extension suite, then prefer real Chrome inspection because even the packaged Chromium harness cannot prove every live `chrome.*`, profile, or focus behavior.
 - Native Placement Bridge, macOS placement, or private-focus changes additionally require both `pnpm native-host:test` and `pnpm hammerspoon:test` on macOS.
 - macOS installer or setup-diagnostic changes require `pnpm hammerspoon:test` plus a focused run of `scripts/doctor-macos-integration`; the diagnostic is read-only and does not replace user-observed live acceptance.
 - Docs-only changes: focused checks are enough, such as `git diff --check -- AGENTS.md README.md`.

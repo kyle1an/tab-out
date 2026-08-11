@@ -6,6 +6,34 @@ end
 
 local source = debug.getinfo(1, "S").source
 local directory = source:sub(1, 1) == "@" and source:sub(2):match("^(.*)/[^/]+$") or "."
+local chromeCatalogChunk, chromeCatalogLoadError = loadfile(
+  directory .. "/../TabOut.spoon/chrome_catalog.lua"
+)
+assert(chromeCatalogChunk, chromeCatalogLoadError)
+local ChromeCatalog = chromeCatalogChunk()
+
+local catalogOptions = {
+  chromeBundleId = "com.google.Chrome",
+  chromeUserDataDirectory = "/tmp/chrome-catalog-test",
+  configuredProfileDirectory = "Profile 3",
+  hs = {},
+  later = function() end,
+  stopTimer = function() end,
+}
+assertEqual(type(ChromeCatalog.new(catalogOptions)), "table", "catalog accepts a fake hs adapter")
+
+local platformOnlyAccepted, platformOnlyError = pcall(ChromeCatalog.new, {
+  configuredProfileDirectory = "Profile 3",
+  later = function() end,
+  platform = {},
+  stopTimer = function() end,
+})
+assertEqual(platformOnlyAccepted, false, "catalog rejects the removed platform injection seam")
+assert(
+  tostring(platformOnlyError):find("hs is required", 1, true),
+  "catalog should require the hs adapter"
+)
+
 local fakeRuntimeChunk, loadError = loadfile(directory .. "/support/fake_hammerspoon.lua")
 assert(fakeRuntimeChunk, loadError)
 local runShortcut = fakeRuntimeChunk().runShortcut

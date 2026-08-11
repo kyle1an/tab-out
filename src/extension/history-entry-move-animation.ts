@@ -6,7 +6,7 @@
    owned by LayoutRemovalAnimation.
    ================================================================ */
 
-import { REDUCED_LAYOUT_REMOVAL_ANIMATION_MS } from '../components/LayoutRemovalAnimation.js'
+import { REDUCED_LAYOUT_REMOVAL_ANIMATION_MS } from '../lib/layout-removal-motion.js'
 import { createMoveAnimator } from './move-animation.js'
 import type { MovePositionMap } from './move-animation.js'
 

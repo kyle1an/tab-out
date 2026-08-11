@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useUrlPreview } from './useUrlPreview'
-import { createHoverStateStore } from '../components/DashboardInteractionContext'
 import { createNativeTabHighlightController } from '../extension/native-tab-highlight.js'
-import type { HoverUrlSource } from '../components/types'
+import { createHoverStateStore, type HoverUrlSource } from '../lib/hover-state.js'
 
 /**
  * Owns the cross-dashboard hover-match state (which url/source is being hovered

@@ -1,4 +1,4 @@
-# ADR 0014: Use Runtime Capability Checks for Private Activation
+# ADR 0019: Use Runtime Capability Checks for Private Activation
 
 - Status: Accepted
 - Date: 2026-08-04

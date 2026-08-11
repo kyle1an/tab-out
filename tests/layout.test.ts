@@ -170,6 +170,7 @@ test('app bootstrap admits one complete live startup frame after the generated s
   const renderSource = readFileSync(new URL('../src/extension/render.ts', import.meta.url), 'utf8')
   const startupSnapshotSource = readFileSync(new URL('../src/extension/startup-snapshot.ts', import.meta.url), 'utf8')
   const startupOrderDebugSource = readFileSync(new URL('../src/components/startup-order-debug.ts', import.meta.url), 'utf8')
+  const startupOrderDebugTypesSource = readFileSync(new URL('../src/components/startup-order-debug-types.ts', import.meta.url), 'utf8')
   const startupOrderDebugHeavySource = readFileSync(new URL('../src/components/startup-order-debug-heavy.ts', import.meta.url), 'utf8')
   const viewModelSource = readFileSync(new URL('../src/hooks/useDashboardViewModels.ts', import.meta.url), 'utf8')
 
@@ -247,7 +248,7 @@ test('app bootstrap admits one complete live startup frame after the generated s
   assert.doesNotMatch(renderSource, /export async function buildDashboardDataFromTabs/)
   assert.match(startupSnapshotSource, /export const buildTabsDashboardStartupSnapshotEffect = Effect\.fn/)
   assert.doesNotMatch(startupSnapshotSource, /export async function buildTabsDashboardStartupSnapshot/)
-  assert.match(startupOrderDebugSource, /timings: StartupTiming\[\]/)
+  assert.match(startupOrderDebugTypesSource, /timings: StartupTiming\[\]/)
   assert.match(startupOrderDebugSource, /export function recordStartupTiming/)
   assert.match(startupOrderDebugSource, /durationMs/)
   assert.match(startupOrderDebugSource, /import\('\.\/startup-order-debug-heavy'\)/)

@@ -10,6 +10,16 @@ output_directory="$spoon_directory/native/build"
 output_file="$output_directory/tab_out_private_focus.dylib"
 
 mkdir -p "$output_directory"
+temporary_directory=$(mktemp -d "$output_directory/.tab_out_private_focus.XXXXXX")
+temporary_output="$temporary_directory/tab_out_private_focus.dylib"
+
+cleanup() {
+  rm -f "$temporary_output"
+  rmdir "$temporary_directory" 2>/dev/null || true
+}
+
+trap cleanup EXIT
+
 xcrun clang \
   -fobjc-arc \
   -Wall \
@@ -26,6 +36,10 @@ xcrun clang \
   -framework Cocoa \
   -framework ApplicationServices \
   -ldl \
-  -o "$output_file"
+  -o "$temporary_output"
+
+mv -f "$temporary_output" "$output_file"
+rmdir "$temporary_directory"
+trap - EXIT
 
 printf '%s\n' "$output_file"

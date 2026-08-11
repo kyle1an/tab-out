@@ -40,7 +40,7 @@ layout math.
 
 ## Automated version
 
-`tests/browser/dashboard-smoke.spec.ts` (run with `pnpm test:browser`) is the
+`tests/browser/dashboard-smoke.spec.ts` (run with `pnpm test:browser:smoke`) is the
 automated form of the same idea: Playwright serves the repo, loads the fixture
 in headless Chrome, and asserts on layout / expansion behavior.
 
