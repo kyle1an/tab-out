@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Schema } from 'effect'
+import { Context, Effect, Layer, Predicate, Schema } from 'effect'
 
 import {
   emptyRetainedPageLedger,
@@ -51,10 +51,6 @@ export class RetainedPageLedgerStorageError extends Schema.TaggedError<RetainedP
     cause: Schema.Defect(),
   },
 ) {}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 function hasOnlyKeys(value: Record<string, unknown>, allowed: ReadonlySet<string>): boolean {
   return Object.keys(value).every((key) => allowed.has(key))
@@ -122,7 +118,7 @@ function knownStorageEnvelope(
   stored: unknown,
 ): RetainedPageLedgerStorageEnvelope | null {
   if (
-    !isRecord(stored) ||
+    !Predicate.isObject(stored) ||
     stored.schemaVersion !== 1 ||
     stored.identityVersion !== 1 ||
     stored.encoding !== RETAINED_PAGES_STORAGE_ENCODING ||
@@ -148,32 +144,32 @@ function storageEnvelopesEqual(
 }
 
 function isExpandedRetainedPageLedgerValue(stored: unknown): boolean {
-  if (!isRecord(stored)) return false
-  const hasExpandedPage = isRecord(stored.pages) &&
+  if (!Predicate.isObject(stored)) return false
+  const hasExpandedPage = Predicate.isObject(stored.pages) &&
     Object.values(stored.pages).some((page) =>
-      isRecord(page) && ('identityDigest' in page || 'canonicalKey' in page),
+      Predicate.isObject(page) && ('identityDigest' in page || 'canonicalKey' in page),
     )
-  const hasExpandedBoundary = isRecord(stored.removalBoundaries) &&
+  const hasExpandedBoundary = Predicate.isObject(stored.removalBoundaries) &&
     Object.values(stored.removalBoundaries).some((boundary) =>
-      isRecord(boundary) && 'closureToken' in boundary,
+      Predicate.isObject(boundary) && 'closureToken' in boundary,
     )
   return hasExpandedPage || hasExpandedBoundary
 }
 
 function normalizeExpandedRetainedPageLedgerValue(stored: unknown): unknown {
-  if (!isRecord(stored)) return stored
-  const pages = isRecord(stored.pages)
+  if (!Predicate.isObject(stored)) return stored
+  const pages = Predicate.isObject(stored.pages)
     ? Object.fromEntries(Object.entries(stored.pages).map(([identityDigest, page]) => {
-        if (!isRecord(page)) return [identityDigest, page]
+        if (!Predicate.isObject(page)) return [identityDigest, page]
         const normalized = { ...page }
         delete normalized.identityDigest
         delete normalized.canonicalKey
         return [identityDigest, normalized]
       }))
     : stored.pages
-  const removalBoundaries = isRecord(stored.removalBoundaries)
+  const removalBoundaries = Predicate.isObject(stored.removalBoundaries)
     ? Object.fromEntries(Object.entries(stored.removalBoundaries).map(([closureToken, boundary]) => {
-        if (!isRecord(boundary)) return [closureToken, boundary]
+        if (!Predicate.isObject(boundary)) return [closureToken, boundary]
         const normalized = { ...boundary }
         delete normalized.closureToken
         return [closureToken, normalized]
@@ -252,7 +248,7 @@ function parseRetainedPageRecord(
   now: number,
   titleValidityByValue: Map<string, boolean>,
 ): RetainedPageRecord | null {
-  if (!isRecord(stored) || !hasOnlyKeys(stored, pageKeys)) return null
+  if (!Predicate.isObject(stored) || !hasOnlyKeys(stored, pageKeys)) return null
   if (
     (stored.identityDigest !== undefined && stored.identityDigest !== identityDigest) ||
     (stored.surfaceKind !== 'normal-tab' && stored.surfaceKind !== 'app') ||
@@ -287,7 +283,7 @@ function parseRemovalBoundary(
   closureToken: string,
   now: number,
 ): RetainedPageRemovalBoundary | null {
-  if (!isRecord(stored) || !hasOnlyKeys(stored, boundaryKeys)) return null
+  if (!Predicate.isObject(stored) || !hasOnlyKeys(stored, boundaryKeys)) return null
   if (
     !isNonEmptyString(stored.identityDigest) ||
     !isNonEmptyString(closureToken) ||
@@ -406,7 +402,7 @@ function parseRetainedPageLedgerValueInternal(
     return { status: 'missing', ledger: emptyRetainedPageLedger() }
   }
   if (
-    isRecord(stored) &&
+    Predicate.isObject(stored) &&
     typeof stored.schemaVersion === 'number' &&
     Number.isFinite(stored.schemaVersion) &&
     typeof stored.identityVersion === 'number' &&
@@ -416,11 +412,11 @@ function parseRetainedPageLedgerValueInternal(
     return { status: 'newer', raw: stored }
   }
   if (
-    !isRecord(stored) ||
+    !Predicate.isObject(stored) ||
     stored.schemaVersion !== 1 ||
     stored.identityVersion !== 1 ||
-    !isRecord(stored.pages) ||
-    !isRecord(stored.removalBoundaries)
+    !Predicate.isObject(stored.pages) ||
+    !Predicate.isObject(stored.removalBoundaries)
   ) {
     return { status: 'malformed', ledger: emptyRetainedPageLedger() }
   }

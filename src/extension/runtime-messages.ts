@@ -9,7 +9,7 @@ export const RETAINED_PAGE_ACTIVATE_MESSAGE = 'tab-out:activate-retained-page'
 export const RETAINED_PAGES_REMOVE_MESSAGE = 'tab-out:remove-retained-pages'
 export const SAVED_PAGE_ACTIVATE_MESSAGE = 'tab-out:activate-saved-page'
 export const TAB_HISTORY_GET_MESSAGE = 'tab-out:get-tab-history'
-export const TAB_HISTORY_SWITCH_MESSAGE = 'tab-out:switch-tab-history'
+const TAB_HISTORY_SWITCH_MESSAGE = 'tab-out:switch-tab-history'
 
 const nonEmptyMessageStringSchema = Schema.String.check(Schema.isMinLength(1))
 

@@ -11,10 +11,6 @@ export const HISTORY_RANGE_OPTIONS = [
   { value: 'all', label: 'All time', days: null },
 ]
 
-export function isHistoryRangeValue(value: unknown): value is string {
-  return typeof value === 'string' && HISTORY_RANGE_OPTIONS.some((option) => option.value === value)
-}
-
 export function isHistoryFilterEnabled(range = DEFAULT_HISTORY_RANGE): boolean {
   return range !== HISTORY_FILTER_OFF
 }

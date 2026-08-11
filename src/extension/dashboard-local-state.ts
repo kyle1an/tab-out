@@ -63,7 +63,7 @@ function dashboardLocalStateFromStorage(stored: StoredDashboardLocalState): Dash
   }
 }
 
-export function validDashboardLocalStateFromStorage(stored: unknown): DashboardLocalState | null {
+function validDashboardLocalStateFromStorage(stored: unknown): DashboardLocalState | null {
   return isStoredDashboardLocalState(stored)
     ? dashboardLocalStateFromStorage(stored)
     : null
@@ -92,7 +92,7 @@ export function loadDashboardLocalStateResult(): Promise<DashboardLocalStateLoad
   return getAppRuntime().runPromise(loadDashboardLocalStateResultEffect())
 }
 
-export const loadDashboardLocalStateEffect = Effect.fn(
+const loadDashboardLocalStateEffect = Effect.fn(
   'dashboardLocalState.loadValue',
 )(function* () {
   return (yield* loadDashboardLocalStateResultEffect()).state

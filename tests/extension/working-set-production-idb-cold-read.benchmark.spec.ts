@@ -10,7 +10,6 @@ import {
   join,
   resolve,
 } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import {
   expect,
@@ -74,7 +73,7 @@ const BENCHMARK_SENTINEL = '__TAB_OUT_WORKING_SET_STORAGE_BENCHMARK__'
 const REPORT_KIND = 'working-set-production-idb-cold-read-probe'
 const BOOTSTRAP_REPETITIONS = 2_000
 const BOOTSTRAP_SEED = 0x51f160
-const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url))
+const repositoryRoot = resolve(import.meta.dirname, '../..')
 const productionExtensionDirectory = resolve(repositoryRoot, 'extension')
 
 const controllerHtml = `<!doctype html>

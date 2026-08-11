@@ -2,9 +2,8 @@ import assert from 'node:assert/strict'
 import { globSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import test from 'node:test'
-import { fileURLToPath } from 'node:url'
 
-const repositoryRoot = fileURLToPath(new URL('..', import.meta.url))
+const repositoryRoot = join(import.meta.dirname, '..')
 const sourceRoot = join(repositoryRoot, 'src')
 
 function productionTypeScriptFiles(): string[] {

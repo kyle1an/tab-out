@@ -4,7 +4,6 @@ import { mkdtempDisposableSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { fileURLToPath } from 'node:url'
 
 import {
   commitReferencesMain,
@@ -16,9 +15,7 @@ import {
 } from '../scripts/check-commit-references.js'
 
 const ZERO_OBJECT_ID = '0'.repeat(40)
-const SCRIPT_FILE = fileURLToPath(
-  new URL('../scripts/check-commit-references.ts', import.meta.url),
-)
+const SCRIPT_FILE = join(import.meta.dirname, '../scripts/check-commit-references.ts')
 const GIT_LOCAL_ENVIRONMENT_VARIABLES = execFileSync(
   'git',
   ['rev-parse', '--local-env-vars'],

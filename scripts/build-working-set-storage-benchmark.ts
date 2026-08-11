@@ -20,7 +20,6 @@ import {
   sep,
 } from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import * as NodeRuntime from '@effect/platform-node/NodeRuntime'
 import { Effect, Schema } from 'effect'
@@ -157,23 +156,19 @@ function updateHashWithPath(hash: ReturnType<typeof createHash>, path: string): 
 }
 
 async function listTreeEntries(root: string): Promise<readonly string[]> {
-  const entries: string[] = []
-
-  async function visit(directory: string): Promise<void> {
-    const children = await readdir(directory, { withFileTypes: true })
-    children.sort((left, right) => left.name.localeCompare(right.name))
-    for (const child of children) {
-      const path = join(directory, child.name)
-      if (child.isDirectory()) {
-        await visit(path)
-      } else if (child.isFile() || child.isSymbolicLink()) {
-        entries.push(path)
+  return (await readdir(root, { recursive: true, withFileTypes: true }))
+    .filter((entry) => entry.isFile() || entry.isSymbolicLink())
+    .map((entry) => join(entry.parentPath, entry.name))
+    .sort((left, right) => {
+      const leftParts = relative(root, left).split(sep)
+      const rightParts = relative(root, right).split(sep)
+      const sharedLength = Math.min(leftParts.length, rightParts.length)
+      for (let index = 0; index < sharedLength; index += 1) {
+        const order = (leftParts[index] ?? '').localeCompare(rightParts[index] ?? '')
+        if (order !== 0) return order
       }
-    }
-  }
-
-  await visit(root)
-  return entries
+      return leftParts.length - rightParts.length
+    })
 }
 
 export async function sha256File(path: string): Promise<string> {
@@ -509,7 +504,7 @@ async function buildWorkingSetStorageBenchmarkArtifactsUnsafe(
 }
 
 export function buildWorkingSetStorageBenchmarkArtifacts(
-  repositoryRoot = fileURLToPath(new URL('../', import.meta.url)),
+  repositoryRoot = resolve(import.meta.dirname, '..'),
 ): Promise<WorkingSetBenchmarkBuildResult> {
   return Effect.runPromise(
     Effect.tryPromise({

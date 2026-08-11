@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import { Predicate, Schema } from 'effect'
 
 import {
   RETAINED_PAGE_CAPACITY,
@@ -34,10 +34,6 @@ export class DashboardRetainedPagesWireError extends Schema.TaggedError<Dashboar
   },
 ) {}
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 const wireKeys = new Set([
   'schemaVersion',
   'identityVersion',
@@ -66,7 +62,7 @@ interface CompactRetainedPagesPayload {
 
 function parseWire(value: unknown): DashboardRetainedPagesWire | null {
   if (
-    !isRecord(value) ||
+    !Predicate.isObject(value) ||
     value.schemaVersion !== 1 ||
     value.identityVersion !== 1 ||
     value.encoding !== DASHBOARD_RETAINED_PAGES_WIRE_ENCODING ||
@@ -92,7 +88,7 @@ function validateDecodedPages(
   const pages: Record<string, unknown> = {}
   const identities: string[] = []
   for (const candidate of value) {
-    if (!isRecord(candidate) || typeof candidate.identityDigest !== 'string') {
+    if (!Predicate.isObject(candidate) || typeof candidate.identityDigest !== 'string') {
       throw new Error('Invalid retained-page projection record')
     }
     const identityDigest = candidate.identityDigest
@@ -134,7 +130,7 @@ function isStringArray(value: unknown): value is string[] {
 function expandDashboardRetainedPagesPayload(value: unknown): unknown {
   if (Array.isArray(value)) return value
   if (
-    !isRecord(value) ||
+    !Predicate.isObject(value) ||
     Object.keys(value).some((key) => !compactPayloadKeys.has(key)) ||
     !isStringArray(value.titles) ||
     !Array.isArray(value.pages) ||

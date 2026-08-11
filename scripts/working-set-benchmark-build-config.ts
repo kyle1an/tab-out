@@ -71,10 +71,8 @@ const isWorkingSetBenchmarkRootMarker = Schema.is(
 
 export type WorkingSetProductionBuildSelection = {
   readonly mode: 'production'
-  readonly backendModulePath: string
   readonly distDirectory: string
   readonly extensionDirectory: string
-  readonly variant: 'current'
 }
 
 export type WorkingSetBenchmarkBuildSelection = {
@@ -191,10 +189,8 @@ export function resolveWorkingSetBuildSelection(
     const extensionDirectory = resolve(repositoryRoot, 'extension')
     return {
       mode: 'production',
-      backendModulePath: workingSetProductionBackendModulePath(repositoryRoot),
       distDirectory: resolve(extensionDirectory, 'dist'),
       extensionDirectory,
-      variant: 'current',
     }
   }
   if (suppliedValues !== benchmarkEnvironmentValues.length) {

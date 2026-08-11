@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import {
   mkdirSync,
   mkdtempDisposableSync,
@@ -13,6 +14,7 @@ import test from 'node:test'
 
 import {
   assertTrackedExtensionHashUnchanged,
+  sha256Directory,
   WORKING_SET_BENCHMARK_BUILD_SIDECAR,
   WORKING_SET_BENCHMARK_CONTROLLER_PAGE,
   WORKING_SET_BENCHMARK_VARIANT_SIDECAR,
@@ -74,19 +76,36 @@ test('normal builds retain the production Working Set paths and no benchmark ali
 
   assert.deepEqual(selection, {
     mode: 'production',
-    backendModulePath: resolve(
-      repositoryRoot,
-      'src/extension/background/working-set-activity-storage-layer.ts',
-    ),
     distDirectory: resolve(repositoryRoot, 'extension/dist'),
     extensionDirectory: resolve(repositoryRoot, 'extension'),
-    variant: 'current',
   })
   assert.equal(
     workingSetBackgroundEntryPath(repositoryRoot, selection),
     resolve(repositoryRoot, 'src/extension/background.ts'),
   )
   assert.deepEqual(workingSetBenchmarkAliases(selection), [])
+})
+
+test('directory hashing preserves sorted depth-first traversal order', async () => {
+  using tree = mkdtempDisposableSync(join(tmpdir(), 'tab-out-tree-hash-'))
+  mkdirSync(join(tree.path, 'a'))
+  writeFileSync(join(tree.path, 'a', 'child'), 'nested')
+  writeFileSync(join(tree.path, 'a.txt'), 'sibling')
+
+  const expected = createHash('sha256')
+  for (const [path, contents] of [
+    [join('a', 'child'), 'nested'],
+    ['a.txt', 'sibling'],
+  ] as const) {
+    expected.update(String(Buffer.byteLength(path)))
+    expected.update(':')
+    expected.update(path)
+    expected.update('\0file\0')
+    expected.update(contents)
+    expected.update('\0')
+  }
+
+  assert.equal(await sha256Directory(tree.path), expected.digest('hex'))
 })
 
 test('benchmark backend paths cover exactly the four compile-time variants', () => {

@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Schema } from 'effect'
+import { Context, Effect, Layer, Predicate, Schema } from 'effect'
 
 import {
   emptyOpenSurfaceInventory,
@@ -42,10 +42,6 @@ export class OpenSurfaceInventoryStorageError extends Schema.TaggedError<OpenSur
   },
 ) {}
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function hasOnlyKeys(value: Record<string, unknown>, allowed: ReadonlySet<string>): boolean {
   return Object.keys(value).every((key) => allowed.has(key))
 }
@@ -86,15 +82,15 @@ const entryKeys = new Set([
 ])
 
 function isLegacyOpenSurfaceInventoryValue(stored: unknown): boolean {
-  return isRecord(stored) &&
+  return Predicate.isObject(stored) &&
     stored.schemaVersion === 1 &&
     stored.identityVersion === 1
 }
 
 function normalizeLegacyOpenSurfaceInventoryValue(stored: unknown): unknown {
-  if (!isRecord(stored) || !isRecord(stored.entries)) return stored
+  if (!Predicate.isObject(stored) || !Predicate.isObject(stored.entries)) return stored
   const entries = Object.fromEntries(Object.entries(stored.entries).map(([tabId, entry]) => {
-    if (!isRecord(entry)) return [tabId, entry]
+    if (!Predicate.isObject(entry)) return [tabId, entry]
     return [tabId, {
       ...entry,
       identityDigest: isNonEmptyString(entry.identityDigest)
@@ -165,7 +161,7 @@ function parseInventoryEntry(
   tabIdKey: string,
   now: number,
 ): OpenSurfaceInventory['entries'][string] | null {
-  if (!isRecord(stored) || !hasOnlyKeys(stored, entryKeys)) return null
+  if (!Predicate.isObject(stored) || !hasOnlyKeys(stored, entryKeys)) return null
   if (
     typeof stored.tabId !== 'number' ||
     !Number.isSafeInteger(stored.tabId) ||
@@ -208,7 +204,7 @@ export function parseOpenSurfaceInventoryValue(
     return { status: 'missing', inventory: emptyOpenSurfaceInventory() }
   }
   if (
-    isRecord(stored) &&
+    Predicate.isObject(stored) &&
     typeof stored.schemaVersion === 'number' &&
     Number.isFinite(stored.schemaVersion) &&
     typeof stored.identityVersion === 'number' &&
@@ -221,11 +217,11 @@ export function parseOpenSurfaceInventoryValue(
     return { status: 'newer', raw: stored }
   }
   if (
-    !isRecord(stored) ||
+    !Predicate.isObject(stored) ||
     (stored.schemaVersion !== 1 &&
       stored.schemaVersion !== OPEN_SURFACE_INVENTORY_SCHEMA_VERSION) ||
       stored.identityVersion !== 1 ||
-      !isRecord(stored.entries)
+      !Predicate.isObject(stored.entries)
   ) {
     return { status: 'malformed', inventory: emptyOpenSurfaceInventory() }
   }

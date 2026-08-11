@@ -302,14 +302,17 @@ test('annotateSavedPageHints marks matching bookmark items without adding closed
   assert.equal(valueAt(annotated, 1), otherBookmark)
 })
 
-test('savedPageKeysFromStore returns the normalized keys of every saved page', () => {
+test('Saved Page store helpers return normalized keys independent of insertion order', () => {
   const one = addSavedPageToStore(emptySavedPagesStore(), {
     url: 'https://a.test/', rawUrl: 'https://a.test/', title: 'A', favIconUrl: '', isTabOut: false, isApp: false,
   })
   const two = addSavedPageToStore(one, {
     url: 'https://b.test/', rawUrl: 'https://b.test/', title: 'B', favIconUrl: '', isTabOut: false, isApp: false,
   })
+  const reversed = { ...two, pages: Object.fromEntries(Object.entries(two.pages).reverse()) }
+
   assert.deepEqual(savedPageKeysFromStore(two).sort(), ['https://a.test/', 'https://b.test/'])
+  assert.equal(savedPagesStoresEqual(two, reversed), true)
 })
 
 test('savedPageKeysFromStore returns [] for a nullish store', () => {

@@ -59,7 +59,7 @@ export interface RetainedPageSnapshotTarget {
   closureToken: string
 }
 
-export type RemoveRetainedPageSnapshotOutcome = Omit<
+type RemoveRetainedPageSnapshotOutcome = Omit<
   RemoveRetainedPageSnapshotResult,
   'ledger'
 >

@@ -96,7 +96,7 @@ export const loadHistoryRangePreferenceResultEffect = Effect.fn(
   }
 })
 
-export const loadHistoryRangePreferenceEffect = Effect.fn('historyRange.load')(function* () {
+const loadHistoryRangePreferenceEffect = Effect.fn('historyRange.load')(function* () {
   return (yield* loadHistoryRangePreferenceResultEffect()).value
 })
 
