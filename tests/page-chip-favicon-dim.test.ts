@@ -27,8 +27,20 @@ function makeChip(overrides: Partial<DashboardChipData> = {}): DashboardChipData
   }
 }
 
-function renderChip(overrides: Partial<DashboardChipData> = {}): string {
-  return renderToStaticMarkup(React.createElement(PageChip, { chip: makeChip(overrides) }))
+function renderChip(overrides: Partial<DashboardChipData> = {}, filter = ''): string {
+  return renderToStaticMarkup(React.createElement(PageChip, { chip: makeChip(overrides), filter }))
+}
+
+function pageChipClass(html: string): string {
+  const className = html.match(/data-tabout="page-chip"[^>]*class="([^"]+)"/)?.[1]
+  assert.ok(className)
+  return className
+}
+
+function chipTextClass(html: string): string {
+  const className = html.match(/class="([^"]*\bchip-text\b[^"]*)"/)?.[1]
+  assert.ok(className)
+  return className
 }
 
 test('a live tab chip keeps its favicon at full strength', () => {
@@ -170,14 +182,68 @@ test('a suspended current variant keeps a distinct full-opacity label color whil
   assert.doesNotMatch(html, /chip-variant-label-dimmed[^"]*opacity-/)
 })
 
-test('a closed-saved variant row dims its label', () => {
+test('a filtered mixed group keeps a live shared title while dimming its closed variant label', () => {
   const html = renderChip({
     titleVariantChips: [
       makeChip({ tabUrl: 'https://site.example/a', rawUrl: 'https://site.example/a', pathSuffix: '/a', sourceType: 'saved-page', saved: true, closedSaved: true }),
       makeChip({ tabUrl: 'https://site.example/b', rawUrl: 'https://site.example/b', pathSuffix: '/b' }),
     ],
-  })
+  }, 'Example')
+  const className = pageChipClass(html)
+
+  assert.match(className, /\btext-tab-live\b/)
+  assert.doesNotMatch(className, /\btext-tab-closed\b/)
+  assert.match(chipTextClass(html), /--color-tab-live/)
   assert.equal((html.match(/chip-variant-label-dimmed/g) || []).length, 1)
+})
+
+test('an all-closed title-variant group dims its shared title like a closed page chip', () => {
+  const html = renderChip({
+    sourceType: 'saved-page',
+    saved: true,
+    closedSaved: true,
+    titleVariantChips: [
+      makeChip({ tabUrl: 'https://site.example/a', rawUrl: 'https://site.example/a', pathSuffix: '/a', sourceType: 'saved-page', saved: true, closedSaved: true }),
+      makeChip({ tabUrl: 'https://site.example/b', rawUrl: 'https://site.example/b', pathSuffix: '/b', sourceType: 'saved-page', saved: true, closedSaved: true }),
+    ],
+  })
+  const className = pageChipClass(html)
+
+  assert.match(className, /\btext-tab-closed\b/)
+  assert.doesNotMatch(className, /\btext-tab-live\b/)
+  assert.equal((html.match(/chip-variant-label-dimmed/g) || []).length, 2)
+})
+
+test('all-closed group titles keep their closed tone while filtering', () => {
+  const allClosedGroups: Partial<DashboardChipData>[] = [
+    {
+      sourceType: 'saved-page',
+      saved: true,
+      closedSaved: true,
+      titleVariantChips: [
+        makeChip({ tabUrl: 'https://site.example/a', rawUrl: 'https://site.example/a', pathSuffix: '/a', sourceType: 'saved-page', saved: true, closedSaved: true }),
+        makeChip({ tabUrl: 'https://site.example/b', rawUrl: 'https://site.example/b', pathSuffix: '/b', sourceType: 'saved-page', saved: true, closedSaved: true }),
+      ],
+    },
+    {
+      sourceType: 'saved-page',
+      saved: true,
+      closedSaved: true,
+      envs: [
+        { prefix: 'env-alpha', tabUrl: 'https://env-alpha.site.example/page', rawUrl: 'https://env-alpha.site.example/page', sourceType: 'saved-page', saved: true, closedSaved: true },
+        { prefix: 'env-beta', tabUrl: 'https://env-beta.site.example/page', rawUrl: 'https://env-beta.site.example/page', sourceType: 'saved-page', saved: true, closedSaved: true },
+      ],
+    },
+  ]
+
+  for (const group of allClosedGroups) {
+    const html = renderChip(group, 'Example')
+    const className = pageChipClass(html)
+
+    assert.match(className, /\btext-tab-closed\b/)
+    assert.doesNotMatch(className, /\btext-tab-live\b/)
+    assert.doesNotMatch(chipTextClass(html), /--color-tab-live/)
+  }
 })
 
 test('a retained variant row dims its label without a duplicate badge', () => {

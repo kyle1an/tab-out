@@ -83,6 +83,19 @@ test('chip-trim: variant-group and folded chips get the group outline', () => {
   for (const kind of [{ titleVariantGroup: true }, { folded: true }]) {
     const trim = chipTrim(facts(kind))
     assert.match(trim.chipClasses, OUTLINE_TRIO)
+    assert.doesNotMatch(trim.chipClasses, /text-tab-closed/)
+    assert.doesNotMatch(trim.chipClasses, new RegExp(`\\b${RegExp.escape(CHIP_TRIM_TOKENS.savedClosed)}\\b`))
+    assert.equal(trim.frame, null)
+    assert.equal(trim.styleVars.hoverBorder, GROUP_LINE)
+    assert.equal(trim.styleVars.interactionBg, GROUP_BG)
+  }
+})
+
+test('chip-trim: all-closed group kinds use the closed title tone with the group outline', () => {
+  for (const kind of [{ titleVariantGroup: true }, { folded: true }]) {
+    const trim = chipTrim(facts({ ...kind, closedSavedPage: true }))
+    assert.match(trim.chipClasses, /text-tab-closed/)
+    assert.match(trim.chipClasses, OUTLINE_TRIO)
     assert.doesNotMatch(trim.chipClasses, new RegExp(`\\b${RegExp.escape(CHIP_TRIM_TOKENS.savedClosed)}\\b`))
     assert.equal(trim.frame, null)
     assert.equal(trim.styleVars.hoverBorder, GROUP_LINE)

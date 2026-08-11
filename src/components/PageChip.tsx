@@ -2795,7 +2795,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     <span
       className={cn(
         "chip-text block min-w-0 flex-1 overflow-clip [overflow-clip-margin:2px] hyphens-auto break-normal max-h-[calc(2lh)] [hyphenate-character:''] [&.chip-text-truncated]:mask-(--title-fade-mask)",
-        hasFilter && 'text-[color-mix(in_srgb,var(--color-tab-live)_72%,var(--color-muted-foreground))]',
+        hasFilter && !isClosedSavedPage && 'text-[color-mix(in_srgb,var(--color-tab-live)_72%,var(--color-muted-foreground))]',
         chip.pathSuffix && 'max-h-[calc(3lh)]',
         isTitleVariantGroup && 'max-h-none overflow-visible!',
         isFolded && 'max-h-none',

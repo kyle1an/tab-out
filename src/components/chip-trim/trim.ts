@@ -111,7 +111,8 @@ export function chipTrim(facts: ChipTrimFacts): ChipTrim {
     // always-on ring sits OUTSIDE (outline-offset-1), and the trio's inset
     // offset would yank it inward on hover.
     isPlainClickable && !facts.iconOnly && HOVER_OUTLINE_CLASSES,
-    facts.closedSavedPage && !isGroupKind && `${CHIP_TRIM_TOKENS.savedClosed} text-tab-closed ${GROUP_INTERACTION_CLASSES}`,
+    facts.closedSavedPage && 'text-tab-closed',
+    facts.closedSavedPage && !isGroupKind && `${CHIP_TRIM_TOKENS.savedClosed} ${GROUP_INTERACTION_CLASSES}`,
     hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && 'bg-(--chip-rest-bg) text-tab-live shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
     isCurrentActiveFrame && 'current-active-chip bg-neutral-50 text-tab-live shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
     isCurrentTabOutFrame && 'current-tab-out-chip bg-neutral-100 text-tab-live shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
