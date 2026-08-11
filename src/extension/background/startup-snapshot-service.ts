@@ -82,7 +82,7 @@ export class StartupSnapshot extends Context.Service<StartupSnapshot, {
   }
 }
 
-class StartupSnapshotRefreshError extends Schema.TaggedErrorClass<StartupSnapshotRefreshError>()(
+class StartupSnapshotRefreshError extends Schema.TaggedError<StartupSnapshotRefreshError>()(
   'StartupSnapshotRefreshError',
   { cause: Schema.Defect() },
 ) {}
@@ -134,7 +134,10 @@ function makeStartupSnapshotLayer<Failure, Requirements>(
       try {
         const pending = await deps.alarms.get(STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_ALARM)
         if (pending) return
-        await deps.alarms.create(STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_ALARM, { when })
+        await deps.alarms.create(STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_ALARM, {
+          when,
+          persistAcrossSessions: true,
+        })
       } catch {}
     }
 

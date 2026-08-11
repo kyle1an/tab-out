@@ -26,12 +26,12 @@ type SavedPageActionDependencies = {
   notify: typeof showToast
 }
 
-class SavedPageMutationError extends Schema.TaggedErrorClass<SavedPageMutationError>()(
+class SavedPageMutationError extends Schema.TaggedError<SavedPageMutationError>()(
   'SavedPageMutationError',
   { cause: Schema.Defect() },
 ) {}
 
-class SavedPageRefreshError extends Schema.TaggedErrorClass<SavedPageRefreshError>()(
+class SavedPageRefreshError extends Schema.TaggedError<SavedPageRefreshError>()(
   'SavedPageRefreshError',
   { cause: Schema.Defect() },
 ) {}

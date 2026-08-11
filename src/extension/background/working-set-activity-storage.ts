@@ -17,7 +17,7 @@ export interface WorkingSetActivityStorageBackend {
   readonly close?: () => PromiseLike<void>
 }
 
-export class WorkingSetActivityStorageError extends Schema.TaggedErrorClass<WorkingSetActivityStorageError>()(
+export class WorkingSetActivityStorageError extends Schema.TaggedError<WorkingSetActivityStorageError>()(
   'WorkingSetActivityStorageError',
   {
     operation: Schema.Literals(['read', 'write', 'replace']),

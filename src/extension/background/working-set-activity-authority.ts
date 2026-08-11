@@ -92,7 +92,7 @@ export interface WorkingSetActivityIndexedDbAuthorityPort {
   readonly close?: () => PromiseLike<void>
 }
 
-export class WorkingSetActivityAuthorityError extends Schema.TaggedErrorClass<WorkingSetActivityAuthorityError>()(
+export class WorkingSetActivityAuthorityError extends Schema.TaggedError<WorkingSetActivityAuthorityError>()(
   'WorkingSetActivityAuthorityError',
   {
     phase: Schema.Literals([

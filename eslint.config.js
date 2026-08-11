@@ -48,7 +48,6 @@ export default tseslint.config(
   {
     ignores: [
       '.playwright-mcp/**',
-      '.repos/**',
       '.scratch/**',
       'extension/dist/**',
       'extension/vendor/**',

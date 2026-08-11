@@ -217,7 +217,7 @@ export type DashboardDataBuild = {
   savedPageUpdates: SavedPageMetadataUpdates
 }
 
-export class DashboardDataBuildError extends Schema.TaggedErrorClass<DashboardDataBuildError>()(
+export class DashboardDataBuildError extends Schema.TaggedError<DashboardDataBuildError>()(
   'DashboardDataBuildError',
   { cause: Schema.Defect() },
 ) {}

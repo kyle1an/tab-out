@@ -137,7 +137,7 @@ export type SuspendTargetStore = {
   ) => Effect.Effect<void>
 }
 
-class SuspendTargetStoreError extends Schema.TaggedErrorClass<SuspendTargetStoreError>()(
+class SuspendTargetStoreError extends Schema.TaggedError<SuspendTargetStoreError>()(
   'SuspendTargetStoreError',
   { cause: Schema.Defect() },
 ) {}

@@ -58,6 +58,7 @@ function normalizeSerializedChromeTab(tab: SerializedChromeTab): chrome.tabs.Tab
     discarded: tab.discarded ?? false,
     autoDiscardable: tab.autoDiscardable ?? true,
     groupId: tab.groupId ?? -1,
+    lastAccessed: tab.lastAccessed ?? 0,
     ...(tab.status === undefined ? {} : { status: tab.status }),
     ...(tab.openerTabId === undefined ? {} : { openerTabId: tab.openerTabId }),
     ...(tab.title === undefined ? {} : { title: tab.title }),
@@ -71,7 +72,6 @@ function normalizeSerializedChromeTab(tab: SerializedChromeTab): chrome.tabs.Tab
     ...(tab.height === undefined ? {} : { height: tab.height }),
     ...(tab.sessionId === undefined ? {} : { sessionId: tab.sessionId }),
     ...(tab.splitViewId === undefined ? {} : { splitViewId: tab.splitViewId }),
-    ...(tab.lastAccessed === undefined ? {} : { lastAccessed: tab.lastAccessed }),
   }
 }
 

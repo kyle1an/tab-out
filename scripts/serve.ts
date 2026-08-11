@@ -31,7 +31,7 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   '.svg': 'image/svg+xml',
 }
 
-export class DebugServerError extends Schema.TaggedErrorClass<DebugServerError>()(
+export class DebugServerError extends Schema.TaggedError<DebugServerError>()(
   'DebugServerError',
   {
     port: Schema.Int,

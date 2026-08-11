@@ -1,0 +1,12 @@
+{
+  "noScore": true,
+  "supplyChain": {
+    "enabled": false
+  },
+  "blocking": "error",
+  "deadCode": false,
+  "verbose": true,
+  "ignore": {
+    "files": ["extension/dist/**", "extension/vendor/**"]
+  }
+}

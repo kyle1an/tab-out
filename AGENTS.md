@@ -116,6 +116,12 @@ pnpm dev
 - Use manual memoization only when function or object identity is part of the behavior contract, such as stable values passed through React context, callbacks returned from custom hooks where consumers depend on stable identity, effect/listener/timer cleanup patterns that require stable references, or third-party component APIs that depend on referential equality.
 - When touching existing manual memoization, remove it only with focused verification. Existing hooks may be preserving behavior or compiler output.
 
+## Effect Source Authority
+
+- The installed `effect` and `@effect/*` packages are the exact-version source authority. After `pnpm install --frozen-lockfile`, read `node_modules/effect/AGENTS.md`, `node_modules/effect/ai-docs/`, and `node_modules/effect/src/`; for scoped packages, use their corresponding `node_modules/@effect/<package>/` source and documentation.
+- Keep every installed Effect package on the same exact version. Verify version-sensitive guidance against installed source before changing code, especially while Effect 4 remains in beta.
+- Do not add a second Effect checkout under `.repos/`. Separate submodules, subtrees, or clones create another version pin that can drift from `package.json` and `pnpm-lock.yaml`.
+
 ## UI Implementation
 
 - Preserve the compact dashboard density and existing visual language during narrow fixes.

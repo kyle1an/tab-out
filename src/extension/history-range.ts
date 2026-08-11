@@ -18,3 +18,14 @@ export function isHistoryRangeValue(value: unknown): value is string {
 export function isHistoryFilterEnabled(range = DEFAULT_HISTORY_RANGE): boolean {
   return range !== HISTORY_FILTER_OFF
 }
+
+export function historyRangeStartTime(
+  range = DEFAULT_HISTORY_RANGE,
+  now = Date.now(),
+): number | null {
+  if (!isHistoryFilterEnabled(range)) return null
+
+  const option = HISTORY_RANGE_OPTIONS.find((candidate) => candidate.value === range)
+  const days = option ? option.days : 90
+  return days === null ? 0 : now - days * 24 * 60 * 60 * 1000
+}

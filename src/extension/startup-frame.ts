@@ -15,7 +15,7 @@ import {
 } from './startup-snapshot.js'
 import { seedOpenTabsTitleHistory } from './tabs.js'
 
-export class StartupFrameAuthorityError extends Schema.TaggedErrorClass<StartupFrameAuthorityError>()(
+export class StartupFrameAuthorityError extends Schema.TaggedError<StartupFrameAuthorityError>()(
   'StartupFrameAuthorityError',
   { authority: Schema.String },
 ) {}

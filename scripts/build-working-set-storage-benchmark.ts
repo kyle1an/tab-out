@@ -117,7 +117,7 @@ export interface WorkingSetBenchmarkBuildResult extends AsyncDisposable {
   readonly dispose: () => Promise<void>
 }
 
-class WorkingSetBenchmarkBuildError extends Schema.TaggedErrorClass<WorkingSetBenchmarkBuildError>()(
+class WorkingSetBenchmarkBuildError extends Schema.TaggedError<WorkingSetBenchmarkBuildError>()(
   'WorkingSetBenchmarkBuildError',
   {
     operation: Schema.String,

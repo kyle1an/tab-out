@@ -27,12 +27,12 @@ type RetainedPageActionDependencies = {
   notify: typeof showToast
 }
 
-class RetainedPageMessageError extends Schema.TaggedErrorClass<RetainedPageMessageError>()(
+class RetainedPageMessageError extends Schema.TaggedError<RetainedPageMessageError>()(
   'RetainedPageMessageError',
   { cause: Schema.Defect() },
 ) {}
 
-class RetainedPageRefreshError extends Schema.TaggedErrorClass<RetainedPageRefreshError>()(
+class RetainedPageRefreshError extends Schema.TaggedError<RetainedPageRefreshError>()(
   'RetainedPageRefreshError',
   { cause: Schema.Defect() },
 ) {}

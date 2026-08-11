@@ -117,7 +117,7 @@ function unknownChipCloseResult(): ChipCloseResult {
   }
 }
 
-class TabActionWorkflowError extends Schema.TaggedErrorClass<TabActionWorkflowError>()(
+class TabActionWorkflowError extends Schema.TaggedError<TabActionWorkflowError>()(
   'TabActionWorkflowError',
   { cause: Schema.Defect() },
 ) {}

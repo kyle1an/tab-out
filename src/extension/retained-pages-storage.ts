@@ -44,7 +44,7 @@ export interface RetainedPageLedgerStorageOptions extends RetainedPageIdentityOp
   readonly reindexExpandedIdentities?: boolean
 }
 
-export class RetainedPageLedgerStorageError extends Schema.TaggedErrorClass<RetainedPageLedgerStorageError>()(
+export class RetainedPageLedgerStorageError extends Schema.TaggedError<RetainedPageLedgerStorageError>()(
   'RetainedPageLedgerStorageError',
   {
     operation: Schema.Literals(['read', 'write']),

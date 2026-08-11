@@ -398,6 +398,7 @@ function DashboardShell({
               historyRangeAction={showHistoryRange ? (
                 <Suspense fallback={<HistoryRangeSelectFallback value={historyRange} />}>
                   <HistoryRangeSelect
+                    items={HISTORY_RANGE_OPTIONS}
                     value={historyRange}
                     onValueChange={setHistoryRange}
                   />

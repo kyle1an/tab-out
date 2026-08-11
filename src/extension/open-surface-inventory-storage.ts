@@ -29,7 +29,7 @@ export interface OpenSurfaceInventoryStorageOptions extends RetainedPageIdentity
   readonly reindexIdentities?: boolean
 }
 
-export class OpenSurfaceInventoryStorageError extends Schema.TaggedErrorClass<OpenSurfaceInventoryStorageError>()(
+export class OpenSurfaceInventoryStorageError extends Schema.TaggedError<OpenSurfaceInventoryStorageError>()(
   'OpenSurfaceInventoryStorageError',
   {
     operation: Schema.Literals([

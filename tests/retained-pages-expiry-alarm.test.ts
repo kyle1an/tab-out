@@ -62,7 +62,10 @@ test('expiry scheduling creates exactly one deterministic alarm at the earliest 
 
   assert.deepEqual(creates, [{
     name: RETAINED_PAGES_EXPIRY_ALARM,
-    info: { when: 10_000 + RETAINED_PAGE_LIFETIME_MS },
+    info: {
+      when: 10_000 + RETAINED_PAGE_LIFETIME_MS,
+      persistAcrossSessions: true,
+    },
   }])
   assert.deepEqual(clears, [])
 })

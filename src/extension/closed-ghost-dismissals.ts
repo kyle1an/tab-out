@@ -53,12 +53,12 @@ export type ClosedGhostDismissalMutationStore = {
   ) => Promise<Map<string, number>>
 }
 
-class ClosedGhostDismissalMutationError extends Schema.TaggedErrorClass<ClosedGhostDismissalMutationError>()(
+class ClosedGhostDismissalMutationError extends Schema.TaggedError<ClosedGhostDismissalMutationError>()(
   'ClosedGhostDismissalMutationError',
   { cause: Schema.Defect() },
 ) {}
 
-class ClosedGhostDismissalReadError extends Schema.TaggedErrorClass<ClosedGhostDismissalReadError>()(
+class ClosedGhostDismissalReadError extends Schema.TaggedError<ClosedGhostDismissalReadError>()(
   'ClosedGhostDismissalReadError',
   { cause: Schema.Defect() },
 ) {}

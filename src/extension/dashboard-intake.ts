@@ -21,7 +21,7 @@ import {
   subscribeClosedTabChanges,
   type ClosedTabEntry,
 } from './closed-tabs.js'
-import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from './history-range.js'
+import { DEFAULT_HISTORY_RANGE, historyRangeStartTime, isHistoryFilterEnabled } from './history-range.js'
 import { fetchDashboardServiceStateResultEffect, type DashboardServiceStateResult } from './dashboard-service-state.js'
 import { fetchDashboardDataEffect } from './dashboard-data-fetch.js'
 import { buildFilterSearchRequest } from './filter-search.js'
@@ -99,27 +99,27 @@ export type DashboardRefreshContext = {
   source: DashboardSource
 }
 
-class DashboardSourceFetchError extends Schema.TaggedErrorClass<DashboardSourceFetchError>()(
+class DashboardSourceFetchError extends Schema.TaggedError<DashboardSourceFetchError>()(
   'DashboardSourceFetchError',
   { cause: Schema.Defect() },
 ) {}
 
-class DashboardRefreshRunError extends Schema.TaggedErrorClass<DashboardRefreshRunError>()(
+class DashboardRefreshRunError extends Schema.TaggedError<DashboardRefreshRunError>()(
   'DashboardRefreshRunError',
   { cause: Schema.Defect() },
 ) {}
 
-class DashboardClosedTabsFetchError extends Schema.TaggedErrorClass<DashboardClosedTabsFetchError>()(
+class DashboardClosedTabsFetchError extends Schema.TaggedError<DashboardClosedTabsFetchError>()(
   'DashboardClosedTabsFetchError',
   { cause: Schema.Defect() },
 ) {}
 
-class DashboardStartupSnapshotFetchError extends Schema.TaggedErrorClass<DashboardStartupSnapshotFetchError>()(
+class DashboardStartupSnapshotFetchError extends Schema.TaggedError<DashboardStartupSnapshotFetchError>()(
   'DashboardStartupSnapshotFetchError',
   { cause: Schema.Defect() },
 ) {}
 
-class DashboardSnapshotFetchError extends Schema.TaggedErrorClass<DashboardSnapshotFetchError>()(
+class DashboardSnapshotFetchError extends Schema.TaggedError<DashboardSnapshotFetchError>()(
   'DashboardSnapshotFetchError',
   { cause: Schema.Defect() },
 ) {}
@@ -262,12 +262,16 @@ const fetchBookmarksSourceItemsLazyEffect = Effect.fn(
 const fetchHistorySourceItemsLazyEffect = Effect.fn(
   'dashboardIntake.fetchHistory',
 )(function* (query: string, range: string) {
+  if (!isHistoryFilterEnabled(range)) return { status: 'ready' as const, tabs: [] }
+
   const history = yield* Effect.tryPromise({
     try: () => import('../extension/history-source.js'),
     catch: (cause) => DashboardSnapshotFetchError.make({ cause }),
   })
+  const startTime = historyRangeStartTime(range)
+  if (startTime === null) return { status: 'ready' as const, tabs: [] }
   return yield* Effect.tryPromise({
-    try: () => history.fetchHistorySourceSearch(query, range),
+    try: () => history.fetchHistorySourceSearch(query, startTime),
     catch: (cause) => DashboardSnapshotFetchError.make({ cause }),
   })
 })

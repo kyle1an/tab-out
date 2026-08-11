@@ -30,7 +30,7 @@ type HistoryRangePreferenceWriter = {
   saveEffect: (historyRange: unknown) => Effect.Effect<void, HistoryRangePreferenceError>
 }
 
-class HistoryRangePreferenceError extends Schema.TaggedErrorClass<HistoryRangePreferenceError>()(
+class HistoryRangePreferenceError extends Schema.TaggedError<HistoryRangePreferenceError>()(
   'HistoryRangePreferenceError',
   { cause: Schema.Defect() },
 ) {}

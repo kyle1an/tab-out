@@ -12,7 +12,7 @@ export interface RetainedPagesExpiryAlarmApi {
   clear: (name: string) => Promise<boolean>
 }
 
-class RetainedPagesExpiryAlarmError extends Schema.TaggedErrorClass<RetainedPagesExpiryAlarmError>()(
+class RetainedPagesExpiryAlarmError extends Schema.TaggedError<RetainedPagesExpiryAlarmError>()(
   'RetainedPagesExpiryAlarmError',
   {
     operation: Schema.Literals(['create', 'clear']),
@@ -55,7 +55,10 @@ export const scheduleRetainedPagesExpiryAlarm = Effect.fn(
   }
 
   yield* Effect.tryPromise({
-    try: () => alarms.create(RETAINED_PAGES_EXPIRY_ALARM, { when }),
+    try: () => alarms.create(RETAINED_PAGES_EXPIRY_ALARM, {
+      when,
+      persistAcrossSessions: true,
+    }),
     catch: (cause) => RetainedPagesExpiryAlarmError.make({ operation: 'create', cause }),
   })
 })

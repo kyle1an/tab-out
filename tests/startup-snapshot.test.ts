@@ -7,7 +7,7 @@ import { createLatestRefreshRunner, fetchDashboardSnapshot, fetchDashboardStartu
 import { encodeDashboardRetainedPagesWire } from '../src/extension/dashboard-retained-pages-wire.js'
 import { loadDashboardLocalState, loadDashboardLocalStateResult } from '../src/hooks/useDashboardLocalState.js'
 import { DOMAIN_PIN_STORAGE_KEY } from '../src/extension/domain-pins.js'
-import { DEFAULT_HISTORY_RANGE } from '../src/extension/history-source.js'
+import { DEFAULT_HISTORY_RANGE } from '../src/extension/history-range.js'
 import { PAGE_CHIP_PIN_STORAGE_KEY, pageChipPinId, pageChipPinKeyForUrl, pageChipPinScopeId } from '../src/extension/page-chip-pins.js'
 import { SAVED_PAGES_STORAGE_KEY } from '../src/extension/saved-pages.js'
 import { SECTION_PIN_STORAGE_KEY, subdomainPinId } from '../src/extension/section-pins.js'

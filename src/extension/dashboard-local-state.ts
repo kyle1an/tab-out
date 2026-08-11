@@ -36,7 +36,7 @@ type StoredDashboardLocalState = typeof storedDashboardLocalStateSchema.Type
 const isStoredDashboardLocalState = Schema.is(storedDashboardLocalStateSchema)
 const isStoredDashboardLocalStoragePinValue = Schema.is(dashboardLocalStoragePinValueSchema)
 
-class DashboardLocalStateReadError extends Schema.TaggedErrorClass<DashboardLocalStateReadError>()(
+class DashboardLocalStateReadError extends Schema.TaggedError<DashboardLocalStateReadError>()(
   'DashboardLocalStateReadError',
   { cause: Schema.Defect() },
 ) {}

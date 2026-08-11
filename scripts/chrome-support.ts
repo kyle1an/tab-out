@@ -29,7 +29,7 @@ const require = createRequire(import.meta.url)
 
 type ChromeSupportCommand = 'check' | 'bump' | 'release-check'
 
-class ChromeSupportCliError extends Schema.TaggedErrorClass<ChromeSupportCliError>()(
+class ChromeSupportCliError extends Schema.TaggedError<ChromeSupportCliError>()(
   'ChromeSupportCliError',
   {
     operation: Schema.String,

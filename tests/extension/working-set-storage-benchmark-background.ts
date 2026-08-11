@@ -30,7 +30,7 @@ import {
 const selectedBackend: WorkingSetStorageBenchmarkBackend = benchmarkBackend
 const activityStorage = backgroundRuntime.runSync(WorkingSetActivityStorage)
 
-class WorkingSetStorageBenchmarkControllerError extends Schema.TaggedErrorClass<WorkingSetStorageBenchmarkControllerError>()(
+class WorkingSetStorageBenchmarkControllerError extends Schema.TaggedError<WorkingSetStorageBenchmarkControllerError>()(
   'WorkingSetStorageBenchmarkControllerError',
   {
     operation: Schema.String,
@@ -59,6 +59,7 @@ function makeChromeTab(event: WorkingSetStorageBenchmarkEvent): chrome.tabs.Tab 
     id: event.tabId,
     incognito: false,
     index: 0,
+    lastAccessed: 0,
     pinned: false,
     selected: true,
     status: 'complete',

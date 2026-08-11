@@ -24,6 +24,7 @@ test('Chrome tab capture preserves app context and unwraps suspended metadata', 
     autoDiscardable: true,
     frozen: false,
     groupId: -1,
+    lastAccessed: 0,
     url: suspendedUrl,
     title: 'Suspender wrapper',
   }, 'app')
@@ -51,6 +52,7 @@ test('Chrome tab capture uses the pending navigation as the newest effective tar
     autoDiscardable: true,
     frozen: false,
     groupId: -1,
+    lastAccessed: 0,
     url: 'https://example.test/original',
     pendingUrl: 'https://example.test/newest-target',
     title: 'Navigating',
@@ -73,6 +75,7 @@ test('Chrome tab capture rejects private surfaces before producing an observatio
     autoDiscardable: true,
     frozen: false,
     groupId: -1,
+    lastAccessed: 0,
     url: 'chrome-extension://suspender-id/suspended.html#uri=private-value',
     title: 'Private title',
   }, 'normal'), null)
@@ -92,6 +95,7 @@ test('Chrome tab capture does not guess a normal-tab identity when window type i
     autoDiscardable: true,
     frozen: false,
     groupId: -1,
+    lastAccessed: 0,
     url: 'https://example.test/app',
     title: 'Example app',
   } satisfies chrome.tabs.Tab
@@ -120,6 +124,7 @@ test('checkpoint capture distinguishes a disappearing window from an ineligible 
     autoDiscardable: true,
     frozen: false,
     groupId: -1,
+    lastAccessed: 0,
     url: 'https://example.test/preserve-prior-lifetime',
     title: 'Preserve prior lifetime',
   } satisfies chrome.tabs.Tab
@@ -157,6 +162,7 @@ test('current-surface capture omits tabs whose window metadata is missing', asyn
         autoDiscardable: true,
         frozen: false,
         groupId: -1,
+        lastAccessed: 0,
         url: 'https://example.test/unknown-window',
         title: 'Unknown window',
       }],

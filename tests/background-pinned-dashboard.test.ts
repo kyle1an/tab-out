@@ -382,6 +382,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
         calls.alarmsCreate.push({ name, alarmInfo: clone(alarmInfo) })
         alarmsByName.set(name, {
           name,
+          persistAcrossSessions: alarmInfo.persistAcrossSessions ?? true,
           scheduledTime: alarmInfo.when ?? Date.now(),
         })
       },

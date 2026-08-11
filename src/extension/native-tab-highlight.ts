@@ -36,7 +36,7 @@ function readyTargetResolution(tabId: number, windowId: number): TargetResolutio
   return { status: 'ready', target: { tabId, windowId } }
 }
 
-class NativeTabHighlightBrowserError extends Schema.TaggedErrorClass<NativeTabHighlightBrowserError>()(
+class NativeTabHighlightBrowserError extends Schema.TaggedError<NativeTabHighlightBrowserError>()(
   'NativeTabHighlightBrowserError',
   { cause: Schema.Defect() },
 ) {}

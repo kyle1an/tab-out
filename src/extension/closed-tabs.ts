@@ -22,7 +22,7 @@ const closedTabChangeHandlers = new Set<(settleDelayMs: number) => void>()
 export const CLOSED_TAB_SESSION_SETTLE_MS = 150
 export const CLOSED_TAB_RESTORE_WATCHDOG_MS = 30_000
 
-class ClosedTabRestoreError extends Schema.TaggedErrorClass<ClosedTabRestoreError>()(
+class ClosedTabRestoreError extends Schema.TaggedError<ClosedTabRestoreError>()(
   'ClosedTabRestoreError',
   { cause: Schema.Defect() },
 ) {}

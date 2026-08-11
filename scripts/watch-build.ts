@@ -22,7 +22,7 @@ const WATCH_TARGETS: WatchTarget[] = [
 ]
 const DEBOUNCE_MS = 120
 
-class WatchRegistrationError extends Schema.TaggedErrorClass<WatchRegistrationError>()(
+class WatchRegistrationError extends Schema.TaggedError<WatchRegistrationError>()(
   'WatchRegistrationError',
   {
     path: Schema.String,
@@ -30,7 +30,7 @@ class WatchRegistrationError extends Schema.TaggedErrorClass<WatchRegistrationEr
   },
 ) {}
 
-class BuildProcessError extends Schema.TaggedErrorClass<BuildProcessError>()(
+class BuildProcessError extends Schema.TaggedError<BuildProcessError>()(
   'BuildProcessError',
   { cause: Schema.Defect() },
 ) {}

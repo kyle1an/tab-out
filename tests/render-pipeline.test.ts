@@ -8,14 +8,17 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { flattenBookmarkNodes } from '../src/extension/bookmarks.js'
 import { domainCardId } from '../src/extension/domain-card-id.js'
 import {
-  DEFAULT_HISTORY_RANGE,
-  HISTORY_FILTER_OFF,
-  HISTORY_RANGE_OPTIONS,
   deleteHistorySourceUrl,
   fetchHistorySourceSearch,
   flattenHistoryItems,
-  isHistoryFilterEnabled,
 } from '../src/extension/history-source.js'
+import {
+  DEFAULT_HISTORY_RANGE,
+  HISTORY_FILTER_OFF,
+  HISTORY_RANGE_OPTIONS,
+  historyRangeStartTime,
+  isHistoryFilterEnabled,
+} from '../src/extension/history-range.js'
 import { filterInputFromSearch, isFilterFocusShortcut, titleForFilterInput, urlForFilterInput } from '../src/extension/app-url.js'
 import { readFilterFocusPendingInput, releaseFilterFocusBootValue } from '../src/extension/filter-focus-buffer.js'
 import { buildFilterSearchRequest, canDisplayHistorySearchResults, canUseHistorySearchResults, dashboardNeedsFilterSearchRefresh, isHistorySearchRequestSettled } from '../src/extension/filter-search.js'
@@ -2593,6 +2596,7 @@ test('history range options default to the last day search window', () => {
     [HISTORY_FILTER_OFF, '1d', '7d', '30d', '90d', '180d', '365d', 'all'],
   )
   assert.equal(expectDefined(HISTORY_RANGE_OPTIONS.find((option) => option.value === DEFAULT_HISTORY_RANGE)).days, 1)
+  assert.equal(historyRangeStartTime(DEFAULT_HISTORY_RANGE, 100_000_000), 13_600_000)
 })
 
 test('history source sends the raw trimmed filter text to Chrome history search', async () => {
@@ -2606,7 +2610,7 @@ test('history source sends the raw trimmed filter text to Chrome history search'
   }
 
   try {
-    const { tabs: items } = await fetchHistorySourceSearch(' github "pull request" 4706 ', '7d')
+    const { tabs: items } = await fetchHistorySourceSearch(' github "pull request" 4706 ', 123)
     assert.equal(searchedText, 'github "pull request" 4706')
     assert.deepEqual(items.map((item) => item.sourceType), ['history'])
   } finally {
@@ -2624,7 +2628,7 @@ test('history source keeps search failures distinct from zero matches', async ()
   }
 
   try {
-    const result = await fetchHistorySourceSearch('example', '7d')
+    const result = await fetchHistorySourceSearch('example', 123)
     assert.deepEqual(result, { status: 'error', tabs: [] })
   } finally {
     if (originalHistory === undefined) delete (globalThis.chrome as any).history
@@ -2680,26 +2684,9 @@ test('history search status copy distinguishes visible, deduped, empty, and upda
   })
 })
 
-test('history filter off skips Chrome history search', async () => {
+test('history filter off has no Chrome history search window', () => {
   assert.equal(isHistoryFilterEnabled(HISTORY_FILTER_OFF), false)
-
-  const originalHistory = (globalThis.chrome as any).history
-  let searched = false
-  ;(globalThis.chrome as any).history = {
-    async search() {
-      searched = true
-      return [{ id: '1', title: 'OpenAI Docs', url: 'https://openai.com/docs' }]
-    },
-  }
-
-  try {
-    const { tabs: items } = await fetchHistorySourceSearch('openai', HISTORY_FILTER_OFF)
-    assert.deepEqual(items, [])
-    assert.equal(searched, false)
-  } finally {
-    if (originalHistory === undefined) delete (globalThis.chrome as any).history
-    else (globalThis.chrome as any).history = originalHistory
-  }
+  assert.equal(historyRangeStartTime(HISTORY_FILTER_OFF, 123), null)
 })
 
 test('all-time history search starts at the Unix epoch', async () => {
@@ -2713,7 +2700,9 @@ test('all-time history search starts at the Unix epoch', async () => {
   }
 
   try {
-    await fetchHistorySourceSearch('example', 'all')
+    const startTime = historyRangeStartTime('all', 123)
+    assert.equal(startTime, 0)
+    await fetchHistorySourceSearch('example', startTime)
     assert.equal(searchQuery.text, 'example')
     assert.equal(searchQuery.maxResults, 100)
     assert.equal(searchQuery.startTime, 0)

@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-02
-- Last reviewed: 2026-08-03
+- Last reviewed: 2026-08-11
 
 ## Context
 
@@ -29,7 +29,7 @@ matter to a frequently opened new-tab page.
 
 ## Decision
 
-- Pin `effect` to the exact reviewed `4.0.0-beta.102` release. Do not use a
+- Pin `effect` to the exact reviewed `4.0.0-beta.107` release. Do not use a
   range that can silently advance the beta during an install.
 - Adopt Effect inside existing deep modules, one complete workflow at a time.
   Do not add Effect wrappers around isolated Promise calls.
@@ -72,6 +72,11 @@ slice adds 24,638 raw bytes (8,465 gzip bytes) to the app entry, bringing it to
 816,517 bytes; the background worker remains byte-for-byte unchanged.
 Contributors must understand the Effect workflow inside adopted modules even
 though ordinary callers remain Promise-based.
+
+The beta.107 checkpoint renames Effect Schema's typed error base from
+`Schema.TaggedErrorClass` to `Schema.TaggedError`. Tab Out applies that
+mechanical API migration across its existing error types without changing
+their tags, payloads, ownership, or Promise-facing boundaries.
 
 The second slice moves the serialized latest-wins Dashboard refresh flight
 behind a named Effect operation and names the source-switch operation with

@@ -24,7 +24,7 @@ Raising `minimum_chrome_version` is also a distribution decision: older Chrome v
 
 The declared install boundary and generated syntax/CSS target stay aligned, while ordinary commits remain independent of Chrome's network services. A platform-staggered rollout cannot prematurely raise the floor. Support updates appear as normal reviewable diffs with an audit date; Git history preserves the reviewed change.
 
-A floor bump may also require updating `@playwright/test` to a release that bundles the new minimum Chromium major before the offline consistency check passes. Real-Chrome inspection remains necessary for extension APIs and service-worker behavior; the bundled-browser lane is the deterministic floor check for the localhost harness.
+A floor bump may also require updating `@playwright/test` to a release that bundles the new minimum Chromium major before the offline consistency check passes. When Playwright's stable releases skip that Chromium major, pin the newest matching prerelease exactly and prove it through the full browser and extension suites. Real-Chrome inspection remains necessary for extension APIs and service-worker behavior; the bundled-browser lane is the deterministic floor check for the localhost harness.
 
 Without a scheduled observer, a stale floor is surfaced only when a developer runs `pnpm chrome-support:release-check` or `pnpm chrome-support:bump`. This is intentional for the current single-owner, unreleased workflow; reconsider server-side automation if the release cadence or contributor model changes.
 

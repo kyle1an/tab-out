@@ -1,6 +1,31 @@
 packages:
   - '.'
 
+allowBuilds:
+  # Verifies the platform executable used by Vite and tsx.
+  esbuild: true
+  # Preserves Effect's optional native MessagePack fast path.
+  msgpackr-extract: true
+
+minimumReleaseAge: 1440
+
+# These exact releases were selected by the authorized latest-version upgrade
+# while they were inside pnpm 11's default 24-hour quarantine window.
+minimumReleaseAgeExclude:
+  - '@typescript-eslint/eslint-plugin@8.67.0'
+  - '@typescript-eslint/parser@8.67.0'
+  - '@typescript-eslint/project-service@8.67.0'
+  - '@typescript-eslint/scope-manager@8.67.0'
+  - '@typescript-eslint/tsconfig-utils@8.67.0'
+  - '@typescript-eslint/type-utils@8.67.0'
+  - '@typescript-eslint/types@8.67.0'
+  - '@typescript-eslint/typescript-estree@8.67.0'
+  - '@typescript-eslint/utils@8.67.0'
+  - '@typescript-eslint/visitor-keys@8.67.0'
+  - dependency-cruiser@18.2.0
+  - knip@6.32.1
+  - typescript-eslint@8.67.0
+
 trustPolicy: no-downgrade
 trustPolicyExclude:
   # Legacy unprovenanced release; tarball verified against source.

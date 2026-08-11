@@ -21,7 +21,7 @@ import {
 import * as ChildProcess from 'effect/unstable/process/ChildProcess'
 import * as ChildProcessSpawner from 'effect/unstable/process/ChildProcessSpawner'
 
-class NativeHostTestError extends Schema.TaggedErrorClass<NativeHostTestError>()(
+class NativeHostTestError extends Schema.TaggedError<NativeHostTestError>()(
   'NativeHostTestError',
   {
     operation: Schema.String,
@@ -34,7 +34,7 @@ class NativeHostTestError extends Schema.TaggedErrorClass<NativeHostTestError>()
   }
 }
 
-class NativeSocketPending extends Schema.TaggedErrorClass<NativeSocketPending>()(
+class NativeSocketPending extends Schema.TaggedError<NativeSocketPending>()(
   'NativeSocketPending',
   { socketPath: Schema.String },
 ) {}

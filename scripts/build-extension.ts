@@ -20,7 +20,7 @@ const extensionPackageDirectory = resolveWorkingSetBuildSelection(
   repositoryRoot,
 ).extensionDirectory
 
-class ExtensionBuildError extends Schema.TaggedErrorClass<ExtensionBuildError>()(
+class ExtensionBuildError extends Schema.TaggedError<ExtensionBuildError>()(
   'ExtensionBuildError',
   {
     operation: Schema.String,

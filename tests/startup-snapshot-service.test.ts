@@ -227,7 +227,11 @@ test('service schedules one non-sliding Durable promotion and promotes the newes
       get: async () => pendingAlarm,
       create: async (name, alarmInfo) => {
         alarmCreates.push(alarmInfo)
-        pendingAlarm = { name, scheduledTime: alarmInfo.when ?? Date.now() }
+        pendingAlarm = {
+          name,
+          persistAcrossSessions: alarmInfo.persistAcrossSessions ?? true,
+          scheduledTime: alarmInfo.when ?? Date.now(),
+        }
       },
     },
   })
@@ -240,6 +244,7 @@ test('service schedules one non-sliding Durable promotion and promotes the newes
   await service.refreshNow()
   assert.equal(alarmCreates.length, 1)
   assert.equal(alarmCreates[0]?.when, 100 + STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_INTERVAL_MS)
+  assert.equal(alarmCreates[0]?.persistAcrossSessions, true)
 
   await clock.tickAsync(100)
   tabs = [makeChromeTab(3, 'https://latest.example/docs', 'Latest')]

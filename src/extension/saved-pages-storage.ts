@@ -51,7 +51,7 @@ const isSavedPagesStoreEnvelopeV2 = Schema.is(savedPagesStoreEnvelopeV2Schema)
 const isSavedPageRecordV1Candidate = Schema.is(savedPageRecordV1CandidateSchema)
 const isSavedPageRecordV2Candidate = Schema.is(savedPageRecordV2CandidateSchema)
 
-class SavedPagesStoreReadError extends Schema.TaggedErrorClass<SavedPagesStoreReadError>()(
+class SavedPagesStoreReadError extends Schema.TaggedError<SavedPagesStoreReadError>()(
   'SavedPagesStoreReadError',
   { cause: Schema.Defect() },
 ) {}

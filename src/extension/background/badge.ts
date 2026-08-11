@@ -31,12 +31,12 @@ type BadgeFlight = {
   readonly shouldStart: boolean
 }
 
-class BadgeBrowserReadError extends Schema.TaggedErrorClass<BadgeBrowserReadError>()(
+class BadgeBrowserReadError extends Schema.TaggedError<BadgeBrowserReadError>()(
   'BadgeBrowserReadError',
   { cause: Schema.Defect() },
 ) {}
 
-class BadgePresentationWriteError extends Schema.TaggedErrorClass<BadgePresentationWriteError>()(
+class BadgePresentationWriteError extends Schema.TaggedError<BadgePresentationWriteError>()(
   'BadgePresentationWriteError',
   { cause: Schema.Defect() },
 ) {}

@@ -5,7 +5,7 @@ import type { ChromeApi } from './chrome-api.js'
 const NORMAL_WINDOW_CREATE_ATTEMPTS = 32
 const NORMAL_WINDOW_FOCUS_ATTEMPTS = 2
 
-export class BackgroundCommandError extends Schema.TaggedErrorClass<BackgroundCommandError>()(
+export class BackgroundCommandError extends Schema.TaggedError<BackgroundCommandError>()(
   'BackgroundCommandError',
   { cause: Schema.Defect() },
 ) {}

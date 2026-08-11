@@ -44,6 +44,7 @@ test('dashboard service state treats an explicit successful empty response as kn
   assert.equal(result.value.openTabsSnapshot?.tabs[0]?.id, 1)
   assert.equal(result.value.openTabsSnapshot?.tabs[0]?.active, false)
   assert.equal(result.value.openTabsSnapshot?.tabs[0]?.groupId, -1)
+  assert.equal(result.value.openTabsSnapshot?.tabs[0]?.lastAccessed, 0)
 })
 
 test('dashboard service state rejects malformed successful responses instead of clearing known state', async () => {

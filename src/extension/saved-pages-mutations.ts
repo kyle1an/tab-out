@@ -35,7 +35,7 @@ export type SavedPagesMutationStore = {
   ) => Promise<void>
 }
 
-export class SavedPagesMutationError extends Schema.TaggedErrorClass<SavedPagesMutationError>()(
+export class SavedPagesMutationError extends Schema.TaggedError<SavedPagesMutationError>()(
   'SavedPagesMutationError',
   { cause: Schema.Defect() },
 ) {}

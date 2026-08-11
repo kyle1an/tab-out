@@ -20,12 +20,12 @@ type SavedPageActivationDependencies = {
   notify: typeof showToast
 }
 
-class SavedPageActivationMessageError extends Schema.TaggedErrorClass<SavedPageActivationMessageError>()(
+class SavedPageActivationMessageError extends Schema.TaggedError<SavedPageActivationMessageError>()(
   'SavedPageActivationMessageError',
   { cause: Schema.Defect() },
 ) {}
 
-class SavedPageActivationRefreshError extends Schema.TaggedErrorClass<SavedPageActivationRefreshError>()(
+class SavedPageActivationRefreshError extends Schema.TaggedError<SavedPageActivationRefreshError>()(
   'SavedPageActivationRefreshError',
   { cause: Schema.Defect() },
 ) {}

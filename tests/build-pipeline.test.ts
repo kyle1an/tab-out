@@ -38,13 +38,15 @@ test('extension HTML loads the Vite-built React entry', async () => {
     'dependency-cruiser should baseline existing graph debt',
   )
   assert.ok(existsSync('chrome-support.json'), 'chrome-support.json should be the tracked browser-support policy')
+  assert.ok(existsSync('doctor.config.json'), 'doctor.config.json should define the React Doctor policy')
 
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
+  const doctorConfig = JSON.parse(readFileSync('doctor.config.json', 'utf8'))
   const tsconfig = JSON.parse(readFileSync('tsconfig.json', 'utf8'))
   const nodeTsconfig = JSON.parse(readFileSync('tsconfig.node.json', 'utf8'))
   const testTsconfig = JSON.parse(readFileSync('tsconfig.test.json', 'utf8'))
   const shadcnConfig = JSON.parse(readFileSync('components.json', 'utf8'))
-  assert.equal(readFileSync('.node-version', 'utf8').trim(), '26.5.0')
+  assert.equal(readFileSync('.node-version', 'utf8').trim(), '26.7.0')
   assert.match(pkg.packageManager, /^pnpm@/)
   assert.equal(pkg.scripts?.['setup:hooks'], 'git config core.hooksPath .githooks')
   assert.equal(
@@ -75,7 +77,15 @@ test('extension HTML loads the Vite-built React entry', async () => {
     pkg.scripts?.['deps:architecture'],
     'depcruise --config .dependency-cruiser.cjs --ignore-known .dependency-cruiser-known-violations.json src',
   )
+  assert.equal(pkg.scripts?.['deps:peers'], 'pnpm peers check')
   assert.equal(pkg.scripts?.['deps:nolyfill'], 'pnpm dlx nolyfill --pm pnpm')
+  assert.match(pkg.scripts?.['react-doctor'], /--scope lines --base HEAD/)
+  assert.match(pkg.scripts?.['react-doctor'], /--no-telemetry/)
+  assert.match(pkg.scripts?.['react-doctor:diff'], /--no-telemetry/)
+  assert.match(pkg.scripts?.['react-doctor:full'], /--no-telemetry/)
+  assert.equal(doctorConfig.noScore, true)
+  assert.equal(doctorConfig.supplyChain?.enabled, false)
+  assert.equal(doctorConfig.offline, undefined)
   assert.match(pkg.scripts?.['test:browser'], /playwright test/)
   assert.match(pkg.scripts?.['test:browser'], /dashboard-smoke\.spec\.ts/)
   assert.doesNotMatch(pkg.scripts?.['test:browser'], /RUN_BROWSER_SMOKE/)
@@ -85,12 +95,13 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.equal(pkg.scripts?.['lint:tailwind'], 'node scripts/check-tailwind-diagnostics.ts')
   assert.equal(
     pkg.scripts?.['verify:quick'],
-    'pnpm run "/^(typecheck|lint|lint:tailwind|deps:architecture|react-doctor|verify:compiler)$/"',
+    'pnpm run "/^(typecheck|lint|lint:tailwind|deps:architecture|deps:peers|react-doctor|verify:compiler)$/"',
   )
   assert.match(pkg.scripts?.verify, /pnpm lint:tailwind/)
   assert.match(pkg.scripts?.verify, /^pnpm chrome-support:check &&/)
   assert.match(pkg.scripts?.verify, /pnpm lint/)
   assert.match(pkg.scripts?.verify, /pnpm deps:architecture/)
+  assert.match(pkg.scripts?.verify, /pnpm deps:peers/)
   assert.match(pkg.scripts?.verify, /pnpm verify:bundle/)
   assert.match(pkg.scripts?.['verify:browser'], /pnpm test:browser/)
   assert.ok(pkg.dependencies?.react)
@@ -261,6 +272,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   const tabHistoryServiceSource = readFileSync('src/extension/background/tab-history-service.ts', 'utf8')
   const headerBarSource = readFileSync('src/components/HeaderBar.tsx', 'utf8')
   const historyRangeSelectSource = readFileSync('src/components/HistoryRangeSelect.tsx', 'utf8')
+  const historySourceSource = readFileSync('src/extension/history-source.ts', 'utf8')
   const workingSetClientSource = readFileSync('src/extension/working-set-client.ts', 'utf8')
   const toastSource = readFileSync('src/components/Toast.tsx', 'utf8')
   const mountToastSource = readFileSync('src/components/mountToast.tsx', 'utf8')
@@ -710,8 +722,11 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.match(appComponentSource, /lazy\(\(\) => loadHistoryRangeSelect\(\)\.then/)
   assert.match(appComponentSource, /nextFilterInput\.trim\(\)[\s\S]*loadHistoryRangeSelect\(\)/)
   assert.match(appComponentSource, /fallback=\{<HistoryRangeSelectFallback value=\{historyRange\} \/>\}/)
+  assert.match(appComponentSource, /<HistoryRangeSelect[\s\S]*items=\{HISTORY_RANGE_OPTIONS\}/)
   assert.match(historyRangeSelectSource, /function HistoryRangeSelect/)
-  assert.match(historyRangeSelectSource, /<Select value=\{value\} items=\{HISTORY_RANGE_OPTIONS\} onValueChange=\{handleValueChange\}>/)
+  assert.match(historyRangeSelectSource, /<Select value=\{value\} items=\{items\} onValueChange=\{handleValueChange\}>/)
+  assert.doesNotMatch(historyRangeSelectSource, /from ['"][^'"]*history-range/)
+  assert.doesNotMatch(historySourceSource, /from ['"][^'"]*history-range/)
   assert.match(historyRangeSelectSource, /<SelectTrigger[\s\S]*className="[^"]*bg-tab-card/)
   assert.doesNotMatch(historyRangeSelectSource, /<SelectTrigger\s+className="[^"]*bg-\[rgba\(115,115,115,0\.06\)\]/)
   assert.match(historyRangeSelectSource, /<SelectContent[\s\S]*align="start"[\s\S]*className="[^"]*rounded-\(--header-control-radius\)/)

@@ -29,7 +29,7 @@ import {
   type JsonRpcMessage,
 } from './tailwind-language-server-protocol.ts'
 
-class TailwindDiagnosticsError extends Schema.TaggedErrorClass<TailwindDiagnosticsError>()(
+class TailwindDiagnosticsError extends Schema.TaggedError<TailwindDiagnosticsError>()(
   'TailwindDiagnosticsError',
   {
     operation: Schema.String,

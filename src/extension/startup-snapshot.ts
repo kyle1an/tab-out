@@ -58,7 +58,7 @@ export const DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS = 30 * 60_000
 export const DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS = 7 * 24 * 60 * 60_000
 const DASHBOARD_STARTUP_SEED_CACHE_WRITE_LOCK = 'tab-out:startup-snapshot-cache-write'
 
-export class StartupSnapshotCacheMutationError extends Schema.TaggedErrorClass<StartupSnapshotCacheMutationError>()(
+export class StartupSnapshotCacheMutationError extends Schema.TaggedError<StartupSnapshotCacheMutationError>()(
   'StartupSnapshotCacheMutationError',
   { cause: Schema.Defect() },
 ) {}

@@ -95,7 +95,7 @@ type TabHistorySwitchPlan = {
 }
 type CapturedTab = Promise<chrome.tabs.Tab | null>
 
-export class TabHistoryTaskError extends Schema.TaggedErrorClass<TabHistoryTaskError>()(
+export class TabHistoryTaskError extends Schema.TaggedError<TabHistoryTaskError>()(
   'TabHistoryTaskError',
   { cause: Schema.Defect() },
 ) {}

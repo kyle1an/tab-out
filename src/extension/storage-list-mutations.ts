@@ -36,7 +36,7 @@ function sameOrder(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index])
 }
 
-class StorageListMutationError extends Schema.TaggedErrorClass<StorageListMutationError>()(
+class StorageListMutationError extends Schema.TaggedError<StorageListMutationError>()(
   'StorageListMutationError',
   { cause: Schema.Defect() },
 ) {}

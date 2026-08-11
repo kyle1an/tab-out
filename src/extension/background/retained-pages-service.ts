@@ -47,7 +47,7 @@ import type { GuardedOpenSurfaceCapture } from './adjacent-open-surface-batcher.
 
 export type { RetainedPageActivationDisposition } from '../runtime-messages.js'
 
-class RetainedPagesNewerVersionError extends Schema.TaggedErrorClass<RetainedPagesNewerVersionError>()(
+class RetainedPagesNewerVersionError extends Schema.TaggedError<RetainedPagesNewerVersionError>()(
   'RetainedPagesNewerVersionError',
   {},
 ) {}

@@ -41,7 +41,7 @@ type ActivityMutator = (
 ) => Effect.Effect<ActivityMutation>
 type CapturedTab = Promise<chrome.tabs.Tab | null>
 
-export class WorkingSetStorageError extends Schema.TaggedErrorClass<WorkingSetStorageError>()(
+export class WorkingSetStorageError extends Schema.TaggedError<WorkingSetStorageError>()(
   'WorkingSetStorageError',
   {
     operation: Schema.Literals(['read', 'write']),
@@ -49,7 +49,7 @@ export class WorkingSetStorageError extends Schema.TaggedErrorClass<WorkingSetSt
   },
 ) {}
 
-class WorkingSetTabLookupError extends Schema.TaggedErrorClass<WorkingSetTabLookupError>()(
+class WorkingSetTabLookupError extends Schema.TaggedError<WorkingSetTabLookupError>()(
   'WorkingSetTabLookupError',
   { cause: Schema.Defect() },
 ) {}

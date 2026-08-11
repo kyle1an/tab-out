@@ -436,10 +436,15 @@ test('the production earliest-expiry alarm durably prunes a retained page', asyn
   await expect.poll(() => installedExtension.serviceWorker.evaluate(async (name) => {
     const alarm = await chrome.alarms.get(name)
     return alarm
-      ? { name: alarm.name, scheduledTime: alarm.scheduledTime }
+      ? {
+          name: alarm.name,
+          persistAcrossSessions: alarm.persistAcrossSessions,
+          scheduledTime: alarm.scheduledTime,
+        }
       : null
   }, RETAINED_PAGES_EXPIRY_ALARM)).toEqual({
     name: RETAINED_PAGES_EXPIRY_ALARM,
+    persistAcrossSessions: true,
     scheduledTime: expiresAt,
   })
 

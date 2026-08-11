@@ -26,7 +26,7 @@ export const dashboardRetainedPagesWireSchema = Schema.Struct({
   data: Schema.String,
 })
 
-export class DashboardRetainedPagesWireError extends Schema.TaggedErrorClass<DashboardRetainedPagesWireError>()(
+export class DashboardRetainedPagesWireError extends Schema.TaggedError<DashboardRetainedPagesWireError>()(
   'DashboardRetainedPagesWireError',
   {
     operation: Schema.Literals(['encode', 'decode']),

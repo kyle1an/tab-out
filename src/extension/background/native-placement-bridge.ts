@@ -36,12 +36,12 @@ export type NativePlacementBridgeResponse = {
   windowIds?: number[]
 }
 
-class NativePlacementOperationError extends Schema.TaggedErrorClass<NativePlacementOperationError>()(
+class NativePlacementOperationError extends Schema.TaggedError<NativePlacementOperationError>()(
   'NativePlacementOperationError',
   { cause: Schema.Defect() },
 ) {}
 
-class NativePlacementConnectionError extends Schema.TaggedErrorClass<NativePlacementConnectionError>()(
+class NativePlacementConnectionError extends Schema.TaggedError<NativePlacementConnectionError>()(
   'NativePlacementConnectionError',
   { cause: Schema.Defect() },
 ) {}
