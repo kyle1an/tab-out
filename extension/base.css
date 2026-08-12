@@ -175,12 +175,6 @@ html[data-tabout-startup-view='bookmarks'] {
   }
 }
 
-/* The trigger is scoped to each dashboard main so a future second dashboard
-   instance cannot bind its header animation to another instance's scroller. */
-.dashboard-main {
-  trigger-scope: --dashboard-scrolled;
-}
-
 /* .pinned-top own-box layout (the --header-shadow-* custom props, flex,
    position, z-index, the dashboard-main > .pinned-top margins/padding, the
    is-bookmarks / has-history overrides, and the focus-within clip-path) lives
@@ -210,20 +204,11 @@ html[data-tabout-startup-view='bookmarks'] {
   );
   opacity: 0;
   pointer-events: none;
-  animation: dashboard-header-shadow 0.2s ease both;
+  transition: opacity 0.2s ease;
 }
 
-/* Keep the trigger out of the rule containing the animation shorthand:
-   animation resets animation-trigger, and minification may reorder declarations.
-   The more specific selector keeps the trigger authoritative after bundling. */
-.dashboard-main > .pinned-top::after {
-  animation-trigger: --dashboard-scrolled play-forwards play-backwards;
-}
-
-@keyframes dashboard-header-shadow {
-  to {
-    opacity: 1;
-  }
+.pinned-top[data-scrolled]::after {
+  opacity: 1;
 }
 
 html[data-tabout-startup-view='bookmarks'] .dashboard-shell.has-history .dashboard-main > .pinned-top::after,
@@ -262,15 +247,10 @@ html[data-tabout-startup-view='bookmarks'] .dashboard-shell.has-history .dashboa
    shared scrollbar size so this regression can't return silently.
 
    The JS-toggled card-motion-bleed animation rule (above) also has no utility
-   equivalent. The .scroll-region class anchors both it and the native scroll
-   trigger below. */
-
-/* The rolling Chrome support floor includes timeline triggers, which preserve
-   the 200ms time-based fade without a main-thread scroll listener. The 1px
-   boundary separates top from scrolled. */
-.scroll-region {
-  timeline-trigger: --dashboard-scrolled scroll(self block) 1px 100%;
-}
+   equivalent. The .scroll-region class anchors that rule. The one-pixel
+   sentinel inside this region drives the header's data-scrolled state through
+   IntersectionObserver, preserving the 200ms time-based fade without a scroll
+   listener. */
 
 .scroll-region::-webkit-scrollbar {
   width: var(--dashboard-scrollbar-size);

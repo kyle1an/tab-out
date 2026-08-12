@@ -312,6 +312,29 @@ function DashboardShell({
   urlPreviewStore,
   workingSet,
 }: DashboardShellProps) {
+  const headerRef = useRef<HTMLDivElement>(null)
+  const scrollRegionRef = useRef<HTMLDivElement>(null)
+  const scrollSentinelRef = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    const header = headerRef.current
+    const scrollRegion = scrollRegionRef.current
+    const scrollSentinel = scrollSentinelRef.current
+    if (!header || !scrollRegion || !scrollSentinel) return
+
+    header.toggleAttribute('data-scrolled', scrollRegion.scrollTop >= 1)
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry) return
+      header.toggleAttribute('data-scrolled', entry.intersectionRatio < 1)
+    }, {
+      root: scrollRegion,
+      threshold: 1,
+    })
+    observer.observe(scrollSentinel)
+
+    return () => observer.disconnect()
+  }, [])
+
   // Reserve the Tabs-source history column during the initial dashboard fetch so
   // the header does not shift when the first snapshot arrives.
   const showTabHistory = source === 'tabs'
@@ -354,6 +377,7 @@ function DashboardShell({
           )}
         >
           <div
+            ref={headerRef}
             className={cn(
               'pinned-top relative z-10 flex-none mr-[calc(0px-var(--dashboard-edge-bleed))] pt-3 pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter)+var(--dashboard-scrollbar-size))] pb-3 [--header-shadow-padding-fade:calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter)+var(--dashboard-scrollbar-size))] [--header-shadow-left-reserve:56px] [--header-shadow-left-fade:18px]',
               source === 'bookmarks'
@@ -380,6 +404,7 @@ function DashboardShell({
           </div>
 
           <div
+            ref={scrollRegionRef}
             id="dashboardMissions"
             role="tabpanel"
             tabIndex={0}
@@ -393,6 +418,12 @@ function DashboardShell({
                 : 'ml-[calc(0px-var(--dashboard-card-shadow-bleed))] pl-(--dashboard-card-shadow-bleed)',
             )}
           >
+            <span
+              ref={scrollSentinelRef}
+              data-tabout-part="scroll-sentinel"
+              className="pointer-events-none absolute top-0 left-0 size-px"
+              aria-hidden="true"
+            />
             <DashboardMissionsList
               filter={filter}
               historyRangeAction={showHistoryRange ? (
