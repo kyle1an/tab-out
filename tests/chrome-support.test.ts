@@ -26,18 +26,13 @@ const validPolicy: ChromeSupportPolicy = {
 }
 
 const stableVersions: ChromeStableVersions = {
-  win: '151.0.7922.47',
-  win64: '151.0.7922.47',
-  win_arm64: '151.0.7922.47',
-  mac: '151.0.7922.47',
-  mac_arm64: '151.0.7922.47',
-  linux: '150.0.7871.181',
+  mac_arm64: '150.0.7871.181',
 }
 
-test('requests one explicitly newest Stable version per supported platform', () => {
+test('requests the explicitly newest Apple silicon Stable version', () => {
   assert.equal(
-    chromeVersionHistoryUrl('linux'),
-    'https://versionhistory.googleapis.com/v1/chrome/platforms/linux/channels/stable/versions?page_size=1&order_by=version%20desc',
+    chromeVersionHistoryUrl('mac_arm64'),
+    'https://versionhistory.googleapis.com/v1/chrome/platforms/mac_arm64/channels/stable/versions?page_size=1&order_by=version%20desc',
   )
 })
 
@@ -112,7 +107,7 @@ test('browser harness owns its server and uses the bundled full Chromium', () =>
   assert.equal(webServer.env?.PORT, new URL(String(playwrightConfig.use?.baseURL)).port)
 })
 
-test('creates an auditable bump only when the common floor advances', () => {
+test('creates an auditable bump only when the Apple silicon floor advances', () => {
   const advancedVersions = Object.fromEntries(
     Object.keys(stableVersions).map((platform) => [platform, '151.0.7922.47']),
   ) as ChromeStableVersions
@@ -122,13 +117,25 @@ test('creates an auditable bump only when the common floor advances', () => {
       advancedVersions,
       new Date('2026-07-24T15:30:00Z'),
     ),
-    { minimumMajor: 150, lastBumpedAt: '2026-07-24' },
+    { minimumMajor: 151, lastBumpedAt: '2026-07-24' },
   )
-  assert.equal(createBumpedChromeSupportPolicy(validPolicy, stableVersions, new Date()), null)
+  assert.deepEqual(
+    createBumpedChromeSupportPolicy(
+      validPolicy,
+      stableVersions,
+      new Date('2026-07-23T15:30:00Z'),
+    ),
+    { minimumMajor: 150, lastBumpedAt: '2026-07-23' },
+  )
+  assert.equal(createBumpedChromeSupportPolicy(
+    { ...validPolicy, minimumMajor: 150 },
+    stableVersions,
+    new Date(),
+  ), null)
   assert.throws(
     () => createBumpedChromeSupportPolicy(
       validPolicy,
-      { ...stableVersions, linux: '149.0.7800.1' },
+      { ...stableVersions, mac_arm64: '148.0.7750.1' },
       new Date(),
     ),
     /refusing to lower/,
@@ -136,19 +143,20 @@ test('creates an auditable bump only when the common floor advances', () => {
 })
 
 test('distinguishes a current, stale, and unsupported committed floor', () => {
+  const currentPolicy = { ...validPolicy, minimumMajor: 150 }
   assert.deepEqual(
-    assessChromeSupport(validPolicy, stableVersions),
-    { status: 'current', committedMinimumMajor: 149, desiredMinimumMajor: 149 },
+    assessChromeSupport(currentPolicy, stableVersions),
+    { status: 'current', committedMinimumMajor: 150, desiredMinimumMajor: 150 },
   )
   assert.deepEqual(
-    assessChromeSupport(validPolicy, Object.fromEntries(
+    assessChromeSupport(currentPolicy, Object.fromEntries(
       Object.keys(stableVersions).map((platform) => [platform, '152.0.8000.1']),
     ) as ChromeStableVersions),
-    { status: 'behind', committedMinimumMajor: 149, desiredMinimumMajor: 151 },
+    { status: 'behind', committedMinimumMajor: 150, desiredMinimumMajor: 152 },
   )
   assert.deepEqual(
-    assessChromeSupport(validPolicy, { ...stableVersions, linux: '149.0.7800.1' }),
-    { status: 'unsupported', committedMinimumMajor: 149, desiredMinimumMajor: 148 },
+    assessChromeSupport(currentPolicy, { ...stableVersions, mac_arm64: '149.0.7800.1' }),
+    { status: 'unsupported', committedMinimumMajor: 150, desiredMinimumMajor: 149 },
   )
 })
 
@@ -159,17 +167,17 @@ test('uses the first Stable version from the descending VersionHistory response'
         { version: '151.0.7922.47' },
         { version: '150.0.7871.181' },
       ],
-    }, 'win'),
+    }, 'mac_arm64'),
     '151.0.7922.47',
   )
   assert.throws(
-    () => parseLatestStableVersion({ versions: [] }, 'win'),
-    /no Stable version for win/,
+    () => parseLatestStableVersion({ versions: [] }, 'mac_arm64'),
+    /no Stable version for mac_arm64/,
   )
 })
 
-test('derives the common latest-two floor from the slowest supported platform', () => {
+test('derives the Stable floor from the Apple silicon feed', () => {
   assert.equal(isChromeStableVersions(stableVersions), true)
-  assert.equal(isChromeStableVersions({ ...stableVersions, linux: undefined }), false)
-  assert.equal(deriveMinimumChromeMajor(stableVersions), 149)
+  assert.equal(isChromeStableVersions({ ...stableVersions, mac_arm64: undefined }), false)
+  assert.equal(deriveMinimumChromeMajor(stableVersions), 150)
 })

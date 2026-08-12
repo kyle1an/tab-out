@@ -2,7 +2,9 @@
 
 **Keep tabs on your tabs.**
 
-Tab Out is a Chrome extension that replaces your new tab page with a dashboard of everything you have open. Tabs are grouped by domain so each site's homepages and content pages stay together. Close tabs with a polished collapse animation and undo toast.
+Tab Out is a Chrome extension for Apple silicon Macs that replaces your new tab page with a dashboard of everything you have open. Tabs are grouped by domain so each site's homepages and content pages stay together. Close tabs with a polished collapse animation and undo toast.
+
+The supported target is Chrome on Apple silicon. The unpacked extension does not block other Mac architectures, but they are outside the release and compatibility contract.
 
 No server. No account. No external API calls. Just a Chrome extension.
 
@@ -29,7 +31,7 @@ The agent will walk you through it. Takes about 1 minute.
 - **Pin domain cards** to keep important sites at the top of the dashboard, plus per-card section and page-chip pins that keep important pages first inside their card
 - **Click any tab to jump to it** across Chrome windows
 - **Dashboard views** — start with **All Tabs**, narrow the page to open tabs and Saved Pages with **Open + Saved**, or browse **Bookmarks**
-- **Move or open with a modifier-click** — Cmd/Ctrl-click any chip or history row to pull that tab into the current window in the background, Cmd/Ctrl+Shift-click to pull it here and switch to it, or Shift-click to move the tab into a new Chrome window; if the page has no live tab, the current-window move gesture opens it in a new tab and Shift-click opens it in a new window
+- **Move or open with a modifier-click** — Cmd-click any chip or history row to pull that tab into the current window in the background, Cmd+Shift-click to pull it here and switch to it, or Shift-click to move the tab into a new Chrome window; if the page has no live tab, the current-window move gesture opens it in a new tab and Shift-click opens it in a new window
 - **Activation history column** — your chronological tab-switching path with working-set hints and recently closed rows you can restore or forget
 - **Saved pages** — explicitly keep a page on its card after the tab closes, and reopen it with one click (local state, not a Chrome bookmark)
 - **Closed-page retention** — genuinely closed pages remain available in **All Tabs** on their usual cards for up to 30 days, using the same closed-chip presentation as Saved Pages; reopen them, save them permanently, or remove them from Tabs
@@ -38,8 +40,8 @@ The agent will walk you through it. Takes about 1 minute.
 - **Right-click menus** — copy a page title, save a page, or suspend it from any chip or history row; group chips can close all their URL variants at once
 - **Filter-match highlighting** — matched terms are marked in chip and history-row titles while you filter
 - **Live filter** — type in the filter input to show only matching dashboard items; the clear button restores the selected Dashboard View. Matching bookmarks and recent history appear below Tabs-source matches, with a remembered history range menu for last day/week/month/3 months
-- **Keyboard-driven filter results** — typing keeps selection in the filter input; press Arrow Down to select the first visible result or Arrow Up to select the last, then use those arrows to move in result order and Arrow Left/Right to move by the results' on-screen positions. Enter opens or switches to the selected result (or the first result before selection), Shift+Enter uses a new window, Cmd/Ctrl+Enter brings it into the current window in the background, and Cmd/Ctrl+Shift+Enter brings it here and switches
-- **Filter keyboard shortcut** — press Cmd+K on macOS or Ctrl+K on Windows/Linux to focus the filter input
+- **Keyboard-driven filter results** — typing keeps selection in the filter input; press Arrow Down to select the first visible result or Arrow Up to select the last, then use those arrows to move in result order and Arrow Left/Right to move by the results' on-screen positions. Enter opens or switches to the selected result (or the first result before selection), Shift+Enter uses a new window, Cmd+Enter brings it into the current window in the background, and Cmd+Shift+Enter brings it here and switches
+- **Filter keyboard shortcut** — press Cmd+K to focus the filter input
 - **Filter shortcut support** — assign "Open Tab Out with the filter focused" in `chrome://extensions/shortcuts` to open a fresh dashboard tab ready for typing
 - **Global new-tab shortcut support** — assign "Open a new Tab Out tab" in `chrome://extensions/shortcuts` and set it to Global to create a fresh Tab Out page even when Chrome is not focused
 - **Shared-page fold** — if the same path and visible title are open in multiple subdomains (e.g. `dev2`, `dev11`, `qa`), they collapse into one chip with a row of clickable env pills; same-path tabs with different titles stay separate, and each pill jumps to its specific tab

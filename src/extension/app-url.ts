@@ -58,8 +58,7 @@ export function urlForDashboardView(
   return urlWithSearchParam(VIEW_PARAM, view, DEFAULT_DASHBOARD_VIEW, locationParts)
 }
 
-export function isFilterFocusShortcut(e: ShortcutEvent, platform = ''): boolean {
+export function isFilterFocusShortcut(e: ShortcutEvent): boolean {
   if (!e || (e.key || '').toLowerCase() !== 'k' || e.altKey || e.shiftKey) return false
-  const isMac = /mac|iphone|ipad|ipod/i.test(platform)
-  return isMac ? !!e.metaKey && !e.ctrlKey : !!e.ctrlKey && !e.metaKey
+  return !!e.metaKey && !e.ctrlKey
 }

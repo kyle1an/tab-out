@@ -50,10 +50,10 @@ This repo is a Chrome Manifest V3 extension. Treat `AGENTS.md` as the day-to-day
 
 ## Chrome Support Policy
 
-- `chrome-support.json` records the approved minimum Chrome major and when it last changed. The updater computes the latest-two floor as one less than the slowest Windows, macOS, or Linux Stable feed.
+- `chrome-support.json` records the approved minimum Chrome major and when it last changed. Tab Out's supported target is Chrome on Apple silicon Macs; the updater computes the floor from the `mac_arm64` Stable feed.
 - Vite's exact build target and the manifest's `minimum_chrome_version` derive from that policy. Do not add a Browserslist configuration unless a concrete compatibility tool will consume it; Browserslist is not the Vite or extension-install authority.
 - `pnpm chrome-support:check` is deterministic and offline. It validates the policy, generated manifest, and the Chromium major bundled by Playwright for minimum-version browser tests; it runs first in `pnpm verify` and therefore in the pre-commit hook.
-- `pnpm chrome-support:bump` forces a fresh complete platform check, updates the policy only when the common floor advances, rebuilds generated output, and checks consistency. A floor advance also requires an `@playwright/test` release whose bundled Chromium has that major. Review the diff; the command never stages, commits, pushes, or lowers the floor.
+- `pnpm chrome-support:bump` forces a fresh Apple silicon Stable check, updates the policy only when that floor advances, rebuilds generated output, and checks consistency. A floor advance also requires an `@playwright/test` release whose bundled Chromium has that major. Review the diff; the command never stages, commits, pushes, or lowers the floor.
 - `pnpm chrome-support:release-check` performs the same fresh observation without writing. Run it before a release or when reviewing whether the floor should advance.
 - `lastBumpedAt` is audit metadata, not a reason to skip a fresh manual check. See `docs/adr/0003-rolling-chrome-support-floor.md`.
 

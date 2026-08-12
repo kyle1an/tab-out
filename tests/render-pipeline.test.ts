@@ -2382,14 +2382,13 @@ test('filter URL helpers preserve restorable filter state without history churn'
   assert.equal(urlForFilterInput('', { pathname: '/index.html', search: '?tabOutPlacement=request-1&filter=github', hash: '' }), '/index.html?tabOutPlacement=request-1')
 })
 
-test('filter focus shortcut matches Cmd+K on macOS and Ctrl+K elsewhere', () => {
-  assert.equal(isFilterFocusShortcut({ key: 'k', metaKey: true }, 'MacIntel'), true)
-  assert.equal(isFilterFocusShortcut({ key: 'K', ctrlKey: true }, 'Win32'), true)
-  assert.equal(isFilterFocusShortcut({ key: 'k', ctrlKey: true }, 'Linux x86_64'), true)
-  assert.equal(isFilterFocusShortcut({ key: 'k', ctrlKey: true }, 'MacIntel'), false)
-  assert.equal(isFilterFocusShortcut({ key: 'k', metaKey: true }, 'Win32'), false)
-  assert.equal(isFilterFocusShortcut({ key: 'k', metaKey: true, shiftKey: true }, 'MacIntel'), false)
-  assert.equal(isFilterFocusShortcut({ key: 'j', metaKey: true }, 'MacIntel'), false)
+test('filter focus shortcut matches Cmd+K', () => {
+  assert.equal(isFilterFocusShortcut({ key: 'k', metaKey: true }), true)
+  assert.equal(isFilterFocusShortcut({ key: 'K', metaKey: true }), true)
+  assert.equal(isFilterFocusShortcut({ key: 'k', ctrlKey: true }), false)
+  assert.equal(isFilterFocusShortcut({ key: 'k', metaKey: true, ctrlKey: true }), false)
+  assert.equal(isFilterFocusShortcut({ key: 'k', metaKey: true, shiftKey: true }), false)
+  assert.equal(isFilterFocusShortcut({ key: 'j', metaKey: true }), false)
 })
 
 test('filter focus pending input adopts the pre-app value and releases its listener', () => {

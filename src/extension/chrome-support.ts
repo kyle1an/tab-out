@@ -2,12 +2,7 @@ import { Schema } from 'effect'
 import rawChromeSupportPolicy from '../../chrome-support.json' with { type: 'json' }
 
 export const CHROME_PLATFORMS = [
-  'win',
-  'win64',
-  'win_arm64',
-  'mac',
   'mac_arm64',
-  'linux',
 ] as const
 
 export type ChromePlatform = (typeof CHROME_PLATFORMS)[number]
@@ -54,7 +49,7 @@ function chromeMajor(version: string): number {
 }
 
 export function deriveMinimumChromeMajor(versions: ChromeStableVersions): number {
-  return Math.min(...CHROME_PLATFORMS.map((platform) => chromeMajor(versions[platform]))) - 1
+  return Math.min(...CHROME_PLATFORMS.map((platform) => chromeMajor(versions[platform])))
 }
 
 export function isChromeStableVersions(value: unknown): value is ChromeStableVersions {
@@ -99,7 +94,7 @@ export function createBumpedChromeSupportPolicy(
   if (assessment.status === 'current') return null
   if (assessment.status === 'unsupported') {
     throw new Error(
-      `Chrome support policy is ahead of the official cross-platform floor; ` +
+      `Chrome support policy is ahead of the official Apple silicon floor; ` +
       `refusing to lower ${policy.minimumMajor} to ${assessment.desiredMinimumMajor}`,
     )
   }

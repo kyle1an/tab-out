@@ -1832,7 +1832,7 @@ test('filter result ownership points to the selected Dashboard View panel', asyn
   await expect(page.locator('#dashboardMissions')).toHaveAccessibleName('All Tabs')
 })
 
-test('filter Enter activates the current query and primary-modifier Shift Enter brings the tab here', async ({ page }) => {
+test('filter Enter activates the current query and Cmd-Shift-Enter brings the tab here', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
 
@@ -1849,10 +1849,7 @@ test('filter Enter activates the current query and primary-modifier Shift Enter 
   })
   await input.fill('https://tab-out-smoke-03.com/docs/3')
   await expect(input).not.toHaveAttribute('aria-activedescendant', /.+/)
-  const primaryModifier = await page.evaluate(() => (
-    /mac|iphone|ipad|ipod/i.test(navigator.platform) ? 'Meta' : 'Control'
-  ))
-  await input.press(`${primaryModifier}+Shift+Enter`)
+  await input.press('Meta+Shift+Enter')
 
   await expect.poll(() => page.evaluate(async () => {
     const tab = await window.chrome.tabs.get(3)

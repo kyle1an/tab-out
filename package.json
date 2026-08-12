@@ -69,7 +69,7 @@
     "@iconify-json/ooui": "^1.2.21",
     "@iconify-json/weui": "^1.2.4",
     "@iconify/tailwind4": "^1.2.3",
-    "@playwright/test": "1.62.0-alpha-2026-07-06",
+    "@playwright/test": "1.62.1",
     "@rolldown/plugin-babel": "^0.2.3",
     "@sinonjs/fake-timers": "^15.4.0",
     "@stylistic/eslint-plugin": "5.10.0",

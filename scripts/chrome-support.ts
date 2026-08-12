@@ -156,7 +156,7 @@ const observeChromeStable = Effect.fn('chromeSupport.observeChromeStable')(funct
   if (!isChromeStableVersions(versions)) {
     return yield* Effect.fail(chromeSupportError(
       'observe Chrome Stable',
-      new TypeError('Chrome Stable observation is missing a supported platform'),
+      new TypeError('Chrome Stable observation is missing the Apple silicon feed'),
     ))
   }
   return versions
@@ -211,7 +211,7 @@ const runReleaseCheck = Effect.fn('chromeSupport.releaseCheck')(function* () {
     return yield* Effect.fail(chromeSupportError(
       'release check',
       new Error(
-        `Chrome ${assessment.committedMinimumMajor} is above the safe cross-platform floor ` +
+        `Chrome ${assessment.committedMinimumMajor} is above the safe Apple silicon floor ` +
         `${assessment.desiredMinimumMajor}; review the policy instead of lowering it automatically.`,
       ),
     ))
@@ -225,7 +225,7 @@ const runReleaseCheck = Effect.fn('chromeSupport.releaseCheck')(function* () {
       ),
     ))
   }
-  yield* Console.log(`Chrome ${assessment.committedMinimumMajor} remains the latest-two support floor.`)
+  yield* Console.log(`Chrome ${assessment.committedMinimumMajor} remains the Apple silicon Stable support floor.`)
 })
 
 const runBump = Effect.fn('chromeSupport.bump')(function* () {
@@ -235,13 +235,13 @@ const runBump = Effect.fn('chromeSupport.bump')(function* () {
     return yield* Effect.fail(chromeSupportError(
       'bump support floor',
       new Error(
-        `Chrome ${assessment.committedMinimumMajor} is above the safe cross-platform floor ` +
+        `Chrome ${assessment.committedMinimumMajor} is above the safe Apple silicon floor ` +
         `${assessment.desiredMinimumMajor}; review the policy instead of lowering it automatically.`,
       ),
     ))
   }
   if (assessment.status === 'current') {
-    yield* Console.log(`Chrome ${assessment.committedMinimumMajor} remains the latest-two support floor.`)
+    yield* Console.log(`Chrome ${assessment.committedMinimumMajor} remains the Apple silicon Stable support floor.`)
     return
   }
 

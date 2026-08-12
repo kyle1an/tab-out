@@ -61,8 +61,8 @@ importers:
         specifier: ^1.2.3
         version: 1.2.3(tailwindcss@4.3.3)
       '@playwright/test':
-        specifier: 1.62.0-alpha-2026-07-06
-        version: 1.62.0-alpha-2026-07-06
+        specifier: 1.62.1
+        version: 1.62.1
       '@rolldown/plugin-babel':
         specifier: ^0.2.3
         version: 0.2.3(@babel/core@7.29.7(supports-color@7.2.0))(@babel/runtime@7.29.7)(rolldown@1.2.3)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
@@ -1107,8 +1107,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@playwright/test@1.62.0-alpha-2026-07-06':
-    resolution: {integrity: sha512-tNsihJtAWjTsDy/O+UyTMAaGnPCEb+tuynXS6kD1XKis8HXpeG0aq0AC8LgIjsnN4hFSrLuTD1vpWmJ5HUoLiQ==}
+  '@playwright/test@1.62.1':
+    resolution: {integrity: sha512-DTcUc8qii+cpHvtOwggMtBRMjKZHXYWdw8syRYu2vtzuq4Wxphqq4NfCs5Zt44L6mA8rfDfj+PHnxFc/FeK6mQ==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -3075,13 +3075,13 @@ packages:
     resolution: {integrity: sha512-nDywThFk1i4BQK4twPQ6TA4RT8bDY96yeuCVBWL3ePARCiEKDRSrNGbFIgUJpLp+XeIR65v8ra7WuJOFUBtkMA==}
     engines: {node: '>=8'}
 
-  playwright-core@1.62.0-alpha-2026-07-06:
-    resolution: {integrity: sha512-kHvSsUXFy2VsU6AZQTY+5vj/1ZytyoYV9b7PTwu2Bv+Lt2IGs97iRC1fsVwIlBIpRDd/mO/B1FWuK6fEWU7hBQ==}
+  playwright-core@1.62.1:
+    resolution: {integrity: sha512-wPYSwEBJY9GHraISXqyqtx0na0LpO3XEX7jNDhntbex7tzUS7kLnZsOlFruFJB4Hi/rhDMjXGqHewDZ68nYZVw==}
     engines: {node: '>=20'}
     hasBin: true
 
-  playwright@1.62.0-alpha-2026-07-06:
-    resolution: {integrity: sha512-M8JUIAGzM8hRbtmoS8GIirVowegGdYadarL5piCeJA+4JkPwmZkyQnvR/T1LZQBb/eq66p+K1H71D2jGzaIBkQ==}
+  playwright@1.62.1:
+    resolution: {integrity: sha512-0M+L3LAD8/nm554LOla9Ayx0j0tmFZ0FBcoQ7F1VuVHpM/XpiC8RcDzBQB8W5+hA8L22THxELzeF+2WcUzvcLg==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -4532,9 +4532,9 @@ snapshots:
   '@oxlint/binding-win32-x64-msvc@1.76.0':
     optional: true
 
-  '@playwright/test@1.62.0-alpha-2026-07-06':
+  '@playwright/test@1.62.1':
     dependencies:
-      playwright: 1.62.0-alpha-2026-07-06
+      playwright: 1.62.1
 
   '@quansync/fs@1.0.0':
     dependencies:
@@ -6368,11 +6368,11 @@ snapshots:
     dependencies:
       find-up: 3.0.0
 
-  playwright-core@1.62.0-alpha-2026-07-06: {}
+  playwright-core@1.62.1: {}
 
-  playwright@1.62.0-alpha-2026-07-06:
+  playwright@1.62.1:
     dependencies:
-      playwright-core: 1.62.0-alpha-2026-07-06
+      playwright-core: 1.62.1
     optionalDependencies:
       fsevents: 2.3.2
 

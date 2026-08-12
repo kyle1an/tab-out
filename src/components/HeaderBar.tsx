@@ -333,7 +333,7 @@ export function HeaderBar({
 
   useEffect(() => {
     function onWindowKeyDown(e: KeyboardEvent) {
-      if (!isFilterFocusShortcut(e, navigator.platform)) return
+      if (!isFilterFocusShortcut(e)) return
       e.preventDefault()
       inputRef.current?.focus()
       inputRef.current?.select?.()

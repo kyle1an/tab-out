@@ -977,7 +977,7 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
 
   async function activateHistoryEntry(e?: MouseEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>) {
     await onHoverUrlChange?.('')
-    const mode = chipActivationMode(e, navigator.platform)
+    const mode = chipActivationMode(e)
     const hasLiveTab = !!workingSetItem || entry.exists
     const tabId = workingSetItem ? workingSetItem.tabId : entry.tabId
     const tabUrl = workingSetItem ? workingSetItem.tabUrl : entry.url
@@ -1006,10 +1006,10 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
   }
 
   function onEntryMouseDown(e: MouseEvent<HTMLDivElement>) {
-    // Shift-click moves the tab into a new window; ⌘/⌃-click moves it into this window.
+    // Shift-click moves the tab into a new window; ⌘-click moves it into this window.
     // Cancel the browser's native text selection for those gestures only so the row behaves like a link
     // (a plain click still drag-selects). See tab-activation.ts.
-    if (shouldSuppressSelectionForGesture(e, navigator.platform)) e.preventDefault()
+    if (shouldSuppressSelectionForGesture(e)) e.preventDefault()
   }
 
   async function onCloseEntry(e: MouseEvent<HTMLButtonElement>) {

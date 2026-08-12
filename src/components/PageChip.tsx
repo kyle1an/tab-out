@@ -1511,7 +1511,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   ) {
     if (!targetUrl && sourceType !== 'retained-page') return
     await setPreview('')
-    const mode = chipActivationMode(e, navigator.platform)
+    const mode = chipActivationMode(e)
     if (sourceType === 'retained-page') {
       const focusRecovery = capturePageChipFocusRecovery(focusOrigin)
       const targetDisappears = await activateRetainedPageTarget(target || {}, mode)
@@ -1592,10 +1592,10 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   }
 
   function onChipPointerDown(e: MouseEvent<HTMLDivElement>) {
-    // Shift-click moves the tab into a new window; ⌘/⌃-click moves it into this window.
+    // Shift-click moves the tab into a new window; ⌘-click moves it into this window.
     // Cancel the browser's native text selection for those gestures only so the chip behaves
     // like a link (a plain click still drag-selects). See tab-activation.ts.
-    if (shouldSuppressSelectionForGesture(e, navigator.platform)) e.preventDefault()
+    if (shouldSuppressSelectionForGesture(e)) e.preventDefault()
   }
 
   // The whole grouped-chip surface is the default-variant target: clicks on
@@ -1610,7 +1610,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   }
 
   function onVariantGroupChipMouseDown(e: MouseEvent<HTMLDivElement>) {
-    if (shouldSuppressSelectionForGesture(e, navigator.platform)) e.preventDefault()
+    if (shouldSuppressSelectionForGesture(e)) e.preventDefault()
   }
 
   function onVariantGroupChipMouseEnter(e: MouseEvent<HTMLDivElement>) {
