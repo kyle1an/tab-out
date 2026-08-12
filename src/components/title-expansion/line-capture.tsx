@@ -303,21 +303,18 @@ export function captureVisibleLineHtml(
   const range = ownerDocument.createRange()
   const textLineBounds = new Map<Text, { first: number, last: number } | null>()
   function getTextLineBounds(node: Text) {
-    const cached = textLineBounds.get(node)
-    if (cached !== undefined) return cached
-
-    range.selectNodeContents(node)
-    let first = Number.POSITIVE_INFINITY
-    let last = Number.NEGATIVE_INFINITY
-    for (const rect of range.getClientRects()) {
-      const lineIndex = capturedRawLineIndexForRect(rect, elRect, lineHeight)
-      if (lineIndex === null) continue
-      first = Math.min(first, lineIndex)
-      last = Math.max(last, lineIndex)
-    }
-    const bounds = Number.isFinite(first) && Number.isFinite(last) ? { first, last } : null
-    textLineBounds.set(node, bounds)
-    return bounds
+    return textLineBounds.getOrInsertComputed(node, () => {
+      range.selectNodeContents(node)
+      let first = Number.POSITIVE_INFINITY
+      let last = Number.NEGATIVE_INFINITY
+      for (const rect of range.getClientRects()) {
+        const lineIndex = capturedRawLineIndexForRect(rect, elRect, lineHeight)
+        if (lineIndex === null) continue
+        first = Math.min(first, lineIndex)
+        last = Math.max(last, lineIndex)
+      }
+      return Number.isFinite(first) && Number.isFinite(last) ? { first, last } : null
+    })
   }
 
   function textPositionForLine(targetLineIndex: number): CapturedLineDomPosition | null {
@@ -448,8 +445,7 @@ export type ExpansionLineClasses = {
 const EXPANSION_LINE_NODE_CACHE_LIMIT = 240
 const expansionLineNodeCache = new Map<string, ReactNode>()
 
-function rememberExpansionLineNodes(key: string, nodes: ReactNode) {
-  expansionLineNodeCache.set(key, nodes)
+function trimExpansionLineNodeCache() {
   if (expansionLineNodeCache.size <= EXPANSION_LINE_NODE_CACHE_LIMIT) return
   const oldestKey = expansionLineNodeCache.keys().next().value
   if (oldestKey) expansionLineNodeCache.delete(oldestKey)
@@ -480,34 +476,35 @@ export function expansionLineNodesFromHtml(html: string, keyPrefix: string, rebu
   // before committing it, so reuse the first safe rebuild instead of parsing
   // the same detached template again. Live marker rebuilders remain uncached.
   const cacheKey = rebuildElement ? '' : `${keyPrefix}\0${html}`
-  if (cacheKey && expansionLineNodeCache.has(cacheKey)) {
-    return expansionLineNodeCache.get(cacheKey)
+  function rebuildNodes(): ReactNode {
+    const template = document.createElement('template')
+    template.innerHTML = html
+
+    function nodeFromDom(node: ChildNode, key: string): ReactNode {
+      if (node.nodeType === Node.TEXT_NODE) return node.textContent || ''
+      if (node.nodeType !== Node.ELEMENT_NODE) return null
+
+      const element = node as Element
+      const rebuilt = rebuildElement?.(element, key)
+      if (rebuilt !== undefined) return rebuilt
+      const children = Array.from(element.childNodes).map((child, index) => nodeFromDom(child, `${key}-${index}`))
+      const className = element.getAttribute('class') || undefined
+      const ariaLabel = element.getAttribute('aria-label') || undefined
+
+      if (element.tagName.toLowerCase() === 'span') {
+        return <span key={key} className={className} aria-label={ariaLabel}>{children}</span>
+      }
+      if (element.tagName.toLowerCase() === 'mark') {
+        return <mark key={key} className={className} aria-label={ariaLabel}>{children}</mark>
+      }
+      return element.textContent || ''
+    }
+
+    return Array.from(template.content.childNodes).map((node, index) => nodeFromDom(node, `${keyPrefix}-${index}`))
   }
 
-  const template = document.createElement('template')
-  template.innerHTML = html
-
-  function nodeFromDom(node: ChildNode, key: string): ReactNode {
-    if (node.nodeType === Node.TEXT_NODE) return node.textContent || ''
-    if (node.nodeType !== Node.ELEMENT_NODE) return null
-
-    const element = node as Element
-    const rebuilt = rebuildElement?.(element, key)
-    if (rebuilt !== undefined) return rebuilt
-    const children = Array.from(element.childNodes).map((child, index) => nodeFromDom(child, `${key}-${index}`))
-    const className = element.getAttribute('class') || undefined
-    const ariaLabel = element.getAttribute('aria-label') || undefined
-
-    if (element.tagName.toLowerCase() === 'span') {
-      return <span key={key} className={className} aria-label={ariaLabel}>{children}</span>
-    }
-    if (element.tagName.toLowerCase() === 'mark') {
-      return <mark key={key} className={className} aria-label={ariaLabel}>{children}</mark>
-    }
-    return element.textContent || ''
-  }
-
-  const nodes = Array.from(template.content.childNodes).map((node, index) => nodeFromDom(node, `${keyPrefix}-${index}`))
-  if (cacheKey) rememberExpansionLineNodes(cacheKey, nodes)
+  if (!cacheKey) return rebuildNodes()
+  const nodes = expansionLineNodeCache.getOrInsertComputed(cacheKey, rebuildNodes)
+  trimExpansionLineNodeCache()
   return nodes
 }

@@ -458,35 +458,26 @@ function mergeContinuousSuppressedTitleParts(rows: TitlePresentationRow[]) {
   const mergeTextBySequence = new Map<string, string | null>()
   function mergeTextFor(sequence: string[]): string | null {
     const sequenceKey = sequence.join('\u0001')
-    if (mergeTextBySequence.has(sequenceKey)) return mergeTextBySequence.get(sequenceKey) ?? null
-
     const firstPart = sequence[0]
     if (firstPart === undefined) return null
-    const occurrenceKey = occurrenceKeyByPart.get(firstPart)
-    if (!occurrenceKey || !sequence.every((part) => occurrenceKeyByPart.get(part) === occurrenceKey)) {
-      mergeTextBySequence.set(sequenceKey, null)
-      return null
-    }
-
-    const rowIndexes = rowIndexesByPart.get(firstPart) || []
-    let mergedText = ''
-    for (const rowIndex of rowIndexes) {
-      const row = rows[rowIndex]
-      if (!row) return null
-      if (!rowHasSuppressionSequence(row.suppressedTitleParts, sequence)) {
-        mergeTextBySequence.set(sequenceKey, null)
+    return mergeTextBySequence.getOrInsertComputed(sequenceKey, () => {
+      const occurrenceKey = occurrenceKeyByPart.get(firstPart)
+      if (!occurrenceKey || !sequence.every((part) => occurrenceKeyByPart.get(part) === occurrenceKey)) {
         return null
       }
-      const span = continuousSuppressionSpan(row.rawTitle, sequence)
-      if (!span || (mergedText && span !== mergedText)) {
-        mergeTextBySequence.set(sequenceKey, null)
-        return null
-      }
-      mergedText = span
-    }
 
-    mergeTextBySequence.set(sequenceKey, mergedText || null)
-    return mergedText || null
+      const rowIndexes = rowIndexesByPart.get(firstPart) || []
+      let mergedText = ''
+      for (const rowIndex of rowIndexes) {
+        const row = rows[rowIndex]
+        if (!row || !rowHasSuppressionSequence(row.suppressedTitleParts, sequence)) return null
+        const span = continuousSuppressionSpan(row.rawTitle, sequence)
+        if (!span || (mergedText && span !== mergedText)) return null
+        mergedText = span
+      }
+
+      return mergedText || null
+    })
   }
 
   for (const row of rows) {
@@ -634,10 +625,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   const subdomainPrefixByValue = new Map<string, string>()
 
   function parseUrl(url: string): URL | null {
-    if (parsedUrlByValue.has(url)) return parsedUrlByValue.get(url) ?? null
-    const parsed = URL.parse(url)
-    parsedUrlByValue.set(url, parsed)
-    return parsed
+    return parsedUrlByValue.getOrInsertComputed(url, () => URL.parse(url))
   }
 
   function strippedTitle(title: string): string {

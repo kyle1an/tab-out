@@ -224,6 +224,7 @@ export function useMissionsMasonry(...args: unknown[]) {
     })
   }, [packMissionsMasonryNow])
 
+  // react-doctor-disable-next-line react-doctor/effect-needs-cleanup -- observers stay attached across renders by design; the unmount-only effect below disconnects all three and cancels the pending frame.
   useLayoutEffect(() => {
     const observer = observerRef.current ??= new ResizeObserver((entries) => {
       let widthChanged = false
@@ -247,7 +248,7 @@ export function useMissionsMasonry(...args: unknown[]) {
         let heightChanged = false
         for (const entry of entries) {
           if (!(entry.target instanceof HTMLElement)) continue
-          const nextHeight = entry.borderBoxSize[0]?.blockSize ?? entry.contentRect.height
+          const nextHeight = entry.borderBoxSize[0]!.blockSize
           const packedHeight = packedCardHeightsRef.current.get(entry.target)
           if (packedHeight === undefined) {
             packedCardHeightsRef.current.set(entry.target, nextHeight)

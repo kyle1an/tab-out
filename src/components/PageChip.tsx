@@ -593,21 +593,18 @@ function getExpandedPageChipLineHtml(
   const range = ownerDocument.createRange()
   const textLineBounds = new Map<Text, { first: number, last: number } | null>()
   function getTextLineBounds(node: Text) {
-    const cached = textLineBounds.get(node)
-    if (cached !== undefined) return cached
-
-    range.selectNodeContents(node)
-    let first = Number.POSITIVE_INFINITY
-    let last = Number.NEGATIVE_INFINITY
-    for (const rect of range.getClientRects()) {
-      const lineIndex = chipExpansionRawLineIndexForRect(rect, textRect, lineHeight)
-      if (lineIndex === null) continue
-      first = Math.min(first, lineIndex)
-      last = Math.max(last, lineIndex)
-    }
-    const bounds = Number.isFinite(first) && Number.isFinite(last) ? { first, last } : null
-    textLineBounds.set(node, bounds)
-    return bounds
+    return textLineBounds.getOrInsertComputed(node, () => {
+      range.selectNodeContents(node)
+      let first = Number.POSITIVE_INFINITY
+      let last = Number.NEGATIVE_INFINITY
+      for (const rect of range.getClientRects()) {
+        const lineIndex = chipExpansionRawLineIndexForRect(rect, textRect, lineHeight)
+        if (lineIndex === null) continue
+        first = Math.min(first, lineIndex)
+        last = Math.max(last, lineIndex)
+      }
+      return Number.isFinite(first) && Number.isFinite(last) ? { first, last } : null
+    })
   }
 
   function textPositionForLine(targetLineIndex: number): ChipExpansionDomPosition | null {

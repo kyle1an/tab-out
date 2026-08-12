@@ -391,10 +391,7 @@ async function sendDashboardServiceRead(
         canonicalRecords,
       ])),
     )
-    const canonicalActivitySha256 = Array.from(
-      new Uint8Array(digest),
-      (byte) => byte.toString(16).padStart(2, '0'),
-    ).join('')
+    const canonicalActivitySha256 = new Uint8Array(digest).toHex()
     if (directInvocationCount !== 1) {
       throw new Error('Dashboard harness invoked sendMessage more than once')
     }
