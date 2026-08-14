@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { titleVariantTargets } from '../src/extension/url-variant-presentation.js'
 import { dashboardChipFor, makeDashboardTab } from './helpers/domain-card-view-model.js'
 
 test('a live tab chip is not suspended', () => {
@@ -59,7 +60,7 @@ test('a title-variant group with a live variant is not suspended', () => {
     'https://example.com/a',
   )
   assert.ok(chip)
-  assert.equal(chip.titleVariantChips?.length, 2)
+  assert.equal(titleVariantTargets(chip.titleVariantPresentations).length, 2)
   assert.ok(!chip.suspended)
 })
 
@@ -72,7 +73,7 @@ test('a title-variant group of suspended variants is suspended', () => {
     'https://example.com/a',
   )
   assert.ok(chip)
-  assert.equal(chip.titleVariantChips?.length, 2)
+  assert.equal(titleVariantTargets(chip.titleVariantPresentations).length, 2)
   assert.equal(chip.suspended, true)
 })
 

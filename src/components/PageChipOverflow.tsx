@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useState, type ReactNode, type TransitionEvent } from 'react'
 import { pageTargetMatchesHover } from '../extension/page-target.js'
+import { titleVariantTargets } from '../extension/url-variant-presentation.js'
 import { useDomainCardContext } from './DomainCardContext'
 import { useDashboardActions, useHoverStateSelector, type HoverState } from './DashboardInteractionContext'
 import { PageChip } from './PageChip'
@@ -32,7 +33,7 @@ function resolveClassName(className: OverflowContainerClassName | undefined, exp
 function chipMatchesActiveHover(chip: DashboardChipData, state: HoverState): boolean {
   return (
     pageTargetMatchesHover(chip, state.url, state.urls) ||
-    !!chip.titleVariantChips?.some((variant) => chipMatchesActiveHover(variant, state)) ||
+    titleVariantTargets(chip.titleVariantPresentations).some((variant) => chipMatchesActiveHover(variant, state)) ||
     !!chip.envs?.some((env) => (
       pageTargetMatchesHover(env, state.url, state.urls)
     ))

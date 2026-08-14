@@ -550,7 +550,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.match(pageChipSource, /function previewDefaultTitleVariantSurface\(target: EventTarget \| null\) \{[\s\S]*setDefaultVariantSurfaceHover\(true\)[\s\S]*previewDefaultTitleVariant\(\)/)
   assert.match(pageChipSource, /function onVariantGroupChipMouseEnter\(e: MouseEvent<HTMLDivElement>\) \{\n\s*if \(!previewDefaultTitleVariantSurface\(e\.target\)\) return\n\s*openChipExpansion\(\)\n\s*\}/)
   assert.match(pageChipSource, /function onVariantGroupChipMouseMove\(e: MouseEvent<HTMLDivElement>\) \{\n\s*if \(!previewDefaultTitleVariantSurface\(e\.target\)\) return\n\s*if \(chipExpandedRef\.current\) return\n\s*openChipExpansion\(\)\n\s*\}/)
-  assert.match(pageChipSource, /function onTitleVariantMouseEnter\(variant: DashboardChipData\) \{\n\s*setDefaultVariantSurfaceHover\(false\)/)
+  assert.match(pageChipSource, /function onTitleVariantMouseEnter\(presentation: DashboardTitleVariantPresentation\) \{[\s\S]*const variant = titleVariantRepresentative\(presentation\)[\s\S]*setDefaultVariantSurfaceHover\(false\)/)
   assert.match(baseStylesheet, /\.chip-slot\[data-tabout-default-surface-hover\] \.chip-title-variant\[data-tabout-default-variant\]/)
   assert.match(pageChipSource, /onPointerEnter=\{onChipPointerEnter\}/)
   assert.match(pageChipSource, /onPointerMove=\{onChipPointerMove\}/)

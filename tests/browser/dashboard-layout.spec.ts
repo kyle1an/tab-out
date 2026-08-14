@@ -856,15 +856,138 @@ test('pinned same-title URL variants stay unified with a close-slot pin marker',
   await expect(pinnedActions.locator('.chip-title-variant-action')).toHaveCSS('opacity', '1')
 
   await chip.locator('.chip-title-row').hover()
-  await expect(chip).toHaveAttribute('data-expanded', 'true')
-  const expandedLabelStyles = await chip.locator('.chip-title-variant-label').evaluateAll((labels) => (
+  // The bounded URL labels fit inside the card, so hover should not create a
+  // needless expansion solely because their exact query values are long.
+  await expect(chip).not.toHaveAttribute('data-expanded', 'true')
+  const hoverLabelStyles = await chip.locator('.chip-title-variant-label').evaluateAll((labels) => (
     labels.map((label) => {
       const style = getComputedStyle(label)
       return { flexGrow: style.flexGrow, textAlign: style.textAlign }
     })
   ))
-  expect(expandedLabelStyles.length).toBeGreaterThanOrEqual(2)
-  expect(expandedLabelStyles.every(({ flexGrow, textAlign }) => flexGrow === '0' && textAlign === 'left')).toBe(true)
+  expect(hoverLabelStyles.length).toBeGreaterThanOrEqual(2)
+  expect(hoverLabelStyles.every(({ flexGrow, textAlign }) => flexGrow === '0' && textAlign === 'left')).toBe(true)
+})
+
+test('History search renders bounded labels for opaque same-title URL variants', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  await page.evaluate(() => {
+    const debugWindow = window as typeof window & { __deletedOpaqueHistoryUrls?: string[] }
+    debugWindow.__deletedOpaqueHistoryUrls = []
+    window.chrome.history.search = async () => Array.from(
+      { length: 14 },
+      (_, index) => ({
+        id: `opaque-history-${index + 1}`,
+        title: 'Example account',
+        url: `https://accounts.example.test/content/item?TL=${String(index + 1).padStart(2, '0')}abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ`,
+      }),
+    )
+    window.chrome.history.deleteUrl = async ({ url }) => {
+      debugWindow.__deletedOpaqueHistoryUrls?.push(url)
+    }
+  })
+
+  await page.locator('[data-tabout="filter-query"] input').fill('Example account')
+  const chip = page.locator('#historyMatchesMissions [data-tabout="page-chip"]')
+    .filter({ hasText: 'Example account' })
+  await expect(chip).toHaveCount(1)
+
+  const labels = chip.locator('.chip-title-variant-label')
+  await expect(labels).toHaveCount(1)
+  await expect(labels).toHaveText('…?TL=…')
+  await expect(chip.locator('.chip-title-variant-target-count')).toHaveText('14')
+  await expect(chip).not.toContainText('abcdefghijklmnopqrstuvwxyz')
+
+  await chip.locator('.chip-title-row').hover()
+  await expect(chip).not.toHaveAttribute('data-expanded', 'true')
+  await expect(labels).toHaveText('…?TL=…')
+  await expect(chip.locator('.chip-title-variant-target-count')).toHaveText('14')
+  await expect(chip).not.toContainText('abcdefghijklmnopqrstuvwxyz')
+
+  await chip.locator('[data-tabout-part="variant-close-button"]').click({ force: true })
+  await expect.poll(() => page.evaluate(() => (
+    (window as typeof window & { __deletedOpaqueHistoryUrls?: string[] }).__deletedOpaqueHistoryUrls?.length
+  ))).toBe(14)
+})
+
+test('same-title URL groups share hover paint with and without filter results', async ({ page }) => {
+  const disableTransitions = async () => {
+    await page.addStyleTag({
+      content: '*, *::before, *::after { transition-duration: 0s !important; }',
+    })
+  }
+  const hoveredRowPaint = async (row: ReturnType<typeof page.locator>) => {
+    await row.hover()
+    return row.evaluate((element) => {
+      const style = getComputedStyle(element)
+      return {
+        backgroundColor: style.backgroundColor,
+        color: style.color,
+      }
+    })
+  }
+  const hoveredGroupPaint = async (group: ReturnType<typeof page.locator>) => {
+    await group.locator('.chip-title-row').hover()
+    return group.evaluate((element) => {
+      const style = getComputedStyle(element)
+      return {
+        backgroundColor: style.backgroundColor,
+        outlineColor: style.outlineColor,
+        outlineStyle: style.outlineStyle,
+        outlineWidth: style.outlineWidth,
+      }
+    })
+  }
+
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await disableTransitions()
+  await page.evaluate(async () => {
+    await (window as typeof window & {
+      __tabOutSmokeAddPlainTitleVariantTabs?: () => Promise<void>
+    }).__tabOutSmokeAddPlainTitleVariantTabs?.()
+  })
+  const tabsGroup = page.locator('[data-tabout="page-chip"]').filter({ hasText: 'Plain Title Variant' }).first()
+  const tabsRows = tabsGroup.locator('.chip-title-variant')
+  await expect(tabsRows).toHaveCount(2)
+  const tabsGroupHoverPaint = await hoveredGroupPaint(tabsGroup)
+  const tabsHoverPaint = await hoveredRowPaint(tabsRows.first())
+
+  await page.locator('[data-tabout="filter-query"] input').fill('Plain Title Variant')
+  const filteredTabsGroup = page.locator('#openTabsMissions [data-tabout="page-chip"]')
+    .filter({ hasText: 'Plain Title Variant' })
+  await expect(filteredTabsGroup).toHaveCount(1)
+  const filteredTabsRows = filteredTabsGroup.locator('.chip-title-variant')
+  await expect(filteredTabsRows).toHaveCount(2)
+  expect(await hoveredGroupPaint(filteredTabsGroup)).toEqual(tabsGroupHoverPaint)
+  expect(await hoveredRowPaint(filteredTabsRows.first())).toEqual(tabsHoverPaint)
+
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await disableTransitions()
+  await page.evaluate(() => {
+    window.chrome.history.search = async () => [
+      {
+        id: 'history-variant-alpha',
+        title: 'Plain Title Variant',
+        url: 'https://plain-title-variant.test/docs/example',
+      },
+      {
+        id: 'history-variant-bravo',
+        title: 'Plain Title Variant',
+        url: 'https://plain-title-variant.test/docs/example?focusedCommentId=667321&page=com.example.comments:comment-tabpanel&sourceType=mention#comment-667321',
+      },
+    ]
+  })
+  await page.locator('[data-tabout="filter-query"] input').fill('Plain Title Variant')
+  const historyGroup = page.locator('#historyMatchesMissions [data-tabout="page-chip"]')
+    .filter({ hasText: 'Plain Title Variant' })
+  await expect(historyGroup).toHaveCount(1)
+  const historyRows = historyGroup.locator('.chip-title-variant')
+  await expect(historyRows).toHaveCount(2)
+
+  expect(await hoveredGroupPaint(historyGroup)).toEqual(tabsGroupHoverPaint)
+  expect(await hoveredRowPaint(historyRows.first())).toEqual(tabsHoverPaint)
 })
 
 test('hover-revealed close actions keep a stable pointer on direct entry', async ({ page }) => {

@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import { computeDomainCardViewModel, dashboardChipOrderKeyForChip } from '../src/extension/domain-card-view-model.js'
 import { buildDomainGroups } from '../src/extension/render.js'
+import { titleVariantTargets } from '../src/extension/url-variant-presentation.js'
 import {
   createPinnedPageChipIndex,
   pageChipPinId,
@@ -180,7 +181,7 @@ test('computeDomainCardViewModel keeps pinned same-title URL variants inside one
   assert.equal(variantGroup.pagePinId, undefined)
   assert.equal(variantGroup.pagePinned, undefined)
   assert.deepEqual(
-    variantGroup.titleVariantChips?.map((variant) => variant.tabUrl),
+    titleVariantTargets(variantGroup.titleVariantPresentations).map((variant) => variant.tabUrl),
     [
       'https://example.com/bravo',
       'https://example.com/alpha',
@@ -188,11 +189,11 @@ test('computeDomainCardViewModel keeps pinned same-title URL variants inside one
     ],
   )
   assert.deepEqual(
-    variantGroup.titleVariantChips?.map((variant) => variant.pagePinId),
+    titleVariantTargets(variantGroup.titleVariantPresentations).map((variant) => variant.pagePinId),
     [bravoPinId, alphaPinId, charliePinId],
   )
   assert.deepEqual(
-    variantGroup.titleVariantChips?.map((variant) => variant.pagePinned),
+    titleVariantTargets(variantGroup.titleVariantPresentations).map((variant) => variant.pagePinned),
     [true, false, false],
   )
 })
@@ -229,7 +230,7 @@ test('computeDomainCardViewModel orders a unified same-title group by its earlie
   const variantGroup = section.flatVisibleChips[1]
   assert.ok(variantGroup)
   assert.deepEqual(
-    variantGroup.titleVariantChips?.map((variant) => variant.tabUrl),
+    titleVariantTargets(variantGroup.titleVariantPresentations).map((variant) => variant.tabUrl),
     [
       'https://example.com/charlie',
       'https://example.com/bravo',
@@ -237,7 +238,7 @@ test('computeDomainCardViewModel orders a unified same-title group by its earlie
     ],
   )
   assert.deepEqual(
-    variantGroup.titleVariantChips?.map((variant) => variant.pagePinned),
+    titleVariantTargets(variantGroup.titleVariantPresentations).map((variant) => variant.pagePinned),
     [true, true, false],
   )
 })
@@ -272,7 +273,7 @@ test('a pinned retained variant does not replace the live same-title group repre
   assert.equal(variantGroup.tabUrl, 'https://example.com/alpha')
   assert.equal(variantGroup.sourceType, 'tab')
   assert.deepEqual(
-    variantGroup.titleVariantChips?.map((variant) => ({
+    titleVariantTargets(variantGroup.titleVariantPresentations).map((variant) => ({
       pagePinned: variant.pagePinned,
       sourceType: variant.sourceType,
       tabUrl: variant.tabUrl,

@@ -137,6 +137,12 @@ export interface DashboardChipEnv {
   activeInOtherWindow?: boolean
 }
 
+/** A visible same-title URL row backed by one or more exact action targets. */
+export interface DashboardTitleVariantPresentation {
+  label: string
+  targets: DashboardChipData[]
+}
+
 export interface DashboardChipData {
   tabId?: number | string
   /** Stable rendered-sibling identity when physical raw URLs are non-unique. */
@@ -162,6 +168,8 @@ export interface DashboardChipData {
   displaySegments: DashboardSegment[]
   suppressedTitleParts: string[]
   pathSuffix: string
+  /** Display-only sibling distinguisher; exact target actions continue to use tabUrl/rawUrl. */
+  variantLabel?: string
   tooltip: string
   dupeCount: number
   faviconUrl: string
@@ -179,7 +187,8 @@ export interface DashboardChipData {
   chromeGroupId?: number
   iconOnly?: boolean
   envs: DashboardChipEnv[] | null
-  titleVariantChips?: DashboardChipData[]
+  /** Visible rows are separate from exact URL targets so History can fold opaque value families. */
+  titleVariantPresentations?: DashboardTitleVariantPresentation[]
 }
 
 export interface DashboardClusterVM {

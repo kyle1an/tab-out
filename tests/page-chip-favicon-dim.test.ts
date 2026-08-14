@@ -27,6 +27,13 @@ function makeChip(overrides: Partial<DashboardChipData> = {}): DashboardChipData
   }
 }
 
+function presentationsForTargets(targets: DashboardChipData[]) {
+  return targets.map((target) => ({
+    label: target.variantLabel || target.pathSuffix || target.tabUrl || '/',
+    targets: [target],
+  }))
+}
+
 function renderChip(overrides: Partial<DashboardChipData> = {}, filter = ''): string {
   return renderToStaticMarkup(React.createElement(PageChip, { chip: makeChip(overrides), filter }))
 }
@@ -62,10 +69,10 @@ test('a loading live tab chip replaces its favicon with a loading indicator', ()
 
 test('loading title-variant and folded chips expose one busy semantic group', () => {
   const titleVariantChip = {
-    titleVariantChips: [
+    titleVariantPresentations: presentationsForTargets([
       makeChip({ tabUrl: 'https://site.example/a', rawUrl: 'https://site.example/a', pathSuffix: '/a', loading: true }),
       makeChip({ tabUrl: 'https://site.example/b', rawUrl: 'https://site.example/b', pathSuffix: '/b' }),
-    ],
+    ]),
   }
   const foldedChip = {
     envs: [
@@ -171,10 +178,10 @@ test('a history chip keeps its favicon at full strength', () => {
 
 test('a suspended current variant keeps a distinct full-opacity label color while a live variant does not', () => {
   const html = renderChip({
-    titleVariantChips: [
+    titleVariantPresentations: presentationsForTargets([
       makeChip({ tabUrl: 'https://site.example/a', rawUrl: 'https://site.example/a', pathSuffix: '/a', suspended: true, activeChipFrame: true }),
       makeChip({ tabUrl: 'https://site.example/b', rawUrl: 'https://site.example/b', pathSuffix: '/b' }),
-    ],
+    ]),
   })
   assert.match(html, /chip-title-variant clickable[^"]*text-neutral-600/)
   assert.equal((html.match(/chip-variant-label-dimmed/g) || []).length, 1)
@@ -184,10 +191,10 @@ test('a suspended current variant keeps a distinct full-opacity label color whil
 
 test('a filtered mixed group keeps a live shared title while dimming its closed variant label', () => {
   const html = renderChip({
-    titleVariantChips: [
+    titleVariantPresentations: presentationsForTargets([
       makeChip({ tabUrl: 'https://site.example/a', rawUrl: 'https://site.example/a', pathSuffix: '/a', sourceType: 'saved-page', saved: true, closedSaved: true }),
       makeChip({ tabUrl: 'https://site.example/b', rawUrl: 'https://site.example/b', pathSuffix: '/b' }),
-    ],
+    ]),
   }, 'Example')
   const className = pageChipClass(html)
 
@@ -202,10 +209,10 @@ test('an all-closed title-variant group dims its shared title like a closed page
     sourceType: 'saved-page',
     saved: true,
     closedSaved: true,
-    titleVariantChips: [
+    titleVariantPresentations: presentationsForTargets([
       makeChip({ tabUrl: 'https://site.example/a', rawUrl: 'https://site.example/a', pathSuffix: '/a', sourceType: 'saved-page', saved: true, closedSaved: true }),
       makeChip({ tabUrl: 'https://site.example/b', rawUrl: 'https://site.example/b', pathSuffix: '/b', sourceType: 'saved-page', saved: true, closedSaved: true }),
-    ],
+    ]),
   })
   const className = pageChipClass(html)
 
@@ -220,10 +227,10 @@ test('all-closed group titles keep their closed tone while filtering', () => {
       sourceType: 'saved-page',
       saved: true,
       closedSaved: true,
-      titleVariantChips: [
+      titleVariantPresentations: presentationsForTargets([
         makeChip({ tabUrl: 'https://site.example/a', rawUrl: 'https://site.example/a', pathSuffix: '/a', sourceType: 'saved-page', saved: true, closedSaved: true }),
         makeChip({ tabUrl: 'https://site.example/b', rawUrl: 'https://site.example/b', pathSuffix: '/b', sourceType: 'saved-page', saved: true, closedSaved: true }),
-      ],
+      ]),
     },
     {
       sourceType: 'saved-page',
@@ -248,7 +255,7 @@ test('all-closed group titles keep their closed tone while filtering', () => {
 
 test('a retained variant row dims its label without a duplicate badge', () => {
   const html = renderChip({
-    titleVariantChips: [
+    titleVariantPresentations: presentationsForTargets([
       makeChip({
         tabUrl: 'https://site.example/a',
         rawUrl: 'https://site.example/a',
@@ -259,7 +266,7 @@ test('a retained variant row dims its label without a duplicate badge', () => {
         retainedPageClosureToken: 'lifetime-a',
       }),
       makeChip({ tabUrl: 'https://site.example/b', rawUrl: 'https://site.example/b', pathSuffix: '/b' }),
-    ],
+    ]),
   })
 
   assert.equal((html.match(/chip-variant-label-dimmed/g) || []).length, 1)

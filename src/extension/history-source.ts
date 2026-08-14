@@ -10,6 +10,15 @@ export type HistorySourceSearchResult = {
   tabs: DashboardTab[]
 }
 
+function historyItemDisplayTitle(item: HistoryItemLike & { url: string }): string {
+  const title = (item.title || '').trim()
+  if (title) return title
+  const parsed = URL.parse(item.url)
+  if (!parsed) return item.url
+  if (parsed.pathname && parsed.pathname !== '/') return parsed.pathname
+  return parsed.hostname || item.url
+}
+
 /**
  * Turn Chrome history items into read-only DashboardTab-shaped entries so the
  * existing grouping/render pipeline can show them beside bookmarks.
@@ -23,7 +32,10 @@ export function flattenHistoryItems(items: HistoryItemLike[]): DashboardTab[] {
     .map((item, index) => makeDashboardItem({
       id: item.id || `history-${index}`,
       url: item.url,
-      title: item.title || '',
+      // Chrome may omit titles for redirect and OAuth history entries. Keep
+      // those rows visible with a route label; never promote query data into
+      // the title fallback.
+      title: historyItemDisplayTitle(item),
       sourceType: 'history',
     }))
 }

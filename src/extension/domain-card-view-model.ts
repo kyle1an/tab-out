@@ -12,12 +12,13 @@ import { tabMatchesCompiledFilter } from './filter-match.js'
 import { compileFilterQuery } from './filter-query.js'
 import { countClosableDuplicateExtras } from './tab-dedupe-policy.js'
 import { canonicalDedupeKey } from './url-canonical.js'
+import { buildUrlVariantPresentationGroups, titleVariantTargets } from './url-variant-presentation.js'
 import { allOpenTargetsSuspended, dashboardItemNameForTabs, isClosedSavedDashboardTab } from './dashboard-source.js'
 import { pathgroupPinId, subdomainPinId, websitePathPinId } from './section-pins.js'
 import { pageChipFoldRepresentativeUrl, pageChipPinId, pageChipPinKeyForFoldUrls, pageChipPinKeyForUrl, pageChipPinScopeId, pinnedPageChipOrder } from './page-chip-pins.js'
 import type { PinnedPageChipIndex } from './page-chip-pins.js'
 import type { CompiledFilterQuery } from './filter-query.js'
-import type { DashboardCardVM, DashboardChipData, DashboardChipPriorityMap, DashboardClusterVM, DashboardSectionVM, DashboardSegment, DashboardSource, DashboardTab, DashboardTitleSuppression, DashboardWebsitePathSectionVM, DomainGroup, PathGroupResult, RetainedPageActionTarget, WebsitePathSectionResult } from './types'
+import type { DashboardCardVM, DashboardChipData, DashboardChipPriorityMap, DashboardClusterVM, DashboardSectionVM, DashboardSegment, DashboardSource, DashboardTab, DashboardTitleSuppression, DashboardTitleVariantPresentation, DashboardWebsitePathSectionVM, DomainGroup, PathGroupResult, RetainedPageActionTarget, WebsitePathSectionResult } from './types'
 
 type ComputeCardOptions = {
   filter?: string
@@ -521,71 +522,6 @@ function mergeContinuousSuppressedTitleParts(rows: TitlePresentationRow[]) {
     row.suppressedTitlePartPositions = nextPartPositions
     row.suppressedTitlePartsBeforeStructuralTail = nextPartsBeforeStructuralTail
   }
-}
-
-/**
- * disambiguatingPaths(urls) — given a list of URLs that share a
- * visible title, return just the *differing* tokens for each. Path
- * segments, query string, and hash are all treated as tokens in a
- * single list, so differences in any of them can disambiguate. The
- * longest common leading AND trailing tokens are stripped; only
- * what differs is shown.
- *
- *   ["/api/v1/accounts/team/dashboard",
- *    "/api/v1/accounts/me/dashboard"]      → ["…/team", "…/me"]
- *   ["/admin/dashboard", "/user/dashboard"] → ["/admin", "/user"]
- *   ["/dashboard", "/admin/dashboard"]      → ["/", "/admin"]
- *   ["/rewards?state=open",
- *    "/rewards?state=closed"]               → ["…?state=open", "…?state=closed"]
- *   ["/doc#intro", "/doc#conclusion"]       → ["…#intro", "…#conclusion"]
- */
-/**
- * @param {string[]} urls
- * @returns {string[]}
- */
-function disambiguatingPaths(urls: string[]): string[] {
-  const tokens = urls.map((u) => {
-    const parsed = URL.parse(u)
-    if (!parsed) return []
-    const t = parsed.pathname.split('/').filter(Boolean)
-    if (parsed.search) t.push(parsed.search) // "?foo=bar"
-    if (parsed.hash) t.push(parsed.hash) // "#section"
-    return t
-  })
-  const firstTokens = tokens[0]
-  if (!firstTokens) return []
-  const minLen = Math.min(...tokens.map((t) => t.length))
-
-  let commonLead = 0
-  for (let i = 0; i < minLen; i++) {
-    const seg = firstTokens[i]
-    if (tokens.every((t) => t[i] === seg)) commonLead = i + 1
-    else break
-  }
-
-  let commonTrail = 0
-  const maxTrail = minLen - commonLead
-  for (let i = 1; i <= maxTrail; i++) {
-    const seg = firstTokens.at(-i)
-    if (tokens.every((t) => t.at(-i) === seg)) commonTrail = i
-    else break
-  }
-
-  return tokens.map((t) => {
-    const show = t.slice(commonLead, t.length - commonTrail)
-    if (show.length === 0) return '/'
-    // Path segments join with '/'; query/hash attach without a slash
-    // (their leading sigil '?' or '#' is already a delimiter).
-    let joined = ''
-    for (const seg of show) {
-      if (seg.startsWith('?') || seg.startsWith('#')) joined += seg
-      else joined += (joined ? '/' : '') + seg
-    }
-    const first = show[0] || ''
-    const firstIsPath = !first.startsWith('?') && !first.startsWith('#')
-    const lead = commonLead > 0 ? '…' : ''
-    return lead + (firstIsPath ? '/' : '') + joined
-  })
 }
 
 /* ---- Domain card view-model ----
@@ -1166,7 +1102,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     if (directOrder !== undefined) return directOrder
 
     let earliestVariantOrder: number | null = null
-    for (const variant of chip.titleVariantChips || []) {
+    for (const variant of titleVariantTargets(chip.titleVariantPresentations)) {
       const variantOrder = variant.pagePinId ? pagePinOrderById.get(variant.pagePinId) : undefined
       if (variantOrder === undefined) continue
       if (earliestVariantOrder === null || variantOrder < earliestVariantOrder) {
@@ -1437,59 +1373,11 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   const CATEGORY_ORDER: Record<PathCategory, number> = { pull: 0, issue: 1, commit: 2, code: 3, other: 4 }
   const categoryRank = (category?: PathGroupResult['category']) => CATEGORY_ORDER[category ?? 'other']
 
-  function titleCollisionPathByUrl(groupTabs: DashboardTab[]): Map<string, string> {
-    const pathByUrl = new Map<string, string>()
-    const sameTitle = Map.groupBy(groupTabs, (tab) => lowerDisplayTitle(tab))
-    for (const collided of sameTitle.values()) {
-      if (collided.length < 2) continue
-      const collidedUrls = collided.map((t) => t.url)
-      if (new Set(collidedUrls).size < 2) continue
-      const suffixes = uniqueTitleVariantPathSuffixes(collidedUrls)
-      collided.forEach((t, i) => pathByUrl.set(t.url, suffixes[i] ?? ''))
-    }
-    return pathByUrl
-  }
-
-  function duplicateLabels(labels: readonly string[]): Set<string> {
-    const counts = new Map<string, number>()
-    for (const label of labels) counts.set(label, (counts.get(label) || 0) + 1)
-    return new Set(counts.entries().filter(([, count]) => count > 1).map(([label]) => label))
-  }
-
-  function titleVariantLabelForUrl(url: string): string {
-    const parsed = parseUrl(url)
-    return parsed ? `${parsed.pathname || '/'}${parsed.search}${parsed.hash}` || '/' : url || '/'
-  }
-
-  function titleVariantHostLabelForUrl(url: string): string {
-    const parsed = parseUrl(url)
-    return parsed ? `${parsed.host}${parsed.pathname || '/'}${parsed.search}${parsed.hash}` || url || '/' : url || '/'
-  }
-
-  function uniqueTitleVariantFallbackLabels(urls: readonly string[]): string[] {
-    const pathLabels = urls.map(titleVariantLabelForUrl)
-    if (duplicateLabels(pathLabels).size === 0) return pathLabels
-
-    const hostLabels = urls.map(titleVariantHostLabelForUrl)
-    if (duplicateLabels(hostLabels).size === 0) return hostLabels
-
-    return urls.map((url) => url || '/')
-  }
-
-  function uniqueTitleVariantPathSuffixes(urls: readonly string[]): string[] {
-    const suffixes = disambiguatingPaths([...urls])
-    const duplicatedSuffixes = duplicateLabels(suffixes)
-    if (duplicatedSuffixes.size === 0) return suffixes
-
-    const fallbackLabels = uniqueTitleVariantFallbackLabels(urls)
-    return suffixes.map((suffix, index) => (
-      duplicatedSuffixes.has(suffix)
-        ? fallbackLabels[index] || suffix || '/'
-        : suffix
-    ))
-  }
-
-  function titleVariantGroupChip(variants: DashboardChipData[], representative: DashboardChipData): DashboardChipData {
+  function titleVariantGroupChip(
+    variants: DashboardChipData[],
+    representative: DashboardChipData,
+    titleVariantPresentations: DashboardTitleVariantPresentation[],
+  ): DashboardChipData {
     const activeInCurrentWindow = variants.some((variant) => !!variant.activeChipFrame && !variant.activeInOtherWindow)
     const activeInOtherWindow = !activeInCurrentWindow && variants.some((variant) => !!variant.activeInOtherWindow)
     const allVariantsSaved = variants.length > 0 && variants.every((variant) => !!variant.saved)
@@ -1497,6 +1385,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     const stateRepresentative = !isClosedSavedDashboardTab(representative)
       ? representative
       : variants.find((variant) => !isClosedSavedDashboardTab(variant)) || representative
+    const groupTitle = [representative.leadPrefix, representative.title].filter(Boolean).join(' · ')
     const groupedChip: DashboardChipData = {
       ...stateRepresentative,
       saved: allVariantsSaved,
@@ -1504,27 +1393,27 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       suspended: allOpenTargetsSuspended(variants),
       loading: variants.some((variant) => !!variant.loading),
       pathSuffix: '',
-      tooltip: `${representative.tooltip} · ${variants.length} URL variants`,
+      tooltip: `${groupTitle} · ${variants.length} URL variants`,
       dupeCount: 1,
       activeChipFrame: activeInCurrentWindow || activeInOtherWindow,
       activeInOtherWindow,
       audioState: mergeAudioStates(variants.map((variant) => variant.audioState ?? null)),
-      titleVariantChips: variants,
+      titleVariantPresentations,
     }
     delete groupedChip.savedPageKey
     delete groupedChip.retainedPageIdentity
     delete groupedChip.retainedPageClosureToken
     delete groupedChip.pagePinId
     delete groupedChip.pagePinned
+    delete groupedChip.variantLabel
     return groupedChip
   }
 
-  function buildChipDataList(contentTabs: DashboardTab[], showChipPrefix: boolean, pathByUrl: Map<string, string>, pathGroupLabel: string, pinScopeId: string, stripLabel = ''): DashboardChipData[] {
+  function buildChipDataList(contentTabs: DashboardTab[], showChipPrefix: boolean, pathGroupLabel: string, pinScopeId: string, stripLabel = ''): DashboardChipData[] {
     const entries: ChipBuildEntry[] = contentTabs.map((tab) => {
-      const pathSuffix = pathByUrl.get(tab.url) || ''
       return {
         tab,
-        chip: buildChipData(tab, showChipPrefix, pathSuffix, pathGroupLabel, stripLabel),
+        chip: buildChipData(tab, showChipPrefix, '', pathGroupLabel, stripLabel),
         titleKey: lowerDisplayTitle(tab, true),
       }
     })
@@ -1544,17 +1433,40 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       }
       if (emittedTitleKeys.has(entry.titleKey)) continue
       emittedTitleKeys.add(entry.titleKey)
-      const variants = (entriesByTitle.get(entry.titleKey) || []).map((variantEntry) => {
-        const variant = variantEntry.chip
-        const ungroupedVariant = { ...variant }
-        delete ungroupedVariant.titleVariantChips
-        return annotatePageChipPin({
-          ...ungroupedVariant,
-          pathSuffix: variant.pathSuffix || titleVariantLabelForUrl(variant.tabUrl),
-        }, pinScopeId, pageChipPinKeyForUrl(variantEntry.tab.url))
+      const variantEntries = entriesByTitle.get(entry.titleKey) || []
+      const variants = variantEntries.map(({ tab, chip: variant }) => {
+        const exactUrl = tab.url
+        return annotatePageChipPin(variant, pinScopeId, pageChipPinKeyForUrl(exactUrl))
       })
-      const representative = variants[0]
-      if (representative) result.push(titleVariantGroupChip(sortPageChipsInScope(variants), representative))
+      const stableRepresentative = variants[0]
+      if (!stableRepresentative) continue
+      const sortedVariants = sortPageChipsInScope(variants)
+      const presentationGroups = buildUrlVariantPresentationGroups(
+        sortedVariants.map((variant) => variant.tabUrl),
+        { collapseOpaqueValues: sortedVariants.every((variant) => variant.sourceType === 'history') },
+      )
+      const variantLabelByIndex = new Map<number, string>()
+      for (const { targetIndexes, label } of presentationGroups) {
+        for (const targetIndex of targetIndexes) variantLabelByIndex.set(targetIndex, label)
+      }
+      const labeledVariants = sortedVariants.map((variant, targetIndex) => {
+        const variantLabel = variantLabelByIndex.get(targetIndex) || variant.tabUrl || '/'
+        return {
+          ...variant,
+          variantLabel,
+          tooltip: [variant.leadPrefix, variant.title, variantLabel].filter(Boolean).join(' · '),
+        }
+      })
+      const titleVariantPresentations: DashboardTitleVariantPresentation[] = []
+      for (const { targetIndexes, label } of presentationGroups) {
+        const targets = targetIndexes.flatMap((targetIndex) => labeledVariants[targetIndex] ?? [])
+        if (targets.length > 0) titleVariantPresentations.push({ label, targets })
+      }
+      // The group identity remains anchored to the original stable
+      // representative; pin order affects visible variant rows, not the
+      // remembered Page Chip identity.
+      const representative = labeledVariants[sortedVariants.indexOf(stableRepresentative)]
+      if (representative) result.push(titleVariantGroupChip(labeledVariants, representative, titleVariantPresentations))
     }
     return sortPageChipsInScope(result)
   }
@@ -1636,9 +1548,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       // Title-collision disambiguation is scoped to the rendered
       // group. If path-group headers already separate same-title
       // chips, URL crumbs would duplicate that structural signal.
-      const pathByUrl = titleCollisionPathByUrl(orderedTabs)
       const pinScopeId = pageChipPinScopeId(group.domain, pinContext.subdomainKey, pinContext.websitePathKey, key)
-      const chipData = buildChipDataList(orderedTabs, showChipPrefix, pathByUrl, '', pinScopeId, label)
+      const chipData = buildChipDataList(orderedTabs, showChipPrefix, '', pinScopeId, label)
       const { vis, hid } = splitForOverflow(chipData)
       const clusterClosable = allowMutations ? orderedTabs.filter(isBulkClosableTab) : []
       return {
@@ -1655,9 +1566,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     })
     const clusters = sortPinnedFirst(unsortedClusters)
 
-    const flatPathByUrl = titleCollisionPathByUrl(singletonTabs)
     const flatPinScopeId = pageChipPinScopeId(group.domain, pinContext.subdomainKey, pinContext.websitePathKey, '')
-    const flatChipData = buildChipDataList(singletonTabs, showChipPrefix, flatPathByUrl, '', flatPinScopeId)
+    const flatChipData = buildChipDataList(singletonTabs, showChipPrefix, '', flatPinScopeId)
     const { vis: flatVisibleChips, hid: flatHiddenChips } = splitForOverflow(flatChipData)
 
     return {
@@ -1977,7 +1887,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
           () => ({ count: 0, titleVariantCount: 0 }),
         )
         current.count += 1
-        if ((chip.titleVariantChips?.length || 0) > 1) current.titleVariantCount += 1
+        if (titleVariantTargets(chip.titleVariantPresentations).length > 1) current.titleVariantCount += 1
       }
     }
     return countsByKey
@@ -2040,20 +1950,29 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     if (chip.envs?.length) {
       return [chip.envs.map((env) => env.prefix).join(' · '), titlePart].filter(Boolean).join(' · ')
     }
-    const tooltip = [chip.leadPrefix, titlePart, chip.pathSuffix].filter(Boolean).join(' · ')
-    return chip.titleVariantChips?.length ? `${tooltip} · ${chip.titleVariantChips.length} URL variants` : tooltip
+    const tooltip = [chip.leadPrefix, titlePart, chip.variantLabel || chip.pathSuffix].filter(Boolean).join(' · ')
+    const titleVariantCount = titleVariantTargets(chip.titleVariantPresentations).length
+    return titleVariantCount > 0 ? `${tooltip} · ${titleVariantCount} URL variants` : tooltip
   }
 
   function inlineSingletonSuppressionsInChip(chip: DashboardChipData, singletonKeys: Set<string>): DashboardChipData {
     const partsToInline = (chip.suppressedTitleParts || []).filter((part) => singletonKeys.has(titleSuppressionKey(part)))
-    const titleVariantChips = chip.titleVariantChips?.map((variant) => inlineSingletonSuppressionsInChip(variant, singletonKeys))
+    const titleVariantPresentations = chip.titleVariantPresentations?.map((presentation) => ({
+      ...presentation,
+      targets: presentation.targets.map((target) => inlineSingletonSuppressionsInChip(target, singletonKeys)),
+    }))
+    const chipWithVariants = titleVariantPresentations
+      ? {
+          ...chip,
+          titleVariantPresentations,
+        }
+      : chip
     if (partsToInline.length === 0) {
-      return titleVariantChips ? { ...chip, titleVariantChips } : chip
+      return chipWithVariants
     }
 
     const displaySegments = inlineSingletonSuppressionsInSegments(chip.displaySegments, partsToInline)
     const suppressedTitleParts = chip.suppressedTitleParts.filter((part) => !singletonKeys.has(titleSuppressionKey(part)))
-    const chipWithVariants = titleVariantChips ? { ...chip, titleVariantChips } : chip
     return {
       ...chipWithVariants,
       displaySegments,

@@ -1,4 +1,5 @@
 import type { StartupOrderDebugCapture, StartupOrderVmSampleOptions } from './startup-order-debug-types'
+import type { DashboardChipData } from '../extension/types'
 
 const STARTUP_ORDER_DEBUG_FILTER_KEY = 'tab-out:debug-startup-order-filter'
 const STARTUP_ORDER_DEBUG_DURATION_MS = 3000
@@ -137,17 +138,24 @@ function debugHistoryRows() {
 }
 
 function debugChipVm(
-  chip: {
-    title?: string
-    tabUrl?: string
-    rawUrl?: string
-    sourceType?: string
-    pagePinned?: boolean
-    pathSuffix?: string
-    titleVariantChips?: Array<{ title?: string, tabUrl?: string, rawUrl?: string, sourceType?: string, pagePinned?: boolean, pathSuffix?: string }>
-  },
+  chip: DashboardChipData,
   index: number,
 ) {
+  const variants = []
+  for (const presentation of chip.titleVariantPresentations ?? []) {
+    for (const variant of presentation.targets) {
+      variants.push({
+        index: variants.length,
+        text: (variant.title || '').slice(0, 180),
+        url: variant.tabUrl || '',
+        rawUrl: variant.rawUrl || '',
+        sourceType: variant.sourceType || '',
+        pagePinned: !!variant.pagePinned,
+        pathSuffix: variant.pathSuffix || '',
+        variantLabel: variant.variantLabel || '',
+      })
+    }
+  }
   return {
     index,
     text: (chip.title || '').slice(0, 180),
@@ -156,15 +164,8 @@ function debugChipVm(
     sourceType: chip.sourceType || '',
     pagePinned: !!chip.pagePinned,
     pathSuffix: chip.pathSuffix || '',
-    variants: (chip.titleVariantChips || []).map((variant, variantIndex) => ({
-      index: variantIndex,
-      text: (variant.title || '').slice(0, 180),
-      url: variant.tabUrl || '',
-      rawUrl: variant.rawUrl || '',
-      sourceType: variant.sourceType || '',
-      pagePinned: !!variant.pagePinned,
-      pathSuffix: variant.pathSuffix || '',
-    })),
+    variantLabel: chip.variantLabel || '',
+    variants,
   }
 }
 

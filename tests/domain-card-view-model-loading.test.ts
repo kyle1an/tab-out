@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { computeDomainCardViewModel } from '../src/extension/domain-card-view-model.js'
+import { titleVariantTargets } from '../src/extension/url-variant-presentation.js'
 import type { DashboardTab, DomainGroup } from '../src/extension/types'
 
 function makeTab(overrides: Partial<DashboardTab> = {}): DashboardTab {
@@ -46,7 +47,7 @@ test('a same-title Page Chip loads when any URL variant is loading', () => {
     makeTab({ id: 2, url: 'https://example.test/beta', rawUrl: 'https://example.test/beta', title: 'Shared title', status: 'loading' }),
   ])
 
-  assert.equal(chip?.titleVariantChips?.length, 2)
+  assert.equal(titleVariantTargets(chip?.titleVariantPresentations).length, 2)
   assert.equal(chip?.loading, true)
 })
 

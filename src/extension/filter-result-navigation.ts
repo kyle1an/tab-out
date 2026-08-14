@@ -71,8 +71,11 @@ function filterResultCandidatesForChip(chip: DashboardChipData): FilterResultCan
   if (chip.envs?.length) {
     return chip.envs.map((env) => filterResultCandidateForTarget(env, chip.sourceType))
   }
-  if ((chip.titleVariantChips?.length ?? 0) > 1) {
-    return (chip.titleVariantChips ?? []).map((variant) => filterResultCandidateForTarget(variant, chip.sourceType))
+  const presentationTargets = (chip.titleVariantPresentations ?? [])
+    .map(({ targets }) => targets[0])
+    .filter((target) => target !== undefined)
+  if (presentationTargets.length > 0) {
+    return presentationTargets.map((target) => filterResultCandidateForTarget(target, chip.sourceType))
   }
   return [filterResultCandidateForTarget(chip)]
 }

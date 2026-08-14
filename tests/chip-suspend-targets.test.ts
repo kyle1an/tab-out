@@ -17,7 +17,7 @@ test('chipCanShowSuspend: folded group with tab envs true; title-variant group f
   }), true)
   assert.equal(chipCanShowSuspend({
     sourceType: 'tab', tabUrl: 'https://a', rawUrl: 'https://a',
-    titleVariantChips: [{}, {}],
+    titleVariantPresentations: [{ targets: [{}, {}] }],
   }), false)
 })
 

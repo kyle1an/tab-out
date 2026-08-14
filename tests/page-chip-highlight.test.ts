@@ -15,8 +15,10 @@ import { PathgroupSection } from '../src/components/PathgroupSection.js'
 import { TabHistoryPanel } from '../src/components/TabHistoryPanel.js'
 import { WebsitePathSection } from '../src/components/WebsitePathSection.js'
 import type { TitleSuppressionTone } from '../src/components/title-suppression.js'
+import { computeDomainCardViewModel } from '../src/extension/render.js'
 import { allocateCardSuppressionTones } from '../src/extension/title-suppression-tones.js'
-import type { DashboardCardVM, DashboardChipData, DomainGroup, TabHistoryEntry, TabHistorySnapshot, WorkingSetItem, WorkingSetSnapshot } from '../src/extension/types'
+import { titleVariantTargets } from '../src/extension/url-variant-presentation.js'
+import type { DashboardCardVM, DashboardChipData, DashboardTab, DomainGroup, TabHistoryEntry, TabHistorySnapshot, WorkingSetItem, WorkingSetSnapshot } from '../src/extension/types'
 
 // Hand-built card VMs skip computeDomainCardViewModel, so run them through
 // the same tone allocation the compute walk applies before rendering.
@@ -43,6 +45,30 @@ function makeChip(overrides: Partial<DashboardChipData> = {}): DashboardChipData
     isApp: false,
     envs: null,
     ...overrides,
+  }
+}
+
+function presentationsForTargets(targets: DashboardChipData[]) {
+  return targets.map((target) => ({
+    label: target.variantLabel || target.pathSuffix || target.tabUrl || '/',
+    targets: [target],
+  }))
+}
+
+function makeDashboardTab(id: number, url: string, title: string): DashboardTab {
+  return {
+    id,
+    url,
+    rawUrl: url,
+    suspended: false,
+    title,
+    favIconUrl: '',
+    windowId: 1,
+    active: false,
+    pinned: false,
+    groupId: -1,
+    isTabOut: false,
+    isApp: false,
   }
 }
 
@@ -561,7 +587,7 @@ test('PageChip renders exact pin markers inside a unified same-title variant gro
         rawUrl: 'https://example.com/content/item?search_id=alpha',
         displaySegments: ['Example content item'],
         tooltip: 'Example content item',
-        titleVariantChips: [
+        titleVariantPresentations: presentationsForTargets([
           makeChip({
             sourceType: 'tab',
             tabUrl: 'https://example.com/content/item?search_id=alpha',
@@ -580,7 +606,7 @@ test('PageChip renders exact pin markers inside a unified same-title variant gro
             pagePinId: 'pin-bravo',
             pagePinned: false,
           }),
-        ],
+        ]),
       }),
     }),
   )
@@ -818,7 +844,7 @@ test('PageChip names both operations when a title-variant group mixes tabs and H
         sourceType: 'tab',
         tabUrl: 'https://mixed-actions.example.test/page?variant=tab',
         rawUrl: 'https://mixed-actions.example.test/page?variant=tab',
-        titleVariantChips: [
+        titleVariantPresentations: presentationsForTargets([
           makeChip({
             sourceType: 'tab',
             tabUrl: 'https://mixed-actions.example.test/page?variant=tab',
@@ -829,7 +855,7 @@ test('PageChip names both operations when a title-variant group mixes tabs and H
             tabUrl: 'https://mixed-actions.example.test/page?variant=history',
             rawUrl: 'https://mixed-actions.example.test/page?variant=history',
           }),
-        ],
+        ]),
       }),
     }),
   )
@@ -1043,22 +1069,22 @@ test('PageChip renders same-title URL variants below one visible title', () => {
     rawUrl: 'https://example.com/content/item?search_id=alpha',
     displaySegments: ['Example content item'],
     tooltip: 'Example content item',
-    titleVariantChips: [
+    titleVariantPresentations: presentationsForTargets([
       makeChip({
         sourceType: 'tab',
         tabUrl: 'https://example.com/content/item?search_id=alpha',
         rawUrl: 'https://example.com/content/item?search_id=alpha',
-        pathSuffix: '…?search_id=alpha',
+        variantLabel: '…?search_id=alpha',
         tooltip: '…?search_id=alpha',
       }),
       makeChip({
         sourceType: 'tab',
         tabUrl: 'https://example.com/content/item?search_id=bravo',
         rawUrl: 'https://example.com/content/item?search_id=bravo',
-        pathSuffix: '…?search_id=bravo',
+        variantLabel: '…?search_id=bravo',
         tooltip: '…?search_id=bravo',
       }),
-    ],
+    ]),
   })
 
   const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
@@ -1148,7 +1174,7 @@ test('PageChip renders same-title URL variants below one visible title', () => {
   assert.match(requiredAt(titleVariantButtonMatch, 1), /hover:bg-\(--chip-target-interaction-bg\)/)
   assert.doesNotMatch(requiredAt(titleVariantButtonMatch, 1), /\bcursor-pointer\b/)
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
-  assert.match(pageChipSource, /function defaultTitleVariantChip\(\) \{[\s\S]*activeChipFrame[\s\S]*!variant\.activeInOtherWindow[\s\S]*activeInOtherWindow[\s\S]*every\(isClosedSavedDashboardTab\)[\s\S]*sourceType === 'saved-page'[\s\S]*titleVariantChips\[0\]/)
+  assert.match(pageChipSource, /function defaultTitleVariantChip\(\) \{[\s\S]*activeChipFrame[\s\S]*!variant\.activeInOtherWindow[\s\S]*activeInOtherWindow[\s\S]*every\(isClosedSavedDashboardTab\)[\s\S]*sourceType === 'saved-page'[\s\S]*variantTargets\[0\]/)
   assert.match(pageChipSource, /function onVariantGroupChipClick\(e: MouseEvent<HTMLDivElement>\)[\s\S]*?titleVariantEventTargetsExactVariant\(e\.target\)[\s\S]*?activateChipTarget\(e, variant\.tabUrl, variant\.sourceType, variant, e\.currentTarget\)/)
   assert.match(pageChipSource, /function onVariantGroupChipMouseEnter\(e: MouseEvent<HTMLDivElement>\)[\s\S]*?previewDefaultTitleVariantSurface\(e\.target\)[\s\S]*?openChipExpansion\(\)/)
   assert.match(pageChipSource, /function onVariantGroupChipMouseLeave\(e: MouseEvent<HTMLDivElement>\)[\s\S]*?contextMenuOpenRef\.current[\s\S]*?setDefaultVariantSurfaceHover\(false\)[\s\S]*?setPreview\(''\)/)
@@ -1175,18 +1201,26 @@ test('PageChip renders same-title URL variants below one visible title', () => {
   assert.equal((html.match(/\bchip-title-row\b/g) || []).length, 1)
 })
 
-function makeVariantGroupChip(overrides: Partial<DashboardChipData> = {}): DashboardChipData {
+type VariantGroupOverrides = Partial<DashboardChipData> & {
+  variantTargets?: DashboardChipData[]
+}
+
+function makeVariantGroupChip(overrides: VariantGroupOverrides = {}): DashboardChipData {
+  const {
+    variantTargets = [
+      makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/a', rawUrl: 'https://example.com/a', pathSuffix: '…/feature', tooltip: '…/feature' }),
+      makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/b', rawUrl: 'https://example.com/b', pathSuffix: '…/main', tooltip: '…/main' }),
+    ],
+    ...chipOverrides
+  } = overrides
   return makeChip({
     sourceType: 'tab',
     tabUrl: 'https://example.com/content/item',
     rawUrl: 'https://example.com/content/item',
     displaySegments: ['Commits'],
     tooltip: 'Commits',
-    titleVariantChips: [
-      makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/a', rawUrl: 'https://example.com/a', pathSuffix: '…/feature', tooltip: '…/feature' }),
-      makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/b', rawUrl: 'https://example.com/b', pathSuffix: '…/main', tooltip: '…/main' }),
-    ],
-    ...overrides,
+    titleVariantPresentations: presentationsForTargets(variantTargets),
+    ...chipOverrides,
   })
 }
 
@@ -1274,6 +1308,26 @@ test('PageChip resolves the closed filter fill per target inside an active mixed
   assert.doesNotMatch(requiredAt(envButtons, 1), /--chip-target-interaction-bg:var\(--color-neutral-50\)/)
 })
 
+test('PageChip keeps same-title URL-row hover paint source-independent while filtering', () => {
+  const historyVariants = [
+    makeChip({ sourceType: 'history', tabUrl: 'https://example.test/a', rawUrl: 'https://example.test/a' }),
+    makeChip({ sourceType: 'history', tabUrl: 'https://example.test/b', rawUrl: 'https://example.test/b' }),
+  ]
+  const html = renderWithDomainCardContext(
+    React.createElement(PageChip, {
+      chip: makeVariantGroupChip({
+        sourceType: 'history',
+        variantTargets: historyVariants,
+      }),
+      filter: 'Example',
+    }),
+  )
+
+  for (const pill of titleVariantPillTags(html)) {
+    assert.doesNotMatch(pill, /style="[^"]*--chip-target-interaction-bg/)
+  }
+})
+
 function titleVariantPillTags(html: string): string[] {
   return Array.from(html.matchAll(/<button[^>]*>/g), (match) => match[0])
     .filter((tag) => /class="chip-title-variant clickable\b/.test(tag))
@@ -1293,7 +1347,7 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
 
   const currentActiveHtml = renderWithDomainCardContext(React.createElement(PageChip, {
     chip: makeVariantGroupChip({
-      titleVariantChips: [
+      variantTargets: [
         makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/a', rawUrl: 'https://example.com/a', pathSuffix: '…/feature', tooltip: '…/feature' }),
         makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/b', rawUrl: 'https://example.com/b', pathSuffix: '…/main', tooltip: '…/main', activeChipFrame: true }),
       ],
@@ -1305,7 +1359,7 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
 
   const crossWindowHtml = renderWithDomainCardContext(React.createElement(PageChip, {
     chip: makeVariantGroupChip({
-      titleVariantChips: [
+      variantTargets: [
         makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/a', rawUrl: 'https://example.com/a', pathSuffix: '…/feature', tooltip: '…/feature', activeChipFrame: true, activeInOtherWindow: true }),
         makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/b', rawUrl: 'https://example.com/b', pathSuffix: '…/main', tooltip: '…/main', activeChipFrame: true }),
       ],
@@ -1317,7 +1371,7 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
 
   const otherWindowOnlyHtml = renderWithDomainCardContext(React.createElement(PageChip, {
     chip: makeVariantGroupChip({
-      titleVariantChips: [
+      variantTargets: [
         makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/a', rawUrl: 'https://example.com/a', pathSuffix: '…/feature', tooltip: '…/feature' }),
         makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/b', rawUrl: 'https://example.com/b', pathSuffix: '…/main', tooltip: '…/main', activeChipFrame: true, activeInOtherWindow: true }),
       ],
@@ -1330,7 +1384,7 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
   const savedPriorityHtml = renderWithDomainCardContext(React.createElement(PageChip, {
     chip: makeVariantGroupChip({
       closedSaved: true,
-      titleVariantChips: [
+      variantTargets: [
         makeChip({
           sourceType: 'retained-page',
           closedSaved: true,
@@ -1386,6 +1440,28 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
   // (which covers the chip's rounded-corner gutter), not the rounded chip, so
   // clicking/hovering the very edge still activates the default variant.
   assert.match(pageChipSource, /data-tabout-part="slot"[\s\S]*?\{\.\.\.variantGroupInteractionProps\}/)
+})
+
+test('PageChip preserves the default variant marker after title-suppression normalization', () => {
+  const title = 'Example content item - Example Workspace'
+  const vm = computeDomainCardViewModel({
+    domain: 'example.test',
+    tabs: [
+      makeDashboardTab(1, 'https://example.test/content/item?state=alpha', title),
+      makeDashboardTab(2, 'https://example.test/content/item?state=bravo', title),
+    ],
+  })
+  const chip = vm.sections?.[0]?.flatVisibleChips[0]
+  assert.ok(chip)
+  assert.ok(chip.titleVariantPresentations)
+  assert.equal(titleVariantTargets(chip.titleVariantPresentations).length, 2)
+
+  const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
+  const pills = titleVariantPillTags(html)
+
+  assert.equal(pills.length, 2)
+  assert.match(requiredAt(pills, 0), /data-tabout-default-variant="true"/)
+  assert.doesNotMatch(requiredAt(pills, 1), /data-tabout-default-variant/)
 })
 
 // The seam-overlap rule and the slot-marker decision are covered by the
@@ -1446,7 +1522,7 @@ test('PageChip gives same-title URL variant groups a folded-style expansion trig
     displaySegments: ['Example content item'],
     tooltip: 'Example content item',
     suppressedTitleParts: ['Example Workspace'],
-    titleVariantChips: [
+    titleVariantPresentations: presentationsForTargets([
       makeChip({
         sourceType: 'tab',
         tabUrl: 'https://example.com/content/item?search_id=alpha',
@@ -1461,7 +1537,7 @@ test('PageChip gives same-title URL variant groups a folded-style expansion trig
         pathSuffix: '…?search_id=bravo',
         tooltip: '…?search_id=bravo',
       }),
-    ],
+    ]),
   })
 
   const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
@@ -1580,7 +1656,7 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   assert.match(pageChipSource, /await onTogglePinnedPageChip\?\.\(chip\.pagePinId\)/)
   assert.match(pageChipSource, /onLayoutChange\?\.\(\{ animate: true \}\)/)
   assert.match(pageChipSource, /const variantPagePinActionLabel = variant\.pagePinned \? 'Unpin' : 'Pin'/)
-  assert.match(pageChipSource, /const variantCanTogglePagePin = !!variant\.pagePinId && typeof onTogglePinnedPageChip === 'function'/)
+  assert.match(pageChipSource, /const variantCanTogglePagePin = singleTarget && !!variant\.pagePinId && typeof onTogglePinnedPageChip === 'function'/)
   assert.match(pageChipSource, /async function onTogglePinnedTitleVariant\(e: StopPropagationEvent, variant: DashboardChipData\)/)
   assert.match(pageChipSource, /await onTogglePinnedPageChip\?\.\(variant\.pagePinId\)/)
 
@@ -1633,7 +1709,7 @@ test('PageChip outlines same-title variant groups when external hover matches a 
     rawUrl: 'https://example.com/content/item?search_id=alpha',
     displaySegments: ['Example content item'],
     tooltip: 'Example content item',
-    titleVariantChips: [
+    titleVariantPresentations: presentationsForTargets([
       makeChip({
         sourceType: 'tab',
         tabUrl: 'https://example.com/content/item?search_id=alpha',
@@ -1648,7 +1724,7 @@ test('PageChip outlines same-title variant groups when external hover matches a 
         pathSuffix: '…?search_id=bravo',
         tooltip: '…?search_id=bravo',
       }),
-    ],
+    ]),
   })
 
   const html = renderWithDomainCardContext(
@@ -1670,7 +1746,7 @@ test('PageChip keeps same-title URL variant saved-page actions in the context me
     rawUrl: 'https://example.com/content/item?search_id=alpha',
     displaySegments: ['Example content item'],
     tooltip: 'Example content item',
-    titleVariantChips: [
+    titleVariantPresentations: presentationsForTargets([
       makeChip({
         sourceType: 'tab',
         tabUrl: 'https://example.com/content/item?search_id=alpha',
@@ -1687,7 +1763,7 @@ test('PageChip keeps same-title URL variant saved-page actions in the context me
         pathSuffix: '…?search_id=bravo',
         tooltip: '…?search_id=bravo',
       }),
-    ],
+    ]),
   })
 
   const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
@@ -1711,7 +1787,7 @@ test('PageChip renders saved bookmark URL variants as read-only hints', () => {
     rawUrl: 'https://example.com/content/item?search_id=alpha',
     displaySegments: ['Example content item'],
     tooltip: 'Example content item',
-    titleVariantChips: [
+    titleVariantPresentations: presentationsForTargets([
       makeChip({
         sourceType: 'bookmark',
         tabUrl: 'https://example.com/content/item?search_id=alpha',
@@ -1728,7 +1804,7 @@ test('PageChip renders saved bookmark URL variants as read-only hints', () => {
         pathSuffix: '…?search_id=bravo',
         tooltip: '…?search_id=bravo',
       }),
-    ],
+    ]),
   })
 
   const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))

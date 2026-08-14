@@ -382,11 +382,13 @@ test('result candidates follow source priority and expose exact folded and same-
       { prefix: 'qa', tabUrl: 'https://qa.example.test/docs', rawUrl: 'https://qa.example.test/docs' },
     ],
   })
+  const alphaVariant = chip({ tabUrl: 'https://variants.example.test/alpha' })
+  const bravoVariant = chip({ tabUrl: 'https://variants.example.test/bravo' })
   const sameTitle = chip({
     tabUrl: 'https://variants.example.test/',
-    titleVariantChips: [
-      chip({ tabUrl: 'https://variants.example.test/alpha' }),
-      chip({ tabUrl: 'https://variants.example.test/bravo' }),
+    titleVariantPresentations: [
+      { label: '/alpha', targets: [alphaVariant] },
+      { label: '/bravo', targets: [bravoVariant] },
     ],
   })
   const history = chip({
@@ -416,6 +418,32 @@ test('result candidates follow source priority and expose exact folded and same-
     ],
   )
   assert.equal(new Set(result.map((candidate) => candidate.key)).size, result.length)
+})
+
+test('result candidates follow collapsed History presentation rows instead of hidden exact targets', () => {
+  const alpha = chip({
+    tabUrl: 'https://history.example.test/sign-in?token=opaque-alpha',
+    sourceType: 'history',
+  })
+  const bravo = chip({
+    tabUrl: 'https://history.example.test/sign-in?token=opaque-bravo',
+    sourceType: 'history',
+  })
+  const grouped = chip({
+    tabUrl: alpha.tabUrl,
+    sourceType: 'history',
+    titleVariantPresentations: [{
+      label: '…?token=…',
+      targets: [alpha, bravo],
+    }],
+  })
+
+  const result = buildFilterResultCandidates({
+    primaryMatches: [],
+    historyMatches: [cardWithVisibleChips([grouped])],
+  })
+
+  assert.deepEqual(result.map((candidate) => candidate.identity), [alpha.tabUrl])
 })
 
 test('result candidates retain overflow targets so expansion can make them navigable', () => {
