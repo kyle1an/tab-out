@@ -62,6 +62,7 @@ export interface WorkingSetActivityChromeAuthorityPort {
     marker: WorkingSetActivityAuthorityMarker,
   ) => PromiseLike<void>
   readonly readLegacy: () => PromiseLike<unknown>
+  readonly removeLegacy: () => PromiseLike<void>
 }
 
 /**
@@ -107,6 +108,7 @@ export class WorkingSetActivityAuthorityError extends Schema.TaggedError<Working
       'target-read',
       'target-write',
       'target-replace',
+      'legacy-remove',
       'target-close',
     ]),
     reason: Schema.String,
@@ -123,6 +125,7 @@ export interface WorkingSetActivityAuthorityBackendOptions {
 export interface WorkingSetActivityAuthorityBackend
   extends WorkingSetActivityStorageBackend {
   readonly read: () => PromiseLike<WorkingSetActivityStore>
+  readonly retireLegacy: () => PromiseLike<void>
 }
 
 type AuthorityPhase = WorkingSetActivityAuthorityError['phase']
@@ -317,6 +320,7 @@ export function makeWorkingSetActivityAuthorityBackend({
 }: WorkingSetActivityAuthorityBackendOptions): WorkingSetActivityAuthorityBackend {
   const serialize = makePromiseSerializer()
   let activeAuthority: InitializedAuthority | undefined
+  let legacyRetired = false
 
   async function initialize(): Promise<InitializedAuthority> {
     if (activeAuthority !== undefined) return activeAuthority
@@ -456,6 +460,21 @@ export function makeWorkingSetActivityAuthorityBackend({
         'Unable to replace authoritative IndexedDB Working Set activity',
         () => indexedDb.replace(initialized.manifest, activity),
       )
+    }),
+    retireLegacy: () => serialize(async () => {
+      if (legacyRetired) return
+      const initialized = await initialize()
+      await runBoundary(
+        'target-read',
+        'Unable to validate authoritative IndexedDB Working Set activity before retiring legacy storage',
+        () => indexedDb.read(initialized.manifest),
+      )
+      await runBoundary(
+        'legacy-remove',
+        'Unable to remove legacy Working Set activity',
+        chrome.removeLegacy,
+      )
+      legacyRetired = true
     }),
   }
 

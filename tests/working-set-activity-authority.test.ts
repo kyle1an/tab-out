@@ -4,6 +4,7 @@ import { Schema } from 'effect'
 
 import {
   makeWorkingSetActivityAuthorityBackend,
+  WorkingSetActivityAuthorityError,
   workingSetActivityAuthorityMarkerSchema,
   type WorkingSetActivityAuthorityMarker,
   type WorkingSetActivityChromeAuthorityPort,
@@ -34,6 +35,7 @@ interface SharedAuthorityState {
   markerReads: number
   markerWrites: number
   legacyReads: number
+  legacyRemovals: number
   stages: number
   verifies: number
   targetReads: number
@@ -42,6 +44,7 @@ interface SharedAuthorityState {
   closes: number
   stageFailure: OneShotMode
   markerWriteFailure: OneShotMode
+  failLegacyRemovalOnce: boolean
   failVerificationOnce: boolean
   mismatchVerificationOnce: boolean
   failMarkerReadbackOnce: boolean
@@ -92,6 +95,7 @@ function makeSharedState(
     markerReads: 0,
     markerWrites: 0,
     legacyReads: 0,
+    legacyRemovals: 0,
     stages: 0,
     verifies: 0,
     targetReads: 0,
@@ -100,6 +104,7 @@ function makeSharedState(
     closes: 0,
     stageFailure: null,
     markerWriteFailure: null,
+    failLegacyRemovalOnce: false,
     failVerificationOnce: false,
     mismatchVerificationOnce: false,
     failMarkerReadbackOnce: false,
@@ -155,6 +160,15 @@ function fakeChromePort(
       state.calls.push('legacy:read')
       state.legacyReads += 1
       return structuredClone(state.legacy)
+    },
+    async removeLegacy() {
+      state.calls.push('legacy:remove')
+      state.legacyRemovals += 1
+      if (state.failLegacyRemovalOnce) {
+        state.failLegacyRemovalOnce = false
+        throw new Error('synthetic legacy removal failure')
+      }
+      state.legacy = undefined
     },
   }
 }
@@ -426,6 +440,106 @@ test('missing legacy state migrates as a verified known-empty generation', async
   })
   assert.equal(state.stages, 1)
   assert.equal(state.markerWrites, 1)
+})
+
+test('legacy retirement migrates a late marker-absent profile and validates the marked target before removal', async () => {
+  const legacy = makeLegacyActivity()
+  const state = makeSharedState(legacy)
+  const backend = makeBackend(state)
+
+  await backend.retireLegacy()
+
+  const marker = persistedMarker(state)
+  assert.deepEqual(
+    state.generations.get(marker.generation)?.activity,
+    legacy,
+  )
+  assert.equal(state.legacy, undefined)
+  assert.equal(state.legacyRemovals, 1)
+  assert.deepEqual(state.calls, [
+    'marker:read',
+    'legacy:read',
+    'idb:stage',
+    'idb:verify',
+    'marker:write',
+    'marker:read',
+    'idb:read',
+    'legacy:remove',
+  ])
+
+  await backend.retireLegacy()
+  assert.equal(state.legacyRemovals, 1)
+})
+
+test('legacy retirement accepts current authoritative rows that diverged from the cutover fingerprint', async () => {
+  const legacy = makeLegacyActivity()
+  const state = makeSharedState(legacy)
+  const migrationBackend = makeBackend(state)
+  const migrated = await migrationBackend.read()
+  const change = updatedActivity(migrated)
+  await migrationBackend.write(change)
+  const marker = persistedMarker(state)
+
+  await makeBackend(state).retireLegacy()
+
+  assert.equal(state.legacy, undefined)
+  assert.deepEqual(
+    state.generations.get(marker.generation)?.activity,
+    change.activity,
+  )
+  assert.equal(state.legacyRemovals, 1)
+})
+
+test('legacy retirement preserves legacy when the marked target cannot be read', async () => {
+  const legacy = makeLegacyActivity()
+  const state = makeSharedState(legacy)
+  await makeBackend(state).read()
+  state.generations.clear()
+
+  await assert.rejects(
+    async () => makeBackend(state).retireLegacy(),
+    (error: unknown) => {
+      assert.ok(error instanceof WorkingSetActivityAuthorityError)
+      assert.equal(error.phase, 'target-read')
+      return true
+    },
+  )
+
+  assert.deepEqual(state.legacy, legacy)
+  assert.equal(state.legacyRemovals, 0)
+})
+
+test('legacy retirement preserves authority after a removal failure and permits an explicit retry', async () => {
+  const legacy = makeLegacyActivity()
+  const state = makeSharedState(legacy)
+  await makeBackend(state).read()
+  state.failLegacyRemovalOnce = true
+  const cleanupBackend = makeBackend(state)
+
+  await assert.rejects(
+    async () => cleanupBackend.retireLegacy(),
+    (error: unknown) => {
+      assert.ok(error instanceof WorkingSetActivityAuthorityError)
+      assert.equal(error.phase, 'legacy-remove')
+      return true
+    },
+  )
+
+  assert.deepEqual(state.legacy, legacy)
+  assert.deepEqual(await cleanupBackend.read(), legacy)
+  await cleanupBackend.retireLegacy()
+  assert.equal(state.legacy, undefined)
+  assert.equal(state.legacyRemovals, 2)
+})
+
+test('legacy retirement treats an already missing legacy key as a successful no-op', async () => {
+  const state = makeSharedState(undefined)
+
+  await makeBackend(state).retireLegacy()
+
+  assert.equal(state.legacy, undefined)
+  assert.equal(state.legacyRemovals, 1)
+  persistedMarker(state)
 })
 
 test('mismatched marker readback fails even when the durable marker is valid', async () => {

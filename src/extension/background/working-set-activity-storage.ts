@@ -14,13 +14,19 @@ export interface WorkingSetActivityStorageBackend {
   readonly read: () => PromiseLike<unknown>
   readonly write: (change: WorkingSetActivityWrite) => PromiseLike<void>
   readonly replace: (activity: WorkingSetActivityStore) => PromiseLike<void>
+  readonly retireLegacy?: () => PromiseLike<void>
   readonly close?: () => PromiseLike<void>
 }
 
 export class WorkingSetActivityStorageError extends Schema.TaggedError<WorkingSetActivityStorageError>()(
   'WorkingSetActivityStorageError',
   {
-    operation: Schema.Literals(['read', 'write', 'replace']),
+    operation: Schema.Literals([
+      'read',
+      'write',
+      'replace',
+      'retire-legacy',
+    ]),
     reason: Schema.Literals(['backend', 'malformed', 'unsupported-version']),
     cause: Schema.Defect(),
   },
@@ -34,6 +40,7 @@ export class WorkingSetActivityStorage extends Context.Service<WorkingSetActivit
   readonly replace: (
     activity: WorkingSetActivityStore,
   ) => Effect.Effect<void, WorkingSetActivityStorageError>
+  readonly retireLegacy: () => Effect.Effect<void, WorkingSetActivityStorageError>
 }>()('@tab-out/background/WorkingSetActivityStorage') {
   static layer(
     backend: WorkingSetActivityStorageBackend,
@@ -91,10 +98,25 @@ export class WorkingSetActivityStorage extends Context.Service<WorkingSetActivit
       })
     })
 
+    const retireLegacy = Effect.fn(
+      'WorkingSetActivityStorage.retireLegacy',
+    )(function* () {
+      if (backend.retireLegacy === undefined) return
+      yield* Effect.tryPromise({
+        try: backend.retireLegacy,
+        catch: (cause) => WorkingSetActivityStorageError.make({
+          operation: 'retire-legacy',
+          reason: 'backend',
+          cause,
+        }),
+      })
+    })
+
     const service = WorkingSetActivityStorage.of({
       read,
       write,
       replace,
+      retireLegacy,
     })
     const close = backend.close
     if (close === undefined) {

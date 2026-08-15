@@ -92,6 +92,7 @@ export function makeWorkingSetActivityStorageLayer(
         read: legacyStorage.read,
         write,
         replace: legacyStorage.replace,
+        retireLegacy: legacyStorage.retireLegacy,
       })
     }),
   ).pipe(Layer.provide(legacyLayer))

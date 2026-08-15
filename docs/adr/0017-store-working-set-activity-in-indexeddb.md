@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-09
-- Last reviewed: 2026-08-09
+- Last reviewed: 2026-08-15
 
 ## Context
 
@@ -54,6 +54,19 @@ exactly 500 records and 10,000 events; migration markers, generation manifests,
 semantic digests, failures, and cleanup errors had zero mismatches. The raw
 production-probe report SHA-256 was
 `c1f8ba7648e9693dd354a244d25f24252ed00fd95211f6cc5ee2ccacd4029d17`.
+
+The continuing release probe was rerun on 2026-08-15 after the declared
+minimum advanced to Chrome 151 and the production adapter adopted APIs at that
+floor. It exercised the exact production bundle with the same 500-record by
+20-event workload, five warmup pairs, and 30 alternating measured pairs.
+Production p95 was 76.4 milliseconds versus 79.6 milliseconds for the frozen
+Chrome envelope, a -3.2 millisecond point difference against a 7.96 millisecond
+regression budget. The paired bootstrap 95 percent interval was -6.3 to -2.0
+milliseconds. All 60 measured responses contained exactly 500 records and
+10,000 events with matching semantic hashes and one direct service-state
+invocation; failures and cleanup errors remained empty. This was continuing
+verification rather than a new backend-selection run. The raw report SHA-256
+was `808b5f01735b59288fb78e98f3c91b6ca3bb84936ae9904f69b44116a1329b1a`.
 
 ## Decision
 
@@ -120,14 +133,22 @@ and the adapter never falls back to the retained legacy snapshot. A failed
 mutation preserves both durable and cached prior truth and receives no hidden
 retry.
 
-This initial release retains the verified legacy snapshot and never
-shadow-writes it after cutover; shadowing would restore whole-envelope write
-amplification. An older-build downgrade may therefore lose post-cutover ranking
-evidence and rebuild it naturally. Legacy deletion and a deliberate rollback
-are not implemented by this cutover. They are a separate reviewed release
-action: before the rollback window or 30-day retention boundary expires, that
-action must first validate the marked target, then either delete the legacy key
-or construct and verify a fresh legacy projection before switching authority.
+The initial cutover release retained the verified legacy snapshot and never
+shadow-wrote it after cutover; shadowing would restore whole-envelope write
+amplification. The follow-up release retires that stale `workingSetActivity`
+value during extension update only after the supported marker resolves to its
+exact generation and an authoritative semantic read succeeds. This validation
+checks the current marked database, layout, stored manifest, and readable rows;
+it deliberately does not compare mutable current activity with the original
+cutover digest or counts. A missing key is a no-op, and target-read or
+Chrome-removal failure preserves the legacy value without changing IndexedDB
+authority or cached truth. The cleanup has no shadow write, timer, alarm, or
+failure-only retry.
+
+A deliberate rollback remains unimplemented. An older-build downgrade may
+therefore lose post-cutover ranking evidence and rebuild it naturally. Any
+future rollback must construct and verify a fresh legacy projection from the
+current marked authority before switching backends.
 
 ## Consequences
 

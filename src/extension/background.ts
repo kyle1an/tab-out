@@ -55,6 +55,7 @@ import {
   StartupSnapshot,
   startupSnapshotStorageChangesRequireRefresh,
 } from './background/startup-snapshot-service.js'
+import { WorkingSetActivityStorage } from './background/working-set-activity-storage.js'
 import {
   isClosedTabRestoreMessage,
   isDashboardServiceStateGetMessage,
@@ -73,6 +74,9 @@ export const workingSetService = backgroundRuntime.runSync(WorkingSet.WorkingSet
 const tabHistoryService = backgroundRuntime.runSync(TabHistory.TabHistory)
 const startupSnapshotService = backgroundRuntime.runSync(StartupSnapshot)
 const retainedPagesService = backgroundRuntime.runSync(RetainedPages)
+const workingSetActivityStorage = backgroundRuntime.runSync(
+  WorkingSetActivityStorage,
+)
 
 function settleBackgroundEffect<Success, Failure, Requirements>(
   effect: Effect.Effect<Success, Failure, Requirements>,
@@ -253,7 +257,15 @@ chromeApi.runtime.onInstalled.addListener((details) => {
   )
   void backgroundRuntime.runPromise(
     settleBackgroundEffect(
-      reconciliation.pipe(Effect.andThen(startupSnapshotService.refreshNow())),
+      Effect.gen(function* () {
+        yield* reconciliation
+        if (details.reason === 'update') {
+          yield* settleBackgroundEffect(
+            workingSetActivityStorage.retireLegacy(),
+          )
+        }
+        yield* startupSnapshotService.refreshNow()
+      }),
     ),
   )
 })
