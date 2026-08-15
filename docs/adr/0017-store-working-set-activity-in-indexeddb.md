@@ -80,7 +80,7 @@ stores.
   `idb-keyval`: the selected representation needs a named store, an expiry
   index, version ownership, and multi-request transactions.
 - Keep `WorkingSetActivityStorage` as the repo-owned Effect service. IndexedDB,
-  migration, and wrapper types stay behind its existing Layer so Working Set,
+  generation, and wrapper types stay behind its existing Layer so Working Set,
   Tab History, Startup Frame messages, and domain models do not depend on
   `idb`.
 - Keep Layer construction synchronous. Open IndexedDB lazily inside storage
@@ -99,9 +99,9 @@ stores.
   identical to the measured candidate while making the target generation
   explicit.
 - Accept an authority marker only when its schema and exact own-key set match.
-  During marker-absent staging, remove stale databases owned by this same v1
-  generation format before writing the target; leave differently named and
-  future-version databases untouched.
+  During marker-absent bootstrap, stage a verified known-empty generation and
+  remove stale databases owned by this same v1 generation format before writing
+  the target; leave differently named and future-version databases untouched.
 - Use `durability: 'relaxed'` for ordinary rebuildable row mutations, but await
   every request and `transaction.done` before updating Working Set's in-memory
   cache. Use `durability: 'strict'` for generation staging and full replacement.
@@ -111,39 +111,37 @@ stores.
   and fail the Startup Frame. Best-effort expiry deletion may fail only after a
   complete semantic read remains known.
 
-### Restart-safe cutover
+### Authority bootstrap and completed rollout
 
-The existing `workingSetActivity` Chrome value remains authoritative until all
-of these steps finish under the storage backend's serializer:
+When the authority marker is absent, the current adapter initializes a
+known-empty generation under the storage backend's serializer:
 
-1. Read, normalize, prune, canonically encode, and SHA-256 digest the legacy
-   envelope using one captured retention cutoff.
-2. Strictly write every target row and the generation manifest in one
-   IndexedDB transaction, then await `transaction.done`.
-3. Reopen the exact generation without permitting database creation, read every
-   stored row through a fresh transaction, Schema-decode it strictly, and
-   verify digest, counts, identities, projections, and retention bounds.
-4. Write a small versioned authority marker to `chrome.storage.local`, read it
-   back, and require exact equality.
+1. Capture one initialization time, construct the empty Working Set activity,
+   and derive its canonical SHA-256 digest and zero counts.
+2. Strictly stage the empty target and generation manifest in one IndexedDB
+   transaction, then await `transaction.done`.
+3. Reopen the exact generation without permitting database creation, read it
+   through a fresh transaction, Schema-decode it strictly, and verify the
+   digest, counts, projections, and retention bounds.
+4. Write the versioned authority marker to `chrome.storage.local`, read it back,
+   and require exact equality.
 5. Cache and use the IndexedDB authority only after marker confirmation.
 
-Before the marker, a restart reads legacy and may safely replace an ignored
-orphan generation. After the marker, only its exact generation is authoritative
-and the adapter never falls back to the retained legacy snapshot. A failed
-mutation preserves both durable and cached prior truth and receives no hidden
-retry.
+Before the marker, a restart may safely replace an ignored orphan generation
+owned by the same schema. After the marker, only its exact generation is
+authoritative. A missing or invalid marked target fails the truthful Startup
+Frame instead of being recreated as false empty truth. The marker field name
+`cutoverAt` remains part of schema 1 for compatibility and records the bootstrap
+or historical rollout time.
 
-The initial cutover release retained the verified legacy snapshot and never
-shadow-wrote it after cutover; shadowing would restore whole-envelope write
-amplification. The follow-up release retires that stale `workingSetActivity`
-value during extension update only after the supported marker resolves to its
-exact generation and an authoritative semantic read succeeds. This validation
-checks the current marked database, layout, stored manifest, and readable rows;
-it deliberately does not compare mutable current activity with the original
-cutover digest or counts. A missing key is a no-op, and target-read or
-Chrome-removal failure preserves the legacy value without changing IndexedDB
-authority or cached truth. The cleanup has no shadow write, timer, alarm, or
-failure-only retry.
+Historically, the first IndexedDB release used the same staged verification to
+migrate the bounded `workingSetActivity` Chrome value, retained the verified
+source for one release, and stopped shadow-writing it. A follow-up update
+validated the marked generation and retired that stale value. After every
+tracked profile confirmed the marker, database, and key deletion independently,
+the update-only retirement and marker-absent legacy migration paths were
+removed. The current adapter never reads, writes, or deletes that Chrome key;
+markerless profiles start from a verified empty IndexedDB generation.
 
 A deliberate rollback remains unimplemented. An older-build downgrade may
 therefore lose post-cutover ranking evidence and rebuild it naturally. Any
@@ -155,8 +153,9 @@ current marked authority before switching backends.
 Ordinary activity changes serialize and write one compact row instead of the
 whole retained history. Corruption is contained per page, and expiry can use an
 index. The production adapter adds database-version, connection, manifest,
-transaction, and cutover code compared with one Chrome key. That mechanism is
-kept in a deep storage module rather than distributed through domain services.
+transaction, and authority-bootstrap code compared with one Chrome key. That
+mechanism is kept in a deep storage module rather than distributed through
+domain services.
 
 The logical mutation-byte result is not a disk-footprint claim. Chrome's
 IndexedDB origin allocation and Chrome-owned storage-key bytes are not directly

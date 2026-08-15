@@ -31,13 +31,12 @@ import {
   WORKING_SET_ACTIVITY_AUTHORITY_KEY,
 } from '../../src/extension/background/working-set-activity-authority.js'
 import {
+  encodeWorkingSetActivityIndexedDbEntry,
   WORKING_SET_ACTIVITY_DATABASE_PREFIX,
   WORKING_SET_ACTIVITY_MANIFEST_KEY,
   WORKING_SET_ACTIVITY_MANIFEST_STORE,
+  WORKING_SET_ACTIVITY_RECORDS_STORE,
 } from '../../src/extension/background/working-set-activity-indexed-db.js'
-import {
-  WORKING_SET_ACTIVITY_KEY,
-} from '../../src/extension/background/working-set-activity-storage.js'
 import { chromeSupportPolicy } from '../../src/extension/chrome-support.js'
 import {
   DASHBOARD_SERVICE_STATE_GET_MESSAGE,
@@ -454,7 +453,7 @@ async function seedFrozenCurrent(
   // The shared WorkingSet service may have cached an initial empty read while
   // the extension was loading. Restart before the unmeasured verification so
   // it observes the durable seed through the same cold full-service boundary
-  // used by the production migration setup.
+  // used by the production IndexedDB setup.
   await terminateServiceWorkerAndProveAbsent(
     running.installed.context,
     running.controller,
@@ -465,20 +464,7 @@ async function seedFrozenCurrent(
   return setupRead
 }
 
-async function deleteDatabase(controller: Page, databaseName: string): Promise<void> {
-  await controller.evaluate(async (name) => {
-    await new Promise<void>((resolvePromise, reject) => {
-      const request = indexedDB.deleteDatabase(name)
-      request.onerror = () => reject(request.error)
-      request.onblocked = () => reject(new Error(
-        `IndexedDB deletion was blocked: ${name}`,
-      ))
-      request.onsuccess = () => resolvePromise()
-    })
-  }, databaseName)
-}
-
-async function seedAndMigrateProduction(
+async function seedProductionIdb(
   running: RunningVariant,
   activity: WorkingSetActivityStore,
 ): Promise<{
@@ -490,58 +476,94 @@ async function seedAndMigrateProduction(
   // runner's unmeasured setup traffic and avoids racing Chrome's install wake.
   const initialRead = await sendDashboardServiceRead(running.controller)
   invariant(initialRead.explicitSuccess, 'Production initial setup read failed')
-  const seeded = await running.controller.evaluate(async ({
-    activity,
+  const entries = Object.values(activity.records).map((record) =>
+    encodeWorkingSetActivityIndexedDbEntry(record))
+  await running.controller.evaluate(async ({
     authorityKey,
-    legacyKey,
+    databasePrefix,
+    entries,
+    recordsStore,
   }) => {
-    await chrome.storage.local.remove(authorityKey)
-    await chrome.storage.local.set({ [legacyKey]: activity })
-    return chrome.storage.local.get([authorityKey, legacyKey])
+    const stored = await chrome.storage.local.get(authorityKey)
+    const marker: unknown = stored[authorityKey]
+    if (typeof marker !== 'object' || marker === null) {
+      throw new Error('Production authority marker is absent')
+    }
+    const generation = Reflect.get(marker, 'generation')
+    if (typeof generation !== 'string') {
+      throw new Error('Production authority marker has no generation')
+    }
+    const databaseName = `${databasePrefix}:${generation}`
+    const database = await new Promise<IDBDatabase>((resolvePromise, reject) => {
+      const request = indexedDB.open(databaseName)
+      request.onerror = () => reject(request.error)
+      request.onblocked = () => reject(new Error(
+        `IndexedDB seed was blocked: ${databaseName}`,
+      ))
+      request.onupgradeneeded = () => {
+        request.transaction?.abort()
+        reject(new Error('IndexedDB seed would create a database'))
+      }
+      request.onsuccess = () => resolvePromise(request.result)
+    })
+    try {
+      const transaction = database.transaction(recordsStore, 'readwrite', {
+        durability: 'strict',
+      })
+      const records = transaction.objectStore(recordsStore)
+      records.clear()
+      for (const [key, value] of entries) {
+        records.put(value, key)
+      }
+      await new Promise<void>((resolvePromise, reject) => {
+        transaction.onabort = () => reject(
+          transaction.error ?? new DOMException(
+            'Transaction aborted',
+            'AbortError',
+          ),
+        )
+        transaction.onerror = () => reject(transaction.error)
+        transaction.oncomplete = () => resolvePromise()
+      })
+    } finally {
+      database.close()
+    }
   }, {
-    activity,
     authorityKey: WORKING_SET_ACTIVITY_AUTHORITY_KEY,
-    legacyKey: WORKING_SET_ACTIVITY_KEY,
+    databasePrefix: WORKING_SET_ACTIVITY_DATABASE_PREFIX,
+    entries,
+    recordsStore: WORKING_SET_ACTIVITY_RECORDS_STORE,
   })
-  invariant(
-    Reflect.get(seeded, WORKING_SET_ACTIVITY_AUTHORITY_KEY) === undefined,
-    'Production seed unexpectedly retained an authority marker',
-  )
-  invariant(
-    Reflect.get(seeded, WORKING_SET_ACTIVITY_KEY) !== undefined,
-    'Production seed omitted the legacy activity envelope',
-  )
 
-  // Marker removal cannot change the already-live authority coordinator.
-  // Restart first, then remove its now-unowned empty generation while absent.
+  // The shared WorkingSet service cached the initial empty read. Restart so
+  // the unmeasured verification observes the physically seeded current state.
   await terminateServiceWorkerAndProveAbsent(
     running.installed.context,
     running.controller,
     running.workerUrl,
   )
-  const existingDatabases = await running.controller.evaluate(async (prefix) =>
-    (await indexedDB.databases()).flatMap((database) =>
-      typeof database.name === 'string' && database.name.startsWith(`${prefix}:`)
-        ? [database.name]
-        : []), WORKING_SET_ACTIVITY_DATABASE_PREFIX)
-  for (const databaseName of existingDatabases) {
-    await deleteDatabase(running.controller, databaseName)
-  }
-
-  const migrationRead = await sendDashboardServiceRead(running.controller)
-  assertExpectedRead('production-idb', migrationRead)
+  const setupRead = await sendDashboardServiceRead(running.controller)
+  assertExpectedRead('production-idb', setupRead)
   const authorityProof = await readProductionAuthorityProof(running.controller)
-  invariant(authorityProof.markerBackend === 'idb', 'Migration did not select IDB')
+  invariant(authorityProof.markerBackend === 'idb', 'Bootstrap did not select IDB')
   invariant(
-    authorityProof.markerRecordCount === EXPECTED_RECORD_COUNT,
-    'Migration marker has the wrong record count',
+    authorityProof.markerRecordCount === 0,
+    'Bootstrap marker has the wrong record count',
   )
   invariant(
-    authorityProof.markerEventCount === EXPECTED_EVENT_COUNT,
-    'Migration marker has the wrong event count',
+    authorityProof.markerEventCount === 0,
+    'Bootstrap marker has the wrong event count',
+  )
+  invariant(
+    authorityProof.physicalRecordCount === EXPECTED_RECORD_COUNT,
+    'Production IndexedDB has the wrong record count',
+  )
+  invariant(
+    authorityProof.physicalEventCount === EXPECTED_EVENT_COUNT,
+    'Production IndexedDB has the wrong event count',
   )
   invariant(authorityProof.manifestMatchesMarker, 'IDB manifest differs from marker')
-  return { authorityProof, setupRead: migrationRead }
+  return { authorityProof, setupRead }
 }
 
 async function readProductionAuthorityProof(controller: Page) {
@@ -550,6 +572,7 @@ async function readProductionAuthorityProof(controller: Page) {
     databasePrefix,
     manifestKey,
     manifestStore,
+    recordsStore,
   }) => {
     const stored = await chrome.storage.local.get(authorityKey)
     const marker: unknown = stored[authorityKey]
@@ -581,12 +604,32 @@ async function readProductionAuthorityProof(controller: Page) {
       request.onsuccess = () => resolvePromise(request.result)
     })
     try {
-      const transaction = database.transaction(manifestStore, 'readonly')
-      const manifest = await new Promise<unknown>((resolvePromise, reject) => {
-        const request = transaction.objectStore(manifestStore).get(manifestKey)
-        request.onerror = () => reject(request.error)
-        request.onsuccess = () => resolvePromise(request.result)
-      })
+      const transaction = database.transaction(
+        [manifestStore, recordsStore],
+        'readonly',
+      )
+      const [manifest, rows] = await Promise.all([
+        new Promise<unknown>((resolvePromise, reject) => {
+          const request = transaction.objectStore(manifestStore).get(manifestKey)
+          request.onerror = () => reject(request.error)
+          request.onsuccess = () => resolvePromise(request.result)
+        }),
+        new Promise<unknown[]>((resolvePromise, reject) => {
+          const request = transaction.objectStore(recordsStore).getAll()
+          request.onerror = () => reject(request.error)
+          request.onsuccess = () => resolvePromise(request.result)
+        }),
+      ])
+      const physicalEventCount = rows.reduce<number>((count, row) => {
+        if (typeof row !== 'object' || row === null) {
+          throw new Error('Production IndexedDB row is malformed')
+        }
+        const events = Reflect.get(row, 'events')
+        if (!Array.isArray(events)) {
+          throw new Error('Production IndexedDB row events are malformed')
+        }
+        return count + events.length
+      }, 0)
       const markerManifest = {
         schemaVersion: Reflect.get(marker, 'schemaVersion'),
         generation,
@@ -602,6 +645,8 @@ async function readProductionAuthorityProof(controller: Page) {
         markerBackend,
         markerEventCount,
         markerRecordCount,
+        physicalEventCount,
+        physicalRecordCount: rows.length,
       }
     } finally {
       database.close()
@@ -611,6 +656,7 @@ async function readProductionAuthorityProof(controller: Page) {
     databasePrefix: WORKING_SET_ACTIVITY_DATABASE_PREFIX,
     manifestKey: WORKING_SET_ACTIVITY_MANIFEST_KEY,
     manifestStore: WORKING_SET_ACTIVITY_MANIFEST_STORE,
+    recordsStore: WORKING_SET_ACTIVITY_RECORDS_STORE,
   })
 }
 
@@ -649,12 +695,12 @@ async function measureFreshVariant(
     if (variant === 'current-frozen') {
       setupRead = await seedFrozenCurrent(running, profile.now)
     } else {
-      const migrated = await seedAndMigrateProduction(
+      const seeded = await seedProductionIdb(
         running,
         profile.activity,
       )
-      setupRead = migrated.setupRead
-      productionAuthorityBefore = migrated.authorityProof
+      setupRead = seeded.setupRead
+      productionAuthorityBefore = seeded.authorityProof
     }
     invariant(
       setupRead.canonicalActivitySha256 === expectedCanonicalActivitySha256,
@@ -838,7 +884,7 @@ async function writeReport(testInfo: TestInfo, report: unknown): Promise<string>
   return path
 }
 
-test('probes frozen current against the migrated production IDB cold read', async ({}, testInfo) => {
+test('probes frozen current against the production IDB cold read', async ({}, testInfo) => {
   test.setTimeout(PROBE_TIMEOUT_MS)
   const probeStartedAt = Date.now()
   testInfo.annotations.push({
@@ -921,7 +967,7 @@ test('probes frozen current against the migrated production IDB cold read', asyn
       currentBoundary:
         'Frozen benchmark current artifact, owned Chrome-envelope backend, normal full dashboard service-state listener.',
       productionBoundary:
-        'Unaliased and uninstrumented production extension bundle after an unmeasured legacy-to-IDB migration.',
+        'Unaliased and uninstrumented production extension bundle after an unmeasured direct IndexedDB seed.',
       coldProof:
         'CDP proves the matching MV3 worker target absent before every request. A fresh production worker must read the Chrome authority marker, validate the active generation manifest/layout, and complete the full service read.',
       bootstrap: {

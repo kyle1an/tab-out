@@ -7,10 +7,7 @@ import {
   readChromeStorageValue,
   writeChromeStorageValue,
 } from '../src/extension/background/chrome-storage.js'
-import {
-  WORKING_SET_ACTIVITY_KEY,
-  WorkingSetActivityStorage,
-} from '../src/extension/background/working-set-activity-storage.js'
+import { WorkingSetActivityStorage } from '../src/extension/background/working-set-activity-storage.js'
 import {
   effectiveUrlForHistoryIdentity,
   historyChanged,
@@ -21,6 +18,7 @@ import { emptyWorkingSetActivity, recordWorkingSetActivity } from '../src/extens
 import type { ChromeApi } from '../src/extension/background/chrome-api.js'
 import type { WorkingSetActivityStore } from '../src/extension/types'
 
+const WORKING_SET_ACTIVITY_KEY = 'working-set-activity-test'
 const disposeTabHistoryRuntimes: Array<() => Promise<void>> = []
 
 test.after(async () => {
@@ -120,7 +118,7 @@ function makeChromeApi(state: {
   const activity = state.activity || emptyWorkingSetActivity()
   const storage = new Map<string, unknown>([
     ['globalTabHistory', history],
-    ['workingSetActivity', activity],
+    [WORKING_SET_ACTIVITY_KEY, activity],
   ])
   return {
     tabs: {

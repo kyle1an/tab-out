@@ -9,7 +9,6 @@ import { Schema } from 'effect'
 
 import {
   WORKING_SET_ACTIVITY_AUTHORITY_KEY,
-  WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION,
   type WorkingSetActivityAuthorityMarker,
   workingSetActivityAuthorityMarkerSchema,
 } from '../../src/extension/background/working-set-activity-authority.js'
@@ -21,18 +20,7 @@ import {
   WORKING_SET_ACTIVITY_MANIFEST_STORE,
   WORKING_SET_ACTIVITY_RECORDS_STORE,
 } from '../../src/extension/background/working-set-activity-indexed-db.js'
-import {
-  WORKING_SET_ACTIVITY_KEY,
-} from '../../src/extension/background/working-set-activity-storage.js'
 import { DASHBOARD_SERVICE_STATE_GET_MESSAGE } from '../../src/extension/runtime-messages.js'
-import type {
-  WorkingSetActivityRecord,
-  WorkingSetActivityStore,
-} from '../../src/extension/types'
-import {
-  emptyWorkingSetActivity,
-  recordWorkingSetActivity,
-} from '../../src/extension/working-set.js'
 import {
   launchInstalledExtensionFromArtifact,
   type LaunchedInstalledExtension,
@@ -53,8 +41,6 @@ interface Scenario {
 }
 
 interface AuthorityStorageSnapshot {
-  readonly legacy: unknown
-  readonly legacyJson: string | null
   readonly marker: unknown
 }
 
@@ -88,18 +74,10 @@ function staticControllerUrl(installed: LaunchedInstalledExtension): string {
 async function readAuthorityStorage(
   page: Page,
 ): Promise<AuthorityStorageSnapshot> {
-  return page.evaluate(async ({ authorityKey, legacyKey }) => {
-    const values = await chrome.storage.local.get([authorityKey, legacyKey])
-    const legacy = values[legacyKey]
-    return {
-      legacy,
-      legacyJson: JSON.stringify(legacy) ?? null,
-      marker: values[authorityKey],
-    }
-  }, {
-    authorityKey: WORKING_SET_ACTIVITY_AUTHORITY_KEY,
-    legacyKey: WORKING_SET_ACTIVITY_KEY,
-  })
+  return page.evaluate(async (authorityKey) => {
+    const values = await chrome.storage.local.get(authorityKey)
+    return { marker: values[authorityKey] }
+  }, WORKING_SET_ACTIVITY_AUTHORITY_KEY)
 }
 
 async function waitForAuthorityMarker(
@@ -271,64 +249,16 @@ async function inspectPhysicalDatabase(
   })
 }
 
-async function seedUnmarkedLegacy(
+async function clearAuthorityMarker(
   page: Page,
-  legacy: WorkingSetActivityStore,
 ): Promise<AuthorityStorageSnapshot> {
-  await page.evaluate(async ({ authorityKey, legacyKey, legacy }) => {
-    await chrome.storage.local.set({ [legacyKey]: legacy })
-    await chrome.storage.local.remove(authorityKey)
-  }, {
-    authorityKey: WORKING_SET_ACTIVITY_AUTHORITY_KEY,
-    legacy,
-    legacyKey: WORKING_SET_ACTIVITY_KEY,
-  })
+  await page.evaluate(
+    (authorityKey) => chrome.storage.local.remove(authorityKey),
+    WORKING_SET_ACTIVITY_AUTHORITY_KEY,
+  )
   const snapshot = await readAuthorityStorage(page)
   expect(snapshot.marker).toBeUndefined()
-  expect(snapshot.legacy).toEqual(legacy)
   return snapshot
-}
-
-function makeLegacyActivity(now: number): WorkingSetActivityStore {
-  const url = 'https://example.test/native-failure'
-  return recordWorkingSetActivity(emptyWorkingSetActivity(), {
-    kind: 'activation',
-    at: now - 1_000,
-    tab: {
-      rawUrl: url,
-      title: 'Example Native Failure',
-      url,
-    },
-  })
-}
-
-async function sourceDigest(
-  activity: WorkingSetActivityStore,
-): Promise<string> {
-  const rows = Object.values(activity.records)
-    .toSorted((left, right) => left.key.localeCompare(right.key))
-    .map((record) => canonicalActivityRow(record))
-  const digest = await crypto.subtle.digest(
-    'SHA-256',
-    new TextEncoder().encode(JSON.stringify([
-      WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION,
-      rows,
-    ])),
-  )
-  return new Uint8Array(digest).toHex()
-}
-
-function canonicalActivityRow(record: WorkingSetActivityRecord): unknown {
-  return [
-    record.key,
-    record.title,
-    record.dismissedAt ?? null,
-    record.dismissedUntil ?? null,
-    record.events.map((event) => [
-      event.kind === 'activation' ? 0 : 1,
-      event.at,
-    ]),
-  ]
 }
 
 async function installStartupTrace(page: Page): Promise<void> {
@@ -524,11 +454,9 @@ test('marked database missing a required store fails without repair or fallback'
 
 test('same-version unmarked candidate is repaired before authority is committed', async () => {
   await withFreshScenario(async (scenario) => {
-    const legacy = makeLegacyActivity(Date.now())
-    const digest = await sourceDigest(legacy)
-    const generation = `v1:${digest}`
+    const { generation, sourceDigest } = scenario.initialMarker
     const databaseName = databaseNameForGeneration(generation)
-    const unmarked = await seedUnmarkedLegacy(scenario.controller, legacy)
+    await clearAuthorityMarker(scenario.controller)
     await terminateScenarioWorker(scenario)
     await deletePhysicalDatabase(scenario.controller, databaseName)
     await createPhysicalDatabase(
@@ -553,12 +481,10 @@ test('same-version unmarked candidate is repaired before authority is committed'
     const marker = Schema.decodeUnknownSync(
       workingSetActivityAuthorityMarkerSchema,
     )(authorityAfter.marker)
-    expect(marker.sourceDigest).toBe(digest)
+    expect(marker.sourceDigest).toBe(sourceDigest)
     expect(marker.generation).toBe(generation)
-    expect(marker.recordCount).toBe(1)
-    expect(marker.eventCount).toBe(1)
-    expect(authorityAfter.legacy).toEqual(unmarked.legacy)
-    expect(authorityAfter.legacyJson).toBe(unmarked.legacyJson)
+    expect(marker.recordCount).toBe(0)
+    expect(marker.eventCount).toBe(0)
 
     const repaired = await inspectPhysicalDatabase(
       scenario.controller,
@@ -574,7 +500,7 @@ test('same-version unmarked candidate is repaired before authority is committed'
         eventCount: marker.eventCount,
         retainedAfter: marker.retainedAfter,
       },
-      recordCount: 1,
+      recordCount: 0,
       recordIndexNames: [WORKING_SET_ACTIVITY_LAST_EVENT_INDEX],
       storeNames: [
         WORKING_SET_ACTIVITY_MANIFEST_STORE,
@@ -587,11 +513,9 @@ test('same-version unmarked candidate is repaired before authority is committed'
 
 test('future-version unmarked candidate fails closed and is left untouched', async () => {
   await withFreshScenario(async (scenario) => {
-    const legacy = makeLegacyActivity(Date.now())
-    const digest = await sourceDigest(legacy)
-    const generation = `v1:${digest}`
+    const { generation } = scenario.initialMarker
     const databaseName = databaseNameForGeneration(generation)
-    const unmarked = await seedUnmarkedLegacy(scenario.controller, legacy)
+    await clearAuthorityMarker(scenario.controller)
     await terminateScenarioWorker(scenario)
     await deletePhysicalDatabase(scenario.controller, databaseName)
     await createPhysicalDatabase(
@@ -614,8 +538,6 @@ test('future-version unmarked candidate fails closed and is left untouched', asy
     )
     const authorityAfter = await readAuthorityStorage(scenario.controller)
     expect(authorityAfter.marker).toBeUndefined()
-    expect(authorityAfter.legacy).toEqual(unmarked.legacy)
-    expect(authorityAfter.legacyJson).toBe(unmarked.legacyJson)
     expect(await inspectPhysicalDatabase(
       scenario.controller,
       databaseName,

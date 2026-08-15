@@ -13,6 +13,8 @@ import type { ChromeApi } from '../src/extension/background/chrome-api.js'
 import type { WorkingSetActivityStore } from '../src/extension/types'
 import { emptyWorkingSetActivity, recordWorkingSetActivity } from '../src/extension/working-set.js'
 
+const WORKING_SET_ACTIVITY_TEST_KEY = 'working-set-activity-test'
+
 function chromeTab(id: number, path: string, audio: { audible?: boolean, muted?: boolean } = {}): chrome.tabs.Tab {
   return {
     id,
@@ -40,19 +42,19 @@ function createWorkingSetService(t: TestContext, chromeApi: ChromeApi) {
   )
   const activityStorage = WorkingSetActivityStorage.layer({
     read: () => storage
-      ? readChromeStorageValue(storage, WorkingSet.WORKING_SET_ACTIVITY_KEY)
+      ? readChromeStorageValue(storage, WORKING_SET_ACTIVITY_TEST_KEY)
       : unavailable(),
     write: (change) => storage
       ? writeChromeStorageValue(
           storage,
-          WorkingSet.WORKING_SET_ACTIVITY_KEY,
+          WORKING_SET_ACTIVITY_TEST_KEY,
           change.activity,
         )
       : unavailable(),
     replace: (activity) => storage
       ? writeChromeStorageValue(
           storage,
-          WorkingSet.WORKING_SET_ACTIVITY_KEY,
+          WORKING_SET_ACTIVITY_TEST_KEY,
           activity,
         )
       : unavailable(),
@@ -128,9 +130,9 @@ test('Working Set activity reads wait for mutations that started first', async (
     },
     storage: {
       local: {
-        get: async () => ({ [WorkingSet.WORKING_SET_ACTIVITY_KEY]: storedActivity }),
+        get: async () => ({ [WORKING_SET_ACTIVITY_TEST_KEY]: storedActivity }),
         set: async (value: Record<string, unknown>) => {
-          storedActivity = value[WorkingSet.WORKING_SET_ACTIVITY_KEY] as WorkingSetActivityStore
+          storedActivity = value[WORKING_SET_ACTIVITY_TEST_KEY] as WorkingSetActivityStore
         },
       },
     },
@@ -173,9 +175,9 @@ test('Working Set window-focus activity preserves event order when captured tab 
     },
     storage: {
       local: {
-        get: async () => ({ [WorkingSet.WORKING_SET_ACTIVITY_KEY]: storedActivity }),
+        get: async () => ({ [WORKING_SET_ACTIVITY_TEST_KEY]: storedActivity }),
         set: async (value: Record<string, unknown>) => {
-          storedActivity = value[WorkingSet.WORKING_SET_ACTIVITY_KEY] as WorkingSetActivityStore
+          storedActivity = value[WORKING_SET_ACTIVITY_TEST_KEY] as WorkingSetActivityStore
         },
       },
     },
@@ -219,10 +221,10 @@ test('Working Set counts paired tab-activation and window-focus signals once', a
     },
     storage: {
       local: {
-        get: async () => ({ [WorkingSet.WORKING_SET_ACTIVITY_KEY]: storedActivity }),
+        get: async () => ({ [WORKING_SET_ACTIVITY_TEST_KEY]: storedActivity }),
         set: async (value: Record<string, unknown>) => {
           writeCount += 1
-          storedActivity = value[WorkingSet.WORKING_SET_ACTIVITY_KEY] as WorkingSetActivityStore
+          storedActivity = value[WORKING_SET_ACTIVITY_TEST_KEY] as WorkingSetActivityStore
         },
       },
     },
@@ -250,9 +252,9 @@ test('Working Set does not treat same-page reloads as navigation activity', asyn
     },
     storage: {
       local: {
-        get: async () => ({ [WorkingSet.WORKING_SET_ACTIVITY_KEY]: storedActivity }),
+        get: async () => ({ [WORKING_SET_ACTIVITY_TEST_KEY]: storedActivity }),
         set: async (value: Record<string, unknown>) => {
-          storedActivity = value[WorkingSet.WORKING_SET_ACTIVITY_KEY] as WorkingSetActivityStore
+          storedActivity = value[WORKING_SET_ACTIVITY_TEST_KEY] as WorkingSetActivityStore
         },
       },
     },
@@ -277,7 +279,7 @@ test('Working Set tab lookup failures do not rewrite unchanged activity', async 
     },
     storage: {
       local: {
-        get: async () => ({ [WorkingSet.WORKING_SET_ACTIVITY_KEY]: emptyWorkingSetActivity() }),
+        get: async () => ({ [WORKING_SET_ACTIVITY_TEST_KEY]: emptyWorkingSetActivity() }),
         set: async () => { writeCount += 1 },
       },
     },
@@ -302,7 +304,7 @@ test('Working Set ignores active navigation for an unsupported page identity wit
     },
     storage: {
       local: {
-        get: async () => ({ [WorkingSet.WORKING_SET_ACTIVITY_KEY]: emptyWorkingSetActivity() }),
+        get: async () => ({ [WORKING_SET_ACTIVITY_TEST_KEY]: emptyWorkingSetActivity() }),
         set: async () => { writeCount += 1 },
       },
     },
@@ -329,11 +331,11 @@ test('Working Set does not dedupe a paired focus event after the activation writ
     },
     storage: {
       local: {
-        get: async () => ({ [WorkingSet.WORKING_SET_ACTIVITY_KEY]: storedActivity }),
+        get: async () => ({ [WORKING_SET_ACTIVITY_TEST_KEY]: storedActivity }),
         set: async (value: Record<string, unknown>) => {
           writeAttempts += 1
           if (writeAttempts === 1) throw new Error('activity write failed')
-          storedActivity = value[WorkingSet.WORKING_SET_ACTIVITY_KEY] as WorkingSetActivityStore
+          storedActivity = value[WORKING_SET_ACTIVITY_TEST_KEY] as WorkingSetActivityStore
         },
       },
     },
@@ -359,9 +361,9 @@ test('Working Set still records repeated activation signals from the same event 
     },
     storage: {
       local: {
-        get: async () => ({ [WorkingSet.WORKING_SET_ACTIVITY_KEY]: storedActivity }),
+        get: async () => ({ [WORKING_SET_ACTIVITY_TEST_KEY]: storedActivity }),
         set: async (value: Record<string, unknown>) => {
-          storedActivity = value[WorkingSet.WORKING_SET_ACTIVITY_KEY] as WorkingSetActivityStore
+          storedActivity = value[WORKING_SET_ACTIVITY_TEST_KEY] as WorkingSetActivityStore
         },
       },
     },
@@ -400,10 +402,10 @@ test('Working Set rebases its activation signal when Chrome replaces a tab id', 
     },
     storage: {
       local: {
-        get: async () => ({ [WorkingSet.WORKING_SET_ACTIVITY_KEY]: storedActivity }),
+        get: async () => ({ [WORKING_SET_ACTIVITY_TEST_KEY]: storedActivity }),
         set: async (value: Record<string, unknown>) => {
           writeCount += 1
-          storedActivity = value[WorkingSet.WORKING_SET_ACTIVITY_KEY] as WorkingSetActivityStore
+          storedActivity = value[WORKING_SET_ACTIVITY_TEST_KEY] as WorkingSetActivityStore
         },
       },
     },
@@ -449,11 +451,11 @@ test('Working Set mutation retries persisted activity after a transient initial 
         get: async () => {
           readAttempts += 1
           if (readAttempts === 1) throw readFailure
-          return { [WorkingSet.WORKING_SET_ACTIVITY_KEY]: persistedActivity }
+          return { [WORKING_SET_ACTIVITY_TEST_KEY]: persistedActivity }
         },
         set: async (value: Record<string, unknown>) => {
           writeAttempts += 1
-          persistedActivity = value[WorkingSet.WORKING_SET_ACTIVITY_KEY] as WorkingSetActivityStore
+          persistedActivity = value[WORKING_SET_ACTIVITY_TEST_KEY] as WorkingSetActivityStore
         },
       },
     },
@@ -488,11 +490,11 @@ test('Working Set mutation does not advance its cache until the storage write su
     },
     storage: {
       local: {
-        get: async () => ({ [WorkingSet.WORKING_SET_ACTIVITY_KEY]: persistedActivity }),
+        get: async () => ({ [WORKING_SET_ACTIVITY_TEST_KEY]: persistedActivity }),
         set: async (value: Record<string, unknown>) => {
           writeAttempts += 1
           if (writeAttempts === 1) throw new Error('activity write failed')
-          persistedActivity = value[WorkingSet.WORKING_SET_ACTIVITY_KEY] as WorkingSetActivityStore
+          persistedActivity = value[WORKING_SET_ACTIVITY_TEST_KEY] as WorkingSetActivityStore
         },
       },
     },

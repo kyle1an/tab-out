@@ -21,7 +21,6 @@ import {
   type WorkingSetActivityWrite,
 } from './working-set-activity-storage.js'
 
-export { WORKING_SET_ACTIVITY_KEY } from './working-set-activity-storage.js'
 const ACTIVATION_SIGNAL_DEDUPE_MS = 1000
 
 type ActivationSignalSource = 'tab-activated' | 'window-focused'

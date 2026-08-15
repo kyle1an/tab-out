@@ -1,9 +1,6 @@
 import { Schema } from 'effect'
 
-import {
-  emptyWorkingSetActivity,
-  parseWorkingSetActivityStorageValue,
-} from '../working-set.js'
+import { emptyWorkingSetActivity } from '../working-set.js'
 import type { WorkingSetActivityStore } from '../types'
 import type {
   WorkingSetActivityStorageBackend,
@@ -61,14 +58,12 @@ export interface WorkingSetActivityChromeAuthorityPort {
   readonly writeMarker: (
     marker: WorkingSetActivityAuthorityMarker,
   ) => PromiseLike<void>
-  readonly readLegacy: () => PromiseLike<unknown>
-  readonly removeLegacy: () => PromiseLike<void>
 }
 
 /**
  * The physical IndexedDB module implements this generation-aware port. Every
  * method validates the supplied manifest before treating rows as authoritative.
- * `verify` is the stricter cutover read: it reopens the database, decodes every
+ * `verify` is the stricter bootstrap read: it reopens the database, decodes every
  * target row, and rejects any skipped row or event.
  */
 export interface WorkingSetActivityIndexedDbAuthorityPort {
@@ -98,8 +93,6 @@ export class WorkingSetActivityAuthorityError extends Schema.TaggedError<Working
   {
     phase: Schema.Literals([
       'marker-read',
-      'legacy-read',
-      'legacy-parse',
       'source-digest',
       'target-stage',
       'target-verify',
@@ -108,7 +101,6 @@ export class WorkingSetActivityAuthorityError extends Schema.TaggedError<Working
       'target-read',
       'target-write',
       'target-replace',
-      'legacy-remove',
       'target-close',
     ]),
     reason: Schema.String,
@@ -125,21 +117,13 @@ export interface WorkingSetActivityAuthorityBackendOptions {
 export interface WorkingSetActivityAuthorityBackend
   extends WorkingSetActivityStorageBackend {
   readonly read: () => PromiseLike<WorkingSetActivityStore>
-  readonly retireLegacy: () => PromiseLike<void>
 }
 
 type AuthorityPhase = WorkingSetActivityAuthorityError['phase']
 
 type InitializedAuthority = {
-  readonly marker: WorkingSetActivityAuthorityMarker
   readonly manifest: WorkingSetActivityGenerationManifest
   readonly verifiedActivity?: WorkingSetActivityStore
-}
-
-type ActivityFingerprint = {
-  readonly digest: string
-  readonly recordCount: number
-  readonly eventCount: number
 }
 
 const isWorkingSetActivityAuthorityMarker = Schema.is(
@@ -229,73 +213,13 @@ function manifestFromMarker(
   }
 }
 
-function canonicalActivityRows(activity: WorkingSetActivityStore): readonly unknown[] {
-  return Object.values(activity.records)
-    .toSorted((left, right) => left.key.localeCompare(right.key))
-    .map((record) => [
-      record.key,
-      record.title,
-      record.dismissedAt ?? null,
-      record.dismissedUntil ?? null,
-      record.events.map((event) => [
-        event.kind === 'activation' ? 0 : 1,
-        event.at,
-      ]),
-    ])
-}
-
-async function sha256Hex(value: unknown): Promise<string> {
-  const bytes = new TextEncoder().encode(JSON.stringify(value))
+async function emptyActivitySourceDigest(): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify([
+    WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION,
+    [],
+  ]))
   const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes)
   return new Uint8Array(digest).toHex()
-}
-
-async function fingerprintActivity(
-  activity: WorkingSetActivityStore,
-): Promise<ActivityFingerprint> {
-  const rows = canonicalActivityRows(activity)
-  const digest = await sha256Hex([
-    WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION,
-    rows,
-  ])
-  return {
-    digest,
-    recordCount: rows.length,
-    eventCount: Object.values(activity.records).reduce(
-      (count, record) => count + record.events.length,
-      0,
-    ),
-  }
-}
-
-function assertRetentionBounds(
-  activity: WorkingSetActivityStore,
-  retainedAfter: number,
-): void {
-  for (const record of Object.values(activity.records)) {
-    if (record.events.some((event) => event.at < retainedAfter)) {
-      throw new Error(
-        'Verified Working Set activity contains an event outside retention',
-      )
-    }
-  }
-}
-
-async function verifyActivityMatchesManifest(
-  activity: WorkingSetActivityStore,
-  manifest: WorkingSetActivityGenerationManifest,
-): Promise<void> {
-  assertRetentionBounds(activity, manifest.retainedAfter)
-  const fingerprint = await fingerprintActivity(activity)
-  if (
-    fingerprint.digest !== manifest.sourceDigest ||
-    fingerprint.recordCount !== manifest.recordCount ||
-    fingerprint.eventCount !== manifest.eventCount
-  ) {
-    throw new Error(
-      'Verified Working Set activity does not match its migration manifest',
-    )
-  }
 }
 
 function makePromiseSerializer() {
@@ -320,7 +244,6 @@ export function makeWorkingSetActivityAuthorityBackend({
 }: WorkingSetActivityAuthorityBackendOptions): WorkingSetActivityAuthorityBackend {
   const serialize = makePromiseSerializer()
   let activeAuthority: InitializedAuthority | undefined
-  let legacyRetired = false
 
   async function initialize(): Promise<InitializedAuthority> {
     if (activeAuthority !== undefined) return activeAuthority
@@ -333,57 +256,31 @@ export function makeWorkingSetActivityAuthorityBackend({
     const marker = parseMarker(storedMarker, 'marker-read')
     if (marker !== null) {
       const manifest = manifestFromMarker(marker)
-      activeAuthority = { marker, manifest }
+      activeAuthority = { manifest }
       return activeAuthority
     }
 
-    const migrationStartedAt = now()
-    const legacyValue = await runBoundary(
-      'legacy-read',
-      'Unable to read legacy Working Set activity',
-      chrome.readLegacy,
-    )
-    const parsedLegacy = parseWorkingSetActivityStorageValue(
-      legacyValue,
-      migrationStartedAt,
-    )
-    let legacyActivity: WorkingSetActivityStore
-    if (parsedLegacy.status === 'missing') {
-      legacyActivity = emptyWorkingSetActivity()
-    } else if (parsedLegacy.status === 'valid') {
-      legacyActivity = parsedLegacy.activity
-    } else if (parsedLegacy.status === 'unsupported-version') {
-      throw authorityError(
-        'legacy-parse',
-        `Unsupported legacy Working Set activity version ${parsedLegacy.version}`,
-        legacyValue,
-      )
-    } else {
-      throw authorityError(
-        'legacy-parse',
-        'Legacy Working Set activity is malformed',
-        legacyValue,
-      )
-    }
+    const initializedAt = now()
+    const initialActivity = emptyWorkingSetActivity()
 
-    const source = await runBoundary(
+    const sourceDigest = await runBoundary(
       'source-digest',
-      'Unable to digest legacy Working Set activity',
-      () => fingerprintActivity(legacyActivity),
+      'Unable to digest initial Working Set activity',
+      emptyActivitySourceDigest,
     )
     const manifest: WorkingSetActivityGenerationManifest = {
       schemaVersion: WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION,
-      generation: `v1:${source.digest}`,
-      sourceDigest: source.digest,
-      recordCount: source.recordCount,
-      eventCount: source.eventCount,
-      retainedAfter: migrationStartedAt - WORKING_SET_ACTIVITY_RETENTION_MS,
+      generation: `v1:${sourceDigest}`,
+      sourceDigest,
+      recordCount: 0,
+      eventCount: 0,
+      retainedAfter: initializedAt - WORKING_SET_ACTIVITY_RETENTION_MS,
     }
 
     await runBoundary(
       'target-stage',
       'Unable to stage IndexedDB Working Set activity generation',
-      () => indexedDb.stage(manifest, legacyActivity),
+      () => indexedDb.stage(manifest, initialActivity),
     )
     const verifiedActivity = await runBoundary(
       'target-verify',
@@ -393,7 +290,13 @@ export function makeWorkingSetActivityAuthorityBackend({
     await runBoundary(
       'target-verify',
       'IndexedDB Working Set activity verification did not match its source',
-      () => verifyActivityMatchesManifest(verifiedActivity, manifest),
+      async () => {
+        if (Object.keys(verifiedActivity.records).length !== 0) {
+          throw new Error(
+            'Verified Working Set activity bootstrap is not empty',
+          )
+        }
+      },
     )
 
     const nextMarker: WorkingSetActivityAuthorityMarker = {
@@ -405,7 +308,7 @@ export function makeWorkingSetActivityAuthorityBackend({
       recordCount: manifest.recordCount,
       eventCount: manifest.eventCount,
       retainedAfter: manifest.retainedAfter,
-      cutoverAt: migrationStartedAt,
+      cutoverAt: initializedAt,
     }
     await runBoundary(
       'marker-write',
@@ -429,7 +332,7 @@ export function makeWorkingSetActivityAuthorityBackend({
       )
     }
 
-    activeAuthority = { marker: confirmedMarker, manifest }
+    activeAuthority = { manifest }
     return { ...activeAuthority, verifiedActivity }
   }
 
@@ -460,21 +363,6 @@ export function makeWorkingSetActivityAuthorityBackend({
         'Unable to replace authoritative IndexedDB Working Set activity',
         () => indexedDb.replace(initialized.manifest, activity),
       )
-    }),
-    retireLegacy: () => serialize(async () => {
-      if (legacyRetired) return
-      const initialized = await initialize()
-      await runBoundary(
-        'target-read',
-        'Unable to validate authoritative IndexedDB Working Set activity before retiring legacy storage',
-        () => indexedDb.read(initialized.manifest),
-      )
-      await runBoundary(
-        'legacy-remove',
-        'Unable to remove legacy Working Set activity',
-        chrome.removeLegacy,
-      )
-      legacyRetired = true
     }),
   }
 

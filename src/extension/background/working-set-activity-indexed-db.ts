@@ -36,7 +36,7 @@ const compactActivityEventSchema = Schema.Tuple([
   Schema.Finite,
 ])
 
-export const indexedDbActivityValueSchema = Schema.Struct({
+const indexedDbActivityValueSchema = Schema.Struct({
   title: Schema.String,
   dismissedAt: Schema.optionalKey(Schema.Finite),
   dismissedUntil: Schema.optionalKey(Schema.Finite),

@@ -3,7 +3,6 @@ import type { Layer } from 'effect'
 import type { ChromeApi } from './chrome-api.js'
 import {
   readChromeStorageValue,
-  removeChromeStorageValue,
   writeChromeStorageValue,
 } from './chrome-storage.js'
 import {
@@ -13,10 +12,7 @@ import {
 import {
   makeWorkingSetActivityIndexedDb,
 } from './working-set-activity-indexed-db.js'
-import {
-  WORKING_SET_ACTIVITY_KEY,
-  WorkingSetActivityStorage,
-} from './working-set-activity-storage.js'
+import { WorkingSetActivityStorage } from './working-set-activity-storage.js'
 
 export function makeWorkingSetActivityStorageLayer(
   chromeApi: ChromeApi,
@@ -41,10 +37,6 @@ export function makeWorkingSetActivityStorageLayer(
           WORKING_SET_ACTIVITY_AUTHORITY_KEY,
           marker,
         ),
-        readLegacy: () => read(WORKING_SET_ACTIVITY_KEY),
-        removeLegacy: () => storage === undefined
-          ? unavailable()
-          : removeChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY),
       },
       indexedDb: makeWorkingSetActivityIndexedDb(),
     }),

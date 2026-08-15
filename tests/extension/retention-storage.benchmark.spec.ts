@@ -37,6 +37,9 @@ import {
   STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_ALARM,
 } from '../../src/extension/background/startup-snapshot-service.js'
 import {
+  WORKING_SET_ACTIVITY_AUTHORITY_KEY,
+} from '../../src/extension/background/working-set-activity-authority.js'
+import {
   DASHBOARD_STARTUP_SEED_CACHE_KEY,
 } from '../../src/extension/startup-snapshot.js'
 import { canonicalDedupeKey } from '../../src/extension/url-canonical.js'
@@ -47,7 +50,7 @@ import {
   RETAINED_STORAGE_PROFILE_REMOVAL_BOUNDARIES,
 } from '../helpers/retained-storage-profile.js'
 import {
-  buildCompleteRepresentativeLocalProfileV1,
+  buildCompleteRepresentativeLocalProfileV2,
   COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS,
   COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_KEYS,
   COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_LIVE_MUTABLE_KEYS,
@@ -321,7 +324,7 @@ async function saturatedProfile(): Promise<SaturatedProfile> {
   const durableInventory = withOpenSurfaceIdentityV1(
     buildRepresentativeDurableInventory(),
   )
-  const representativeLocal = buildCompleteRepresentativeLocalProfileV1()
+  const representativeLocal = buildCompleteRepresentativeLocalProfileV2()
   return {
     durableInventory,
     durableInventorySha256: sha256Json(durableInventory),
@@ -354,6 +357,7 @@ async function seedRetentionStorageState(
   )
   try {
     await worker.evaluate(async ({
+      authorityKey,
       durable,
       durableKey,
       ledger,
@@ -400,6 +404,9 @@ async function seedRetentionStorageState(
       const originalSessionGet = sessionArea.get.bind(sessionArea)
       const originalSessionSet = sessionArea.set.bind(sessionArea)
       const originalLockRequest = navigator.locks.request.bind(navigator.locks)
+      const representativeLocalSeed = Object.fromEntries(
+        Object.entries(representativeLocal).filter(([key]) => key !== authorityKey),
+      )
 
       function persistedLedgerValuesEqual(left: unknown, right: unknown): boolean {
         if (
@@ -535,10 +542,11 @@ async function seedRetentionStorageState(
           // sample's timed window.
           await chrome.alarms.clear(startupCheckpointAlarm)
           // One local set produces one coherent retained-ledger/durable-inventory
-          // transition. The session mirror is outside the Startup Snapshot trigger.
+          // transition. Preserve the runtime-owned Working Set authority marker;
+          // the session mirror is outside the Startup Snapshot trigger.
           await Promise.all([
             originalLocalSet({
-              ...representativeLocal,
+              ...representativeLocalSeed,
               [ledgerKey]: ledger,
               [durableKey]: durable,
             }),
@@ -614,6 +622,7 @@ async function seedRetentionStorageState(
       }) as typeof navigator.locks.request
       globalScope[trackerKey] = tracker
     }, {
+      authorityKey: WORKING_SET_ACTIVITY_AUTHORITY_KEY,
       durable: state.durable,
       durableKey: OPEN_SURFACE_DURABLE_STORAGE_KEY,
       ledger: state.ledger,

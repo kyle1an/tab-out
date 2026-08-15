@@ -6,7 +6,6 @@ import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { STARTUP_SNAPSHOT_DEBOUNCE_MS } from '../src/extension/background/startup-snapshot-service.js'
 import { WORKING_SET_ACTIVITY_AUTHORITY_KEY } from '../src/extension/background/working-set-activity-authority.js'
-import { WORKING_SET_ACTIVITY_KEY } from '../src/extension/background/working-set-activity-storage.js'
 import { RETAINED_PAGES_EXPIRY_ALARM } from '../src/extension/background/retained-pages-expiry-alarm.js'
 import { CLOSED_TAB_RESTORE_STATE_MESSAGE } from '../src/extension/closed-tabs.js'
 import {
@@ -196,21 +195,6 @@ async function parseStoredRetainedPageLedger(value: unknown) {
 
 function clone<T>(value: T): T {
   return value == null ? value : JSON.parse(JSON.stringify(value))
-}
-
-function makeLegacyWorkingSetActivity() {
-  const key = 'https://example.test/docs'
-  return {
-    version: 1,
-    records: {
-      [key]: {
-        url: key,
-        title: 'Example docs',
-        domain: 'example.test',
-        events: [{ kind: 'activation', at: Date.now() - 1_000 }],
-      },
-    },
-  }
 }
 
 function createEventSlot() {
@@ -2215,7 +2199,6 @@ test('browser startup owns retained-page reconciliation before worker-resume can
 })
 
 test('first installation seeds current surfaces before the deferred worker-resume fallback', async () => {
-  const legacyWorkingSetActivity = makeLegacyWorkingSetActivity()
   const impossiblePriorInventory = await seedOpenSurfaceInventory([{
     tabId: 77,
     surfaceKind: 'normal-tab',
@@ -2240,7 +2223,6 @@ test('first installation seeds current surfaces before the deferred worker-resum
       storageValues: {
         local: {
           [OPEN_SURFACE_DURABLE_STORAGE_KEY]: impossiblePriorInventory,
-          [WORKING_SET_ACTIVITY_KEY]: legacyWorkingSetActivity,
         },
       },
     },
@@ -2263,7 +2245,8 @@ test('first installation seeds current surfaces before the deferred worker-resum
     ) !== null &&
     parseDashboardStartupSeedBoundary(
       mock.storageValues.local[DASHBOARD_STARTUP_SEED_CACHE_KEY],
-    ) !== null
+    ) !== null &&
+    mock.storageValues.local[WORKING_SET_ACTIVITY_AUTHORITY_KEY] !== undefined
   ), 'first-install reconciliation and startup seed')
   await flushBackgroundWork()
 
@@ -2278,14 +2261,13 @@ test('first installation seeds current surfaces before the deferred worker-resum
   assert.equal(durable.status, 'valid')
   assert.deepEqual(Object.keys(session.inventory.entries), ['111'])
   assert.deepEqual(durable.inventory, session.inventory)
-  assert.deepEqual(
-    mock.storageValues.local[WORKING_SET_ACTIVITY_KEY],
-    legacyWorkingSetActivity,
+  assert.equal(
+    mock.storageValues.local[WORKING_SET_ACTIVITY_AUTHORITY_KEY]?.backend,
+    'idb',
   )
 })
 
 test('extension update owns initial reconciliation and preserves surviving live lifetimes', async () => {
-  const legacyWorkingSetActivity = makeLegacyWorkingSetActivity()
   let nextToken = 0
   const priorInventory = await seedOpenSurfaceInventory([
     {
@@ -2319,7 +2301,6 @@ test('extension update owns initial reconciliation and preserves surviving live 
       storageValues: {
         local: {
           [OPEN_SURFACE_DURABLE_STORAGE_KEY]: priorInventory,
-          [WORKING_SET_ACTIVITY_KEY]: legacyWorkingSetActivity,
         },
       },
     },
@@ -2341,7 +2322,6 @@ test('extension update owns initial reconciliation and preserves surviving live 
     parseDashboardStartupSeedBoundary(
       mock.storageValues.local[DASHBOARD_STARTUP_SEED_CACHE_KEY],
     ) !== null &&
-    mock.storageValues.local[WORKING_SET_ACTIVITY_KEY] === undefined &&
     mock.storageValues.local[WORKING_SET_ACTIVITY_AUTHORITY_KEY] !== undefined
   ), 'extension-update reconciliation and startup seed')
   await flushBackgroundWork()
@@ -2363,70 +2343,6 @@ test('extension update owns initial reconciliation and preserves surviving live 
     priorInventory.entries['111']?.closureToken,
   )
   assert.deepEqual(Object.keys(session.inventory.entries), ['111'])
-  assert.equal(
-    mock.storageValues.local[WORKING_SET_ACTIVITY_KEY],
-    undefined,
-  )
-  assert.equal(
-    mock.storageValues.local[WORKING_SET_ACTIVITY_AUTHORITY_KEY]?.backend,
-    'idb',
-  )
-})
-
-test('extension update preserves legacy Working Set activity and refreshes startup state when cleanup removal fails', async () => {
-  const legacyWorkingSetActivity = makeLegacyWorkingSetActivity()
-  const mock = await loadBackground(
-    [{
-      id: 111,
-      windowId: 1,
-      url: 'https://current.example.test/article',
-      title: 'Current update lifetime',
-      active: true,
-      pinned: false,
-      groupId: -1,
-      index: 0,
-    }],
-    {
-      deferInitialOpenSurfaceReconciliation: true,
-      storageValues: {
-        local: {
-          [WORKING_SET_ACTIVITY_KEY]: legacyWorkingSetActivity,
-        },
-      },
-    },
-  )
-  const remove = mock.chrome.storage.local.remove.bind(
-    mock.chrome.storage.local,
-  )
-  mock.chrome.storage.local.remove = async (keys: string | string[]) => {
-    if (
-      (Array.isArray(keys) ? keys : [keys])
-        .includes(WORKING_SET_ACTIVITY_KEY)
-    ) {
-      throw new Error('synthetic legacy cleanup failure')
-    }
-    await remove(keys)
-  }
-
-  const onInstalled = mock.listeners.runtimeOnInstalled[0]
-  assert.equal(typeof onInstalled, 'function')
-  onInstalled({ reason: 'update' })
-  await flushBackgroundWork()
-  await backgroundClock.tickAsync(0)
-  await waitForBackgroundState(() => (
-    parseDashboardStartupSeedBoundary(
-      mock.storageValues.session[DASHBOARD_STARTUP_SEED_CACHE_KEY],
-    ) !== null &&
-    parseDashboardStartupSeedBoundary(
-      mock.storageValues.local[DASHBOARD_STARTUP_SEED_CACHE_KEY],
-    ) !== null
-  ), 'startup seed after rejected legacy cleanup')
-  await flushBackgroundWork()
-
-  assert.deepEqual(
-    mock.storageValues.local[WORKING_SET_ACTIVITY_KEY],
-    legacyWorkingSetActivity,
-  )
   assert.equal(
     mock.storageValues.local[WORKING_SET_ACTIVITY_AUTHORITY_KEY]?.backend,
     'idb',

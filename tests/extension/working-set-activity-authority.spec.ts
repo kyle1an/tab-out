@@ -12,7 +12,6 @@ import {
 import {
   databaseNameForGeneration,
   decodeWorkingSetActivityIndexedDbEntry,
-  indexedDbActivityValueSchema,
   WORKING_SET_ACTIVITY_INDEXED_DB_VERSION,
   WORKING_SET_ACTIVITY_LAST_EVENT_INDEX,
   WORKING_SET_ACTIVITY_MANIFEST_KEY,
@@ -20,18 +19,8 @@ import {
   WORKING_SET_ACTIVITY_RECORDS_STORE,
   workingSetActivityGenerationManifestSchema,
 } from '../../src/extension/background/working-set-activity-indexed-db.js'
-import {
-  WORKING_SET_ACTIVITY_KEY,
-} from '../../src/extension/background/working-set-activity-storage.js'
-import type {
-  WorkingSetActivityRecord,
-  WorkingSetActivityStore,
-} from '../../src/extension/types'
-import {
-  emptyWorkingSetActivity,
-  pageIdentityForWorkingSet,
-  recordWorkingSetActivity,
-} from '../../src/extension/working-set.js'
+import type { WorkingSetActivityRecord } from '../../src/extension/types'
+import { pageIdentityForWorkingSet } from '../../src/extension/working-set.js'
 import {
   expect,
   test,
@@ -39,8 +28,6 @@ import {
 import { terminateServiceWorkerAndProveAbsent } from './service-worker-cdp.js'
 
 interface ChromeAuthoritySnapshot {
-  readonly legacy: unknown
-  readonly legacyJson: string | null
   readonly marker: unknown
 }
 
@@ -82,117 +69,24 @@ function invariant(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
 }
 
-function makeLegacyActivity(now: number): WorkingSetActivityStore {
-  const guideUrl = 'https://example.test/guide'
-  const workspaceUrl = 'https://example.test/workspace'
-  const firstEventAt = now - 60_000
-  let activity = recordWorkingSetActivity(emptyWorkingSetActivity(), {
-    kind: 'activation',
-    at: firstEventAt,
-    tab: { rawUrl: guideUrl, title: 'Example Guide', url: guideUrl },
-  })
-  activity = recordWorkingSetActivity(activity, {
-    kind: 'navigation',
-    at: firstEventAt + 1_000,
-    tab: { rawUrl: guideUrl, title: 'Example Guide', url: guideUrl },
-  })
-  activity = recordWorkingSetActivity(activity, {
-    kind: 'activation',
-    at: firstEventAt + 2_000,
-    tab: {
-      rawUrl: workspaceUrl,
-      title: 'Example Workspace',
-      url: workspaceUrl,
-    },
-  })
-
-  const workspaceKey = pageIdentityForWorkingSet(workspaceUrl)
-  const workspace = activity.records[workspaceKey]
-  invariant(workspace !== undefined, 'Legacy fixture omitted its workspace row')
-  return {
-    ...activity,
-    records: {
-      ...activity.records,
-      [workspaceKey]: {
-        ...workspace,
-        dismissedAt: now - 30_000,
-        dismissedUntil: now + 60 * 60_000,
-      },
-    },
-  }
-}
-
-function expectedIndexedDbValue(record: WorkingSetActivityRecord): unknown {
-  return {
-    title: record.title,
-    ...(record.dismissedAt === undefined
-      ? {}
-      : { dismissedAt: record.dismissedAt }),
-    ...(record.dismissedUntil === undefined
-      ? {}
-      : { dismissedUntil: record.dismissedUntil }),
-    events: record.events.map((event) => [
-      event.kind === 'activation' ? 0 : 1,
-      event.at,
-    ]),
-    lastEventAt: Math.max(...record.events.map((event) => event.at)),
-  }
-}
-
-function sortedActivityRecords(
-  activity: WorkingSetActivityStore,
-): readonly WorkingSetActivityRecord[] {
-  return Object.values(activity.records)
-    .toSorted((left, right) => left.key.localeCompare(right.key))
-}
-
-async function expectedSourceDigest(
-  activity: WorkingSetActivityStore,
-): Promise<string> {
-  const canonicalRows = sortedActivityRecords(activity).map((record) => [
-    record.key,
-    record.title,
-    record.dismissedAt ?? null,
-    record.dismissedUntil ?? null,
-    record.events.map((event) => [
-      event.kind === 'activation' ? 0 : 1,
-      event.at,
-    ]),
-  ])
+async function expectedEmptySourceDigest(): Promise<string> {
   const digest = await crypto.subtle.digest(
     'SHA-256',
     new TextEncoder().encode(JSON.stringify([
       WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION,
-      canonicalRows,
+      [],
     ])),
   )
   return new Uint8Array(digest).toHex()
 }
 
-function expectedIndexedDbEntries(
-  activity: WorkingSetActivityStore,
-): IndexedDbPhysicalSnapshot['entries'] {
-  return sortedActivityRecords(activity).map((record) => ({
-    key: record.key,
-    value: expectedIndexedDbValue(record),
-  }))
-}
-
 async function readChromeAuthoritySnapshot(
   page: Page,
 ): Promise<ChromeAuthoritySnapshot> {
-  return page.evaluate(async ({ authorityKey, legacyKey }) => {
-    const values = await chrome.storage.local.get([authorityKey, legacyKey])
-    const legacy = values[legacyKey]
-    return {
-      legacy,
-      legacyJson: JSON.stringify(legacy) ?? null,
-      marker: values[authorityKey],
-    }
-  }, {
-    authorityKey: WORKING_SET_ACTIVITY_AUTHORITY_KEY,
-    legacyKey: WORKING_SET_ACTIVITY_KEY,
-  })
+  return page.evaluate(async (authorityKey) => {
+    const values = await chrome.storage.local.get(authorityKey)
+    return { marker: values[authorityKey] }
+  }, WORKING_SET_ACTIVITY_AUTHORITY_KEY)
 }
 
 async function readIndexedDbPhysicalSnapshot(
@@ -397,47 +291,14 @@ async function startLoopbackServer(): Promise<LoopbackServer> {
   }
 }
 
-test('migrates retained legacy activity to IndexedDB and recovers it after worker restart', async ({
+test('bootstraps an empty IndexedDB authority and recovers activity after worker restart', async ({
   installedExtension,
 }) => {
   test.setTimeout(90_000)
   const workerUrl = installedExtension.serviceWorker.url()
   const controller = installedExtension.context.pages()[0]
   invariant(controller !== undefined, 'Installed extension opened no controller page')
-  const legacy = makeLegacyActivity(Date.now())
-  const sourceDigest = await expectedSourceDigest(legacy)
-
-  const seededChrome = await installedExtension.serviceWorker.evaluate(async ({
-    authorityKey,
-    legacyKey,
-    legacyValue,
-  }) => {
-    await chrome.storage.local.set({ [legacyKey]: legacyValue })
-    await chrome.storage.local.remove(authorityKey)
-    const values = await chrome.storage.local.get([authorityKey, legacyKey])
-    const storedLegacy = values[legacyKey]
-    return {
-      legacy: storedLegacy,
-      legacyJson: JSON.stringify(storedLegacy) ?? null,
-      marker: values[authorityKey],
-    }
-  }, {
-    authorityKey: WORKING_SET_ACTIVITY_AUTHORITY_KEY,
-    legacyKey: WORKING_SET_ACTIVITY_KEY,
-    legacyValue: legacy,
-  })
-  expect(seededChrome.marker).toBeUndefined()
-  expect(seededChrome.legacy).toEqual(legacy)
-  invariant(
-    seededChrome.legacyJson !== null,
-    'Seeded legacy Working Set activity was not serializable',
-  )
-  const legacyJson = seededChrome.legacyJson
-  await terminateServiceWorkerAndProveAbsent(
-    installedExtension.context,
-    controller,
-    workerUrl,
-  )
+  const sourceDigest = await expectedEmptySourceDigest()
 
   const dashboardUrl =
     `chrome-extension://${installedExtension.extensionId}/index.html`
@@ -446,52 +307,37 @@ test('migrates retained legacy activity to IndexedDB and recovers it after worke
   await expect.poll(async () =>
     (await readChromeAuthoritySnapshot(controller)).marker === undefined,
   ).toBe(false)
-  const migratedChrome = await readChromeAuthoritySnapshot(controller)
+  const initialChrome = await readChromeAuthoritySnapshot(controller)
   const marker = Schema.decodeUnknownSync(
     workingSetActivityAuthorityMarkerSchema,
-  )(migratedChrome.marker)
-  expect(migratedChrome.marker).toEqual(marker)
+  )(initialChrome.marker)
+  expect(initialChrome.marker).toEqual(marker)
   expect(marker.sourceDigest).toBe(sourceDigest)
   expect(marker.generation).toBe(`v1:${sourceDigest}`)
-  expect(marker.recordCount).toBe(Object.keys(legacy.records).length)
-  expect(marker.eventCount).toBe(
-    sortedActivityRecords(legacy).reduce(
-      (count, record) => count + record.events.length,
-      0,
-    ),
-  )
+  expect(marker.recordCount).toBe(0)
+  expect(marker.eventCount).toBe(0)
   expect(marker.retainedAfter).toBe(
     marker.cutoverAt - 30 * 24 * 60 * 60_000,
   )
-  expect(marker.retainedAfter).toBeLessThan(
-    Math.min(...sortedActivityRecords(legacy).map((record) => record.lastSeenAt)),
-  )
-  expect(migratedChrome.legacy).toEqual(legacy)
-  expect(migratedChrome.legacyJson).toBe(legacyJson)
 
   const databaseName = databaseNameForGeneration(marker.generation)
-  const migratedIdb = await readIndexedDbPhysicalSnapshot(
+  const initialIdb = await readIndexedDbPhysicalSnapshot(
     controller,
     databaseName,
   )
   expect(WORKING_SET_ACTIVITY_INDEXED_DB_VERSION).toBe(
     WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION,
   )
-  assertIndexedDbStructure(migratedIdb)
-  expect(migratedIdb.catalog).toContainEqual({
+  assertIndexedDbStructure(initialIdb)
+  expect(initialIdb.catalog).toContainEqual({
     name: databaseName,
     version: WORKING_SET_ACTIVITY_INDEXED_DB_VERSION,
   })
-  expect(migratedIdb.entries).toEqual(expectedIndexedDbEntries(legacy))
-  expect([...migratedIdb.lastEventIndexKeys].toSorted()).toEqual(
-    Object.keys(legacy.records).toSorted(),
-  )
-  for (const { value } of migratedIdb.entries) {
-    expect(Schema.is(indexedDbActivityValueSchema)(value)).toBe(true)
-  }
+  expect(initialIdb.entries).toEqual([])
+  expect(initialIdb.lastEventIndexKeys).toEqual([])
   const manifest = Schema.decodeUnknownSync(
     workingSetActivityGenerationManifestSchema,
-  )(migratedIdb.manifest)
+  )(initialIdb.manifest)
   const expectedManifest = {
     schemaVersion: marker.schemaVersion,
     generation: marker.generation,
@@ -500,11 +346,9 @@ test('migrates retained legacy activity to IndexedDB and recovers it after worke
     eventCount: marker.eventCount,
     retainedAfter: marker.retainedAfter,
   }
-  expect(migratedIdb.manifest).toEqual(expectedManifest)
+  expect(initialIdb.manifest).toEqual(expectedManifest)
   expect(manifest).toEqual(expectedManifest)
-  expect(await decodePhysicalRows(migratedIdb)).toEqual(
-    sortedActivityRecords(legacy),
-  )
+  expect(await decodePhysicalRows(initialIdb)).toEqual([])
 
   await terminateServiceWorkerAndProveAbsent(
     installedExtension.context,
@@ -513,15 +357,13 @@ test('migrates retained legacy activity to IndexedDB and recovers it after worke
   )
   await expectStartupFrame(controller, dashboardUrl)
   const recoveredChrome = await readChromeAuthoritySnapshot(controller)
-  expect(recoveredChrome).toEqual(migratedChrome)
+  expect(recoveredChrome).toEqual(initialChrome)
   const recoveredIdb = await readIndexedDbPhysicalSnapshot(
     controller,
     databaseName,
   )
-  expect(recoveredIdb).toEqual(migratedIdb)
-  expect(await decodePhysicalRows(recoveredIdb)).toEqual(
-    sortedActivityRecords(legacy),
-  )
+  expect(recoveredIdb).toEqual(initialIdb)
+  expect(await decodePhysicalRows(recoveredIdb)).toEqual([])
 
   const loopback = await startLoopbackServer()
   let activityPage: Page | undefined
@@ -545,12 +387,9 @@ test('migrates retained legacy activity to IndexedDB and recovers it after worke
       databaseName,
     )
     assertIndexedDbStructure(activeIdb)
-    expect(activeIdb.entries).not.toEqual(migratedIdb.entries)
-    expect(activeIdb.entries.map((entry) => entry.key).toSorted()).toEqual([
-      ...Object.keys(legacy.records),
-      activityKey,
-    ].toSorted())
-    expect(activeIdb.manifest).toEqual(migratedIdb.manifest)
+    expect(activeIdb.entries).not.toEqual(initialIdb.entries)
+    expect(activeIdb.entries.map((entry) => entry.key)).toEqual([activityKey])
+    expect(activeIdb.manifest).toEqual(initialIdb.manifest)
     const activityRecord = (await decodePhysicalRows(activeIdb))
       .find((record) => record.key === activityKey)
     expect(activityRecord).toBeDefined()
@@ -558,9 +397,19 @@ test('migrates retained legacy activity to IndexedDB and recovers it after worke
     expect(activityRecord?.events.length).toBeGreaterThan(0)
 
     const activeChrome = await readChromeAuthoritySnapshot(controller)
-    expect(activeChrome.marker).toEqual(migratedChrome.marker)
-    expect(activeChrome.legacy).toEqual(legacy)
-    expect(activeChrome.legacyJson).toBe(legacyJson)
+    expect(activeChrome.marker).toEqual(initialChrome.marker)
+
+    await terminateServiceWorkerAndProveAbsent(
+      installedExtension.context,
+      controller,
+      workerUrl,
+    )
+    await expectStartupFrame(controller, dashboardUrl)
+    const restartedIdb = await readIndexedDbPhysicalSnapshot(
+      controller,
+      databaseName,
+    )
+    expect(restartedIdb).toEqual(activeIdb)
     expect(installedExtension.runtimeErrors()).toEqual([])
   } finally {
     await activityPage?.close()

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { Schema } from 'effect'
 
 import { normalizeClosedGhostDismissals } from '../src/extension/closed-ghost-dismissals.js'
 import { normalizePinnedDomains } from '../src/extension/domain-pins.js'
@@ -7,9 +8,8 @@ import { normalizePinnedPageChips } from '../src/extension/page-chip-pins.js'
 import { parseSavedPagesStoreValue } from '../src/extension/saved-pages-storage.js'
 import { normalizePinnedSections } from '../src/extension/section-pins.js'
 import { parseDashboardStartupSeedBoundary } from '../src/extension/startup-snapshot-schema.js'
-import { normalizeWorkingSetActivity } from '../src/extension/working-set.js'
 import {
-  buildCompleteRepresentativeLocalProfileV1,
+  buildCompleteRepresentativeLocalProfileV2,
   COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS,
   COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_KEYS,
   COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_LIVE_MUTABLE_KEYS,
@@ -26,17 +26,20 @@ import {
   createSuspendTargetStore,
   SUSPEND_TARGET_STORAGE_KEY,
 } from '../src/extension/suspension.js'
-import { WORKING_SET_ACTIVITY_KEY } from '../src/extension/background/working-set-service.js'
 import {
   canonicalizeGlobalHistory,
 } from '../src/extension/background/tab-history-state.js'
 import { TAB_HISTORY_STORAGE_KEY } from '../src/extension/background/tab-history-service.js'
+import {
+  WORKING_SET_ACTIVITY_AUTHORITY_KEY,
+  workingSetActivityAuthorityMarkerSchema,
+} from '../src/extension/background/working-set-activity-authority.js'
 
 const now = 1_800_000_000_000
 
-test('complete representative local profile v1 is deterministic and covers every named steady-state key', () => {
-  const first = buildCompleteRepresentativeLocalProfileV1(now)
-  const second = buildCompleteRepresentativeLocalProfileV1(now)
+test('complete representative local profile v2 is deterministic and covers every named steady-state key', () => {
+  const first = buildCompleteRepresentativeLocalProfileV2(now)
+  const second = buildCompleteRepresentativeLocalProfileV2(now)
 
   assert.deepEqual(first, second)
   assert.deepEqual(
@@ -52,12 +55,16 @@ test('complete representative local profile v1 is deterministic and covers every
   )
   assert.deepEqual(
     [...COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_LIVE_MUTABLE_KEYS].toSorted(),
-    [DASHBOARD_STARTUP_SEED_CACHE_KEY, TAB_HISTORY_STORAGE_KEY].toSorted(),
+    [
+      DASHBOARD_STARTUP_SEED_CACHE_KEY,
+      TAB_HISTORY_STORAGE_KEY,
+      WORKING_SET_ACTIVITY_AUTHORITY_KEY,
+    ].toSorted(),
   )
 })
 
-test('complete representative local profile v1 round-trips through current normalizers', async () => {
-  const profile = buildCompleteRepresentativeLocalProfileV1(now)
+test('complete representative local profile v2 round-trips through current normalizers', async () => {
+  const profile = buildCompleteRepresentativeLocalProfileV2(now)
   const savedPages = parseSavedPagesStoreValue(profile[SAVED_PAGES_STORAGE_KEY])
   assert.equal(savedPages.ok, true)
   assert.equal(
@@ -84,12 +91,11 @@ test('complete representative local profile v1 round-trips through current norma
     COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.closedGhostDismissals,
   )
   assert.equal(
-    Object.keys(
-      normalizeWorkingSetActivity(profile[WORKING_SET_ACTIVITY_KEY], now).records,
-    ).length,
-    COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.workingSetRecords,
+    Schema.is(workingSetActivityAuthorityMarkerSchema)(
+      profile[WORKING_SET_ACTIVITY_AUTHORITY_KEY],
+    ),
+    true,
   )
-
   const startupSeed = parseDashboardStartupSeedBoundary(
     profile[DASHBOARD_STARTUP_SEED_CACHE_KEY],
   )

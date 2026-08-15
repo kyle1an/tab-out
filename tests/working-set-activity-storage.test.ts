@@ -23,7 +23,6 @@ function makeStorage(
     readonly read: () => PromiseLike<unknown>
     readonly write?: (change: WorkingSetActivityWrite) => PromiseLike<void>
     readonly replace?: (activity: WorkingSetActivityStore) => PromiseLike<void>
-    readonly retireLegacy?: () => PromiseLike<void>
     readonly close?: () => PromiseLike<void>
   },
 ) {
@@ -31,9 +30,6 @@ function makeStorage(
     read: options.read,
     write: options.write ?? (() => Promise.resolve()),
     replace: options.replace ?? (() => Promise.resolve()),
-    ...(options.retireLegacy === undefined
-      ? {}
-      : { retireLegacy: options.retireLegacy }),
     ...(options.close === undefined ? {} : { close: options.close }),
   }))
   runtime.runSync(Effect.void)
@@ -94,10 +90,9 @@ test('Working Set storage repairs row and event damage after accepting the outer
   ])
 })
 
-test('Working Set storage forwards record deltas, full replacements, and legacy retirement to its backend', async (t) => {
+test('Working Set storage forwards record deltas and full replacements to its backend', async (t) => {
   let written: WorkingSetActivityWrite | undefined
   let replaced: WorkingSetActivityStore | undefined
-  let legacyRetirements = 0
   const { runtime, storage } = makeStorage(t, {
     read: () => Promise.resolve(undefined),
     write: (change) => {
@@ -106,10 +101,6 @@ test('Working Set storage forwards record deltas, full replacements, and legacy 
     },
     replace: (activity) => {
       replaced = activity
-      return Promise.resolve()
-    },
-    retireLegacy: () => {
-      legacyRetirements += 1
       return Promise.resolve()
     },
   })
@@ -125,32 +116,9 @@ test('Working Set storage forwards record deltas, full replacements, and legacy 
 
   await runtime.runPromise(storage.write(change))
   await runtime.runPromise(storage.replace(change.activity))
-  await runtime.runPromise(storage.retireLegacy())
 
   assert.strictEqual(written, change)
   assert.strictEqual(replaced, change.activity)
-  assert.equal(legacyRetirements, 1)
-})
-
-test('Working Set storage maps legacy retirement failures and permits backends without cleanup', async (t) => {
-  const cleanupFailure = new Error('synthetic cleanup failure')
-  const failing = makeStorage(t, {
-    read: () => Promise.resolve(undefined),
-    retireLegacy: () => Promise.reject(cleanupFailure),
-  })
-
-  const result = await failing.runtime.runPromise(
-    Effect.result(failing.storage.retireLegacy()),
-  )
-  assert.ok(Result.isFailure(result))
-  assert.equal(result.failure.operation, 'retire-legacy')
-  assert.equal(result.failure.reason, 'backend')
-  assert.strictEqual(result.failure.cause, cleanupFailure)
-
-  const noCleanup = makeStorage(t, {
-    read: () => Promise.resolve(undefined),
-  })
-  await noCleanup.runtime.runPromise(noCleanup.storage.retireLegacy())
 })
 
 test('Working Set storage treats an unavailable Chrome backend as unknown, not known empty', async (t) => {

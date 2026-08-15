@@ -11,7 +11,6 @@ import {
   parseWorkingSetActivityStorageValue,
 } from '../../../src/extension/working-set.js'
 import {
-  WORKING_SET_ACTIVITY_KEY,
   WorkingSetActivityStorage,
   WorkingSetActivityStorageError,
   type WorkingSetActivityWrite,
@@ -23,6 +22,7 @@ import {
 
 const diagnostics = makeMutationDiagnostics()
 let failNextWrite = false
+export const FROZEN_WORKING_SET_ACTIVITY_KEY = 'workingSetActivity'
 
 function fallbackValidActivity() {
   const activity = emptyWorkingSetActivity()
@@ -49,17 +49,21 @@ export function makeWorkingSetActivityStorageLayer(
   )
   const legacyLayer = WorkingSetActivityStorage.layer({
     read: () => storage
-      ? readChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY)
+      ? readChromeStorageValue(storage, FROZEN_WORKING_SET_ACTIVITY_KEY)
       : unavailable(),
     write: (change: WorkingSetActivityWrite) => storage
       ? writeChromeStorageValue(
           storage,
-          WORKING_SET_ACTIVITY_KEY,
+          FROZEN_WORKING_SET_ACTIVITY_KEY,
           change.activity,
         )
       : unavailable(),
     replace: (activity) => storage
-      ? writeChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY, activity)
+      ? writeChromeStorageValue(
+          storage,
+          FROZEN_WORKING_SET_ACTIVITY_KEY,
+          activity,
+        )
       : unavailable(),
   })
   return Layer.effect(
@@ -84,7 +88,7 @@ export function makeWorkingSetActivityStorageLayer(
           yield* legacyStorage.write(change)
           yield* Effect.sync(() => diagnostics.commitMutation(
             [change.activity],
-            [WORKING_SET_ACTIVITY_KEY],
+            [FROZEN_WORKING_SET_ACTIVITY_KEY],
           ))
         },
       )
@@ -92,7 +96,6 @@ export function makeWorkingSetActivityStorageLayer(
         read: legacyStorage.read,
         write,
         replace: legacyStorage.replace,
-        retireLegacy: legacyStorage.retireLegacy,
       })
     }),
   ).pipe(Layer.provide(legacyLayer))
@@ -102,7 +105,7 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
   variant: 'current',
   ownedStorage: {
     kind: 'chrome-storage',
-    keys: [WORKING_SET_ACTIVITY_KEY],
+    keys: [FROZEN_WORKING_SET_ACTIVITY_KEY],
   },
   lastMutationLogicalBytes: diagnostics.lastMutationLogicalBytes,
   lastMutationPhysicalWrites: diagnostics.lastMutationPhysicalWrites,
@@ -118,11 +121,14 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
     if (kind === 'missing-required-store') {
       // Key storage has no schema authority to remove; absence of its sole
       // owned key is the comparable, explicitly known-empty condition.
-      await removeChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY)
+      await removeChromeStorageValue(
+        storage,
+        FROZEN_WORKING_SET_ACTIVITY_KEY,
+      )
       return
     }
     if (kind === 'outer-version') {
-      await writeChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY, {
+      await writeChromeStorageValue(storage, FROZEN_WORKING_SET_ACTIVITY_KEY, {
         version: 2,
         records: {},
       })
@@ -130,13 +136,13 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
     }
 
     const parsed = parseWorkingSetActivityStorageValue(
-      await readChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY),
+      await readChromeStorageValue(storage, FROZEN_WORKING_SET_ACTIVITY_KEY),
     )
     const activity = parsed.status === 'valid' &&
       Object.keys(parsed.activity.records).length > 0
       ? parsed.activity
       : fallbackValidActivity()
-    await writeChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY, {
+    await writeChromeStorageValue(storage, FROZEN_WORKING_SET_ACTIVITY_KEY, {
       version: 1,
       records: {
         ...activity.records,
@@ -149,7 +155,10 @@ export const benchmarkBackend: WorkingSetBenchmarkBackend = {
     diagnostics.reset()
     const storage = chromeApi.storage?.local
     if (storage !== undefined) {
-      await removeChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY)
+      await removeChromeStorageValue(
+        storage,
+        FROZEN_WORKING_SET_ACTIVITY_KEY,
+      )
     }
   },
   close: () => {},

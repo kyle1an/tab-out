@@ -4,10 +4,7 @@ import test from 'node:test'
 import { Effect, ManagedRuntime, Result } from 'effect'
 
 import type { ChromeApi } from '../src/extension/background/chrome-api.js'
-import {
-  WORKING_SET_ACTIVITY_KEY,
-  WorkingSetActivityStorage,
-} from '../src/extension/background/working-set-activity-storage.js'
+import { WorkingSetActivityStorage } from '../src/extension/background/working-set-activity-storage.js'
 import {
   emptyWorkingSetActivity,
   recordWorkingSetActivityMutation,
@@ -15,6 +12,7 @@ import {
 import { createFakeChromeApi } from './helpers/fake-chrome.mjs'
 import {
   benchmarkBackend,
+  FROZEN_WORKING_SET_ACTIVITY_KEY as WORKING_SET_ACTIVITY_KEY,
   makeWorkingSetActivityStorageLayer,
 } from './extension/working-set-backends/current-envelope-layer.js'
 import { jsonUtf8ByteLength } from './extension/working-set-backends/benchmark-backend.js'

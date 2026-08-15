@@ -14,12 +14,14 @@ import {
   DASHBOARD_STARTUP_SEED_CACHE_KEY,
 } from '../../src/extension/startup-snapshot.js'
 import { SUSPEND_TARGET_STORAGE_KEY } from '../../src/extension/suspension.js'
-import { pageIdentityForWorkingSet } from '../../src/extension/working-set.js'
 import { TAB_HISTORY_STORAGE_KEY } from '../../src/extension/background/tab-history-service.js'
-import { WORKING_SET_ACTIVITY_KEY } from '../../src/extension/background/working-set-service.js'
+import {
+  WORKING_SET_ACTIVITY_AUTHORITY_KEY,
+  WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION,
+} from '../../src/extension/background/working-set-activity-authority.js'
 
 export const COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_VERSION =
-  'complete-representative-local-v1'
+  'complete-representative-local-v2'
 
 export const COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS = {
   closedGhostDismissals: 500,
@@ -45,17 +47,20 @@ export const COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_KEYS = [
   SECTION_PIN_STORAGE_KEY,
   SUSPEND_TARGET_STORAGE_KEY,
   TAB_HISTORY_STORAGE_KEY,
-  WORKING_SET_ACTIVITY_KEY,
+  WORKING_SET_ACTIVITY_AUTHORITY_KEY,
 ] as const
 
 // Retained-state changes intentionally rebuild the warm Startup Seed, and its
 // five-minute durable checkpoint may replace the seeded local value while a
 // long benchmark is running. The benchmark controller's real navigations also
-// update global Tab History. Every other fixture key must remain byte-for-byte
-// stable after the benchmark seed barrier.
+// update global Tab History. The Working Set authority marker is runtime-owned,
+// so benchmark seeds preserve the extension-created value instead of installing
+// this fixture's size-representative placeholder. Every other fixture key must
+// remain byte-for-byte stable after the benchmark seed barrier.
 export const COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_LIVE_MUTABLE_KEYS = [
   DASHBOARD_STARTUP_SEED_CACHE_KEY,
   TAB_HISTORY_STORAGE_KEY,
+  WORKING_SET_ACTIVITY_AUTHORITY_KEY,
 ] as const
 
 const liveMutableProfileKeySet = new Set<string>(
@@ -114,39 +119,6 @@ function savedPagesFixture(now: number): Record<string, unknown> {
     }
   }
   return { version: 2, pages }
-}
-
-function workingSetFixture(now: number): Record<string, unknown> {
-  const records: Record<string, unknown> = {}
-  for (
-    let index = 0;
-    index < COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.workingSetRecords;
-    index += 1
-  ) {
-    const label = indexedLabel(index)
-    const url = exactLengthUrl(
-      `https://working-${label}.example.test/page?fixture=`,
-      256,
-    )
-    const key = pageIdentityForWorkingSet(url)
-    const events = Array.from({
-      length: COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.workingSetEventsPerRecord,
-    }, (_, eventIndex) => ({
-      kind: eventIndex % 2 === 0 ? 'activation' : 'navigation',
-      at: now - index - eventIndex,
-    }))
-    records[key] = {
-      key,
-      url,
-      title: fixedTitle(`Working ${label} `, 80),
-      domain: `working-${label}.example.test`,
-      lastSeenAt: now - index,
-      lastActivatedAt: now - index,
-      lastNavigatedAt: now - index - 1,
-      events,
-    }
-  }
-  return { version: 1, records }
 }
 
 function globalHistoryFixture(now: number): Record<string, unknown> {
@@ -263,7 +235,26 @@ function suspendTargetFixture(now: number): Record<string, unknown> {
   }
 }
 
-export function buildCompleteRepresentativeLocalProfileV1(
+function workingSetActivityAuthorityFixture(
+  now: number,
+): Record<string, unknown> {
+  const sourceDigest = 'a'.repeat(64)
+  return {
+    version: 1,
+    backend: 'idb',
+    schemaVersion: WORKING_SET_ACTIVITY_INDEXED_DB_SCHEMA_VERSION,
+    generation: `v1:${sourceDigest}`,
+    sourceDigest,
+    recordCount: COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.workingSetRecords,
+    eventCount:
+      COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.workingSetRecords *
+      COMPLETE_REPRESENTATIVE_LOCAL_PROFILE_COUNTS.workingSetEventsPerRecord,
+    retainedAfter: now - 30 * 24 * 60 * 60_000,
+    cutoverAt: now,
+  }
+}
+
+export function buildCompleteRepresentativeLocalProfileV2(
   now = Date.now(),
 ): Record<string, unknown> {
   return {
@@ -276,6 +267,7 @@ export function buildCompleteRepresentativeLocalProfileV1(
     [SECTION_PIN_STORAGE_KEY]: pinnedSectionsFixture(),
     [SUSPEND_TARGET_STORAGE_KEY]: suspendTargetFixture(now),
     [TAB_HISTORY_STORAGE_KEY]: globalHistoryFixture(now),
-    [WORKING_SET_ACTIVITY_KEY]: workingSetFixture(now),
+    [WORKING_SET_ACTIVITY_AUTHORITY_KEY]:
+      workingSetActivityAuthorityFixture(now),
   }
 }

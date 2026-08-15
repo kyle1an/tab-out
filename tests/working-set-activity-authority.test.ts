@@ -4,7 +4,6 @@ import { Schema } from 'effect'
 
 import {
   makeWorkingSetActivityAuthorityBackend,
-  WorkingSetActivityAuthorityError,
   workingSetActivityAuthorityMarkerSchema,
   type WorkingSetActivityAuthorityMarker,
   type WorkingSetActivityChromeAuthorityPort,
@@ -16,6 +15,7 @@ import type {
   WorkingSetActivityRecord,
   WorkingSetActivityStore,
 } from '../src/extension/types'
+import { emptyWorkingSetActivity } from '../src/extension/working-set.js'
 
 const NOW = Date.UTC(2026, 7, 9, 12)
 const isAuthorityMarker = Schema.is(workingSetActivityAuthorityMarkerSchema)
@@ -29,13 +29,10 @@ interface StoredGeneration {
 
 interface SharedAuthorityState {
   marker: unknown
-  legacy: unknown
   readonly generations: Map<string, StoredGeneration>
   readonly calls: string[]
   markerReads: number
   markerWrites: number
-  legacyReads: number
-  legacyRemovals: number
   stages: number
   verifies: number
   targetReads: number
@@ -44,7 +41,6 @@ interface SharedAuthorityState {
   closes: number
   stageFailure: OneShotMode
   markerWriteFailure: OneShotMode
-  failLegacyRemovalOnce: boolean
   failVerificationOnce: boolean
   mismatchVerificationOnce: boolean
   failMarkerReadbackOnce: boolean
@@ -77,25 +73,13 @@ function activityStore(
   }
 }
 
-function makeLegacyActivity(): WorkingSetActivityStore {
-  return activityStore([
-    activityRecord('https://example.test/docs', 'Example Docs', NOW - 1000),
-    activityRecord('https://example.test/tasks', 'Example Tasks', NOW - 2000),
-  ])
-}
-
-function makeSharedState(
-  legacy: unknown = makeLegacyActivity(),
-): SharedAuthorityState {
+function makeSharedState(): SharedAuthorityState {
   return {
     marker: undefined,
-    legacy: structuredClone(legacy),
     generations: new Map(),
     calls: [],
     markerReads: 0,
     markerWrites: 0,
-    legacyReads: 0,
-    legacyRemovals: 0,
     stages: 0,
     verifies: 0,
     targetReads: 0,
@@ -104,7 +88,6 @@ function makeSharedState(
     closes: 0,
     stageFailure: null,
     markerWriteFailure: null,
-    failLegacyRemovalOnce: false,
     failVerificationOnce: false,
     mismatchVerificationOnce: false,
     failMarkerReadbackOnce: false,
@@ -155,20 +138,6 @@ function fakeChromePort(
       if (failure === 'after') {
         throw new Error('synthetic marker commit-then-reject ambiguity')
       }
-    },
-    async readLegacy() {
-      state.calls.push('legacy:read')
-      state.legacyReads += 1
-      return structuredClone(state.legacy)
-    },
-    async removeLegacy() {
-      state.calls.push('legacy:remove')
-      state.legacyRemovals += 1
-      if (state.failLegacyRemovalOnce) {
-        state.failLegacyRemovalOnce = false
-        throw new Error('synthetic legacy removal failure')
-      }
-      state.legacy = undefined
     },
   }
 }
@@ -262,16 +231,8 @@ function persistedMarker(
 
 function updatedActivity(before: WorkingSetActivityStore): WorkingSetActivityWrite {
   const key = 'https://example.test/docs'
-  const existing = before.records[key]
-  assert.ok(existing !== undefined)
   const at = NOW + 1000
-  const upsert: WorkingSetActivityRecord = {
-    ...existing,
-    title: 'Updated docs',
-    lastSeenAt: at,
-    lastNavigatedAt: at,
-    events: [...existing.events, { kind: 'navigation', at }],
-  }
+  const upsert = activityRecord(key, 'Updated docs', at)
   const activity = activityStore([
     upsert,
     ...Object.values(before.records).filter((record) => record.key !== key),
@@ -279,20 +240,22 @@ function updatedActivity(before: WorkingSetActivityStore): WorkingSetActivityWri
   return { activity, upsert, deleteKeys: [] }
 }
 
-test('migration commits and verifies the target before writing and reading back the marker', async () => {
-  const legacy = makeLegacyActivity()
-  const state = makeSharedState(legacy)
+test('bootstrap commits and verifies an empty target before confirming the marker', async () => {
+  const state = makeSharedState()
   const backend = makeBackend(state)
 
-  assert.deepEqual(await backend.read(), legacy)
+  assert.deepEqual(await backend.read(), emptyWorkingSetActivity())
 
   const marker = persistedMarker(state)
   assert.equal(marker.cutoverAt, NOW)
-  assert.equal(state.generations.get(marker.generation)?.manifest.sourceDigest, marker.sourceDigest)
-  assert.deepEqual(state.legacy, legacy)
+  assert.equal(marker.recordCount, 0)
+  assert.equal(marker.eventCount, 0)
+  assert.equal(
+    state.generations.get(marker.generation)?.manifest.sourceDigest,
+    marker.sourceDigest,
+  )
   assert.deepEqual(state.calls, [
     'marker:read',
-    'legacy:read',
     'idb:stage',
     'idb:verify',
     'marker:write',
@@ -300,7 +263,7 @@ test('migration commits and verifies the target before writing and reading back 
   ])
 })
 
-test('concurrent first operations serialize behind one migration', async () => {
+test('concurrent first operations serialize behind one bootstrap', async () => {
   const state = makeSharedState()
   const backend = makeBackend(state)
 
@@ -310,8 +273,11 @@ test('concurrent first operations serialize behind one migration', async () => {
     backend.read(),
   ])
 
-  assert.deepEqual(results, [state.legacy, state.legacy, state.legacy])
-  assert.equal(state.legacyReads, 1)
+  assert.deepEqual(results, [
+    emptyWorkingSetActivity(),
+    emptyWorkingSetActivity(),
+    emptyWorkingSetActivity(),
+  ])
   assert.equal(state.stages, 1)
   assert.equal(state.verifies, 1)
   assert.equal(state.markerWrites, 1)
@@ -326,18 +292,19 @@ const stageFailureModes: readonly Exclude<OneShotMode, null>[] = [
 
 for (const failure of stageFailureModes) {
   test(`a target stage ${failure}-commit failure leaves the marker absent and retries idempotently after restart`, async () => {
-    const legacy = makeLegacyActivity()
-    const state = makeSharedState(legacy)
+    const state = makeSharedState()
     state.stageFailure = failure
 
     await assert.rejects(async () => makeBackend(state).read())
 
     assert.equal(state.marker, undefined)
-    assert.deepEqual(state.legacy, legacy)
     assert.equal(state.markerWrites, 0)
     assert.equal(state.generations.size, failure === 'after' ? 1 : 0)
 
-    assert.deepEqual(await makeBackend(state).read(), legacy)
+    assert.deepEqual(
+      await makeBackend(state).read(),
+      emptyWorkingSetActivity(),
+    )
     assert.equal(state.stages, 2)
     assert.equal(state.markerWrites, 1)
     persistedMarker(state)
@@ -352,12 +319,15 @@ test('verification failure leaves a committed target ignored until a fresh coord
 
   assert.equal(state.generations.size, 1)
   assert.equal(state.marker, undefined)
-  assert.deepEqual(await makeBackend(state).read(), state.legacy)
+  assert.deepEqual(
+    await makeBackend(state).read(),
+    emptyWorkingSetActivity(),
+  )
   assert.equal(state.stages, 2)
   assert.equal(state.verifies, 2)
 })
 
-test('verification digest mismatch fails before authority handoff', async () => {
+test('verification rejects a non-empty bootstrap before authority handoff', async () => {
   const state = makeSharedState()
   state.mismatchVerificationOnce = true
 
@@ -377,7 +347,10 @@ test('marker write failure leaves the verified generation non-authoritative', as
   assert.equal(state.generations.size, 1)
   assert.equal(state.marker, undefined)
   assert.equal(state.markerReads, 1)
-  assert.deepEqual(await makeBackend(state).read(), state.legacy)
+  assert.deepEqual(
+    await makeBackend(state).read(),
+    emptyWorkingSetActivity(),
+  )
   assert.equal(state.stages, 2)
 })
 
@@ -388,9 +361,10 @@ test('commit-then-reject marker ambiguity is resolved by re-reading the marker a
   await assert.rejects(async () => makeBackend(state).read())
 
   const marker = persistedMarker(state)
-  const legacyReadsBeforeRestart = state.legacyReads
-  assert.deepEqual(await makeBackend(state).read(), state.legacy)
-  assert.equal(state.legacyReads, legacyReadsBeforeRestart)
+  assert.deepEqual(
+    await makeBackend(state).read(),
+    emptyWorkingSetActivity(),
+  )
   assert.equal(state.stages, 1)
   assert.equal(state.targetReads, 1)
   assert.equal(persistedMarker(state).generation, marker.generation)
@@ -402,10 +376,8 @@ test('commit-then-reject marker ambiguity also re-reads authority on the next sa
   const backend = makeBackend(state)
 
   await assert.rejects(async () => backend.read())
-  const legacyReadsBeforeRetry = state.legacyReads
-  assert.deepEqual(await backend.read(), state.legacy)
+  assert.deepEqual(await backend.read(), emptyWorkingSetActivity())
 
-  assert.equal(state.legacyReads, legacyReadsBeforeRetry)
   assert.equal(state.markerReads, 2)
   assert.equal(state.stages, 1)
   assert.equal(state.targetReads, 1)
@@ -418,128 +390,11 @@ test('failed marker readback never activates an in-memory fallback', async () =>
   await assert.rejects(async () => makeBackend(state).read())
 
   persistedMarker(state)
-  const legacyReadsBeforeRestart = state.legacyReads
-  assert.deepEqual(await makeBackend(state).read(), state.legacy)
-  assert.equal(state.legacyReads, legacyReadsBeforeRestart)
+  assert.deepEqual(
+    await makeBackend(state).read(),
+    emptyWorkingSetActivity(),
+  )
   assert.equal(state.targetReads, 1)
-})
-
-test('missing legacy state migrates as a verified known-empty generation', async () => {
-  const state = makeSharedState()
-  state.legacy = undefined
-
-  assert.deepEqual(await makeBackend(state).read(), {
-    version: 1,
-    records: {},
-  })
-
-  const marker = persistedMarker(state)
-  assert.deepEqual(state.generations.get(marker.generation)?.activity, {
-    version: 1,
-    records: {},
-  })
-  assert.equal(state.stages, 1)
-  assert.equal(state.markerWrites, 1)
-})
-
-test('legacy retirement migrates a late marker-absent profile and validates the marked target before removal', async () => {
-  const legacy = makeLegacyActivity()
-  const state = makeSharedState(legacy)
-  const backend = makeBackend(state)
-
-  await backend.retireLegacy()
-
-  const marker = persistedMarker(state)
-  assert.deepEqual(
-    state.generations.get(marker.generation)?.activity,
-    legacy,
-  )
-  assert.equal(state.legacy, undefined)
-  assert.equal(state.legacyRemovals, 1)
-  assert.deepEqual(state.calls, [
-    'marker:read',
-    'legacy:read',
-    'idb:stage',
-    'idb:verify',
-    'marker:write',
-    'marker:read',
-    'idb:read',
-    'legacy:remove',
-  ])
-
-  await backend.retireLegacy()
-  assert.equal(state.legacyRemovals, 1)
-})
-
-test('legacy retirement accepts current authoritative rows that diverged from the cutover fingerprint', async () => {
-  const legacy = makeLegacyActivity()
-  const state = makeSharedState(legacy)
-  const migrationBackend = makeBackend(state)
-  const migrated = await migrationBackend.read()
-  const change = updatedActivity(migrated)
-  await migrationBackend.write(change)
-  const marker = persistedMarker(state)
-
-  await makeBackend(state).retireLegacy()
-
-  assert.equal(state.legacy, undefined)
-  assert.deepEqual(
-    state.generations.get(marker.generation)?.activity,
-    change.activity,
-  )
-  assert.equal(state.legacyRemovals, 1)
-})
-
-test('legacy retirement preserves legacy when the marked target cannot be read', async () => {
-  const legacy = makeLegacyActivity()
-  const state = makeSharedState(legacy)
-  await makeBackend(state).read()
-  state.generations.clear()
-
-  await assert.rejects(
-    async () => makeBackend(state).retireLegacy(),
-    (error: unknown) => {
-      assert.ok(error instanceof WorkingSetActivityAuthorityError)
-      assert.equal(error.phase, 'target-read')
-      return true
-    },
-  )
-
-  assert.deepEqual(state.legacy, legacy)
-  assert.equal(state.legacyRemovals, 0)
-})
-
-test('legacy retirement preserves authority after a removal failure and permits an explicit retry', async () => {
-  const legacy = makeLegacyActivity()
-  const state = makeSharedState(legacy)
-  await makeBackend(state).read()
-  state.failLegacyRemovalOnce = true
-  const cleanupBackend = makeBackend(state)
-
-  await assert.rejects(
-    async () => cleanupBackend.retireLegacy(),
-    (error: unknown) => {
-      assert.ok(error instanceof WorkingSetActivityAuthorityError)
-      assert.equal(error.phase, 'legacy-remove')
-      return true
-    },
-  )
-
-  assert.deepEqual(state.legacy, legacy)
-  assert.deepEqual(await cleanupBackend.read(), legacy)
-  await cleanupBackend.retireLegacy()
-  assert.equal(state.legacy, undefined)
-  assert.equal(state.legacyRemovals, 2)
-})
-
-test('legacy retirement treats an already missing legacy key as a successful no-op', async () => {
-  const state = makeSharedState(undefined)
-
-  await makeBackend(state).retireLegacy()
-
-  assert.equal(state.legacy, undefined)
-  assert.equal(state.legacyRemovals, 1)
-  persistedMarker(state)
 })
 
 test('mismatched marker readback fails even when the durable marker is valid', async () => {
@@ -559,7 +414,10 @@ test('mismatched marker readback fails even when the durable marker is valid', a
   await assert.rejects(async () => makeBackend(state).read())
 
   persistedMarker(state)
-  assert.deepEqual(await makeBackend(state).read(), state.legacy)
+  assert.deepEqual(
+    await makeBackend(state).read(),
+    emptyWorkingSetActivity(),
+  )
   assert.equal(state.stages, 1)
 })
 
@@ -571,32 +429,32 @@ test('marker readback rejects unexpected fields before activating the generation
 
   persistedMarker(state)
   assert.equal(state.targetReads, 0)
-  assert.deepEqual(await makeBackend(state).read(), state.legacy)
+  assert.deepEqual(
+    await makeBackend(state).read(),
+    emptyWorkingSetActivity(),
+  )
   assert.equal(state.stages, 1)
 })
 
-test('a cold marker with unexpected fields fails without reading legacy or target', async () => {
+test('a cold marker with unexpected fields fails without reading or restaging the target', async () => {
   const state = makeSharedState()
   await makeBackend(state).read()
   state.marker = { ...persistedMarker(state), unexpected: true }
-  const legacyReadsBeforeRestart = state.legacyReads
   const targetReadsBeforeRestart = state.targetReads
 
   await assert.rejects(async () => makeBackend(state).read())
 
-  assert.equal(state.legacyReads, legacyReadsBeforeRestart)
   assert.equal(state.targetReads, targetReadsBeforeRestart)
+  assert.equal(state.stages, 1)
 })
 
-test('a valid marker with a missing target fails without reading legacy', async () => {
+test('a valid marker with a missing target fails without bootstrapping a replacement', async () => {
   const state = makeSharedState()
   await makeBackend(state).read()
   state.generations.clear()
-  const legacyReadsBeforeRestart = state.legacyReads
 
   await assert.rejects(async () => makeBackend(state).read())
 
-  assert.equal(state.legacyReads, legacyReadsBeforeRestart)
   assert.equal(state.stages, 1)
 })
 
@@ -613,33 +471,16 @@ for (const marker of [
 
     await assert.rejects(async () => makeBackend(state).read())
 
-    assert.equal(state.legacyReads, 0)
     assert.equal(state.stages, 0)
     assert.equal(state.targetReads, 0)
   })
 }
 
-for (const legacy of [
-  { version: 1, records: [] },
-  { version: 2, records: {} },
-]) {
-  test(`required migration rejects invalid legacy state: ${JSON.stringify(legacy)}`, async () => {
-    const state = makeSharedState(legacy)
-
-    await assert.rejects(async () => makeBackend(state).read())
-
-    assert.equal(state.marker, undefined)
-    assert.equal(state.stages, 0)
-    assert.deepEqual(state.legacy, legacy)
-  })
-}
-
-test('active writes and replacements stay on the confirmed generation without shadowing legacy', async () => {
-  const legacy = makeLegacyActivity()
-  const state = makeSharedState(legacy)
+test('active writes and replacements stay on the confirmed generation', async () => {
+  const state = makeSharedState()
   const backend = makeBackend(state)
-  const migrated = await backend.read()
-  const change = updatedActivity(migrated)
+  const initial = await backend.read()
+  const change = updatedActivity(initial)
   const replacement = activityStore([
     activityRecord('https://example.test/replaced', 'Replacement', NOW + 2000),
   ])
@@ -648,23 +489,9 @@ test('active writes and replacements stay on the confirmed generation without sh
   await backend.replace(replacement)
 
   assert.deepEqual(await backend.read(), replacement)
-  assert.deepEqual(state.legacy, legacy)
   assert.equal(state.markerReads, 2)
   assert.equal(state.targetWrites, 1)
   assert.equal(state.targetReplaces, 1)
-})
-
-test('equivalent legacy insertion orders derive the same source digest', async () => {
-  const records = Object.values(makeLegacyActivity().records)
-  const left = makeSharedState(activityStore(records))
-  const right = makeSharedState(activityStore(records.toReversed()))
-
-  await Promise.all([makeBackend(left).read(), makeBackend(right).read()])
-
-  assert.equal(
-    persistedMarker(left).sourceDigest,
-    persistedMarker(right).sourceDigest,
-  )
 })
 
 test('backend close drains through the same serializer', async () => {
