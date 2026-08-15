@@ -1,5 +1,3 @@
-import type { DashboardChipData, DashboardTitleVariantPresentation } from './types'
-
 const MAX_URL_VARIANT_LABEL_LENGTH = 64
 const OPAQUE_QUERY_VALUE_MIN_LENGTH = 24
 const SEMANTIC_VALUE_WORD = /^[A-Za-z]{2,16}$/
@@ -48,12 +46,6 @@ export type UrlVariantPresentation = {
 export type UrlVariantPresentationGroup = {
   label: string
   targetIndexes: number[]
-}
-
-export function titleVariantTargets(
-  presentations: readonly DashboardTitleVariantPresentation[] | null | undefined,
-): DashboardChipData[] {
-  return presentations?.flatMap(({ targets }) => targets) ?? []
 }
 
 type UrlVariantPresentationGroupOptions = {

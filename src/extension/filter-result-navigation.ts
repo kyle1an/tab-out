@@ -1,12 +1,8 @@
 import { savedPageKeyForUrl } from './saved-pages.js'
 import { unwrapSuspenderUrl } from './suspension.js'
-import type { DashboardCardEntry, DashboardChipData, DashboardChipEnv, DashboardTab } from './types.js'
+import type { DashboardCardEntry, DashboardChipData, DashboardChipEnv, DashboardTab, FilterResultCandidate } from './types.js'
 
-export type FilterResultCandidate = {
-  key: string
-  identity: string
-  domId: string
-}
+export type { FilterResultCandidate } from './types.js'
 
 export type FilterResultSelection = {
   query: string
@@ -71,11 +67,8 @@ function filterResultCandidatesForChip(chip: DashboardChipData): FilterResultCan
   if (chip.envs?.length) {
     return chip.envs.map((env) => filterResultCandidateForTarget(env, chip.sourceType))
   }
-  const presentationTargets = (chip.titleVariantPresentations ?? [])
-    .map(({ targets }) => targets[0])
-    .filter((target) => target !== undefined)
-  if (presentationTargets.length > 0) {
-    return presentationTargets.map((target) => filterResultCandidateForTarget(target, chip.sourceType))
+  if (chip.sameTitlePageChipPlan) {
+    return chip.sameTitlePageChipPlan.view.rows.map((row) => row.filterCandidate)
   }
   return [filterResultCandidateForTarget(chip)]
 }

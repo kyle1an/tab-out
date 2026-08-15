@@ -1,4 +1,5 @@
 import type { StartupOrderDebugCapture, StartupOrderVmSampleOptions } from './startup-order-debug-types'
+import { resolveSameTitlePageChip } from '../extension/same-title-page-chip-plan.js'
 import type { DashboardChipData } from '../extension/types'
 
 const STARTUP_ORDER_DEBUG_FILTER_KEY = 'tab-out:debug-startup-order-filter'
@@ -141,21 +142,21 @@ function debugChipVm(
   chip: DashboardChipData,
   index: number,
 ) {
-  const variants = []
-  for (const presentation of chip.titleVariantPresentations ?? []) {
-    for (const variant of presentation.targets) {
-      variants.push({
-        index: variants.length,
+  const debugTargets = chip.sameTitlePageChipPlan
+    ? resolveSameTitlePageChip(chip.sameTitlePageChipPlan, { kind: 'debug-targets' })
+    : null
+  const variants = debugTargets?.kind === 'debug-targets'
+    ? debugTargets.exactTargets.map(({ label, target: variant }, variantIndex) => ({
+        index: variantIndex,
         text: (variant.title || '').slice(0, 180),
         url: variant.tabUrl || '',
         rawUrl: variant.rawUrl || '',
         sourceType: variant.sourceType || '',
         pagePinned: !!variant.pagePinned,
         pathSuffix: variant.pathSuffix || '',
-        variantLabel: variant.variantLabel || '',
-      })
-    }
-  }
+        variantLabel: label,
+      }))
+    : []
   return {
     index,
     text: (chip.title || '').slice(0, 180),

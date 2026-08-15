@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { pageChipTargetActionPolicy } from '../src/components/page-chip-action-policy.js'
+import { pageChipTargetActionPolicy } from '../src/extension/page-chip-target-policy.js'
 
 test('live tab targets expose saved-page, Chrome tab, and close actions', () => {
   assert.deepEqual(
@@ -9,7 +9,6 @@ test('live tab targets expose saved-page, Chrome tab, and close actions', () => 
       sourceType: 'tab',
       saved: false,
       closedSaved: false,
-      isApp: false,
     }),
     {
       canClose: true,
@@ -27,7 +26,6 @@ test('closed saved-page targets can be removed but cannot use live-tab or close 
       sourceType: 'saved-page',
       saved: true,
       closedSaved: true,
-      isApp: false,
     }),
     {
       canClose: false,
@@ -45,7 +43,6 @@ test('read-only saved targets show the saved hint without mutation actions', () 
       sourceType: 'bookmark',
       saved: true,
       closedSaved: false,
-      isApp: false,
     }),
     {
       canClose: false,
@@ -63,7 +60,6 @@ test('history targets expose delete through the shared close capability', () => 
       sourceType: 'history',
       saved: false,
       closedSaved: false,
-      isApp: false,
     }),
     {
       canClose: true,
@@ -82,7 +78,6 @@ test('non-interactive aggregate targets suppress target-level actions', () => {
         sourceType: 'tab',
         saved: true,
         closedSaved: false,
-        isApp: false,
       },
       { interactive: false },
     ),
@@ -102,7 +97,6 @@ test('retained app targets can be saved or removed from Tabs without live-tab ac
       sourceType: 'retained-page',
       saved: false,
       closedSaved: true,
-      isApp: true,
     }),
     {
       canClose: false,

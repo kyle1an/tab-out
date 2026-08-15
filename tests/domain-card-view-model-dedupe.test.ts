@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { computeDomainCardViewModel } from '../src/extension/domain-card-view-model.js'
-import { titleVariantTargets } from '../src/extension/url-variant-presentation.js'
 import type { DomainGroup } from '../src/extension/types'
 import { collectDashboardChips, makeDashboardTab } from './helpers/domain-card-view-model.js'
+import { sameTitlePageChipTargets } from './helpers/same-title-page-chip-plan.js'
 
 test('two Jira URL forms of the same comment collapse into one closable duplicate', () => {
   const longForm =
@@ -71,7 +71,7 @@ test('multiple exact Saved targets sharing one canonical identity remain indepen
   const vm = computeDomainCardViewModel(group)
   const [chip] = collectDashboardChips(vm)
   assert.ok(chip)
-  const variants = titleVariantTargets(chip.titleVariantPresentations)
+  const variants = sameTitlePageChipTargets(chip.sameTitlePageChipPlan)
   assert.equal(variants.length, 2)
 
   assert.equal(vm.tabCountLabel, '2 closed')
@@ -88,7 +88,7 @@ test('multiple exact Saved targets sharing one canonical identity remain indepen
   )
 })
 
-test('same-title presentations keep repeated exact URL targets independently owned', () => {
+test('same-title plan rows keep repeated Exact Targets independently owned', () => {
   const repeatedUrl = 'https://example.test/content?state=alpha'
   const group: DomainGroup = {
     domain: 'example.test',
@@ -117,17 +117,45 @@ test('same-title presentations keep repeated exact URL targets independently own
 
   const [chip] = collectDashboardChips(computeDomainCardViewModel(group))
   assert.ok(chip)
-  const presentations = chip.titleVariantPresentations ?? []
-  const repeatedPresentations = presentations.filter(({ targets }) => targets[0]?.tabUrl === repeatedUrl)
+  const presentations = chip.sameTitlePageChipPlan?.view.rows ?? []
+  const repeatedPresentations = presentations.filter((row) => row.copyUrl === repeatedUrl)
 
   assert.equal(presentations.length, 3)
-  assert.equal(titleVariantTargets(presentations).length, 3)
   assert.equal(repeatedPresentations.length, 2)
-  assert.ok(repeatedPresentations.every(({ targets }) => targets.length === 1))
+  assert.ok(repeatedPresentations.every((row) => row.exactTargetCount === 1))
   assert.deepEqual(
-    repeatedPresentations.map(({ targets }) => targets[0]?.sourceType).toSorted(),
+    repeatedPresentations.map((row) => row.sourceType).toSorted(),
     ['retained-page', 'tab'],
   )
+})
+
+test('an invalid same-title plan falls back to separate Page Chips', () => {
+  const url = 'https://example.test/content?state=alpha'
+  const group: DomainGroup = {
+    domain: 'example.test',
+    tabs: [
+      makeDashboardTab({
+        id: 1,
+        url,
+        title: 'Shared title',
+      }),
+      makeDashboardTab({
+        id: 'retained-alpha',
+        url,
+        title: 'Shared title',
+        sourceType: 'retained-page',
+        closedSaved: true,
+        retainedPageIdentity: 'identity-alpha',
+        retainedPageClosureToken: 'lifetime-alpha',
+      }),
+    ],
+  }
+
+  const chips = collectDashboardChips(computeDomainCardViewModel(group))
+
+  assert.equal(chips.length, 2)
+  assert.ok(chips.every((chip) => chip.sameTitlePageChipPlan === undefined))
+  assert.deepEqual(chips.map((chip) => chip.sourceType).toSorted(), ['retained-page', 'tab'])
 })
 
 test('a closed Saved target does not inherit live state from a canonical-equivalent open tab', () => {
@@ -162,7 +190,7 @@ test('a closed Saved target does not inherit live state from a canonical-equival
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
   const [groupedChip] = collectDashboardChips(vm)
-  const savedVariant = titleVariantTargets(groupedChip?.titleVariantPresentations).find(
+  const savedVariant = sameTitlePageChipTargets(groupedChip?.sameTitlePageChipPlan).find(
     (variant) => variant.savedPageKey === savedUrl,
   )
   assert.ok(savedVariant)
@@ -203,7 +231,7 @@ test('a retained row is one unique closed item without a duplicate count', () =>
   assert.equal(vm.closableExtras, 0)
   assert.equal(chip.sourceType, 'retained-page')
   assert.equal(chip.dupeCount, 1)
-  assert.equal(chip.titleVariantPresentations, undefined)
+  assert.equal(chip.sameTitlePageChipPlan, undefined)
 })
 
 test('card removal targets include only exact retained snapshots in the matched scope', () => {
@@ -266,7 +294,7 @@ test('card removal targets include only exact retained snapshots in the matched 
   assert.equal(unfiltered.closableCount, 1)
   const retainedVariantIdentities = collectDashboardChips(unfiltered)
     .flatMap((chip) => {
-      const variants = titleVariantTargets(chip.titleVariantPresentations)
+      const variants = sameTitlePageChipTargets(chip.sameTitlePageChipPlan)
       return variants.length > 0 ? variants : [chip]
     })
     .flatMap((chip) => chip.retainedPageIdentity ?? [])
@@ -327,7 +355,7 @@ test('GitHub repository root slash variants collapse into one closable duplicate
   assert.deepEqual(vm.closableDupeUrls, [repository])
   assert.equal(vm.closableExtras, 1)
   assert.equal(chip.dupeCount, 2)
-  assert.equal(chip.titleVariantPresentations, undefined)
+  assert.equal(chip.sameTitlePageChipPlan, undefined)
 })
 
 test('dashboards with different filter params collapse into one closable Tab Out duplicate', () => {

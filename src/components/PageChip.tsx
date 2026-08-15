@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import type { FocusEvent, KeyboardEvent, MouseEvent, PointerEvent } from 'react'
 import { X } from 'lucide-react'
 import { isClosedSavedDashboardTab, isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
+import { groupCloseActionLabel, pageChipTargetActionPolicy } from '../extension/page-chip-target-policy.js'
 import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../extension/page-target.js'
 import { activateRetainedPageTarget, removeRetainedPageTarget } from '../extension/retained-page-actions.js'
 import { activateSavedPageTarget } from '../extension/saved-page-activation.js'
@@ -10,7 +11,8 @@ import { focusExistingTabTargetResult, tabFocusResultToastMessage } from '../ext
 import { chipActivationMode, performDashboardItemActivation, shouldSuppressSelectionForGesture } from '../extension/tab-activation.js'
 import type { ChipActivationModifiers } from '../extension/tab-activation.js'
 import { filterResultCandidateForTarget } from '../extension/filter-result-navigation.js'
-import { titleVariantTargets } from '../extension/url-variant-presentation.js'
+import { resolveSameTitlePageChip } from '../extension/same-title-page-chip-plan.js'
+import type { SameTitlePageChipRemovalDecision } from '../extension/same-title-page-chip-plan.js'
 import { focusExactTabOrOpenResult } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls, duplicateTabTarget, reloadTabTarget, setChipTargetMuted, suspendChipTarget } from '../extension/tab-actions'
 import { showToast } from '../extension/toast.js'
@@ -39,9 +41,8 @@ import { clampedTitleLineNodes, createExpansionMeasureElement, createTitleExpans
 import { chipTrim, CHIP_TRIM_TOKENS } from './chip-trim'
 import { FAVICON_DIM_CLASS_NAME, VARIANT_LABEL_DIM_CLASS_NAME } from './liveness-dim'
 import type { DashboardChipData } from './types'
-import type { DashboardChipEnv, DashboardSegment, DashboardTitleVariantPresentation } from '../extension/types'
-import { closeTargetLeavesSavedPage, foldedTabCloseTargets, historyDeleteFullyRemoved, partitionVariantCloseTargets, groupCloseActionLabel, titleVariantGroupRemovalConfirmed, variantClosable } from './chip-close-targets.js'
-import { pageChipTargetActionPolicy } from './page-chip-action-policy.js'
+import type { DashboardChipEnv, DashboardSegment, SameTitlePageChipPlan, SameTitlePageChipRowView } from '../extension/types'
+import { foldedTabCloseTargets, historyDeleteFullyRemoved } from './chip-close-targets.js'
 import { chipCanShowSuspend, chipSuspendableTargetCount } from './chip-suspend-targets.js'
 import { registerPageChipTextLayoutValidation, type PageChipTextLayoutMeasurementJob } from './page-chip-layout-validation.js'
 import { createSizeChangeObserver, type ObservedElementSize, type SizeChangeObserver } from './size-change-observer.js'
@@ -94,14 +95,19 @@ function chipMatchesHoverState(target: DashboardChipData, state: HoverState): bo
 function pageChipHoverMatchKey(
   state: HoverState,
   chip: DashboardChipData,
-  titleVariantPresentations: readonly DashboardTitleVariantPresentation[],
+  sameTitlePageChipPlan: SameTitlePageChipPlan | undefined,
 ): string {
   if (!state.url || !state.source || state.source === 'chip') return ''
+  const hoverDecision = sameTitlePageChipPlan
+    ? resolveSameTitlePageChip(sameTitlePageChipPlan, {
+        kind: 'hover-match',
+        matchUrls: state.urls,
+        url: state.url,
+      })
+    : null
   const matches = [
     chipMatchesHoverState(chip, state),
-    ...titleVariantPresentations.map(({ targets }) => (
-      targets.some((target) => chipMatchesHoverState(target, state))
-    )),
+    ...(hoverDecision?.kind === 'hover-match' ? hoverDecision.rowMatches : []),
   ]
   return matches.some(Boolean) ? matches.map((matched) => matched ? '1' : '0').join('') : ''
 }
@@ -1213,11 +1219,11 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   const envs = Array.isArray(chip.envs) ? chip.envs : []
   const isFolded = envs.length > 0
   const foldedCloseTargets = foldedTabCloseTargets(envs)
-  const titleVariantPresentations = (chip.titleVariantPresentations ?? [])
-    .filter(({ targets }) => targets.length > 0)
-  const variantTargets = titleVariantTargets(titleVariantPresentations)
-  const hoverMatchKey = useHoverStateSelector((state) => pageChipHoverMatchKey(state, chip, titleVariantPresentations))
-  const isTitleVariantGroup = variantTargets.length > 1
+  const sameTitlePageChipPlan = chip.sameTitlePageChipPlan
+  const sameTitlePageChipView = sameTitlePageChipPlan?.view
+  const sameTitleRows = sameTitlePageChipView?.rows ?? []
+  const hoverMatchKey = useHoverStateSelector((state) => pageChipHoverMatchKey(state, chip, sameTitlePageChipPlan))
+  const isTitleVariantGroup = !!sameTitlePageChipPlan
   const chipFilterResultCandidate = filterResultCandidateForTarget(chip)
   const chipLayoutKey = chip.pagePinId || chip.rawUrl
   const progressiveFoldedEnvResetKey = JSON.stringify([
@@ -1225,13 +1231,8 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     chipLayoutKey,
     filter,
   ])
-  const variantCloseTargets = partitionVariantCloseTargets(variantTargets)
-  const variantCloseCount = variantCloseTargets.historyUrls.length + variantCloseTargets.tabEnvs.length
-  const chipCloseLeavesSavedPage = isTitleVariantGroup
-    ? variantTargets.some((variant) => variantClosable(variant) && closeTargetLeavesSavedPage(variant))
-    : isFolded
-      ? foldedCloseTargets.some(closeTargetLeavesSavedPage)
-      : closeTargetLeavesSavedPage(chip)
+  const variantCloseCount = (sameTitlePageChipView?.groupRemoval?.historyCount ?? 0) +
+    (sameTitlePageChipView?.groupRemoval?.tabCount ?? 0)
   const parentInteractive = !isFolded && !isTitleVariantGroup
   const hasFilter = filter.trim().length > 0
   const isHistorySource = chip.sourceType === 'history'
@@ -1533,20 +1534,8 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     if (activationResult === 'unhandled') await focusChipUrl(targetUrl, target)
   }
 
-  function defaultTitleVariantChip() {
-    if (!isTitleVariantGroup) return undefined
-    return variantTargets.find((variant) => !!variant.activeChipFrame && !variant.activeInOtherWindow)
-      || variantTargets.find((variant) => !!variant.activeInOtherWindow)
-      || (variantTargets.every(isClosedSavedDashboardTab)
-        ? variantTargets.find((variant) => variant.sourceType === 'saved-page')
-        : undefined)
-      || variantTargets[0]
-  }
-
   function previewDefaultTitleVariant() {
-    const variant = defaultTitleVariantChip()
-    if (!variant) return
-    setPreview(variant.tabUrl, previewUrlsForChip(variant), variant)
+    previewTitleVariant()
   }
 
   function titleVariantEventTargetsExactVariant(target: EventTarget | null) {
@@ -1606,9 +1595,11 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   // title/blank-surface clicks activate the default variant.
   async function onVariantGroupChipClick(e: MouseEvent<HTMLDivElement>) {
     if (titleVariantEventTargetsExactVariant(e.target)) return
-    const variant = defaultTitleVariantChip()
-    if (!variant) return
-    await activateChipTarget(e, variant.tabUrl, variant.sourceType, variant, e.currentTarget)
+    if (!sameTitlePageChipPlan) return
+    const decision = resolveSameTitlePageChip(sameTitlePageChipPlan, { kind: 'activate' })
+    if (decision.kind !== 'activate') return
+    const { target } = decision
+    await activateChipTarget(e, target.tabUrl, target.sourceType, target, e.currentTarget)
   }
 
   function onVariantGroupChipMouseDown(e: MouseEvent<HTMLDivElement>) {
@@ -1654,12 +1645,14 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     return pageTargetMatchUrls(target)
   }
 
-  function titleVariantRepresentative(presentation: DashboardTitleVariantPresentation) {
-    return presentation.targets[0]
-  }
-
-  function previewUrlsForTitleVariantPresentation(presentation: DashboardTitleVariantPresentation): string[] {
-    return Array.from(new Set(presentation.targets.flatMap(previewUrlsForChip)))
+  function previewTitleVariant(rowId?: string) {
+    if (!sameTitlePageChipPlan) return
+    const decision = resolveSameTitlePageChip(sameTitlePageChipPlan, {
+      kind: 'preview',
+      ...(rowId === undefined ? {} : { rowId }),
+    })
+    if (decision.kind !== 'preview') return
+    setPreview(decision.url, decision.matchUrls, decision)
   }
 
   function captureContextMenuFocusRecovery() {
@@ -1696,13 +1689,11 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     setPreview('')
   }
 
-  function onTitleVariantContextMenuOpenChange(open: boolean, presentation: DashboardTitleVariantPresentation) {
+  function onTitleVariantContextMenuOpenChange(open: boolean, row: SameTitlePageChipRowView) {
     contextMenuOpenRef.current = open
-    const variant = titleVariantRepresentative(presentation)
-    if (!variant) return
     if (open) {
       captureContextMenuFocusRecovery()
-      setPreview(variant.tabUrl, previewUrlsForTitleVariantPresentation(presentation), variant)
+      previewTitleVariant(row.id)
       return
     }
     setPreview('')
@@ -1983,18 +1974,21 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     }
   }
 
-  async function onTitleVariantFocus(e: MouseEvent<HTMLButtonElement>, presentation: DashboardTitleVariantPresentation) {
+  async function onTitleVariantFocus(e: MouseEvent<HTMLButtonElement>, row: SameTitlePageChipRowView) {
     e.stopPropagation()
-    const variant = titleVariantRepresentative(presentation)
-    if (!variant) return
-    await activateChipTarget(e, variant.tabUrl, variant.sourceType, variant, e.currentTarget)
+    if (!sameTitlePageChipPlan) return
+    const decision = resolveSameTitlePageChip(sameTitlePageChipPlan, {
+      kind: 'activate',
+      rowId: row.id,
+    })
+    if (decision.kind !== 'activate') return
+    const { target } = decision
+    await activateChipTarget(e, target.tabUrl, target.sourceType, target, e.currentTarget)
   }
 
-  function onTitleVariantMouseEnter(presentation: DashboardTitleVariantPresentation) {
-    const variant = titleVariantRepresentative(presentation)
-    if (!variant) return
+  function onTitleVariantMouseEnter(row: SameTitlePageChipRowView) {
     setDefaultVariantSurfaceHover(false)
-    setPreview(variant.tabUrl, previewUrlsForTitleVariantPresentation(presentation), variant)
+    previewTitleVariant(row.id)
   }
 
   function onTitleVariantMouseLeave(e: MouseEvent<HTMLElement>) {
@@ -2012,11 +2006,9 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     setPreview('')
   }
 
-  function onTitleVariantFocusIn(presentation: DashboardTitleVariantPresentation) {
-    const variant = titleVariantRepresentative(presentation)
-    if (!variant) return
+  function onTitleVariantFocusIn(row: SameTitlePageChipRowView) {
     setDefaultVariantSurfaceHover(false)
-    setPreview(variant.tabUrl, previewUrlsForTitleVariantPresentation(presentation), variant)
+    previewTitleVariant(row.id)
   }
 
   function onTitleVariantBlur(e: FocusEvent<HTMLElement>) {
@@ -2026,70 +2018,129 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     setPreview('')
   }
 
-  async function onCloseTitleVariant(e: MouseEvent<HTMLButtonElement>, presentation: DashboardTitleVariantPresentation) {
+  async function executeTitleVariantRemoval(
+    decision: SameTitlePageChipRemovalDecision,
+    clearPreviewAfterEach: boolean,
+    tabsFirst = false,
+  ) {
+    const removeHistory = () => decision.historyUrls.length > 0
+      ? deleteHistoryUrls({
+          urls: Array.from(decision.historyUrls),
+          ...(clearPreviewAfterEach ? { onAfterDelete: async () => setPreview('') } : {}),
+        })
+      : Promise.resolve(null)
+    const closeTabs = () => decision.tabClose?.kind === 'single'
+      ? closeChipTarget({
+          tabUrl: decision.tabClose.target.tabUrl,
+          ...(decision.tabClose.target.tabId === undefined
+            ? {}
+            : { tabId: decision.tabClose.target.tabId }),
+          ...(decision.tabClose.target.chromePinned === undefined
+            ? {}
+            : { expectedPinned: decision.tabClose.target.chromePinned }),
+          ...(decision.tabClose.target.chromeGroupId === undefined
+            ? {}
+            : { expectedGroupId: decision.tabClose.target.chromeGroupId }),
+          ...(clearPreviewAfterEach ? { onAfterClose: async () => setPreview('') } : {}),
+        })
+      : decision.tabClose?.kind === 'many'
+        ? closeChipTarget({
+            tabUrl: decision.tabClose.representativeUrl,
+            envs: Array.from(decision.tabClose.envs),
+            ...(clearPreviewAfterEach ? { onAfterClose: async () => setPreview('') } : {}),
+          })
+        : Promise.resolve(null)
+    if (tabsFirst) {
+      await closeTabs()
+      return removeHistory()
+    }
+    const historyResult = await removeHistory()
+    await closeTabs()
+    return historyResult
+  }
+
+  async function onCloseTitleVariant(e: MouseEvent<HTMLButtonElement>, row: SameTitlePageChipRowView) {
     e.stopPropagation()
-    const variant = titleVariantRepresentative(presentation)
-    if (!variant) return
-    if (presentation.targets.length === 1 && variant.sourceType !== 'history') {
-      await closeChipTarget({
-        tabUrl: variant.tabUrl,
-        ...(variant.tabId === undefined ? {} : { tabId: variant.tabId }),
-        ...(variant.chromePinned === undefined ? {} : { expectedPinned: variant.chromePinned }),
-        ...(variant.chromeGroupId === undefined ? {} : { expectedGroupId: variant.chromeGroupId }),
-        onAfterClose: async () => setPreview(''),
-      })
-      return
-    }
-    const { historyUrls, tabEnvs } = partitionVariantCloseTargets(presentation.targets)
-    if (historyUrls.length > 0) {
-      await deleteHistoryUrls({
-        urls: historyUrls,
-        onAfterDelete: async () => setPreview(''),
-      })
-    }
-    if (tabEnvs.length > 0) {
-      await closeChipTarget({
-        tabUrl: variant.tabUrl,
-        envs: tabEnvs,
-        onAfterClose: async () => setPreview(''),
-      })
-    }
+    if (!sameTitlePageChipPlan) return
+    const decision = resolveSameTitlePageChip(sameTitlePageChipPlan, {
+      action: 'close',
+      kind: 'action',
+      rowId: row.id,
+    })
+    if (decision.kind !== 'remove') return
+    await executeTitleVariantRemoval(decision, true)
   }
 
   async function onCloseAllVariants(e: MouseEvent<HTMLButtonElement>) {
     e.stopPropagation()
     const chipEl = e.currentTarget.closest('.page-chip')
     const focusWasInsideClosingChip = e.currentTarget.ownerDocument.activeElement === e.currentTarget
-    const { historyUrls, tabEnvs } = variantCloseTargets
-    if (historyUrls.length === 0 && tabEnvs.length === 0) return
+    if (!sameTitlePageChipPlan) return
+    const decision = resolveSameTitlePageChip(sameTitlePageChipPlan, {
+      action: 'close',
+      kind: 'action',
+    })
+    if (decision.kind !== 'remove') return
 
     // Close tabs and delete history without each call running its own removal
     // animation; animate the whole group chip out once, after both resolve.
-    const tabResult = tabEnvs.length > 0
-      ? await closeChipTarget({ tabUrl: chip.tabUrl, envs: tabEnvs })
-      : null
-    const historyResult = historyUrls.length > 0
-      ? await deleteHistoryUrls({ urls: historyUrls })
-      : null
+    const historyResult = await executeTitleVariantRemoval(decision, false, true)
 
     if (
-      tabEnvs.length === 0 &&
-      !chipCloseLeavesSavedPage &&
+      decision.tabClose === null &&
+      !decision.leavesSavedPage &&
       chipEl &&
-      titleVariantGroupRemovalConfirmed({
-        requestedTabCount: tabEnvs.length,
-        tabResult,
-        requestedHistoryCount: historyUrls.length,
-        historyResult,
-      })
+      historyDeleteFullyRemoved(decision.historyUrls.length, historyResult)
     ) {
       startPageChipCloseAnimation(chipEl, onLayoutChange, undefined, focusWasInsideClosingChip)
     }
     setPreview('')
   }
 
-  async function onToggleSavedTitleVariant(e: StopPropagationEvent, variant: DashboardChipData) {
+  function titleVariantTargetAction(
+    row: SameTitlePageChipRowView,
+    action: 'duplicate' | 'reload' | 'remove-retained' | 'toggle-saved',
+  ) {
+    if (!sameTitlePageChipPlan) return undefined
+    const decision = resolveSameTitlePageChip(sameTitlePageChipPlan, {
+      action,
+      kind: 'action',
+      rowId: row.id,
+    })
+    return decision.kind === 'target-action' ? decision.target : undefined
+  }
+
+  function onReloadTitleVariant(e: StopPropagationEvent, row: SameTitlePageChipRowView) {
+    const target = titleVariantTargetAction(row, 'reload')
+    if (!target) {
+      e.stopPropagation()
+      return
+    }
+    onReloadPageTarget(e, target)
+  }
+
+  function onDuplicateTitleVariant(e: StopPropagationEvent, row: SameTitlePageChipRowView) {
+    const target = titleVariantTargetAction(row, 'duplicate')
+    if (!target) {
+      e.stopPropagation()
+      return
+    }
+    onDuplicatePageTarget(e, target)
+  }
+
+  async function onRemoveRetainedTitleVariant(e: StopPropagationEvent, row: SameTitlePageChipRowView) {
+    const target = titleVariantTargetAction(row, 'remove-retained')
+    if (!target) {
+      e.stopPropagation()
+      return
+    }
+    await onRemoveRetainedPage(e, target)
+  }
+
+  async function onToggleSavedTitleVariant(e: StopPropagationEvent, row: SameTitlePageChipRowView) {
     e.stopPropagation()
+    const variant = titleVariantTargetAction(row, 'toggle-saved')
+    if (!variant) return
     if (variant.saved) {
       await removeSavedPageTarget(variant.savedPageKey || variant.tabUrl)
     } else {
@@ -2105,10 +2156,16 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     setPreview('')
   }
 
-  async function onTogglePinnedTitleVariant(e: StopPropagationEvent, variant: DashboardChipData) {
+  async function onTogglePinnedTitleVariant(e: StopPropagationEvent, row: SameTitlePageChipRowView) {
     e.stopPropagation()
-    if (!variant.pagePinId) return
-    await onTogglePinnedPageChip?.(variant.pagePinId)
+    if (!sameTitlePageChipPlan) return
+    const decision = resolveSameTitlePageChip(sameTitlePageChipPlan, {
+      action: 'toggle-pin',
+      kind: 'action',
+      rowId: row.id,
+    })
+    if (decision.kind !== 'toggle-pin') return
+    await onTogglePinnedPageChip?.(decision.pagePinId)
     onLayoutChange?.({ animate: true })
     setPreview('')
   }
@@ -2150,25 +2207,25 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   const savedLabel = chip.saved ? (isClosedSavedPage ? 'Closed saved page' : 'Saved page') : ''
   const hiddenTitleLabel = suppressedTitleParts.length > 0 ? `Suppressed title text: ${suppressedTitleParts.join(' · ')}` : ''
   const titleVariantLabel = isTitleVariantGroup
-    ? `${variantTargets.length} URL variants: ${titleVariantPresentations.map(({ label, targets }) => (
-      targets.length > 1 ? `${label} (${targets.length})` : label
-    )).join(' · ')}`
+    ? sameTitlePageChipView?.summaryLabel ?? ''
     : ''
   const chipLabel = [chip.tooltip, loadingLabel, pinnedLabel, titleVariantLabel, hiddenTitleLabel, duplicateLabel, activeLabel, savedLabel].filter(Boolean).join(' · ')
   const closeTabCount = isTitleVariantGroup
-    ? variantCloseTargets.tabEnvs.length
+    ? sameTitlePageChipView?.groupRemoval?.tabCount ?? 0
     : isFolded
       ? foldedCloseTargets.length
       : isHistorySource
         ? 0
         : 1
   const closeHistoryCount = isTitleVariantGroup
-    ? variantCloseTargets.historyUrls.length
+    ? sameTitlePageChipView?.groupRemoval?.historyCount ?? 0
     : isHistorySource
       ? 1
       : 0
   const closeActionDeletesHistory = closeHistoryCount > 0
-  const closeActionLabel = groupCloseActionLabel({ tabCount: closeTabCount, historyCount: closeHistoryCount })
+  const closeActionLabel = isTitleVariantGroup
+    ? sameTitlePageChipView?.groupRemoval?.label ?? groupCloseActionLabel({ tabCount: closeTabCount, historyCount: closeHistoryCount })
+    : groupCloseActionLabel({ tabCount: closeTabCount, historyCount: closeHistoryCount })
   const savedActionLabel = chip.saved ? 'Remove saved page' : 'Save page'
   const pagePinActionLabel = chip.pagePinned ? 'Unpin' : 'Pin'
   const chipTitleText = titleTextForChip(chip)
@@ -2490,75 +2547,40 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     )
   }
 
-  function titleVariantActionLabel(presentation: DashboardTitleVariantPresentation) {
-    const variant = titleVariantRepresentative(presentation)
-    if (!variant) return ''
-    const targetCount = presentation.targets.length
-    const action = variant.sourceType === 'history'
-      ? targetCount > 1 ? `Delete ${targetCount} from history` : 'Delete from history'
-      : targetCount > 1 ? `Close ${targetCount} tabs` : 'Close this tab'
-    return `${action}: ${presentation.label}`
-  }
-
-  function titleVariantNode(presentation: DashboardTitleVariantPresentation, index: number, mode: ChipTextRenderMode) {
-    const variant = titleVariantRepresentative(presentation)
-    if (!variant) return null
-    const { label, targets } = presentation
-    const variantTargetCount = targets.length
+  function titleVariantNode(row: SameTitlePageChipRowView, index: number, mode: ChipTextRenderMode) {
+    const variantTargetCount = row.exactTargetCount
     const singleTarget = variantTargetCount === 1
-    const variantActive = targets.some((target) => !!(target.activeChipFrame || target.activeInOtherWindow))
-    const variantCurrent = targets.some((target) => !!target.activeChipFrame && !target.activeInOtherWindow)
     const variantHoverMatched = hoverMatchKey[index + 1] === '1'
     // Static marker consumed only by base.css: hovering the group's non-URL
     // surface highlights this pill via :hover CSS so it swaps with the exact
     // pill's own :hover inside one style recalc. Routing this highlight
     // through React state paints a one-frame rest-background flash instead.
-    const defaultVariant = defaultTitleVariantChip()
-    const variantIsDefaultTarget = !!defaultVariant && targets.includes(defaultVariant)
-    const variantDupeCount = variant.sourceType === 'retained-page' ? 1 : (variant.dupeCount || 1)
-    const variantClosedSaved = isClosedSavedDashboardTab(variant)
-    const variantActionPolicy = pageChipTargetActionPolicy(variant)
-    const variantCanClose = targets.some(variantClosable)
-    const {
-      canRemoveRetained: variantCanRemoveRetained,
-      canToggleSaved: variantCanToggleSaved,
-      canUseChromeTabActions: variantCanUseChromeTabActions,
-      showSavedHint: variantShowSavedHint,
-    } = singleTarget
-      ? variantActionPolicy
-      : {
-          canRemoveRetained: false,
-          canToggleSaved: false,
-          canUseChromeTabActions: false,
-          showSavedHint: false,
-        }
+    const variantCanClose = !!row.actions.close
+    const variantCanRemoveRetained = row.actions.removeRetained
+    const variantCanToggleSaved = !!row.actions.saved
+    const variantCanUseChromeTabActions = row.actions.chromeTabActions
+    const variantShowSavedHint = row.actions.showSavedHint
     const variantActionCount = (variantShowSavedHint ? 1 : 0) + (variantCanClose ? 1 : 0)
-    const variantPagePinOwnSlot = singleTarget && !!variant.pagePinned && !variantCanClose
+    const variantPagePinOwnSlot = singleTarget && row.pagePinned && !variantCanClose
     const variantActionSlotCount = variantActionCount + (variantPagePinOwnSlot ? 1 : 0)
-    const variantSavedActionLabel = variant.saved ? 'Remove saved page' : 'Save page'
-    const variantPagePinActionLabel = variant.pagePinned ? 'Unpin' : 'Pin'
-    const variantCanTogglePagePin = singleTarget && !!variant.pagePinId && typeof onTogglePinnedPageChip === 'function'
-    const variantTitleText = titleTextForChip(variant)
-    const variantCanUseContextMenu = singleTarget && (variantCanToggleSaved || variantCanRemoveRetained || variantCanTogglePagePin || !!variantTitleText || !!variant.tabUrl)
-    const variantFilterResultCandidate = filterResultCandidateForTarget(variant, chip.sourceType)
-    const variantPinnedLabel = singleTarget && variant.pagePinned ? 'Pinned' : ''
-    const variantTargetCountLabel = variantTargetCount > 1
-      ? targets.every((target) => target.sourceType === 'history')
-        ? `${variantTargetCount} history entries`
-        : `${variantTargetCount} exact targets`
-      : ''
-    const variantLabel = [[variant.leadPrefix, variant.title, label].filter(Boolean).join(' · '), variantTargetCountLabel, variantPinnedLabel, variantDupeCount > 1 ? `${variantDupeCount} open copies` : '', variant.activeInOtherWindow ? 'Active in another window' : '', variant.saved ? (variantClosedSaved ? 'Closed saved page' : 'Saved page') : ''].filter(Boolean).join(' · ')
+    const variantCanTogglePagePin = !!row.actions.pin && typeof onTogglePinnedPageChip === 'function'
+    const variantCanUseContextMenu = singleTarget && (
+      variantCanToggleSaved ||
+      variantCanRemoveRetained ||
+      variantCanTogglePagePin ||
+      !!row.copyTitle ||
+      !!row.copyUrl
+    )
     // Variant rows carry no favicon, so the label text carries the liveness
     // signal the favicon would: dim when this variant has no awake tab.
-    const variantDimmed = targets.every((target) => !!target.suspended || isClosedSavedDashboardTab(target))
     const labelContent = (
       <>
-        <span className={cn('chip-title-variant-label min-w-0 overflow-hidden text-left text-ellipsis whitespace-nowrap', variantDimmed && VARIANT_LABEL_DIM_CLASS_NAME)}>
-          {highlightedTextNodes(label, highlightTerms, `${mode}-title-variant-${index}`)}
+        <span className={cn('chip-title-variant-label min-w-0 overflow-hidden text-left text-ellipsis whitespace-nowrap', row.dimmed && VARIANT_LABEL_DIM_CLASS_NAME)}>
+          {highlightedTextNodes(row.label, highlightTerms, `${mode}-title-variant-${index}`)}
         </span>
-        {variantDupeCount > 1 && (
+        {row.duplicateCount > 1 && (
           <span className="chip-title-variant-dupe inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[rgba(254,243,199,0.95)] px-1 text-[9px] leading-none font-bold tabular-nums text-[rgb(120,53,15)]">
-            {variantDupeCount}
+            {row.duplicateCount}
           </span>
         )}
         {variantTargetCount > 1 && (
@@ -2571,29 +2593,29 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     const variantFocusButton = (
       <button
         type="button"
-        id={hasFilter ? variantFilterResultCandidate.domId : undefined}
-        data-tabout-retained-page-identity={variant.sourceType === 'retained-page' ? variant.retainedPageIdentity : undefined}
-        data-tabout-retained-page-closure-token={variant.sourceType === 'retained-page' ? variant.retainedPageClosureToken : undefined}
+        id={hasFilter ? row.filterCandidate.domId : undefined}
+        data-tabout-retained-page-identity={row.sourceType === 'retained-page' ? row.retainedPageIdentity : undefined}
+        data-tabout-retained-page-closure-token={row.sourceType === 'retained-page' ? row.retainedPageClosureToken : undefined}
         data-tabout-filter-result={hasFilter ? '' : undefined}
-        data-tabout-filter-result-key={hasFilter ? variantFilterResultCandidate.key : undefined}
+        data-tabout-filter-result-key={hasFilter ? row.filterCandidate.key : undefined}
         data-tabout-layout-anchor={layoutScope ? '' : undefined}
-        data-tabout-layout-key={layoutScope ? (variant.pagePinId || variant.rawUrl) : undefined}
+        data-tabout-layout-key={layoutScope ? row.layoutKey : undefined}
         data-tabout-layout-scope={layoutScope || undefined}
         data-tabout-removal-anchor=""
-        data-tabout-removal-key={`page:${variant.rawUrl}`}
-        data-tabout-default-variant={variantIsDefaultTarget ? 'true' : undefined}
+        data-tabout-removal-key={row.removalKey}
+        data-tabout-default-variant={row.id === sameTitlePageChipView?.defaultRowId ? 'true' : undefined}
         className={cn(
           'chip-title-variant clickable flex w-full max-w-full min-w-0 cursor-default items-center gap-1 rounded-none border-0 bg-transparent px-1.5 py-0.75 [font-size:inherit] leading-tight font-normal text-neutral-600 hover:bg-(--chip-target-interaction-bg) hover:text-tab-live focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber) data-[tabout-filter-result-selected=true]:bg-(--chip-target-interaction-bg) data-[tabout-filter-result-selected=true]:outline-1 data-[tabout-filter-result-selected=true]:outline-offset-1 data-[tabout-filter-result-selected=true]:outline-(--accent-amber)',
           '[&.page-chip-context-menu-open]:bg-(--chip-target-interaction-bg) [&.page-chip-context-menu-open]:text-tab-live',
-          variantActive && 'bg-neutral-600/7.5 text-tab-live',
-          variantCurrent && 'bg-neutral-100 text-tab-live shadow-[inset_2px_0_0_0_var(--accent-amber)]',
+          row.active && 'bg-neutral-600/7.5 text-tab-live',
+          row.current && 'bg-neutral-100 text-tab-live shadow-[inset_2px_0_0_0_var(--accent-amber)]',
           variantHoverMatched && 'bg-(--chip-target-interaction-bg) text-tab-live',
         )}
-        aria-label={variantLabel}
-        onClick={(e) => onTitleVariantFocus(e, presentation)}
-        onMouseEnter={() => onTitleVariantMouseEnter(presentation)}
+        aria-label={row.ariaLabel}
+        onClick={(e) => onTitleVariantFocus(e, row)}
+        onMouseEnter={() => onTitleVariantMouseEnter(row)}
         onMouseLeave={onTitleVariantMouseLeave}
-        onFocus={() => onTitleVariantFocusIn(presentation)}
+        onFocus={() => onTitleVariantFocusIn(row)}
         onBlur={onTitleVariantBlur}
       >
         {labelContent}
@@ -2601,20 +2623,20 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     )
     const variantFocusTarget = variantCanUseContextMenu ? (
       <PageChipContextMenu
-        savedActionLabel={variantCanToggleSaved ? variantSavedActionLabel : undefined}
-        saved={!!variant.saved}
-        onSavedSelect={variantCanToggleSaved ? (e) => onToggleSavedTitleVariant(e, variant) : undefined}
-        onRemoveFromTabsSelect={variantCanRemoveRetained ? (e) => onRemoveRetainedPage(e, variant) : undefined}
-        onReloadSelect={variantCanUseChromeTabActions ? (e) => onReloadPageTarget(e, variant) : undefined}
-        onDuplicateSelect={variantCanUseChromeTabActions ? (e) => onDuplicatePageTarget(e, variant) : undefined}
-        pagePinActionLabel={variantCanTogglePagePin ? variantPagePinActionLabel : undefined}
-        pagePinned={!!variant.pagePinned}
-        onPagePinSelect={variantCanTogglePagePin ? (e) => onTogglePinnedTitleVariant(e, variant) : undefined}
-        titleText={variantTitleText}
-        onCopyTitle={(e) => onCopyTitleText(e, variantTitleText)}
-        urlText={variant.tabUrl}
-        onCopyUrl={(e) => onCopyUrlText(e, variant.tabUrl)}
-        onOpenChange={(open) => onTitleVariantContextMenuOpenChange(open, presentation)}
+        savedActionLabel={row.actions.saved?.label}
+        saved={row.saved}
+        onSavedSelect={variantCanToggleSaved ? (e) => onToggleSavedTitleVariant(e, row) : undefined}
+        onRemoveFromTabsSelect={variantCanRemoveRetained ? (e) => onRemoveRetainedTitleVariant(e, row) : undefined}
+        onReloadSelect={variantCanUseChromeTabActions ? (e) => onReloadTitleVariant(e, row) : undefined}
+        onDuplicateSelect={variantCanUseChromeTabActions ? (e) => onDuplicateTitleVariant(e, row) : undefined}
+        pagePinActionLabel={variantCanTogglePagePin ? row.actions.pin?.label : undefined}
+        pagePinned={row.pagePinned}
+        onPagePinSelect={variantCanTogglePagePin ? (e) => onTogglePinnedTitleVariant(e, row) : undefined}
+        titleText={row.copyTitle}
+        onCopyTitle={(e) => onCopyTitleText(e, row.copyTitle)}
+        urlText={row.copyUrl}
+        onCopyUrl={(e) => onCopyUrlText(e, row.copyUrl)}
+        onOpenChange={(open) => onTitleVariantContextMenuOpenChange(open, row)}
       >
         {variantFocusButton}
       </PageChipContextMenu>
@@ -2625,7 +2647,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     if (mode === 'tooltip') {
       return (
         <span
-          key={`${variant.rawUrl || variant.tabUrl}:${variantTargetCount}`}
+          key={row.id}
           className="chip-title-variant inline-flex max-w-full items-center gap-1 rounded-lg bg-neutral-500/4.5 px-1.5 py-0.5 leading-tight font-normal text-neutral-600 [corner-shape:squircle]"
         >
           {labelContent}
@@ -2635,7 +2657,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
 
     return (
       <span
-        key={`${variant.rawUrl || variant.tabUrl}:${variantTargetCount}`}
+        key={row.id}
         className="chip-title-variant-shell relative flex w-full max-w-full min-w-0 items-center"
       >
         {variantFocusTarget}
@@ -2664,13 +2686,13 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
                   data-tabout-part="variant-close-button"
                   className={cn(
                     'chip-title-variant-action pointer-events-none absolute inset-0 inline-flex size-4.75 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-muted-foreground opacity-0 group-hover/title-variant-close-owner:pointer-events-auto group-hover/title-variant-close-owner:opacity-100 hover:bg-neutral-600/10 hover:text-foreground hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
-                    variant.sourceType === 'history' && DESTRUCTIVE_ICON_ACTION_CLASS_NAME,
+                    row.actions.close?.destructive && DESTRUCTIVE_ICON_ACTION_CLASS_NAME,
                   )}
-                  aria-label={titleVariantActionLabel(presentation)}
-                  onClick={(e) => onCloseTitleVariant(e, presentation)}
-                  onMouseEnter={() => onTitleVariantMouseEnter(presentation)}
+                  aria-label={row.actions.close?.label}
+                  onClick={(e) => onCloseTitleVariant(e, row)}
+                  onMouseEnter={() => onTitleVariantMouseEnter(row)}
                   onMouseLeave={onTitleVariantMouseLeave}
-                  onFocus={() => onTitleVariantFocusIn(presentation)}
+                  onFocus={() => onTitleVariantFocusIn(row)}
                   onBlur={onTitleVariantBlur}
                 >
                   <svg className="size-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
@@ -2679,7 +2701,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
                 </button>
               </span>
             )}
-            {singleTarget && variant.pagePinned && (
+            {singleTarget && row.pagePinned && (
               <span className={cn(
                 'chip-title-variant-page-pin-slot pointer-events-none inline-flex size-4.75 shrink-0 items-center justify-center',
                 variantCanClose && 'absolute top-0 right-0 group-hover/title-variant-actions:opacity-0 group-focus-within/title-variant-actions:opacity-0',
@@ -2703,7 +2725,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     if (!isTitleVariantGroup) return null
     return (
       <span className="chip-title-variant-list flex w-full max-w-full flex-col items-stretch pr-1.25 pb-1 divide-y divide-neutral-500/15">
-        {titleVariantPresentations.map((presentation, index) => titleVariantNode(presentation, index, mode))}
+        {sameTitleRows.map((row, index) => titleVariantNode(row, index, mode))}
       </span>
     )
   }

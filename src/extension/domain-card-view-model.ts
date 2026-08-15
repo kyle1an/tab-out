@@ -12,13 +12,13 @@ import { tabMatchesCompiledFilter } from './filter-match.js'
 import { compileFilterQuery } from './filter-query.js'
 import { countClosableDuplicateExtras } from './tab-dedupe-policy.js'
 import { canonicalDedupeKey } from './url-canonical.js'
-import { buildUrlVariantPresentationGroups, titleVariantTargets } from './url-variant-presentation.js'
+import { compileSameTitlePageChip } from './same-title-page-chip-plan.js'
 import { allOpenTargetsSuspended, dashboardItemNameForTabs, isClosedSavedDashboardTab } from './dashboard-source.js'
 import { pathgroupPinId, subdomainPinId, websitePathPinId } from './section-pins.js'
 import { pageChipFoldRepresentativeUrl, pageChipPinId, pageChipPinKeyForFoldUrls, pageChipPinKeyForUrl, pageChipPinScopeId, pinnedPageChipOrder } from './page-chip-pins.js'
 import type { PinnedPageChipIndex } from './page-chip-pins.js'
 import type { CompiledFilterQuery } from './filter-query.js'
-import type { DashboardCardVM, DashboardChipData, DashboardChipPriorityMap, DashboardClusterVM, DashboardSectionVM, DashboardSegment, DashboardSource, DashboardTab, DashboardTitleSuppression, DashboardTitleVariantPresentation, DashboardWebsitePathSectionVM, DomainGroup, PathGroupResult, RetainedPageActionTarget, WebsitePathSectionResult } from './types'
+import type { DashboardCardVM, DashboardChipData, DashboardChipPriorityMap, DashboardClusterVM, DashboardSectionVM, DashboardSegment, DashboardSource, DashboardTab, DashboardTitleSuppression, DashboardWebsitePathSectionVM, DomainGroup, PathGroupResult, RetainedPageActionTarget, WebsitePathSectionResult } from './types'
 
 type ComputeCardOptions = {
   filter?: string
@@ -85,6 +85,52 @@ type ChipBuildEntry = {
   tab: DashboardTab
   chip: DashboardChipData
   titleKey: string
+}
+const SAME_TITLE_PAGE_CHIP_DRAFT = Symbol('same-title-page-chip-draft')
+type DashboardChipDraft = DashboardChipData & {
+  [SAME_TITLE_PAGE_CHIP_DRAFT]: DashboardChipData[]
+}
+
+function isDashboardChipDraft(chip: DashboardChipData): chip is DashboardChipDraft {
+  return SAME_TITLE_PAGE_CHIP_DRAFT in chip
+}
+
+function sameTitlePageChipDraftTargets(chip: DashboardChipData): DashboardChipData[] | null {
+  return isDashboardChipDraft(chip) ? chip[SAME_TITLE_PAGE_CHIP_DRAFT] : null
+}
+
+function compileDashboardChipDraft(chip: DashboardChipData): DashboardChipData[] {
+  if (!isDashboardChipDraft(chip)) return [chip]
+  const { [SAME_TITLE_PAGE_CHIP_DRAFT]: targets, ...publicChip } = chip
+  const compiled = compileSameTitlePageChip(targets)
+  if (!compiled.ok) return targets
+  return [{
+    ...publicChip,
+    sameTitlePageChipPlan: compiled.plan,
+  }]
+}
+
+function compileDashboardChipDrafts(sections: readonly DashboardSectionVM[]): DashboardSectionVM[] {
+  return sections.map((section) => ({
+    ...section,
+    flatVisibleChips: section.flatVisibleChips.flatMap(compileDashboardChipDraft),
+    flatHiddenChips: section.flatHiddenChips.flatMap(compileDashboardChipDraft),
+    clusters: section.clusters.map((cluster) => ({
+      ...cluster,
+      visibleChips: cluster.visibleChips.flatMap(compileDashboardChipDraft),
+      hiddenChips: cluster.hiddenChips.flatMap(compileDashboardChipDraft),
+    })),
+    websitePathSections: (section.websitePathSections ?? []).map((websitePathSection) => ({
+      ...websitePathSection,
+      flatVisibleChips: websitePathSection.flatVisibleChips.flatMap(compileDashboardChipDraft),
+      flatHiddenChips: websitePathSection.flatHiddenChips.flatMap(compileDashboardChipDraft),
+      clusters: websitePathSection.clusters.map((cluster) => ({
+        ...cluster,
+        visibleChips: cluster.visibleChips.flatMap(compileDashboardChipDraft),
+        hiddenChips: cluster.hiddenChips.flatMap(compileDashboardChipDraft),
+      })),
+    })),
+  }))
 }
 type TabOutDisplayBucketKind = 'current' | 'chrome-pinned' | 'chrome-grouped' | 'ordinary'
 type TabOutDisplayMeta = {
@@ -1102,7 +1148,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     if (directOrder !== undefined) return directOrder
 
     let earliestVariantOrder: number | null = null
-    for (const variant of titleVariantTargets(chip.titleVariantPresentations)) {
+    for (const variant of sameTitlePageChipDraftTargets(chip) ?? []) {
       const variantOrder = variant.pagePinId ? pagePinOrderById.get(variant.pagePinId) : undefined
       if (variantOrder === undefined) continue
       if (earliestVariantOrder === null || variantOrder < earliestVariantOrder) {
@@ -1376,7 +1422,6 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   function titleVariantGroupChip(
     variants: DashboardChipData[],
     representative: DashboardChipData,
-    titleVariantPresentations: DashboardTitleVariantPresentation[],
   ): DashboardChipData {
     const activeInCurrentWindow = variants.some((variant) => !!variant.activeChipFrame && !variant.activeInOtherWindow)
     const activeInOtherWindow = !activeInCurrentWindow && variants.some((variant) => !!variant.activeInOtherWindow)
@@ -1386,8 +1431,9 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       ? representative
       : variants.find((variant) => !isClosedSavedDashboardTab(variant)) || representative
     const groupTitle = [representative.leadPrefix, representative.title].filter(Boolean).join(' · ')
-    const groupedChip: DashboardChipData = {
+    const groupedChip: DashboardChipDraft = {
       ...stateRepresentative,
+      [SAME_TITLE_PAGE_CHIP_DRAFT]: variants,
       saved: allVariantsSaved,
       closedSaved: allVariantsClosedSaved,
       suspended: allOpenTargetsSuspended(variants),
@@ -1398,7 +1444,6 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       activeChipFrame: activeInCurrentWindow || activeInOtherWindow,
       activeInOtherWindow,
       audioState: mergeAudioStates(variants.map((variant) => variant.audioState ?? null)),
-      titleVariantPresentations,
     }
     delete groupedChip.savedPageKey
     delete groupedChip.retainedPageIdentity
@@ -1441,32 +1486,11 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       const stableRepresentative = variants[0]
       if (!stableRepresentative) continue
       const sortedVariants = sortPageChipsInScope(variants)
-      const presentationGroups = buildUrlVariantPresentationGroups(
-        sortedVariants.map((variant) => variant.tabUrl),
-        { collapseOpaqueValues: sortedVariants.every((variant) => variant.sourceType === 'history') },
-      )
-      const variantLabelByIndex = new Map<number, string>()
-      for (const { targetIndexes, label } of presentationGroups) {
-        for (const targetIndex of targetIndexes) variantLabelByIndex.set(targetIndex, label)
-      }
-      const labeledVariants = sortedVariants.map((variant, targetIndex) => {
-        const variantLabel = variantLabelByIndex.get(targetIndex) || variant.tabUrl || '/'
-        return {
-          ...variant,
-          variantLabel,
-          tooltip: [variant.leadPrefix, variant.title, variantLabel].filter(Boolean).join(' · '),
-        }
-      })
-      const titleVariantPresentations: DashboardTitleVariantPresentation[] = []
-      for (const { targetIndexes, label } of presentationGroups) {
-        const targets = targetIndexes.flatMap((targetIndex) => labeledVariants[targetIndex] ?? [])
-        if (targets.length > 0) titleVariantPresentations.push({ label, targets })
-      }
       // The group identity remains anchored to the original stable
       // representative; pin order affects visible variant rows, not the
       // remembered Page Chip identity.
-      const representative = labeledVariants[sortedVariants.indexOf(stableRepresentative)]
-      if (representative) result.push(titleVariantGroupChip(labeledVariants, representative, titleVariantPresentations))
+      const representative = sortedVariants[sortedVariants.indexOf(stableRepresentative)]
+      if (representative) result.push(titleVariantGroupChip(sortedVariants, representative))
     }
     return sortPageChipsInScope(result)
   }
@@ -1887,7 +1911,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
           () => ({ count: 0, titleVariantCount: 0 }),
         )
         current.count += 1
-        if (titleVariantTargets(chip.titleVariantPresentations).length > 1) current.titleVariantCount += 1
+        if ((sameTitlePageChipDraftTargets(chip)?.length ?? 0) > 1) current.titleVariantCount += 1
       }
     }
     return countsByKey
@@ -1951,20 +1975,19 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       return [chip.envs.map((env) => env.prefix).join(' · '), titlePart].filter(Boolean).join(' · ')
     }
     const tooltip = [chip.leadPrefix, titlePart, chip.variantLabel || chip.pathSuffix].filter(Boolean).join(' · ')
-    const titleVariantCount = titleVariantTargets(chip.titleVariantPresentations).length
+    const titleVariantCount = sameTitlePageChipDraftTargets(chip)?.length ?? 0
     return titleVariantCount > 0 ? `${tooltip} · ${titleVariantCount} URL variants` : tooltip
   }
 
   function inlineSingletonSuppressionsInChip(chip: DashboardChipData, singletonKeys: Set<string>): DashboardChipData {
     const partsToInline = (chip.suppressedTitleParts || []).filter((part) => singletonKeys.has(titleSuppressionKey(part)))
-    const titleVariantPresentations = chip.titleVariantPresentations?.map((presentation) => ({
-      ...presentation,
-      targets: presentation.targets.map((target) => inlineSingletonSuppressionsInChip(target, singletonKeys)),
-    }))
-    const chipWithVariants = titleVariantPresentations
+    const sameTitleTargets = sameTitlePageChipDraftTargets(chip)
+    const chipWithVariants = sameTitleTargets
       ? {
           ...chip,
-          titleVariantPresentations,
+          [SAME_TITLE_PAGE_CHIP_DRAFT]: sameTitleTargets.map((target) => (
+            inlineSingletonSuppressionsInChip(target, singletonKeys)
+          )),
         }
       : chip
     if (partsToInline.length === 0) {
@@ -2277,6 +2300,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   const vmSections = scopedSectionsData
 
   const { cardSuppressionToneScope, sections: tonedSections } = allocateCardSuppressionTones(cardSuppressedTitleParts, vmSections)
+  const compiledSections = compileDashboardChipDrafts(tonedSections)
 
   return {
     stableId,
@@ -2304,6 +2328,6 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     suppressionCloseTargetsByText,
     suppressionSuspendTargetsByText,
     cardSuppressionToneScope,
-    sections: tonedSections,
+    sections: compiledSections,
   }
 }

@@ -5,7 +5,6 @@ import type { DashboardView } from '../extension/dashboard-view.js'
 import { canDisplayHistorySearchResults, canUseBookmarkSearchResults, canUseHistorySearchResults, isHistorySearchRequestSettled, shouldShowHistoryRange } from '../extension/filter-search.js'
 import { tabMatchesSourceFilter } from '../extension/filter-match.js'
 import { buildDashboardViewModel, dashboardChipPriorityFromWorkingSet, dedupeCompanionSearchTabs } from '../extension/render.js'
-import { titleVariantTargets } from '../extension/url-variant-presentation.js'
 import type { DashboardCardEntry, DashboardCardVM, DashboardChipData, DashboardChipOrderByCard, DashboardData, DashboardSource, DomainGroup, HistorySearchSummary, WorkingSetSnapshot } from '../extension/types'
 import type { PinnedPageChipIndex } from '../extension/page-chip-pins.js'
 import type { MissionOrderMap } from '../extension/dashboard-intake.js'
@@ -245,12 +244,10 @@ function chipOrderFromCards(cards: DashboardCardEntry[]): DashboardChipOrderByCa
         if (altKey) order.getOrInsert(altKey, index)
         index++
       }
-      for (const variant of titleVariantTargets(chip.titleVariantPresentations)) {
-        const variantKey = dashboardChipOrderKeyForChip(variant)
-        const variantAltKey = dashboardChipOrderAltKeyForChip(variant)
-        if (!order.has(variantKey)) {
-          order.set(variantKey, index)
-          if (variantAltKey) order.getOrInsert(variantAltKey, index)
+      for (const entry of chip.sameTitlePageChipPlan?.view.orderEntries ?? []) {
+        if (!order.has(entry.key)) {
+          order.set(entry.key, index)
+          if (entry.alternateKey) order.getOrInsert(entry.alternateKey, index)
           index++
         }
       }

@@ -33,9 +33,9 @@ import { historySearchStatusCopy } from '../src/components/history-search-status
 import { pageChipRenderKey } from '../src/components/PageChipOverflow.js'
 import { normalizeTabHistorySnapshot } from '../src/extension/tab-history.js'
 import { resolveWebsitePathSection } from '../src/extension/website-path-sections.js'
-import { titleVariantTargets } from '../src/extension/url-variant-presentation.js'
 import { RETAINED_PAGE_LIFETIME_MS, type RetainedPageRecord } from '../src/extension/retained-pages-ledger.js'
 import type { DashboardCardVM, DashboardChipData, DashboardTab } from '../src/extension/types'
+import { sameTitlePageChipTargets } from './helpers/same-title-page-chip-plan.js'
 
 (globalThis as any).chrome = {
   runtime: {
@@ -726,7 +726,7 @@ test('computeDomainCardViewModel groups same-title URL variants in one rendered 
   assert.equal(chips.length, 1)
   const chip = atOrThrow(chips, 0)
   assert.equal(chip.pathSuffix, '')
-  assert.deepEqual(new Set(titleVariantTargets(chip.titleVariantPresentations).map((variant) => variant.variantLabel)), new Set(['/me', '/team']))
+  assert.deepEqual(new Set(chip.sameTitlePageChipPlan?.view.rows.map((row) => row.label)), new Set(['/me', '/team']))
 })
 
 test('computeDomainCardViewModel uses readable query labels for same-title URL variants on the same path', () => {
@@ -742,7 +742,7 @@ test('computeDomainCardViewModel uses readable query labels for same-title URL v
   const chips = firstSection(vm).flatVisibleChips
 
   assert.equal(chips.length, 1)
-  assert.deepEqual(titleVariantTargets(atOrThrow(chips, 0).titleVariantPresentations).map((chip) => chip.variantLabel), ['…?search_id=alpha', '…?search_id=bravo'])
+  assert.deepEqual(atOrThrow(chips, 0).sameTitlePageChipPlan?.view.rows.map((row) => row.label), ['…?search_id=alpha', '…?search_id=bravo'])
 })
 
 test('computeDomainCardViewModel separates exact opaque URL targets from History presentation families', () => {
@@ -760,29 +760,29 @@ test('computeDomainCardViewModel separates exact opaque URL targets from History
 
   const tabChip = chipForSource('tab')
   const historyChip = chipForSource('history')
-  const tabVariants = titleVariantTargets(tabChip.titleVariantPresentations)
-  const historyVariants = titleVariantTargets(historyChip.titleVariantPresentations)
-  const tabLabels = tabVariants.map((variant) => variant.variantLabel)
+  const tabVariants = sameTitlePageChipTargets(tabChip.sameTitlePageChipPlan)
+  const historyVariants = sameTitlePageChipTargets(historyChip.sameTitlePageChipPlan)
+  const tabLabels = tabChip.sameTitlePageChipPlan?.view.rows.map((row) => row.label) ?? []
 
   assert.ok(tabLabels.every((label) => /^…\?TL=…[0-9A-Z]{7}$/.test(label || '')), tabLabels.join('\n'))
   assert.deepEqual(tabVariants.map((variant) => variant.tabUrl), urls)
   assert.deepEqual(historyVariants.map((variant) => variant.tabUrl), urls)
   assert.deepEqual(
-    tabChip.titleVariantPresentations?.map(({ label, targets }) => ({
-      label,
-      urls: targets.map((target) => target.tabUrl),
+    tabChip.sameTitlePageChipPlan?.view.rows.map((row) => ({
+      label: row.label,
+      urls: [row.copyUrl],
     })),
-    tabVariants.map((variant) => ({
-      label: variant.variantLabel,
+    tabVariants.map((variant, index) => ({
+      label: tabLabels[index],
       urls: [variant.tabUrl],
     })),
   )
   assert.deepEqual(
-    historyChip.titleVariantPresentations?.map(({ label, targets }) => ({
-      label,
-      urls: targets.map((target) => target.tabUrl),
+    historyChip.sameTitlePageChipPlan?.view.rows.map((row) => ({
+      exactTargetCount: row.exactTargetCount,
+      label: row.label,
     })),
-    [{ label: '…?TL=…', urls }],
+    [{ exactTargetCount: 2, label: '…?TL=…' }],
   )
 })
 
@@ -799,7 +799,7 @@ test('computeDomainCardViewModel keeps same-title URL variant labels unique when
   const chips = firstSection(vm).flatVisibleChips
 
   assert.equal(chips.length, 1)
-  assert.deepEqual(titleVariantTargets(atOrThrow(chips, 0).titleVariantPresentations).map((chip) => chip.variantLabel), ['/jira/your-work', '/jira/your-work/'])
+  assert.deepEqual(atOrThrow(chips, 0).sameTitlePageChipPlan?.view.rows.map((row) => row.label), ['/jira/your-work', '/jira/your-work/'])
 })
 
 test('computeDomainCardViewModel keeps saved state scoped to same-title URL variants', () => {
@@ -818,7 +818,7 @@ test('computeDomainCardViewModel keeps saved state scoped to same-title URL vari
 
   const vm = computeDomainCardViewModel(group)
   const chip = atOrThrow(firstSection(vm).flatVisibleChips, 0)
-  const variants = titleVariantTargets(chip.titleVariantPresentations)
+  const variants = sameTitlePageChipTargets(chip.sameTitlePageChipPlan)
 
   assert.equal(chip.saved, false)
   assert.equal(chip.savedPageKey, undefined)
@@ -856,7 +856,7 @@ test('same-title groups use a live state representative when remembered order pu
   assert.equal(chip.tabId, 42)
   assert.equal(chip.closedSaved, false)
   assert.equal(chip.activeChipFrame, true)
-  assert.equal(titleVariantTargets(chip.titleVariantPresentations)[0]?.sourceType, 'saved-page')
+  assert.equal(sameTitlePageChipTargets(chip.sameTitlePageChipPlan)[0]?.sourceType, 'saved-page')
 })
 
 test('closed-page chips keep raw snapshot metadata separate from display title and favicon transforms', () => {
@@ -897,7 +897,7 @@ test('computeDomainCardViewModel inlines title suppression when same-title URL v
   const chip = atOrThrow(chips, 0)
   assert.deepEqual(chip.displaySegments, ['Example content item - Example Workspace'])
   assert.deepEqual(chip.suppressedTitleParts, [])
-  const variants = titleVariantTargets(chip.titleVariantPresentations)
+  const variants = sameTitlePageChipTargets(chip.sameTitlePageChipPlan)
   assert.deepEqual(variants.map((variant) => variant.suppressedTitleParts), [[], []])
   assert.deepEqual(variants.map((variant) => variant.displaySegments), [
     ['Example content item - Example Workspace'],
@@ -917,7 +917,7 @@ test('computeDomainCardViewModel counts same-title URL variants as one title sup
 
   const vm = computeDomainCardViewModel(group)
   const section = firstSection(vm)
-  const mergedChip = section.websitePathSections?.[0]?.flatVisibleChips.find((chip) => chip.titleVariantPresentations)
+  const mergedChip = section.websitePathSections?.[0]?.flatVisibleChips.find((chip) => chip.sameTitlePageChipPlan)
   const settingsChip = section.flatVisibleChips.find((chip) => chip.tabUrl === 'https://example.com/settings')
 
   assert.deepEqual(vm.allSuppressedTitleParts, [{ text: '- Example Workspace', count: 2 }])
@@ -926,7 +926,7 @@ test('computeDomainCardViewModel counts same-title URL variants as one title sup
   assert.ok(settingsChip)
   assert.deepEqual(mergedChip.suppressedTitleParts, ['- Example Workspace'])
   assert.deepEqual(settingsChip.suppressedTitleParts, ['- Example Workspace'])
-  assert.equal(titleVariantTargets(mergedChip.titleVariantPresentations).length, 2)
+  assert.equal(sameTitlePageChipTargets(mergedChip.sameTitlePageChipPlan).length, 2)
 })
 
 test('computeDomainCardViewModel maps a suppression token to exact closeable and suspendable tabs', () => {
@@ -1039,7 +1039,7 @@ test('computeDomainCardViewModel groups duplicate titles inside the same rendere
   assert.equal(chips.length, 1)
   const chip = atOrThrow(chips, 0)
   assert.equal(chip.pathSuffix, '')
-  assert.deepEqual(titleVariantTargets(chip.titleVariantPresentations).map((variant) => variant.variantLabel), ['…/APP-1001', '…/APP-1002'])
+  assert.deepEqual(chip.sameTitlePageChipPlan?.view.rows.map((row) => row.label), ['…/APP-1001', '…/APP-1002'])
 })
 
 test('computeDomainCardViewModel hides repeated trailing title suffixes in normal mode', () => {
@@ -2653,12 +2653,13 @@ test('titleless History OAuth entries keep a readable title and collapse into on
   assert.deepEqual(historyItems.map((item) => item.title), ['/o/oauth2/start', '/o/oauth2/start'])
   assert.equal(chip.title, '/o/oauth2/start')
   assert.deepEqual(
-    chip.titleVariantPresentations?.map(({ label, targets }) => ({
-      label,
-      urls: targets.map((target) => target.tabUrl),
+    chip.sameTitlePageChipPlan?.view.rows.map((row) => ({
+      exactTargetCount: row.exactTargetCount,
+      label: row.label,
     })),
-    [{ label: '…?session=…', urls }],
+    [{ exactTargetCount: 2, label: '…?session=…' }],
   )
+  assert.deepEqual(sameTitlePageChipTargets(chip.sameTitlePageChipPlan).map((target) => target.tabUrl), urls)
 })
 
 test('history range options default to the last day search window', () => {

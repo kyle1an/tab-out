@@ -3,7 +3,6 @@ import test from 'node:test'
 
 import { computeDomainCardViewModel, dashboardChipOrderKeyForChip } from '../src/extension/domain-card-view-model.js'
 import { buildDomainGroups } from '../src/extension/render.js'
-import { titleVariantTargets } from '../src/extension/url-variant-presentation.js'
 import {
   createPinnedPageChipIndex,
   pageChipPinId,
@@ -12,6 +11,7 @@ import {
   pageChipPinScopeId,
 } from '../src/extension/page-chip-pins.js'
 import type { DashboardTab } from '../src/extension/types'
+import { sameTitlePageChipTargets } from './helpers/same-title-page-chip-plan.js'
 
 ;(globalThis as { chrome?: unknown }).chrome = {
   runtime: {
@@ -181,7 +181,7 @@ test('computeDomainCardViewModel keeps pinned same-title URL variants inside one
   assert.equal(variantGroup.pagePinId, undefined)
   assert.equal(variantGroup.pagePinned, undefined)
   assert.deepEqual(
-    titleVariantTargets(variantGroup.titleVariantPresentations).map((variant) => variant.tabUrl),
+    sameTitlePageChipTargets(variantGroup.sameTitlePageChipPlan).map((variant) => variant.tabUrl),
     [
       'https://example.com/bravo',
       'https://example.com/alpha',
@@ -189,11 +189,11 @@ test('computeDomainCardViewModel keeps pinned same-title URL variants inside one
     ],
   )
   assert.deepEqual(
-    titleVariantTargets(variantGroup.titleVariantPresentations).map((variant) => variant.pagePinId),
+    sameTitlePageChipTargets(variantGroup.sameTitlePageChipPlan).map((variant) => variant.pagePinId),
     [bravoPinId, alphaPinId, charliePinId],
   )
   assert.deepEqual(
-    titleVariantTargets(variantGroup.titleVariantPresentations).map((variant) => variant.pagePinned),
+    sameTitlePageChipTargets(variantGroup.sameTitlePageChipPlan).map((variant) => variant.pagePinned),
     [true, false, false],
   )
 })
@@ -230,7 +230,7 @@ test('computeDomainCardViewModel orders a unified same-title group by its earlie
   const variantGroup = section.flatVisibleChips[1]
   assert.ok(variantGroup)
   assert.deepEqual(
-    titleVariantTargets(variantGroup.titleVariantPresentations).map((variant) => variant.tabUrl),
+    sameTitlePageChipTargets(variantGroup.sameTitlePageChipPlan).map((variant) => variant.tabUrl),
     [
       'https://example.com/charlie',
       'https://example.com/bravo',
@@ -238,7 +238,7 @@ test('computeDomainCardViewModel orders a unified same-title group by its earlie
     ],
   )
   assert.deepEqual(
-    titleVariantTargets(variantGroup.titleVariantPresentations).map((variant) => variant.pagePinned),
+    sameTitlePageChipTargets(variantGroup.sameTitlePageChipPlan).map((variant) => variant.pagePinned),
     [true, true, false],
   )
 })
@@ -273,7 +273,7 @@ test('a pinned retained variant does not replace the live same-title group repre
   assert.equal(variantGroup.tabUrl, 'https://example.com/alpha')
   assert.equal(variantGroup.sourceType, 'tab')
   assert.deepEqual(
-    titleVariantTargets(variantGroup.titleVariantPresentations).map((variant) => ({
+    sameTitlePageChipTargets(variantGroup.sameTitlePageChipPlan).map((variant) => ({
       pagePinned: variant.pagePinned,
       sourceType: variant.sourceType,
       tabUrl: variant.tabUrl,

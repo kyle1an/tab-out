@@ -17,8 +17,11 @@ import { WebsitePathSection } from '../src/components/WebsitePathSection.js'
 import type { TitleSuppressionTone } from '../src/components/title-suppression.js'
 import { computeDomainCardViewModel } from '../src/extension/render.js'
 import { allocateCardSuppressionTones } from '../src/extension/title-suppression-tones.js'
-import { titleVariantTargets } from '../src/extension/url-variant-presentation.js'
 import type { DashboardCardVM, DashboardChipData, DashboardTab, DomainGroup, TabHistoryEntry, TabHistorySnapshot, WorkingSetItem, WorkingSetSnapshot } from '../src/extension/types'
+import {
+  sameTitlePageChipPlan as compileSameTitlePageChipPlan,
+  sameTitlePageChipTargets,
+} from './helpers/same-title-page-chip-plan.js'
 
 // Hand-built card VMs skip computeDomainCardViewModel, so run them through
 // the same tone allocation the compute walk applies before rendering.
@@ -49,10 +52,7 @@ function makeChip(overrides: Partial<DashboardChipData> = {}): DashboardChipData
 }
 
 function presentationsForTargets(targets: DashboardChipData[]) {
-  return targets.map((target) => ({
-    label: target.variantLabel || target.pathSuffix || target.tabUrl || '/',
-    targets: [target],
-  }))
+  return compileSameTitlePageChipPlan(targets)
 }
 
 function makeDashboardTab(id: number, url: string, title: string): DashboardTab {
@@ -587,7 +587,7 @@ test('PageChip renders exact pin markers inside a unified same-title variant gro
         rawUrl: 'https://example.com/content/item?search_id=alpha',
         displaySegments: ['Example content item'],
         tooltip: 'Example content item',
-        titleVariantPresentations: presentationsForTargets([
+        sameTitlePageChipPlan: presentationsForTargets([
           makeChip({
             sourceType: 'tab',
             tabUrl: 'https://example.com/content/item?search_id=alpha',
@@ -834,7 +834,7 @@ test('PageChip warns on browser-history deletion without coloring ordinary tab c
 
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
   assert.match(pageChipSource, /closeActionDestructive=\{closeActionDeletesHistory\}/)
-  assert.match(pageChipSource, /variant\.sourceType === 'history' && DESTRUCTIVE_ICON_ACTION_CLASS_NAME/)
+  assert.match(pageChipSource, /row\.actions\.close\?\.destructive && DESTRUCTIVE_ICON_ACTION_CLASS_NAME/)
 })
 
 test('PageChip names both operations when a title-variant group mixes tabs and History', () => {
@@ -844,7 +844,7 @@ test('PageChip names both operations when a title-variant group mixes tabs and H
         sourceType: 'tab',
         tabUrl: 'https://mixed-actions.example.test/page?variant=tab',
         rawUrl: 'https://mixed-actions.example.test/page?variant=tab',
-        titleVariantPresentations: presentationsForTargets([
+        sameTitlePageChipPlan: presentationsForTargets([
           makeChip({
             sourceType: 'tab',
             tabUrl: 'https://mixed-actions.example.test/page?variant=tab',
@@ -1027,10 +1027,9 @@ test('PageChip close animation removes the real row from flow and leaves a trans
 test('PageChip leaves physical tab closures to refresh into retained resting state without exit motion', () => {
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
 
-  assert.match(pageChipSource, /const chipCloseLeavesSavedPage =/)
   assert.doesNotMatch(pageChipSource, /onAfterClose: \(\{ shouldAnimateRemoval \}\)/)
   assert.match(pageChipSource, /onAfterClose: \(\) => \{\s*setPreview\(''\)/)
-  assert.match(pageChipSource, /tabEnvs\.length === 0 &&\s*!chipCloseLeavesSavedPage/)
+  assert.match(pageChipSource, /decision\.tabClose === null &&\s*!decision\.leavesSavedPage/)
 })
 
 test('PageChip outlines matching live chips when an external row owns the match', () => {
@@ -1069,7 +1068,7 @@ test('PageChip renders same-title URL variants below one visible title', () => {
     rawUrl: 'https://example.com/content/item?search_id=alpha',
     displaySegments: ['Example content item'],
     tooltip: 'Example content item',
-    titleVariantPresentations: presentationsForTargets([
+    sameTitlePageChipPlan: presentationsForTargets([
       makeChip({
         sourceType: 'tab',
         tabUrl: 'https://example.com/content/item?search_id=alpha',
@@ -1174,12 +1173,11 @@ test('PageChip renders same-title URL variants below one visible title', () => {
   assert.match(requiredAt(titleVariantButtonMatch, 1), /hover:bg-\(--chip-target-interaction-bg\)/)
   assert.doesNotMatch(requiredAt(titleVariantButtonMatch, 1), /\bcursor-pointer\b/)
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
-  assert.match(pageChipSource, /function defaultTitleVariantChip\(\) \{[\s\S]*activeChipFrame[\s\S]*!variant\.activeInOtherWindow[\s\S]*activeInOtherWindow[\s\S]*every\(isClosedSavedDashboardTab\)[\s\S]*sourceType === 'saved-page'[\s\S]*variantTargets\[0\]/)
-  assert.match(pageChipSource, /function onVariantGroupChipClick\(e: MouseEvent<HTMLDivElement>\)[\s\S]*?titleVariantEventTargetsExactVariant\(e\.target\)[\s\S]*?activateChipTarget\(e, variant\.tabUrl, variant\.sourceType, variant, e\.currentTarget\)/)
+  assert.match(pageChipSource, /function onVariantGroupChipClick\(e: MouseEvent<HTMLDivElement>\)[\s\S]*?titleVariantEventTargetsExactVariant\(e\.target\)[\s\S]*?resolveSameTitlePageChip\(sameTitlePageChipPlan, \{ kind: 'activate' \}\)[\s\S]*?activateChipTarget\(e, target\.tabUrl, target\.sourceType, target, e\.currentTarget\)/)
   assert.match(pageChipSource, /function onVariantGroupChipMouseEnter\(e: MouseEvent<HTMLDivElement>\)[\s\S]*?previewDefaultTitleVariantSurface\(e\.target\)[\s\S]*?openChipExpansion\(\)/)
   assert.match(pageChipSource, /function onVariantGroupChipMouseLeave\(e: MouseEvent<HTMLDivElement>\)[\s\S]*?contextMenuOpenRef\.current[\s\S]*?setDefaultVariantSurfaceHover\(false\)[\s\S]*?setPreview\(''\)/)
   assert.match(pageChipSource, /function onTitleVariantMouseLeave\(e: MouseEvent<HTMLElement>\)[\s\S]*?closest\('\.page-chip'\)[\s\S]*?!titleVariantEventTargetsDefaultSurfaceBlocker\(e\.relatedTarget\)[\s\S]*?previewDefaultTitleVariantSurface\(e\.relatedTarget\)/)
-  assert.match(pageChipSource, /function previewDefaultTitleVariant\(\) \{[\s\S]*?setPreview\(variant\.tabUrl, previewUrlsForChip\(variant\), variant\)[\s\S]*?\}/)
+  assert.match(pageChipSource, /function previewDefaultTitleVariant\(\) \{[\s\S]*?previewTitleVariant\(\)[\s\S]*?\}/)
   assert.match(pageChipSource, /const variantGroupInteractionProps = isTitleVariantGroup[\s\S]*?onClick: onVariantGroupChipClick[\s\S]*?onMouseDown: onVariantGroupChipMouseDown[\s\S]*?onMouseEnter: onVariantGroupChipMouseEnter[\s\S]*?onMouseMove: onVariantGroupChipMouseMove[\s\S]*?onMouseLeave: onVariantGroupChipMouseLeave/)
   assert.match(pageChipSource, /className="chip-title-variant-content flex w-full min-w-0 flex-col items-start gap-0\.5">/)
   assert.doesNotMatch(pageChipSource, /onTitleVariantGroupMouseEnter|onTitleVariantGroupMouseLeave/)
@@ -1189,10 +1187,10 @@ test('PageChip renders same-title URL variants below one visible title', () => {
   assert.doesNotMatch(pageChipSource, /chipMatchesDefaultTitleVariantHover/)
   assert.match(pageChipSource, /variantHoverMatched = hoverMatchKey\[index \+ 1\] === '1'/)
   assert.match(pageChipSource, /variantHoverMatched && 'bg-\(--chip-target-interaction-bg\) text-tab-live'/)
-  assert.match(pageChipSource, /variantCurrent && 'bg-neutral-100 text-tab-live shadow-\[inset_2px_0_0_0_var\(--accent-amber\)\]'/)
-  assert.match(pageChipSource, /variantActive && 'bg-neutral-600\/7\.5 text-tab-live'/)
-  assert.doesNotMatch(pageChipSource, /variantCurrent && 'bg-neutral-100 shadow-\[inset_0_0_0_1px_rgba\(82,82,82,0\.42\)\]'/)
-  assert.doesNotMatch(pageChipSource, /variantActive && 'bg-neutral-600\/7\.5 text-tab-live shadow-\[inset_0_0_0_1px_rgba\(115,115,115,0\.2\)\]'/)
+  assert.match(pageChipSource, /row\.current && 'bg-neutral-100 text-tab-live shadow-\[inset_2px_0_0_0_var\(--accent-amber\)\]'/)
+  assert.match(pageChipSource, /row\.active && 'bg-neutral-600\/7\.5 text-tab-live'/)
+  assert.doesNotMatch(pageChipSource, /row\.current && 'bg-neutral-100 shadow-\[inset_0_0_0_1px_rgba\(82,82,82,0\.42\)\]'/)
+  assert.doesNotMatch(pageChipSource, /row\.active && 'bg-neutral-600\/7\.5 text-tab-live shadow-\[inset_0_0_0_1px_rgba\(115,115,115,0\.2\)\]'/)
   assert.doesNotMatch(pageChipSource, /function titleVariantSurfaceEventTargetsVariant/)
   assert.doesNotMatch(pageChipSource, /onTitleVariantSurfaceMouseMove/)
   assert.doesNotMatch(html, /\bpage-chip-tooltip(?:\s|")/)
@@ -1219,7 +1217,7 @@ function makeVariantGroupChip(overrides: VariantGroupOverrides = {}): DashboardC
     rawUrl: 'https://example.com/content/item',
     displaySegments: ['Commits'],
     tooltip: 'Commits',
-    titleVariantPresentations: presentationsForTargets(variantTargets),
+    sameTitlePageChipPlan: presentationsForTargets(variantTargets),
     ...chipOverrides,
   })
 }
@@ -1434,7 +1432,7 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
   assert.doesNotMatch(baseCss, /\.chip-title-variant-content:hover/)
 
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
-  assert.match(pageChipSource, /data-tabout-default-variant=\{variantIsDefaultTarget \? 'true' : undefined\}/)
+  assert.match(pageChipSource, /data-tabout-default-variant=\{row\.id === sameTitlePageChipView\?\.defaultRowId \? 'true' : undefined\}/)
   assert.doesNotMatch(pageChipSource, /defaultTitleVariantHoverUrl/)
   // The variant-group click/preview handlers own the rectangular `.chip-slot`
   // (which covers the chip's rounded-corner gutter), not the rounded chip, so
@@ -1453,8 +1451,8 @@ test('PageChip preserves the default variant marker after title-suppression norm
   })
   const chip = vm.sections?.[0]?.flatVisibleChips[0]
   assert.ok(chip)
-  assert.ok(chip.titleVariantPresentations)
-  assert.equal(titleVariantTargets(chip.titleVariantPresentations).length, 2)
+  assert.ok(chip.sameTitlePageChipPlan)
+  assert.equal(sameTitlePageChipTargets(chip.sameTitlePageChipPlan).length, 2)
 
   const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
   const pills = titleVariantPillTags(html)
@@ -1522,7 +1520,7 @@ test('PageChip gives same-title URL variant groups a folded-style expansion trig
     displaySegments: ['Example content item'],
     tooltip: 'Example content item',
     suppressedTitleParts: ['Example Workspace'],
-    titleVariantPresentations: presentationsForTargets([
+    sameTitlePageChipPlan: presentationsForTargets([
       makeChip({
         sourceType: 'tab',
         tabUrl: 'https://example.com/content/item?search_id=alpha',
@@ -1644,10 +1642,10 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   assert.match(pageChipSource, /navigator\.clipboard\.writeText\(urlText\)/)
   assert.match(pageChipSource, /const pagePinActionLabel = chip\.pagePinned \? 'Unpin' : 'Pin'/)
   assert.match(pageChipSource, /const canTogglePagePin = !!chip\.pagePinId && typeof onTogglePinnedPageChip === 'function'/)
-  assert.match(pageChipSource, /import \{ pageChipTargetActionPolicy \} from '\.\/page-chip-action-policy\.js'/)
+  assert.match(pageChipSource, /import \{[^}]*pageChipTargetActionPolicy[^}]*\} from '\.\.\/extension\/page-chip-target-policy\.js'/)
   assert.match(pageChipSource, /pageChipTargetActionPolicy\(chip, \{ interactive: parentInteractive \}\)/)
   assert.match(pageChipSource, /pageChipTargetActionPolicy\(env\)/)
-  assert.match(pageChipSource, /pageChipTargetActionPolicy\(variant\)/)
+  assert.doesNotMatch(pageChipSource, /pageChipTargetActionPolicy\((?:variant|row)\)/)
   assert.match(pageChipSource, /import \{ activateRetainedPageTarget, removeRetainedPageTarget \} from '\.\.\/extension\/retained-page-actions\.js'/)
   assert.match(pageChipSource, /if \(sourceType === 'retained-page'\) \{[\s\S]*await activateRetainedPageTarget\(target \|\| \{\}, mode\)[\s\S]*return[\s\S]*\}[\s\S]*performDashboardItemActivation/)
   assert.match(pageChipSource, /async function onRemoveRetainedPage\([\s\S]*await removeRetainedPageTarget\(target\)/)
@@ -1655,16 +1653,15 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   assert.match(pageChipSource, /async function onTogglePagePin\(e: StopPropagationEvent\)/)
   assert.match(pageChipSource, /await onTogglePinnedPageChip\?\.\(chip\.pagePinId\)/)
   assert.match(pageChipSource, /onLayoutChange\?\.\(\{ animate: true \}\)/)
-  assert.match(pageChipSource, /const variantPagePinActionLabel = variant\.pagePinned \? 'Unpin' : 'Pin'/)
-  assert.match(pageChipSource, /const variantCanTogglePagePin = singleTarget && !!variant\.pagePinId && typeof onTogglePinnedPageChip === 'function'/)
-  assert.match(pageChipSource, /async function onTogglePinnedTitleVariant\(e: StopPropagationEvent, variant: DashboardChipData\)/)
-  assert.match(pageChipSource, /await onTogglePinnedPageChip\?\.\(variant\.pagePinId\)/)
+  assert.match(pageChipSource, /const variantCanTogglePagePin = !!row\.actions\.pin && typeof onTogglePinnedPageChip === 'function'/)
+  assert.match(pageChipSource, /async function onTogglePinnedTitleVariant\(e: StopPropagationEvent, row: SameTitlePageChipRowView\)/)
+  assert.match(pageChipSource, /decision\.kind !== 'toggle-pin'[\s\S]*await onTogglePinnedPageChip\?\.\(decision\.pagePinId\)/)
 
   // PageChip wires the mutation handlers into the menus at each call site
   assert.match(pageChipSource, /envCanUseContextMenu \? \([\s\S]*<PageChipContextMenu[\s\S]*savedActionLabel=\{canToggleSavedEnv \? envSavedActionLabel : undefined\}[\s\S]*onSavedSelect=\{canToggleSavedEnv \? \(e\) => onToggleSavedEnv\(e, env\) : undefined\}[\s\S]*onReloadSelect=\{envCanUseChromeTabActions \? \(e\) => onReloadPageTarget\(e, env\) : undefined\}[\s\S]*onDuplicateSelect=\{envCanUseChromeTabActions \? \(e\) => onDuplicatePageTarget\(e, env\) : undefined\}[\s\S]*titleText=\{envTitleText\}[\s\S]*urlText=\{env\.tabUrl\}/)
   assert.match(pageChipSource, /onRemoveFromTabsSelect=\{canRemoveRetainedEnv \? \(e\) => onRemoveRetainedPage\(e, env\) : undefined\}/)
-  assert.match(pageChipSource, /variantCanUseContextMenu \? \([\s\S]*<PageChipContextMenu[\s\S]*savedActionLabel=\{variantCanToggleSaved \? variantSavedActionLabel : undefined\}[\s\S]*onSavedSelect=\{variantCanToggleSaved \? \(e\) => onToggleSavedTitleVariant\(e, variant\) : undefined\}[\s\S]*onReloadSelect=\{variantCanUseChromeTabActions \? \(e\) => onReloadPageTarget\(e, variant\) : undefined\}[\s\S]*onDuplicateSelect=\{variantCanUseChromeTabActions \? \(e\) => onDuplicatePageTarget\(e, variant\) : undefined\}[\s\S]*pagePinActionLabel=\{variantCanTogglePagePin \? variantPagePinActionLabel : undefined\}[\s\S]*onPagePinSelect=\{variantCanTogglePagePin \? \(e\) => onTogglePinnedTitleVariant\(e, variant\) : undefined\}[\s\S]*titleText=\{variantTitleText\}[\s\S]*urlText=\{variant\.tabUrl\}/)
-  assert.match(pageChipSource, /onRemoveFromTabsSelect=\{variantCanRemoveRetained \? \(e\) => onRemoveRetainedPage\(e, variant\) : undefined\}/)
+  assert.match(pageChipSource, /variantCanUseContextMenu \? \([\s\S]*<PageChipContextMenu[\s\S]*savedActionLabel=\{row\.actions\.saved\?\.label\}[\s\S]*onSavedSelect=\{variantCanToggleSaved \? \(e\) => onToggleSavedTitleVariant\(e, row\) : undefined\}[\s\S]*onReloadSelect=\{variantCanUseChromeTabActions \? \(e\) => onReloadTitleVariant\(e, row\) : undefined\}[\s\S]*onDuplicateSelect=\{variantCanUseChromeTabActions \? \(e\) => onDuplicateTitleVariant\(e, row\) : undefined\}[\s\S]*pagePinActionLabel=\{variantCanTogglePagePin \? row\.actions\.pin\?\.label : undefined\}[\s\S]*onPagePinSelect=\{variantCanTogglePagePin \? \(e\) => onTogglePinnedTitleVariant\(e, row\) : undefined\}[\s\S]*titleText=\{row\.copyTitle\}[\s\S]*urlText=\{row\.copyUrl\}/)
+  assert.match(pageChipSource, /onRemoveFromTabsSelect=\{variantCanRemoveRetained \? \(e\) => onRemoveRetainedTitleVariant\(e, row\) : undefined\}/)
   assert.match(pageChipSource, /canToggleSavedPage \|\| canRemoveRetained \|\| canTogglePagePin \|\| canUseChromeTabActions \|\| canShowSuspend \|\| canUseCopyContextMenu[\s\S]*<PageChipContextMenu[\s\S]*savedActionLabel=\{canToggleSavedPage \? savedActionLabel : undefined\}[\s\S]*onSavedSelect=\{canToggleSavedPage \? onToggleSavedPage : undefined\}[\s\S]*onRemoveFromTabsSelect=\{canRemoveRetained \? \(e\) => onRemoveRetainedPage\(e, chip\) : undefined\}[\s\S]*pagePinActionLabel=\{canTogglePagePin \? pagePinActionLabel : undefined\}[\s\S]*onPagePinSelect=\{canTogglePagePin \? onTogglePagePin : undefined\}[\s\S]*onReloadSelect=\{canUseChromeTabActions \? \(e\) => onReloadPageTarget\(e, chip\) : undefined\}[\s\S]*onDuplicateSelect=\{canUseChromeTabActions \? \(e\) => onDuplicatePageTarget\(e, chip\) : undefined\}[\s\S]*titleText=\{chipTitleText\}[\s\S]*urlText=\{chipUrlText\}[\s\S]*onOpenChange=\{onChipContextMenuOpenChange\}/)
   assert.match(tabHistoryPanelSource, /onReloadSelect=\{canShowSuspend \? onReloadEntry : undefined\}/)
   assert.match(tabHistoryPanelSource, /onDuplicateSelect=\{canShowSuspend \? onDuplicateEntry : undefined\}/)
@@ -1709,7 +1706,7 @@ test('PageChip outlines same-title variant groups when external hover matches a 
     rawUrl: 'https://example.com/content/item?search_id=alpha',
     displaySegments: ['Example content item'],
     tooltip: 'Example content item',
-    titleVariantPresentations: presentationsForTargets([
+    sameTitlePageChipPlan: presentationsForTargets([
       makeChip({
         sourceType: 'tab',
         tabUrl: 'https://example.com/content/item?search_id=alpha',
@@ -1746,7 +1743,7 @@ test('PageChip keeps same-title URL variant saved-page actions in the context me
     rawUrl: 'https://example.com/content/item?search_id=alpha',
     displaySegments: ['Example content item'],
     tooltip: 'Example content item',
-    titleVariantPresentations: presentationsForTargets([
+    sameTitlePageChipPlan: presentationsForTargets([
       makeChip({
         sourceType: 'tab',
         tabUrl: 'https://example.com/content/item?search_id=alpha',
@@ -1787,7 +1784,7 @@ test('PageChip renders saved bookmark URL variants as read-only hints', () => {
     rawUrl: 'https://example.com/content/item?search_id=alpha',
     displaySegments: ['Example content item'],
     tooltip: 'Example content item',
-    titleVariantPresentations: presentationsForTargets([
+    sameTitlePageChipPlan: presentationsForTargets([
       makeChip({
         sourceType: 'bookmark',
         tabUrl: 'https://example.com/content/item?search_id=alpha',

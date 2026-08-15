@@ -137,10 +137,66 @@ export interface DashboardChipEnv {
   activeInOtherWindow?: boolean
 }
 
-/** A visible same-title URL row backed by one or more exact action targets. */
-export interface DashboardTitleVariantPresentation {
+export type FilterResultCandidate = {
+  key: string
+  identity: string
+  domId: string
+}
+
+export type SameTitlePageChipRowId = string
+
+export type SameTitlePageChipRemovalView = {
+  historyCount: number
   label: string
-  targets: DashboardChipData[]
+  tabCount: number
+}
+
+export type SameTitlePageChipRowActions = {
+  close: { destructive: boolean, label: string } | null
+  chromeTabActions: boolean
+  pin: { label: string } | null
+  removeRetained: boolean
+  saved: { label: string } | null
+  showSavedHint: boolean
+}
+
+export type SameTitlePageChipRowView = {
+  active: boolean
+  actions: SameTitlePageChipRowActions
+  ariaLabel: string
+  copyTitle: string
+  copyUrl: string
+  current: boolean
+  dimmed: boolean
+  duplicateCount: number
+  exactTargetCount: number
+  filterCandidate: FilterResultCandidate
+  id: SameTitlePageChipRowId
+  label: string
+  layoutKey: string
+  pagePinned: boolean
+  removalKey: string
+  retainedPageClosureToken?: string
+  retainedPageIdentity?: string
+  saved: boolean
+  sourceType?: DashboardTab['sourceType']
+}
+
+export type SameTitlePageChipOrderEntry = {
+  alternateKey: string | null
+  key: string
+}
+
+export type SameTitlePageChipView = {
+  defaultRowId: SameTitlePageChipRowId
+  groupRemoval: SameTitlePageChipRemovalView | null
+  orderEntries: readonly SameTitlePageChipOrderEntry[]
+  rows: readonly SameTitlePageChipRowView[]
+  summaryLabel: string
+}
+
+export type SameTitlePageChipPlan = {
+  readonly view: SameTitlePageChipView
 }
 
 export interface DashboardChipData {
@@ -187,8 +243,8 @@ export interface DashboardChipData {
   chromeGroupId?: number
   iconOnly?: boolean
   envs: DashboardChipEnv[] | null
-  /** Visible rows are separate from exact URL targets so History can fold opaque value families. */
-  titleVariantPresentations?: DashboardTitleVariantPresentation[]
+  /** Compiled same-title URL rows and Exact Target decisions. */
+  sameTitlePageChipPlan?: SameTitlePageChipPlan
 }
 
 export interface DashboardClusterVM {

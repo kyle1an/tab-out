@@ -13,6 +13,7 @@ import {
   type PositionedFilterResultCandidate,
 } from '../src/extension/filter-result-navigation.js'
 import type { DashboardCardEntry, DashboardChipData } from '../src/extension/types.js'
+import { sameTitlePageChipPlan } from './helpers/same-title-page-chip-plan.js'
 
 const candidates: FilterResultCandidate[] = [
   {
@@ -386,10 +387,7 @@ test('result candidates follow source priority and expose exact folded and same-
   const bravoVariant = chip({ tabUrl: 'https://variants.example.test/bravo' })
   const sameTitle = chip({
     tabUrl: 'https://variants.example.test/',
-    titleVariantPresentations: [
-      { label: '/alpha', targets: [alphaVariant] },
-      { label: '/bravo', targets: [bravoVariant] },
-    ],
+    sameTitlePageChipPlan: sameTitlePageChipPlan([alphaVariant, bravoVariant]),
   })
   const history = chip({
     tabUrl: 'https://history.example.test/result',
@@ -422,20 +420,17 @@ test('result candidates follow source priority and expose exact folded and same-
 
 test('result candidates follow collapsed History presentation rows instead of hidden exact targets', () => {
   const alpha = chip({
-    tabUrl: 'https://history.example.test/sign-in?token=opaque-alpha',
+    tabUrl: 'https://history.example.test/sign-in?token=alpha0123456789abcdefghijklmnopqrstuvwxyz',
     sourceType: 'history',
   })
   const bravo = chip({
-    tabUrl: 'https://history.example.test/sign-in?token=opaque-bravo',
+    tabUrl: 'https://history.example.test/sign-in?token=bravo0123456789abcdefghijklmnopqrstuvwxyz',
     sourceType: 'history',
   })
   const grouped = chip({
     tabUrl: alpha.tabUrl,
     sourceType: 'history',
-    titleVariantPresentations: [{
-      label: '…?token=…',
-      targets: [alpha, bravo],
-    }],
+    sameTitlePageChipPlan: sameTitlePageChipPlan([alpha, bravo]),
   })
 
   const result = buildFilterResultCandidates({

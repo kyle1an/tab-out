@@ -9,6 +9,7 @@
 - **All Tabs**: The default Dashboard View of the complete Tabs-source presentation: open tabs, Saved Pages, and Retained Pages.
 - **Dashboard Item**: A tab-shaped page from any Source that can be grouped and rendered on the Dashboard.
 - **Dashboard Item Identity**: The effective page target used to decide when Dashboard Items from different Sources represent the same page.
+- **Exact Target**: The occurrence- or record-qualified Dashboard Item destination used for activation and Tab Actions. Multiple Exact Targets may share one Dashboard Item Identity or effective URL and remain independently actionable unless a documented action explicitly applies to their visible group or History family.
 - **Saved Page**: A user-kept Dashboard Item that stays visible in the Tabs source after its matching open tab is closed.
 - **Retained Page**: A temporary, automatically captured snapshot of a genuinely closed page that may remain visible in the Tabs source for recovery.
 - **Retained Page Identity**: A surface-qualified pair of normal tab or standalone app plus the existing canonical dedupe key of the effective URL; it owns one latest retained snapshot while preserving that snapshot's exact URL.

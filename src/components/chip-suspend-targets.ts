@@ -14,7 +14,7 @@ type SuspendEnvLike = Pick<DashboardChipEnv, 'sourceType' | 'closedSaved' | 'tab
 
 export type SuspendChipLike = Pick<DashboardChipData, 'sourceType' | 'closedSaved' | 'tabUrl' | 'rawUrl'> & {
   envs?: ReadonlyArray<SuspendEnvLike> | null
-  titleVariantPresentations?: ReadonlyArray<{ targets: ReadonlyArray<unknown> }>
+  sameTitlePageChipPlan?: unknown
 }
 
 function chipIsFolded(chip: SuspendChipLike): boolean {
@@ -22,7 +22,7 @@ function chipIsFolded(chip: SuspendChipLike): boolean {
 }
 
 function chipIsTitleVariantGroup(chip: SuspendChipLike): boolean {
-  return (chip.titleVariantPresentations ?? []).reduce((count, { targets }) => count + targets.length, 0) > 1
+  return chip.sameTitlePageChipPlan !== undefined
 }
 
 function envIsTabEnv(env: SuspendEnvLike): boolean {
