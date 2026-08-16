@@ -1,3 +1,4 @@
+import { omitUndefined } from '../lib/omit-undefined.js'
 import {
   createClosureToken,
   createRetainedPageIdentity,
@@ -112,7 +113,7 @@ function reusableFaviconUrl(favIconUrl: string | undefined): string | undefined 
 function identityOptions(
   options: OpenSurfaceInventoryOptions,
 ): { runtimeId?: string | null } {
-  return options.runtimeId === undefined ? {} : { runtimeId: options.runtimeId }
+  return omitUndefined({ runtimeId: options.runtimeId })
 }
 
 async function entryFromObservation(
@@ -125,11 +126,11 @@ async function entryFromObservation(
   // Incognito is rejected before URL normalization, hashing, or metadata work.
   if (observation.incognito || !isValidTabId(observation.tabId)) return null
 
-  const identity = await createRetainedPageIdentity({
+  const identity = await createRetainedPageIdentity(omitUndefined({
     surfaceKind: observation.surfaceKind,
     url: observation.url,
-    ...(observation.rawUrl === undefined ? {} : { rawUrl: observation.rawUrl }),
-  }, identityOptions(options))
+    rawUrl: observation.rawUrl,
+  }), identityOptions(options))
   if (!identity) return null
   const closureToken = existingClosureToken || (options.closureTokenFactory || createClosureToken)()
 
@@ -139,7 +140,7 @@ async function entryFromObservation(
   const title = observedTitle || (sameIdentity ? previous.title : '')
   const favIconUrl = observedFaviconUrl || (sameIdentity ? previous.favIconUrl : undefined)
 
-  return {
+  return omitUndefined({
     tabId: observation.tabId,
     closureToken,
     identityDigest: identity.identityDigest,
@@ -147,9 +148,9 @@ async function entryFromObservation(
     canonicalKey: identity.canonicalKey,
     url: identity.url,
     title,
-    ...(favIconUrl ? { favIconUrl } : {}),
-    ...(existingClosedAt === undefined ? {} : { closedAt: existingClosedAt }),
-  }
+    favIconUrl,
+    closedAt: existingClosedAt,
+  })
 }
 
 function entriesEqual(
@@ -267,11 +268,11 @@ export function markOpenSurfaceClosure(
   closedAt: number,
   closureToken?: string,
 ): MarkOpenSurfaceClosureResult {
-  const result = markOpenSurfaceClosures(inventory, [{
+  const result = markOpenSurfaceClosures(inventory, [omitUndefined({
     tabId,
     closedAt,
-    ...(closureToken === undefined ? {} : { closureToken }),
-  }])
+    closureToken,
+  })])
   return {
     inventory: result.inventory,
     entry: result.entries[0] ?? null,

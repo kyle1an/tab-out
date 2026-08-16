@@ -1,5 +1,6 @@
 import { Schema } from 'effect'
 
+import { omitUndefined } from '../lib/omit-undefined.js'
 import type {
   DashboardTab,
   WorkingSetActivityEvent,
@@ -124,7 +125,7 @@ function normalizeWorkingSetActivityEnvelope(
     )
     const lastActivatedAt = latestEventAt(events, 'activation')
     const lastNavigatedAt = latestEventAt(events, 'navigation')
-    records[key] = {
+    records[key] = omitUndefined({
       key,
       url: normalizedKey,
       title: String(record.title || ''),
@@ -132,11 +133,12 @@ function normalizeWorkingSetActivityEnvelope(
         ? record.domain
         : domainForPageIdentity(normalizedKey),
       lastSeenAt: latestEvent,
-      ...(lastActivatedAt === undefined ? {} : { lastActivatedAt }),
-      ...(lastNavigatedAt === undefined ? {} : { lastNavigatedAt }),
-      ...(dismissalIsActive ? { dismissedAt, dismissedUntil } : {}),
+      lastActivatedAt,
+      lastNavigatedAt,
+      dismissedAt: dismissalIsActive ? dismissedAt : undefined,
+      dismissedUntil: dismissalIsActive ? dismissedUntil : undefined,
       events,
-    }
+    })
   }
   return { version: WORKING_SET_ACTIVITY_VERSION, records }
 }
@@ -226,24 +228,16 @@ export function recordWorkingSetActivityMutation(
   const events = [...(existing?.events || []), { kind, at }]
     .filter((event) => event.at >= at - ACTIVITY_RETENTION_MS)
     .slice(-MAX_EVENTS_PER_RECORD)
-  const upsert: WorkingSetActivityRecord = {
+  const upsert: WorkingSetActivityRecord = omitUndefined({
     key,
     url: key,
     title: tab.title || existing?.title || displayUrlForPageIdentity(key),
     domain: domainForPageIdentity(key),
     lastSeenAt: at,
-    ...(kind === 'activation'
-      ? { lastActivatedAt: at }
-      : existing?.lastActivatedAt === undefined
-        ? {}
-        : { lastActivatedAt: existing.lastActivatedAt }),
-    ...(kind === 'navigation'
-      ? { lastNavigatedAt: at }
-      : existing?.lastNavigatedAt === undefined
-        ? {}
-        : { lastNavigatedAt: existing.lastNavigatedAt }),
+    lastActivatedAt: kind === 'activation' ? at : existing?.lastActivatedAt,
+    lastNavigatedAt: kind === 'navigation' ? at : existing?.lastNavigatedAt,
     events,
-  }
+  })
   return {
     activity: {
       version: WORKING_SET_ACTIVITY_VERSION,

@@ -1,5 +1,6 @@
 import { Context, Effect, Layer, Predicate, Schema } from 'effect'
 
+import { omitUndefined } from '../lib/omit-undefined.js'
 import {
   emptyRetainedPageLedger,
   enforceRetainedPageCapacity,
@@ -266,16 +267,16 @@ function parseRetainedPageRecord(
     !isNonEmptyString(stored.closureToken)
   ) return null
 
-  return {
+  return omitUndefined({
     identityDigest,
     surfaceKind: stored.surfaceKind,
     canonicalKey: stored.canonicalKey ?? canonicalDedupeKey(stored.url),
     url: stored.url,
     title: stored.title,
-    ...(stored.favIconUrl === undefined ? {} : { favIconUrl: stored.favIconUrl }),
+    favIconUrl: stored.favIconUrl,
     closedAt: stored.closedAt,
     closureToken: stored.closureToken,
-  }
+  })
 }
 
 function parseRemovalBoundary(

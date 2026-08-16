@@ -1,3 +1,4 @@
+import { omitUndefined } from '../lib/omit-undefined.js'
 import {
   LAYOUT_REMOVAL_ANIMATION_MS,
   startLayoutRemovalAnimation,
@@ -90,11 +91,11 @@ export function startPageChipCloseAnimation(
     : null
   let preparedMove = lastScopeItem ? null : prepareIntraCardMoveAnimation(slot)
 
-  return startLayoutRemovalAnimation(chipEl, {
+  return startLayoutRemovalAnimation(chipEl, omitUndefined({
     ghostClassName: 'page-chip-closing-ghost',
     layoutElement: slot,
     deferLayoutRemoval: lastScopeItem,
-    ...(scheduleCleanup ? { scheduleCleanup } : {}),
+    scheduleCleanup,
     onBeforeRemove: () => {
       focusTarget?.focus({ preventScroll: true })
     },
@@ -107,5 +108,5 @@ export function startPageChipCloseAnimation(
       queuedMove?.animateNow()
       onLayoutChange?.({ animate: true })
     },
-  })
+  }))
 }

@@ -10,6 +10,7 @@ import {
   Schema,
 } from 'effect'
 
+import { omitUndefined } from '../../lib/omit-undefined.js'
 import { BrowserTabs } from '../browser-tabs-service.js'
 import type { CapturedDashboardServiceState } from '../dashboard-service-messages.js'
 import { buildDomainGroups } from '../domain-groups.js'
@@ -221,11 +222,11 @@ function makeStartupSnapshotLayer<Failure, Requirements>(
         cardOrder,
         workingSet,
         titleTabs: openTabs,
-      }, {
+      }, omitUndefined({
         captureStartedAt,
         durableCheckpointIntervalMs: STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_INTERVAL_MS,
-        ...(deps.alarms ? { scheduleDurableCheckpoint } : {}),
-      }).pipe(
+        scheduleDurableCheckpoint: deps.alarms ? scheduleDurableCheckpoint : undefined,
+      })).pipe(
         Effect.mapError((error) => StartupSnapshotRefreshError.make({ cause: error.cause })),
       )
       tabPreviousOrder = new Map(cardOrder.map((cardId, index) => [cardId, index]))

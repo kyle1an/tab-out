@@ -1,5 +1,6 @@
 import { Context, Deferred, Effect, Exit, Layer, Ref, Schema, Semaphore } from 'effect'
 
+import { omitUndefined } from '../../lib/omit-undefined.js'
 import {
   emptyOpenSurfaceInventory,
   markOpenSurfaceClosures,
@@ -223,12 +224,10 @@ function makeRetainedPagesLayer(
     }
 
     function inventoryOptions(): OpenSurfaceInventoryOptions {
-      return {
-        ...(options.runtimeId === undefined ? {} : { runtimeId: options.runtimeId }),
-        ...(options.closureTokenFactory ? {
-          closureTokenFactory: options.closureTokenFactory,
-        } : {}),
-      }
+      return omitUndefined({
+        runtimeId: options.runtimeId,
+        closureTokenFactory: options.closureTokenFactory,
+      })
     }
 
     function closureFromInventoryEntry(
@@ -324,10 +323,10 @@ function makeRetainedPagesLayer(
           : entry.closedAt === undefined
             ? priorClosedAt
             : Math.min(priorClosedAt, entry.closedAt)
-        entries[tabId] = {
+        entries[tabId] = omitUndefined({
           ...entry,
-          ...(closedAt === undefined ? {} : { closedAt }),
-        }
+          closedAt,
+        })
         tabIdByClosureToken.set(entry.closureToken, tabId)
       }
 
@@ -506,11 +505,11 @@ function makeRetainedPagesLayer(
             pair.inventory,
             uniqueTabIds.map((tabId) => {
               const candidate = pair.inventory.entries[String(tabId)]
-              return {
+              return omitUndefined({
                 tabId,
                 closedAt: candidate?.closedAt ?? observedAt,
-                ...(candidate ? { closureToken: candidate.closureToken } : {}),
-              }
+                closureToken: candidate?.closureToken,
+              })
             }),
           )
           const markedInventory = marked.inventory

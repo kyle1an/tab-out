@@ -12,6 +12,7 @@
 
 import { Effect } from 'effect'
 
+import { omitUndefined } from '../lib/omit-undefined.js'
 import { getAppRuntime } from './app-runtime.js'
 import { BrowserTabs } from './browser-tabs-service.js'
 import { unwrapSuspenderUrl } from './suspension.js'
@@ -38,11 +39,11 @@ const focusLatestResolvedTarget = Effect.fn('tabMove.focusLatestResolvedTarget')
   const browserTabs = yield* BrowserTabs
   const liveTab = yield* browserTabs.getTab(tabId)
   if (!liveTab) return { status: 'not-found' as const }
-  return yield* focusResolvedTabTargetEffect(liveTab, {
+  return yield* focusResolvedTabTargetEffect(liveTab, omitUndefined({
     tabId,
-    ...(target.tabUrl === undefined ? {} : { url: target.tabUrl }),
-    ...(target.rawUrl === undefined ? {} : { rawUrl: target.rawUrl }),
-  })
+    url: target.tabUrl,
+    rawUrl: target.rawUrl,
+  }))
 })
 
 function findTabForTarget(tabs: chrome.tabs.Tab[], target: MoveTabTarget, currentWindowId: number): chrome.tabs.Tab | null {
@@ -108,10 +109,10 @@ export const moveTabToCurrentWindowEffect = Effect.fn('tabMove.toCurrentWindow')
       return 'failed'
     }
   } else {
-    yield* unsuspendExistingTabEffect(match, {
-      ...(target.tabUrl === undefined ? {} : { url: target.tabUrl }),
-      ...(target.rawUrl === undefined ? {} : { rawUrl: target.rawUrl }),
-    })
+    yield* unsuspendExistingTabEffect(match, omitUndefined({
+      url: target.tabUrl,
+      rawUrl: target.rawUrl,
+    }))
   }
 
   return 'handled'

@@ -1,5 +1,6 @@
 import { Cause, Effect, Exit, Schema } from 'effect'
 
+import { omitUndefined } from '../../src/lib/omit-undefined.js'
 import {
   backgroundRuntime,
   workingSetService,
@@ -345,7 +346,7 @@ const executeMessage = Effect.fn('WorkingSetStorageBenchmark.executeMessage')(
       operation: result.operation,
       timings: result.timings,
       diagnostics,
-      ...(result.activity === undefined ? {} : { activity: result.activity }),
+      ...omitUndefined({ activity: result.activity }),
     }
   },
 )

@@ -6,6 +6,7 @@ import {
   type IDBPDatabase,
 } from 'idb'
 
+import { omitUndefined } from '../../lib/omit-undefined.js'
 import {
   pageIdentityForWorkingSet,
 } from '../working-set.js'
@@ -332,20 +333,16 @@ export function encodeWorkingSetActivityIndexedDbEntry(
   if (pageIdentityForWorkingSet(record.key) !== record.key) {
     throw new Error('Working Set activity row key is not a page identity')
   }
-  return [record.key, {
+  return [record.key, omitUndefined({
     title: record.title,
-    ...(record.dismissedAt === undefined
-      ? {}
-      : { dismissedAt: record.dismissedAt }),
-    ...(record.dismissedUntil === undefined
-      ? {}
-      : { dismissedUntil: record.dismissedUntil }),
-    events: record.events.map((event) => [
+    dismissedAt: record.dismissedAt,
+    dismissedUntil: record.dismissedUntil,
+    events: record.events.map<readonly [0 | 1, number]>((event) => [
       event.kind === 'activation' ? 0 : 1,
       event.at,
     ]),
     lastEventAt: latestEventAt(record.events),
-  }]
+  })]
 }
 
 export function decodeWorkingSetActivityIndexedDbEntry(
@@ -420,22 +417,18 @@ function decodeIndexedDbEntry(
     throw new Error('IndexedDB Working Set lastEventAt is inconsistent')
   }
 
-  return {
+  return omitUndefined({
     key,
     url: key,
     title: stored.title,
     domain: URL.parse(key)?.hostname ?? '',
     lastSeenAt,
-    ...(lastActivatedAt === undefined ? {} : { lastActivatedAt }),
-    ...(lastNavigatedAt === undefined ? {} : { lastNavigatedAt }),
-    ...(stored.dismissedAt === undefined
-      ? {}
-      : { dismissedAt: stored.dismissedAt }),
-    ...(stored.dismissedUntil === undefined
-      ? {}
-      : { dismissedUntil: stored.dismissedUntil }),
+    lastActivatedAt,
+    lastNavigatedAt,
+    dismissedAt: stored.dismissedAt,
+    dismissedUntil: stored.dismissedUntil,
     events,
-  }
+  })
 }
 
 function latestEventAt(events: readonly WorkingSetActivityEvent[]): number {

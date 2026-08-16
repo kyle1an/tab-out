@@ -7,6 +7,7 @@ import {
   type IDBPDatabase,
 } from 'idb'
 
+import { omitUndefined } from '../../../src/lib/omit-undefined.js'
 import type { ChromeApi } from '../../../src/extension/background/chrome-api.js'
 import {
   WorkingSetActivityStorage,
@@ -240,12 +241,10 @@ export function encodeIndexedDbEntry(
   const compactEvents = encodeCompactActivityRecord(record)[4]
   return [record.key, {
     title: record.title,
-    ...(record.dismissedAt === undefined
-      ? {}
-      : { dismissedAt: record.dismissedAt }),
-    ...(record.dismissedUntil === undefined
-      ? {}
-      : { dismissedUntil: record.dismissedUntil }),
+    ...omitUndefined({
+      dismissedAt: record.dismissedAt,
+      dismissedUntil: record.dismissedUntil,
+    }),
     events: compactEvents,
     lastEventAt: latestEventAt(record.events),
   }]
@@ -309,18 +308,16 @@ function decodeIndexedDbEntrySync(
     title: storedValue.title,
     domain: URL.parse(key)?.hostname || '',
     lastSeenAt: projection.lastSeenAt,
-    ...(projection.lastActivatedAt === 0
-      ? {}
-      : { lastActivatedAt: projection.lastActivatedAt }),
-    ...(projection.lastNavigatedAt === 0
-      ? {}
-      : { lastNavigatedAt: projection.lastNavigatedAt }),
-    ...(storedValue.dismissedAt === undefined
-      ? {}
-      : { dismissedAt: storedValue.dismissedAt }),
-    ...(storedValue.dismissedUntil === undefined
-      ? {}
-      : { dismissedUntil: storedValue.dismissedUntil }),
+    ...omitUndefined({
+      lastActivatedAt: projection.lastActivatedAt === 0
+        ? undefined
+        : projection.lastActivatedAt,
+      lastNavigatedAt: projection.lastNavigatedAt === 0
+        ? undefined
+        : projection.lastNavigatedAt,
+      dismissedAt: storedValue.dismissedAt,
+      dismissedUntil: storedValue.dismissedUntil,
+    }),
     events: projection.events,
   }
 }

@@ -18,6 +18,7 @@ import {
   type TestInfo,
 } from '@playwright/test'
 
+import { omitUndefined } from '../../src/lib/omit-undefined.js'
 import {
   buildWorkingSetStorageBenchmarkArtifacts,
   sha256Directory,
@@ -730,12 +731,10 @@ async function measureFreshVariant(
       order,
       phase,
       profile: PROFILE,
-      ...(productionAuthorityAfter === undefined
-        ? {}
-        : { productionAuthorityAfter }),
-      ...(productionAuthorityBefore === undefined
-        ? {}
-        : { productionAuthorityBefore }),
+      ...omitUndefined({
+        productionAuthorityAfter,
+        productionAuthorityBefore,
+      }),
       setupCanonicalActivitySha256: setupRead.canonicalActivitySha256,
       variant,
       workerAbsentBeforeRequest: true,

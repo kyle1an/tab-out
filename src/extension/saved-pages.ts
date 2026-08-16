@@ -1,3 +1,4 @@
+import { omitUndefined } from '../lib/omit-undefined.js'
 import { makeDashboardItem } from './dashboard-item.js'
 import { isRetainedPageCaptureEligible } from './retained-page-identity.js'
 import { isTabOutPageUrl } from './tab-out-url.js'
@@ -195,17 +196,15 @@ export function mergeSavedPagesWithTabs(tabs: DashboardTab[], store: Partial<Sav
     const nextFavIconUrl = tab.favIconUrl || record.favIconUrl
     const metadataChanged = nextTitle !== record.title || (nextFavIconUrl || '') !== (record.favIconUrl || '')
     const needsLastSeenOpenAt = typeof record.lastSeenOpenAt !== 'number' || !Number.isFinite(record.lastSeenOpenAt)
-    const nextRecord: SavedPageRecord = {
+    const nextRecord: SavedPageRecord = omitUndefined({
       ...record,
       title: nextTitle,
       ...(nextFavIconUrl ? { favIconUrl: nextFavIconUrl } : {}),
       updatedAt: metadataChanged ? now : record.updatedAt,
-      ...(metadataChanged || needsLastSeenOpenAt
-        ? { lastSeenOpenAt: now }
-        : record.lastSeenOpenAt === undefined
-          ? {}
-          : { lastSeenOpenAt: record.lastSeenOpenAt }),
-    }
+      lastSeenOpenAt: metadataChanged || needsLastSeenOpenAt
+        ? now
+        : record.lastSeenOpenAt,
+    })
     if (!savedPageRecordsEqual(record, nextRecord)) {
       normalized.pages[key] = nextRecord
     }
@@ -223,15 +222,13 @@ export function mergeSavedPagesWithTabs(tabs: DashboardTab[], store: Partial<Sav
     if (!mergedRecord) continue
     const metadataChanged = mergedRecord.title !== baseRecord.title || (mergedRecord.favIconUrl || '') !== (baseRecord.favIconUrl || '')
     const needsLastSeenOpenAt = typeof baseRecord.lastSeenOpenAt !== 'number' || !Number.isFinite(baseRecord.lastSeenOpenAt)
-    const nextRecord: SavedPageRecord = {
+    const nextRecord: SavedPageRecord = omitUndefined({
       ...mergedRecord,
       updatedAt: metadataChanged ? now : baseRecord.updatedAt,
-      ...(metadataChanged || needsLastSeenOpenAt
-        ? { lastSeenOpenAt: now }
-        : baseRecord.lastSeenOpenAt === undefined
-          ? {}
-          : { lastSeenOpenAt: baseRecord.lastSeenOpenAt }),
-    }
+      lastSeenOpenAt: metadataChanged || needsLastSeenOpenAt
+        ? now
+        : baseRecord.lastSeenOpenAt,
+    })
     normalized.pages[key] = nextRecord
     if (!savedPageRecordsEqual(baseRecord, nextRecord)) changed = true
   }

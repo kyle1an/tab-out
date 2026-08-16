@@ -10,6 +10,7 @@
 
 import { Effect } from 'effect'
 
+import { omitUndefined } from '../lib/omit-undefined.js'
 import { getAppRuntime } from './app-runtime.js'
 import { getTab } from './browser-tabs-gateway.js'
 import { BrowserTabs } from './browser-tabs-service.js'
@@ -125,11 +126,11 @@ export function normalizeChromeOpenTabs({ tabs, windows }: ChromeOpenTabsSnapsho
   return tabs.map((tab) => {
     const previousTab = typeof tab.id === 'number' ? previousTabById.get(tab.id) : undefined
     const windowType = windowTypeById.get(tab.windowId)
-    return normalizeChromeTabToDashboardItem(tab, {
-      ...(previousTab ? { previousTab } : {}),
+    return normalizeChromeTabToDashboardItem(tab, omitUndefined({
+      previousTab,
       runtimeId,
-      ...(windowType === undefined ? {} : { windowType }),
-    })
+      windowType,
+    }))
   })
 }
 

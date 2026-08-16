@@ -32,6 +32,7 @@ import { TabAudioButton } from './TabAudioButton'
 import { TabLoadingIndicator } from './TabLoadingIndicator'
 import { ProgressiveFoldedEnvList } from './ProgressiveFoldedEnvList'
 import { cn } from '@/lib/utils'
+import { omitUndefined } from '@/lib/omit-undefined'
 import type { CSSVariableProperties } from '@/lib/css-properties'
 import { createBionicTitleTextRenderer, isUrlLikeTitle } from './bionic-title-text'
 import { highlightTermsForFilter, highlightedTextNodes } from './filter-highlight-text'
@@ -1498,11 +1499,11 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       // A rendered numeric id represents one physical tab. Every result other
       // than focused is still terminal here: widening a stale/failed exact
       // target to another URL on the same host can activate the wrong chip.
-      const result = await focusExistingTabTargetResult({
+      const result = await focusExistingTabTargetResult(omitUndefined({
         tabId: target.tabId,
         url: targetUrl,
-        ...(target.rawUrl === undefined ? {} : { rawUrl: target.rawUrl }),
-      })
+        rawUrl: target.rawUrl,
+      }))
       const message = tabFocusResultToastMessage(result.status)
       if (message) showToast(message)
       return
@@ -1546,11 +1547,11 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       return
     }
     if (!targetUrl) return
-    const activationResult = await performDashboardItemActivation(mode, {
+    const activationResult = await performDashboardItemActivation(mode, omitUndefined({
       tabUrl: targetUrl,
-      ...(target?.tabId === undefined ? {} : { tabId: target.tabId }),
-      ...(target?.rawUrl === undefined ? {} : { rawUrl: target.rawUrl }),
-    })
+      tabId: target?.tabId,
+      rawUrl: target?.rawUrl,
+    }))
     if (activationResult === 'unhandled') await focusChipUrl(targetUrl, target)
   }
 
@@ -1667,10 +1668,10 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
 
   function previewTitleVariant(rowId?: string) {
     if (!sameTitlePageChipPlan) return
-    const decision = resolveSameTitlePageChip(sameTitlePageChipPlan, {
+    const decision = resolveSameTitlePageChip(sameTitlePageChipPlan, omitUndefined({
       kind: 'preview',
-      ...(rowId === undefined ? {} : { rowId }),
-    })
+      rowId,
+    }))
     if (decision.kind !== 'preview') return
     setPreview(decision.url, decision.matchUrls, decision)
   }
@@ -1880,16 +1881,16 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   async function onClose(e: MouseEvent<HTMLButtonElement>) {
     e.stopPropagation()
 
-    await closeChipTarget({
+    await closeChipTarget(omitUndefined({
       tabUrl: chip.tabUrl,
-      ...(chip.tabId === undefined ? {} : { tabId: chip.tabId }),
-      ...(chip.chromePinned === undefined ? {} : { expectedPinned: chip.chromePinned }),
-      ...(chip.chromeGroupId === undefined ? {} : { expectedGroupId: chip.chromeGroupId }),
+      tabId: chip.tabId,
+      expectedPinned: chip.chromePinned,
+      expectedGroupId: chip.chromeGroupId,
       envs: isFolded ? foldedCloseTargets : envs,
       onAfterClose: () => {
         setPreview('')
       },
-    })
+    }))
   }
 
   async function onDeleteHistory(e: MouseEvent<HTMLButtonElement>) {
@@ -2044,31 +2045,25 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     tabsFirst = false,
   ) {
     const removeHistory = () => decision.historyUrls.length > 0
-      ? deleteHistoryUrls({
+      ? deleteHistoryUrls(omitUndefined({
           urls: Array.from(decision.historyUrls),
-          ...(clearPreviewAfterEach ? { onAfterDelete: async () => setPreview('') } : {}),
-        })
+          onAfterDelete: clearPreviewAfterEach ? async () => setPreview('') : undefined,
+        }))
       : Promise.resolve(null)
     const closeTabs = () => decision.tabClose?.kind === 'single'
-      ? closeChipTarget({
+      ? closeChipTarget(omitUndefined({
           tabUrl: decision.tabClose.target.tabUrl,
-          ...(decision.tabClose.target.tabId === undefined
-            ? {}
-            : { tabId: decision.tabClose.target.tabId }),
-          ...(decision.tabClose.target.chromePinned === undefined
-            ? {}
-            : { expectedPinned: decision.tabClose.target.chromePinned }),
-          ...(decision.tabClose.target.chromeGroupId === undefined
-            ? {}
-            : { expectedGroupId: decision.tabClose.target.chromeGroupId }),
-          ...(clearPreviewAfterEach ? { onAfterClose: async () => setPreview('') } : {}),
-        })
+          tabId: decision.tabClose.target.tabId,
+          expectedPinned: decision.tabClose.target.chromePinned,
+          expectedGroupId: decision.tabClose.target.chromeGroupId,
+          onAfterClose: clearPreviewAfterEach ? async () => setPreview('') : undefined,
+        }))
       : decision.tabClose?.kind === 'many'
-        ? closeChipTarget({
+        ? closeChipTarget(omitUndefined({
             tabUrl: decision.tabClose.representativeUrl,
             envs: Array.from(decision.tabClose.envs),
-            ...(clearPreviewAfterEach ? { onAfterClose: async () => setPreview('') } : {}),
-          })
+            onAfterClose: clearPreviewAfterEach ? async () => setPreview('') : undefined,
+          }))
         : Promise.resolve(null)
     if (tabsFirst) {
       await closeTabs()
@@ -2270,15 +2265,15 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   const showFaviconFrame = !!chip.faviconUrl || showDefaultFavicon || dupeCount > 1 || showFaviconCloseAction
   const rightActionCount = showSavedHint ? 1 : 0
   const chipHoverFadeWidth = rightActionCount === 0 ? '0px' : rightActionCount === 1 ? '56px' : '88px'
-  const style: CSSVariableProperties = {
+  const style: CSSVariableProperties = omitUndefined({
     '--chip-hover-fade-bg': trim.styleVars.fadeBg,
     '--chip-hover-fade-width': chipHoverFadeWidth,
     '--chip-hover-border': trim.styleVars.hoverBorder,
     '--chip-interaction-bg': trim.styleVars.interactionBg,
     '--chip-target-interaction-bg': PAGE_CHIP_TARGET_INTERACTION_BG,
     '--chip-rest-bg': trim.styleVars.restBg,
-    ...(chip.isGrouped ? { '--group-color': chip.groupDotColor ?? undefined } : {}),
-  }
+    '--group-color': chip.isGrouped ? chip.groupDotColor ?? undefined : undefined,
+  })
   const hasTitleSuppressionMarkers = suppressedTitleParts.length > 0 || chip.displaySegments.some(isTitleSuppressionSegment)
   const hasStructuralPlaceholders = chip.displaySegments.some((segment) => isStructuralPlaceholderSegment(segment) && !!(segment.label || chip.pathGroupLabel))
   const shouldExpandChip = !chip.iconOnly && (hasExpandableContent || hasTitleSuppressionMarkers || hasStructuralPlaceholders)
@@ -2308,10 +2303,10 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     target: Pick<DashboardChipEnv, 'sourceType' | 'closedSaved'>,
   ): CSSVariableProperties | undefined {
     const sourceType = target.sourceType ?? chip.sourceType
-    const isClosedTarget = isReadOnlyDashboardSourceType(sourceType) || isClosedSavedDashboardTab({
-      ...(sourceType === undefined ? {} : { sourceType }),
-      ...(target.closedSaved === undefined ? {} : { closedSaved: target.closedSaved }),
-    })
+    const isClosedTarget = isReadOnlyDashboardSourceType(sourceType) || isClosedSavedDashboardTab(omitUndefined({
+      sourceType,
+      closedSaved: target.closedSaved,
+    }))
     if (!hasFilter || !isClosedTarget) return undefined
     return { '--chip-target-interaction-bg': trim.styleVars.closedInteractionBg }
   }

@@ -1,3 +1,4 @@
+import { omitUndefined } from '../lib/omit-undefined.js'
 import { makeDashboardItem } from './dashboard-item.js'
 import type { BrowserReadResult } from './browser-tabs-gateway.js'
 import type { BookmarkTreeNode, DashboardTab } from './types'
@@ -16,12 +17,12 @@ export function flattenBookmarkNodes(nodes: BookmarkTreeNode[]): DashboardTab[] 
   function visit(node?: BookmarkTreeNode) {
     if (!node) return
     if (node.url) {
-      flattened.push(makeDashboardItem({
-        ...(node.id === undefined ? {} : { id: node.id }),
+      flattened.push(makeDashboardItem(omitUndefined({
+        id: node.id,
         url: node.url,
         title: node.title || '',
         sourceType: 'bookmark',
-      }))
+      })))
     }
     if (Array.isArray(node.children)) {
       node.children.forEach(visit)

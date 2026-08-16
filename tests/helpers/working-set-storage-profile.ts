@@ -1,5 +1,6 @@
 import { Schema } from 'effect'
 
+import { omitUndefined } from '../../src/lib/omit-undefined.js'
 import type {
   WorkingSetActivityEvent,
   WorkingSetActivityRecord,
@@ -87,8 +88,7 @@ function makeRecord(
     title,
     domain,
     lastSeenAt: latestAt,
-    ...(lastActivatedAt === undefined ? {} : { lastActivatedAt }),
-    ...(lastNavigatedAt === undefined ? {} : { lastNavigatedAt }),
+    ...omitUndefined({ lastActivatedAt, lastNavigatedAt }),
     events,
   }
 }

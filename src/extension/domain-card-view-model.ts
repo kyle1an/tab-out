@@ -1,3 +1,4 @@
+import { omitUndefined } from '../lib/omit-undefined.js'
 import { domainGroupCardId } from './domain-card-id.js'
 import { pickFavicon, pickTabFavicon } from './favicons.js'
 import { isGroupedTab, groupDotColor } from './groups.js'
@@ -1345,9 +1346,9 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       ? [tab]
       : tabOutMeta?.tabs || tabsByUrl.get(keyOf(tab)) || [tab]
     const { activeInOtherWindow, activeChipFrame } = activeFrameStateForDuplicateSet(duplicateTabs, currentWindowId)
-    return {
-      ...(tab.id === undefined ? {} : { tabId: tab.id }),
-      ...(tabOutMeta ? { renderKey: tabOutMeta.renderKey } : {}),
+    return omitUndefined({
+      tabId: tab.id,
+      renderKey: tabOutMeta?.renderKey,
       tabUrl: tab.url,
       rawUrl: tab.rawUrl || tab.url,
       sourceType: tab.sourceType || 'tab',
@@ -1355,13 +1356,9 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       closedSaved: isClosedSavedDashboardTab(tab),
       suspended: allOpenTargetsSuspended(duplicateTabs),
       loading: duplicateTabs.some(isOpenTabLoading),
-      ...(tab.savedPageKey === undefined ? {} : { savedPageKey: tab.savedPageKey }),
-      ...(tab.retainedPageIdentity === undefined
-        ? {}
-        : { retainedPageIdentity: tab.retainedPageIdentity }),
-      ...(tab.retainedPageClosureToken === undefined
-        ? {}
-        : { retainedPageClosureToken: tab.retainedPageClosureToken }),
+      savedPageKey: tab.savedPageKey,
+      retainedPageIdentity: tab.retainedPageIdentity,
+      retainedPageClosureToken: tab.retainedPageClosureToken,
       pagePinDisabled: !!tabOutMeta?.pagePinDisabled,
       leadPrefix,
       pathGroupLabel: pgLabel,
@@ -1375,7 +1372,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
         : tabOutMeta?.tabs.length || tabsByUrl.get(keyOf(tab))?.length || 1,
       faviconUrl: pickDashboardChipFavicon(tab),
       actionTitle: tab.title,
-      ...(tab.favIconUrl ? { actionFaviconUrl: tab.favIconUrl } : {}),
+      actionFaviconUrl: tab.favIconUrl || undefined,
       isGrouped: grouped,
       groupDotColor: grouped ? groupDotColor(tab.groupId) : null,
       isApp: !!tab.isApp,
@@ -1387,7 +1384,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       iconOnly,
       audioState: aggregateAudioState(duplicateTabs),
       envs: null,
-    }
+    })
   }
 
   // Per-section visible limit. With multiple subdomain sections in one
@@ -1682,28 +1679,24 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     const envs = tabs
       .map((t) => {
         const sub = subdomainForUrl(t.url)
-        return {
-          ...(t.id === undefined ? {} : { tabId: t.id }),
+        return omitUndefined({
+          tabId: t.id,
           prefix: sub || '?',
           tabUrl: t.url,
           rawUrl: t.rawUrl || t.url,
           sourceType: t.sourceType || 'tab',
           saved: !!t.saved,
           closedSaved: isClosedSavedDashboardTab(t),
-          ...(t.savedPageKey === undefined ? {} : { savedPageKey: t.savedPageKey }),
-          ...(t.retainedPageIdentity === undefined
-            ? {}
-            : { retainedPageIdentity: t.retainedPageIdentity }),
-          ...(t.retainedPageClosureToken === undefined
-            ? {}
-            : { retainedPageClosureToken: t.retainedPageClosureToken }),
+          savedPageKey: t.savedPageKey,
+          retainedPageIdentity: t.retainedPageIdentity,
+          retainedPageClosureToken: t.retainedPageClosureToken,
           title: displayTitle(t),
           faviconUrl: pickDashboardChipFavicon(t),
           actionTitle: t.title,
-          ...(t.favIconUrl ? { actionFaviconUrl: t.favIconUrl } : {}),
+          actionFaviconUrl: t.favIconUrl || undefined,
           isApp: !!t.isApp,
           activeInOtherWindow: isActiveInOtherWindow(t, currentWindowId),
-        }
+        })
       })
       .sort((a, b) => compareNumericText(a.prefix, b.prefix))
     const tooltip = [envs.map((e) => e.prefix).join(' · '), label].filter(Boolean).join(' · ')

@@ -21,6 +21,8 @@ import {
 import * as ChildProcess from 'effect/unstable/process/ChildProcess'
 import * as ChildProcessSpawner from 'effect/unstable/process/ChildProcessSpawner'
 
+import { omitUndefined } from '../../src/lib/omit-undefined.ts'
+
 class NativeHostTestError extends Schema.TaggedError<NativeHostTestError>()(
   'NativeHostTestError',
   {
@@ -246,7 +248,7 @@ const runClient = Effect.fn('nativeHostTest.runClient')(function* (
   socketPath?: string,
 ) {
   const handle = yield* ChildProcess.make(hostPath, ['--request', request], {
-    env: socketPath === undefined ? {} : { TAB_OUT_NATIVE_BRIDGE_SOCKET_PATH: socketPath },
+    env: omitUndefined({ TAB_OUT_NATIVE_BRIDGE_SOCKET_PATH: socketPath }),
     extendEnv: true,
     stdin: 'ignore',
     stdout: 'pipe',

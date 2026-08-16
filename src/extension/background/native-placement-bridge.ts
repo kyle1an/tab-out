@@ -6,6 +6,7 @@ import {
   Schema,
 } from 'effect'
 
+import { omitUndefined } from '../../lib/omit-undefined.js'
 import type { ChromeApi } from './chrome-api.js'
 import {
   createInactiveWindow,
@@ -76,14 +77,14 @@ function response(
   reason?: string,
   windowIds?: number[],
 ): NativePlacementBridgeResponse {
-  return {
+  return omitUndefined({
     version: NATIVE_PLACEMENT_BRIDGE_VERSION,
     type: 'response',
     requestId,
     status,
-    ...(reason ? { reason } : {}),
-    ...(windowIds ? { windowIds } : {}),
-  }
+    reason: reason || undefined,
+    windowIds,
+  })
 }
 
 function errorMessage(error: unknown): string {

@@ -1,5 +1,6 @@
 import { Schema } from 'effect'
 
+import { omitUndefined } from '../lib/omit-undefined.js'
 import {
   dashboardRetainedPagesWireSchema,
   type DashboardRetainedPagesWire,
@@ -46,7 +47,7 @@ const serializedChromeTabSchema = Schema.Struct({
 type SerializedChromeTab = typeof serializedChromeTabSchema.Type
 
 function normalizeSerializedChromeTab(tab: SerializedChromeTab): chrome.tabs.Tab {
-  return {
+  return omitUndefined({
     index: tab.index ?? 0,
     pinned: tab.pinned ?? false,
     highlighted: tab.highlighted ?? false,
@@ -59,20 +60,20 @@ function normalizeSerializedChromeTab(tab: SerializedChromeTab): chrome.tabs.Tab
     autoDiscardable: tab.autoDiscardable ?? true,
     groupId: tab.groupId ?? -1,
     lastAccessed: tab.lastAccessed ?? 0,
-    ...(tab.status === undefined ? {} : { status: tab.status }),
-    ...(tab.openerTabId === undefined ? {} : { openerTabId: tab.openerTabId }),
-    ...(tab.title === undefined ? {} : { title: tab.title }),
-    ...(tab.url === undefined ? {} : { url: tab.url }),
-    ...(tab.pendingUrl === undefined ? {} : { pendingUrl: tab.pendingUrl }),
-    ...(tab.favIconUrl === undefined ? {} : { favIconUrl: tab.favIconUrl }),
-    ...(tab.id === undefined ? {} : { id: tab.id }),
-    ...(tab.audible === undefined ? {} : { audible: tab.audible }),
-    ...(tab.mutedInfo === undefined ? {} : { mutedInfo: tab.mutedInfo }),
-    ...(tab.width === undefined ? {} : { width: tab.width }),
-    ...(tab.height === undefined ? {} : { height: tab.height }),
-    ...(tab.sessionId === undefined ? {} : { sessionId: tab.sessionId }),
-    ...(tab.splitViewId === undefined ? {} : { splitViewId: tab.splitViewId }),
-  }
+    status: tab.status,
+    openerTabId: tab.openerTabId,
+    title: tab.title,
+    url: tab.url,
+    pendingUrl: tab.pendingUrl,
+    favIconUrl: tab.favIconUrl,
+    id: tab.id,
+    audible: tab.audible,
+    mutedInfo: tab.mutedInfo,
+    width: tab.width,
+    height: tab.height,
+    sessionId: tab.sessionId,
+    splitViewId: tab.splitViewId,
+  })
 }
 
 const serializedChromeWindowSchema = Schema.Struct({
@@ -92,19 +93,19 @@ const serializedChromeWindowSchema = Schema.Struct({
 type SerializedChromeWindow = typeof serializedChromeWindowSchema.Type
 
 function normalizeSerializedChromeWindow(window: SerializedChromeWindow): chrome.windows.Window {
-  return {
+  return omitUndefined({
     focused: window.focused ?? false,
     alwaysOnTop: window.alwaysOnTop ?? false,
     incognito: window.incognito ?? false,
-    ...(window.top === undefined ? {} : { top: window.top }),
-    ...(window.height === undefined ? {} : { height: window.height }),
-    ...(window.width === undefined ? {} : { width: window.width }),
-    ...(window.state === undefined ? {} : { state: window.state }),
-    ...(window.type === undefined ? {} : { type: window.type }),
-    ...(window.id === undefined ? {} : { id: window.id }),
-    ...(window.left === undefined ? {} : { left: window.left }),
-    ...(window.sessionId === undefined ? {} : { sessionId: window.sessionId }),
-  }
+    top: window.top,
+    height: window.height,
+    width: window.width,
+    state: window.state,
+    type: window.type,
+    id: window.id,
+    left: window.left,
+    sessionId: window.sessionId,
+  })
 }
 
 const dashboardServiceStateResponseSchema = Schema.Struct({

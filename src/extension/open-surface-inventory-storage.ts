@@ -1,5 +1,6 @@
 import { Context, Effect, Layer, Predicate, Schema } from 'effect'
 
+import { omitUndefined } from '../lib/omit-undefined.js'
 import {
   emptyOpenSurfaceInventory,
   OPEN_SURFACE_FAVICON_MAX_LENGTH,
@@ -183,7 +184,7 @@ function parseInventoryEntry(
     ))
   ) return null
 
-  return {
+  return omitUndefined({
     tabId: stored.tabId,
     closureToken: stored.closureToken,
     identityDigest: stored.identityDigest,
@@ -191,9 +192,9 @@ function parseInventoryEntry(
     canonicalKey: stored.canonicalKey,
     url: stored.url,
     title: stored.title,
-    ...(stored.favIconUrl === undefined ? {} : { favIconUrl: stored.favIconUrl }),
-    ...(stored.closedAt === undefined ? {} : { closedAt: stored.closedAt }),
-  }
+    favIconUrl: stored.favIconUrl,
+    closedAt: stored.closedAt,
+  })
 }
 
 export function parseOpenSurfaceInventoryValue(

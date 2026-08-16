@@ -9,6 +9,7 @@ import {
   Schema,
 } from 'effect'
 
+import { omitUndefined } from '../../lib/omit-undefined.js'
 import {
   pageIdentityForWorkingSet,
   recordWorkingSetActivityMutation,
@@ -167,11 +168,11 @@ function makeWorkingSetLayer(
         tab: dashboardTab,
       })
       const hasDurableChange = write.upsert !== null || write.deleteKeys.length > 0
-      return {
+      return omitUndefined({
         activity: hasDurableChange ? write.activity : activity,
-        ...(hasDurableChange ? { write } : {}),
+        write: hasDurableChange ? write : undefined,
         commit: Ref.set(lastActivityAt, at),
-      } satisfies ActivityMutation
+      }) satisfies ActivityMutation
     })
 
     function pageIdentityForTab(tab: chrome.tabs.Tab | DashboardTab): string {
@@ -215,11 +216,11 @@ function makeWorkingSetLayer(
           return { activity, commit: commitSignal } satisfies ActivityMutation
         }
         const mutation = yield* activityAfterTabEvent(activity, 'activation', tab)
-        return {
+        return omitUndefined({
           activity: mutation.activity,
-          ...(mutation.write ? { write: mutation.write } : {}),
+          write: mutation.write,
           commit: mutation.commit.pipe(Effect.andThen(commitSignal)),
-        } satisfies ActivityMutation
+        }) satisfies ActivityMutation
       },
     )
 
@@ -356,11 +357,11 @@ function makeWorkingSetLayer(
           return { activity, commit: commitPageIdentity }
         }
         const mutation = yield* activityAfterTabEvent(activity, 'navigation', tab)
-        return {
+        return omitUndefined({
           activity: mutation.activity,
-          ...(mutation.write ? { write: mutation.write } : {}),
+          write: mutation.write,
           commit: mutation.commit.pipe(Effect.andThen(commitPageIdentity)),
-        }
+        })
       }))
     })
 

@@ -14,6 +14,7 @@
 
 import { Effect, Schema } from 'effect'
 
+import { omitUndefined } from '../lib/omit-undefined.js'
 import { getAppRuntime } from './app-runtime.js'
 import { BrowserTabs } from './browser-tabs-service.js'
 import { DEFAULT_HISTORY_RANGE } from './history-range.js'
@@ -96,17 +97,17 @@ export function buildDashboardViewModel({ realTabs, domainGroups: groups = [], f
   let dedupCount = 0
   for (const group of groups) {
     const groupChipOrder = chipOrder?.get(domainGroupCardId(group))
-    const sharedCardOptions = {
+    const sharedCardOptions = omitUndefined({
       filter,
       filterQuery,
       source,
       allowMutations,
       currentWindowId,
-      ...(groupChipOrder === undefined ? {} : { chipOrder: groupChipOrder }),
-      ...(chipPriority === undefined ? {} : { chipPriority }),
-      ...(pinnedSections === undefined ? {} : { pinnedSections }),
-      ...(pinnedPageChips === undefined ? {} : { pinnedPageChips }),
-    }
+      chipOrder: groupChipOrder,
+      chipPriority,
+      pinnedSections,
+      pinnedPageChips,
+    })
     const matchedVm = computeDomainCardViewModel(group, sharedCardOptions)
     if (!matchedVm.isHidden) {
       matchedCards.push({ group, vm: matchedVm })

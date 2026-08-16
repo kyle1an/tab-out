@@ -1,5 +1,6 @@
 import { Predicate, Schema } from 'effect'
 
+import { omitUndefined } from '../lib/omit-undefined.js'
 import {
   RETAINED_PAGE_CAPACITY,
   type RetainedPageRecord,
@@ -184,7 +185,7 @@ function expandDashboardRetainedPagesPayload(value: unknown): unknown {
       canonicalKey: canonicalKeyOverride ?? url,
       url,
       title,
-      ...(favIconUrl === null ? {} : { favIconUrl }),
+      ...omitUndefined({ favIconUrl: favIconUrl ?? undefined }),
       closedAt,
       closureToken,
     }

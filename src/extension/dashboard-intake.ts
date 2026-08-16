@@ -10,6 +10,7 @@
 
 import { Effect, FiberHandle, Result, Schema } from 'effect'
 
+import { omitUndefined } from '../lib/omit-undefined.js'
 import { getAppRuntime } from './app-runtime.js'
 import { BrowserTabs } from './browser-tabs-service.js'
 import type { BrowserReadResult } from './browser-tabs-gateway.js'
@@ -745,8 +746,10 @@ export function appDashboardReducer(state: AppDashboardState, action: AppDashboa
         : {
             ...deferredFields,
             dashboard: action.dashboard,
-            ...(action.tabHistory === undefined ? {} : { tabHistory: action.tabHistory }),
-            ...(action.workingSet === undefined ? {} : { workingSet: action.workingSet }),
+            ...omitUndefined({
+              tabHistory: action.tabHistory,
+              workingSet: action.workingSet,
+            }),
           }
       return {
         ...state,
@@ -758,8 +761,10 @@ export function appDashboardReducer(state: AppDashboardState, action: AppDashboa
         sourceAppliedRequestId: action.requestId,
         sourceSelection: action.source,
         startupPriorityWorkingSet: null,
-        ...(action.tabHistory !== undefined ? { tabHistory: action.tabHistory } : {}),
-        ...(action.workingSet !== undefined ? { workingSet: action.workingSet } : {}),
+        ...omitUndefined({
+          tabHistory: action.tabHistory,
+          workingSet: action.workingSet,
+        }),
       }
     }
   }
@@ -988,7 +993,11 @@ export function createAppDashboardStore(
         pinnedDomains: [...requestContext.pinnedDomains],
         previousOrder: inputs.previousOrder,
       }
-      const sourceSnapshot = fetchSourceSwitchSnapshotEffect
+      const sourceSnapshot: Effect.Effect<
+        DashboardRefreshSnapshot,
+        DashboardSourceFetchError,
+        BrowserTabs
+      > = fetchSourceSwitchSnapshotEffect
         ? fetchSourceSwitchSnapshotEffect(snapshotOptions).pipe(
             Effect.mapError((error) => DashboardSourceFetchError.make({ cause: error.cause })),
           )
@@ -1023,8 +1032,10 @@ export function createAppDashboardStore(
         dashboard: snapshot.dashboard,
         requestId,
         source: nextSource,
-        ...(snapshot.tabHistory === undefined ? {} : { tabHistory: snapshot.tabHistory }),
-        ...(snapshot.workingSet === undefined ? {} : { workingSet: snapshot.workingSet }),
+        ...omitUndefined({
+          tabHistory: snapshot.tabHistory,
+          workingSet: snapshot.workingSet,
+        }),
       })
       return
     }
@@ -1101,7 +1112,7 @@ export function createAppDashboardStore(
       historyRange,
       historyFilterEnabled,
       pinnedDomains: [...pinnedDomains],
-      ...(reusableBookmarkTabs === null ? {} : { prefetchedBookmarkTabs: reusableBookmarkTabs }),
+      ...omitUndefined({ prefetchedBookmarkTabs: reusableBookmarkTabs ?? undefined }),
       previousOrder,
     }
     const fetchRefreshSnapshot = Effect.gen(function* () {
@@ -1145,7 +1156,7 @@ export function createAppDashboardStore(
 
   return {
     applyStartup: ({ historyRange, snapshot, source }) => {
-      dispatch({ type: 'startup', historyRange, snapshot, ...(source === undefined ? {} : { source }) })
+      dispatch(omitUndefined({ type: 'startup', historyRange, snapshot, source }))
     },
     clearStartupPriority: () => {
       dispatch({ type: 'startupPriorityCleared' })

@@ -28,6 +28,7 @@ import { createBionicTitleTextRenderer } from './bionic-title-text'
 import { highlightTermsForFilter, highlightedTextNodes } from './filter-highlight-text'
 import { captureVisibleLineHtml, clampedTitleLineNodes, createExpansionMeasureElement, createTitleExpansionLane, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineMarkup, expansionLineNodesFromHtml, searchExpandedWidth, syncClampedTitleFadeEnd, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines, useTitleExpansionController, type ExpansionLineClasses, type TitleLineCaptureGeometry } from './title-expansion'
 import { cn } from '@/lib/utils'
+import { omitUndefined } from '@/lib/omit-undefined'
 import type { CSSVariableProperties } from '@/lib/css-properties'
 import type { HoverUrlChangeHandler, HoverUrlSource, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
 import type { RetainedPageSurfaceMatch, TabHistoryEntry, WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
@@ -1336,10 +1337,12 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
     canActivateEntry,
     entrySlotRef,
     contextMenuOpenRef,
-    ...(onSnapshotChange ? { onSnapshotChange } : {}),
-    ...(onHistoryLayoutSettled ? { onHistoryLayoutSettled } : {}),
-    ...(onHoverUrlChange ? { onHoverUrlChange } : {}),
-    ...(onTabsChange ? { onTabsChange } : {}),
+    ...omitUndefined({
+      onSnapshotChange,
+      onHistoryLayoutSettled,
+      onHoverUrlChange,
+      onTabsChange,
+    }),
   })
 
   async function onForgetEntry(e: MouseEvent<HTMLButtonElement>) {

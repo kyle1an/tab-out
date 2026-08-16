@@ -4,6 +4,7 @@ import { afterEach, it, vi } from '@effect/vitest'
 import { Effect, Fiber, Layer } from 'effect'
 import { TestClock } from 'effect/testing'
 
+import { omitUndefined } from '../../src/lib/omit-undefined.js'
 import {
   STARTUP_SNAPSHOT_CACHE_SEED_RETRY_MS,
   STARTUP_SNAPSHOT_DEBOUNCE_MS,
@@ -80,13 +81,13 @@ function startupSnapshotLayer(
     }
   },
 ) {
-  return StartupSnapshot.layer({
-    ...(options.alarms ? { alarms: options.alarms } : {}),
+  return StartupSnapshot.layer(omitUndefined({
+    alarms: options.alarms,
     getDashboardServiceState: Effect.tryPromise({
       try: options.getDashboardServiceState,
       catch: (cause) => cause,
     }),
-  }).pipe(Layer.provideMerge(BrowserTabs.layer()))
+  })).pipe(Layer.provideMerge(BrowserTabs.layer()))
 }
 
 type StorageValues = Record<string, unknown>

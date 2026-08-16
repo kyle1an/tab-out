@@ -1,5 +1,6 @@
 import { Effect, Result, Schema } from 'effect'
 
+import { omitUndefined } from '../lib/omit-undefined.js'
 import { readAppStartupFilterIntent, type AppStartupFrame } from '../app-startup.js'
 import { appDashboardStore, fetchDashboardSnapshotEffect, fetchDashboardStartupSnapshotEffect, type MissionOrderMap } from './dashboard-intake.js'
 import { loadDashboardLocalStateResultEffect } from './dashboard-local-state.js'
@@ -90,7 +91,7 @@ export const captureAppStartupFrameEffect = Effect.fn(
   })
   const snapshot = {
     ...tabsSnapshot,
-    ...(sourceSnapshot ? { dashboard: sourceSnapshot.dashboard } : {}),
+    ...omitUndefined({ dashboard: sourceSnapshot?.dashboard }),
     workingSet: rebaseDashboardStartupWorkingSetPriority(seed, tabsSnapshot.workingSet),
   }
 

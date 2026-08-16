@@ -1,5 +1,6 @@
 import { Effect, Layer, ManagedRuntime } from 'effect'
 
+import { omitUndefined } from '../../lib/omit-undefined.js'
 import { BrowserTabs } from '../browser-tabs-service.js'
 import { createDashboardRetainedPagesWireEncodeCache } from '../dashboard-retained-pages-wire.js'
 import {
@@ -156,7 +157,7 @@ export function createBackgroundRuntime(chromeApi: ChromeApi) {
       chromeApi,
       page,
       disposition,
-      currentWindowId === undefined ? {} : { currentWindowId },
+      omitUndefined({ currentWindowId }),
     ),
   }).pipe(Layer.provide(Layer.mergeAll(
     retainedPagesStorage,

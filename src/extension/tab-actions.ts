@@ -1,5 +1,6 @@
 import { Effect, Schema } from 'effect'
 
+import { omitUndefined } from '../lib/omit-undefined.js'
 import { getAppRuntime } from './app-runtime.js'
 import { BrowserTabs } from './browser-tabs-service.js'
 import { isBrowserInternalUrl } from './browser-url-policy.js'
@@ -276,12 +277,12 @@ const runCloseDomainTabs = Effect.fn('tabActions.closeDomain')(function* ({
     tabMutationTargets(scopedTabs),
     { preserveGroups: true },
   )
-  return yield* finishTabCloseAction({
+  return yield* finishTabCloseAction(omitUndefined({
     closeResult,
     nothingMessage: 'Nothing to close',
     labelSuffix: ` from ${displayName}`,
-    ...(onAfterClose ? { onAfterClose } : {}),
-  })
+    onAfterClose,
+  }))
 })
 
 export function closeDomainTabs(options: CloseDomainTabsOptions): Promise<TabActionResult> {
@@ -321,12 +322,12 @@ const runCloseSuspendedDomainTabs = Effect.fn('tabActions.closeSuspendedDomain')
     preserveGroups: true,
     requireSuspended: true,
   })
-  return yield* finishTabCloseAction({
+  return yield* finishTabCloseAction(omitUndefined({
     closeResult,
     nothingMessage: 'Nothing suspended to close',
     labelSuffix: ` from ${displayName}`,
-    ...(onAfterClose ? { onAfterClose } : {}),
-  })
+    onAfterClose,
+  }))
 })
 
 export function closeSuspendedDomainTabs(
@@ -524,12 +525,12 @@ const runDedupeTabs = Effect.fn('tabActions.dedupe')(function* ({
   if (urls.length === 0) return emptyTabActionResult()
 
   const closeResult = yield* closeDuplicateTabsEffect(urls, true, { preservePinnedTabOut })
-  return yield* finishTabCloseAction({
+  return yield* finishTabCloseAction(omitUndefined({
     closeResult,
     kind: 'duplicates',
     nothingMessage: 'Nothing to dedupe',
-    ...(onAfterClose ? { onAfterClose } : {}),
-  })
+    onAfterClose,
+  }))
 })
 
 export function dedupeTabs(options: DedupeTabsOptions): Promise<TabActionResult> {

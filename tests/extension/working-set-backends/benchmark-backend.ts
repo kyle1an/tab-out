@@ -1,5 +1,6 @@
 import { Schema } from 'effect'
 
+import { omitUndefined } from '../../../src/lib/omit-undefined.js'
 import type {
   WorkingSetActivityEvent,
   WorkingSetActivityRecord,
@@ -186,10 +187,12 @@ function materializeCompactActivityRows(
         title: row[1],
         domain: URL.parse(row[0])?.hostname || '',
         lastSeenAt,
-        ...(lastActivatedAt === undefined ? {} : { lastActivatedAt }),
-        ...(lastNavigatedAt === undefined ? {} : { lastNavigatedAt }),
-        ...(row[2] === null ? {} : { dismissedAt: row[2] }),
-        ...(row[3] === null ? {} : { dismissedUntil: row[3] }),
+        ...omitUndefined({
+          lastActivatedAt,
+          lastNavigatedAt,
+          dismissedAt: row[2] ?? undefined,
+          dismissedUntil: row[3] ?? undefined,
+        }),
         events,
       }
       return [record.key, record]

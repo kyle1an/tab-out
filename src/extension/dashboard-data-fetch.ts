@@ -7,6 +7,7 @@
 
 import { Effect } from 'effect'
 
+import { omitUndefined } from '../lib/omit-undefined.js'
 import { getAppRuntime } from './app-runtime.js'
 import { buildDomainGroups } from './domain-groups.js'
 import { DEFAULT_HISTORY_RANGE } from './history-range.js'
@@ -97,7 +98,7 @@ export const fetchDashboardDataEffect = Effect.fn(
       ? getCurrentWindowIdResultEffect().pipe(Effect.map((result) => result.value))
       : Effect.succeed(currentWindowId),
   ] as const, { concurrency: 'unbounded' })
-  const { dashboard, savedPageUpdates } = yield* buildDashboardDataFromTabsEffect(resolvedTabs.dashboardTabs, resolvedCurrentWindowId, previousOrder, {
+  const { dashboard, savedPageUpdates } = yield* buildDashboardDataFromTabsEffect(resolvedTabs.dashboardTabs, resolvedCurrentWindowId, previousOrder, omitUndefined({
     pinnedDomains,
     bookmarkPreviousOrder,
     historyPreviousOrder,
@@ -110,8 +111,8 @@ export const fetchDashboardDataEffect = Effect.fn(
     historyTabs,
     retainedPages,
     retainedLiveTabs: resolvedTabs.retainedLiveTabs,
-    ...(savedPagesStore === undefined ? {} : { savedPagesStore }),
-  })
+    savedPagesStore,
+  }))
   // Page fetchers are the only Saved Pages metadata writers; builds stay pure
   // and the worker discards its copy of these updates.
   yield* persistSavedPageMetadataUpdatesEffect(

@@ -1,5 +1,6 @@
 import { Effect, Schema } from 'effect'
 
+import { omitUndefined } from '../lib/omit-undefined.js'
 import { getAppRuntime } from './app-runtime.js'
 import { BrowserTabs } from './browser-tabs-service.js'
 import { closeResolvedTabsEffect } from './tabs.js'
@@ -164,23 +165,23 @@ export function makeHistoryEntry(entry: HistoryEntryInput): TabHistoryEntry {
 
 /** historyEntryFromWorkingSetItem — adapt a Working Set item into a supplemental history row. */
 export function historyEntryFromWorkingSetItem(item: WorkingSetItem): TabHistoryEntry {
-  return makeHistoryEntry({
+  return makeHistoryEntry(omitUndefined({
     tabId: item.tabId,
     windowId: item.windowId,
     exists: true,
     active: item.active,
     activeInOtherWindow: item.activeInOtherWindow,
-    ...(item.loading === undefined ? {} : { loading: item.loading }),
+    loading: item.loading,
     current: item.active && !item.activeInOtherWindow,
     title: item.title,
     url: item.tabUrl,
     rawUrl: item.rawUrl,
     displayUrl: item.displayUrl,
     favIconUrl: item.faviconUrl,
-    ...(item.audible === undefined ? {} : { audible: item.audible }),
-    ...(item.muted === undefined ? {} : { muted: item.muted }),
+    audible: item.audible,
+    muted: item.muted,
     lastActivatedAt: item.lastActivatedAt,
-  })
+  }))
 }
 
 /** historyEntryFromClosedTab — adapt a recently-closed tab into a ghost history row. */

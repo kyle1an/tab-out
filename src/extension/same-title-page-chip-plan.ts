@@ -1,3 +1,4 @@
+import { omitUndefined } from '../lib/omit-undefined.js'
 import { isClosedSavedDashboardTab } from './dashboard-source.js'
 import { filterResultCandidateForTarget } from './filter-result-navigation.js'
 import {
@@ -277,7 +278,7 @@ export function compileSameTitlePageChip(
     const duplicateCount = representative.sourceType === 'retained-page'
       ? 1
       : representative.dupeCount || 1
-    return {
+    return omitUndefined({
       active: rowTargets.some((target) => !!(target.activeChipFrame || target.activeInOtherWindow)),
       actions: {
         close,
@@ -304,15 +305,11 @@ export function compileSameTitlePageChip(
       layoutKey: representative.pagePinId || representative.rawUrl,
       pagePinned: singleTarget && !!representative.pagePinned,
       removalKey: `page:${representative.rawUrl}`,
-      ...(representative.retainedPageClosureToken === undefined
-        ? {}
-        : { retainedPageClosureToken: representative.retainedPageClosureToken }),
-      ...(representative.retainedPageIdentity === undefined
-        ? {}
-        : { retainedPageIdentity: representative.retainedPageIdentity }),
+      retainedPageClosureToken: representative.retainedPageClosureToken,
+      retainedPageIdentity: representative.retainedPageIdentity,
       saved: !!representative.saved,
-      ...(representative.sourceType === undefined ? {} : { sourceType: representative.sourceType }),
-    }
+      sourceType: representative.sourceType,
+    })
   })
   const allTargetIndexes = targets.map((_, targetIndex) => targetIndex)
   const groupRemoval = removalPlan(targets, allTargetIndexes)
@@ -385,12 +382,12 @@ export function resolveSameTitlePageChip(
     const tabId = typeof representative.tabId === 'number'
       ? representative.tabId
       : undefined
-    return {
+    return omitUndefined({
       kind: 'preview',
       matchUrls: row.previewMatchUrls,
-      ...(tabId === undefined ? {} : { tabId }),
+      tabId,
       url: representative.tabUrl,
-    }
+    })
   }
 
   if (intent.action === 'close') {

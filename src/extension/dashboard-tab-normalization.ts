@@ -1,3 +1,4 @@
+import { omitUndefined } from '../lib/omit-undefined.js'
 import { isSuspended, unwrapSuspenderTitle, unwrapSuspenderUrl } from './suspension.js'
 import { isTabOutPageUrl } from './tab-out-url.js'
 import type { DashboardTab } from './types'
@@ -39,13 +40,13 @@ export function normalizeChromeTabToDashboardItem(
 
   if (retainsSuspendedTitle) title = previousTab.title
 
-  return {
-    ...(tab.id === undefined ? {} : { id: tab.id }),
+  return omitUndefined({
+    id: tab.id,
     url: effectiveUrl,
     rawUrl,
     suspended,
     title,
-    ...(tab.status === undefined ? {} : { status: tab.status }),
+    status: tab.status,
     ...(retainsSuspendedTitle ? { retainedSuspendedTitle: true } : {}),
     favIconUrl: tab.favIconUrl || '',
     audible: !!tab.audible,
@@ -57,5 +58,5 @@ export function normalizeChromeTabToDashboardItem(
     isTabOut: isTabOutPageUrl(rawUrl, runtimeId),
     isApp: windowType === 'app' || windowType === 'popup',
     index: tab.index,
-  }
+  })
 }

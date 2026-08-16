@@ -8,6 +8,7 @@ import * as ChildProcess from 'effect/unstable/process/ChildProcess'
 import * as ChildProcessSpawner from 'effect/unstable/process/ChildProcessSpawner'
 
 import packageJson from '../package.json' with { type: 'json' }
+import { omitUndefined } from '../src/lib/omit-undefined.js'
 import { resolveWorkingSetBuildSelection } from './working-set-benchmark-build-config.js'
 import { createExtensionManifest } from '../src/extension/manifest.js'
 import { createIndexHtml } from '../src/index-html.js'
@@ -41,7 +42,7 @@ function extensionBuildError(
   return ExtensionBuildError.make({
     operation,
     cause,
-    ...(exitCode === undefined ? {} : { exitCode }),
+    ...omitUndefined({ exitCode }),
   })
 }
 
