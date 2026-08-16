@@ -535,8 +535,6 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.match(pageChipSource, /'\.chip-title-suppression-marker, \.chip-strip-indicator\[aria-label\]'/)
   assert.doesNotMatch(pageChipSource, /expansionCapturedLinesRewrapOnExpand/)
   assert.match(pageChipSource, /const contentBoxEl = chipEl\.querySelector<HTMLElement>\('\.chip-text'\) \|\| textEl/)
-  assert.match(pageChipSource, /function titleVariantLabelsOverflow\(textEl: HTMLElement \| null\) \{[\s\S]*\.chip-title-variant-label[\s\S]*scrollWidth[\s\S]*clientWidth/)
-  assert.match(pageChipSource, /titleVariantLabelsOverflow\(textEl\) \|\| titleVariantContentOverflows\(textEl\)/)
   assert.match(pageChipSource, /function getTitleVariantMinimumContentWidth\(textEl: HTMLElement \| null\)/)
   assert.match(pageChipSource, /Math\.max\(getChipTextExpansionBaselineWidth\(contentBoxEl\), getTitleVariantMinimumContentWidth\(contentBoxEl\)\)/)
   assert.match(pageChipSource, /width: Math\.min\(maxWidth, Math\.max\(rect\.width, minWidth, contentMetrics\.width \+ horizontalInset\)\)/)

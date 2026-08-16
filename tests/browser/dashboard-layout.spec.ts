@@ -990,6 +990,57 @@ test('same-title URL groups share hover paint with and without filter results', 
   expect(await hoveredRowPaint(historyRows.first())).toEqual(tabsHoverPaint)
 })
 
+test('truncated same-title URL labels fade at rest and use ellipsis when expanded', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 900 })
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await page.evaluate(async () => {
+    await (window as typeof window & {
+      __tabOutSmokeAddPlainTitleVariantTabs?: () => Promise<void>
+    }).__tabOutSmokeAddPlainTitleVariantTabs?.()
+  })
+
+  const chip = page.locator('[data-tabout="page-chip"]')
+    .filter({ hasText: 'Plain Title Variant' })
+    .first()
+  const labels = chip.locator('.chip-title-variant-label')
+  await expect(labels).toHaveCount(2)
+
+  await expect.poll(async () => labels.evaluateAll((elements) => elements.map((element) => (
+    element.classList.contains('chip-title-variant-label-truncated')
+  )))).toContain(true)
+
+  const treatments = await labels.evaluateAll((elements) => elements.map((element) => {
+    const truncated = element.scrollWidth - element.clientWidth > 1.5
+    const style = getComputedStyle(element)
+    return {
+      hasTruncatedClass: element.classList.contains('chip-title-variant-label-truncated'),
+      maskImage: style.maskImage,
+      textOverflow: style.textOverflow,
+      truncated,
+    }
+  }))
+
+  expect(treatments.some(({ truncated }) => truncated)).toBe(true)
+  for (const treatment of treatments) {
+    expect(treatment.hasTruncatedClass).toBe(treatment.truncated)
+    expect(treatment.maskImage === 'none').toBe(!treatment.truncated)
+    expect(treatment.textOverflow).toBe('clip')
+  }
+
+  await page.setViewportSize({ width: 430, height: 900 })
+  await chip.locator('.chip-title-row').hover()
+  await expect(chip).toHaveAttribute('data-expanded', 'true')
+  await expect.poll(async () => labels.evaluateAll((elements) => elements.some((element) => {
+    const style = getComputedStyle(element)
+    return (
+      element.scrollWidth - element.clientWidth > 1.5 &&
+      !element.classList.contains('chip-title-variant-label-truncated') &&
+      style.maskImage === 'none' &&
+      style.textOverflow === 'ellipsis'
+    )
+  }))).toBe(true)
+})
+
 test('hover-revealed close actions keep a stable pointer on direct entry', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html?historyReorderMotion=1')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)

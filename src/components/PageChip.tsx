@@ -52,7 +52,7 @@ let chipTextResizeObserver: SizeChangeObserver | null = null
 const chipTextMeasuredSizes = new WeakMap<HTMLElement, ObservedElementSize>()
 const chipTextTruncationCallbacks = new WeakMap<
   HTMLElement,
-  (metrics: { hasExpandableContent: boolean, height: number, isTruncated: boolean, width: number }) => void
+  (metrics: ChipTextFadeMetrics) => void
 >()
 
 const PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX = 12
@@ -122,6 +122,7 @@ type StopPropagationEvent = {
 type ChipTextMetrics = {
   hasExpandableContent: boolean
   isTruncated: boolean
+  titleVariantLabelTruncationKey: string
   width: number
 }
 type ChipTextClamp = {
@@ -184,7 +185,12 @@ type ExpandedPageChipContentMetrics = {
   viewportConstrained: boolean
   width: number
 }
-const DEFAULT_CHIP_TEXT_METRICS: ChipTextMetrics = { hasExpandableContent: false, isTruncated: false, width: 0 }
+const DEFAULT_CHIP_TEXT_METRICS: ChipTextMetrics = {
+  hasExpandableContent: false,
+  isTruncated: false,
+  titleVariantLabelTruncationKey: '',
+  width: 0,
+}
 const DEFAULT_CHIP_TEXT_LAYOUT_STATE: ChipTextLayoutState = { clamp: null, metrics: DEFAULT_CHIP_TEXT_METRICS }
 const DEFAULT_CHIP_SLOT_SIZE: ChipSlotSize = { height: 0, width: 0 }
 
@@ -330,11 +336,12 @@ function getTitleVariantMinimumContentWidth(textEl: HTMLElement | null) {
   return Math.round(width * 100) / 100
 }
 
-function titleVariantLabelsOverflow(textEl: HTMLElement | null) {
-  if (!textEl) return false
-  return textEl.querySelectorAll<HTMLElement>('.chip-title-variant-label')
-    .values()
-    .some((label) => label.scrollWidth - label.clientWidth > PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX)
+function titleVariantLabelTruncationKey(textEl: HTMLElement | null) {
+  if (!textEl) return ''
+  return Array.from(
+    textEl.querySelectorAll<HTMLElement>('.chip-title-variant-label'),
+    (label) => label.scrollWidth - label.clientWidth > PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX ? '1' : '0',
+  ).join('')
 }
 
 function titleVariantContentOverflows(textEl: HTMLElement | null) {
@@ -345,7 +352,7 @@ function titleVariantContentOverflows(textEl: HTMLElement | null) {
 }
 
 function chipTextHasExpandableContent(textEl: HTMLElement | null) {
-  return isChipTextTruncated(textEl) || titleVariantLabelsOverflow(textEl) || titleVariantContentOverflows(textEl)
+  return isChipTextTruncated(textEl) || titleVariantLabelTruncationKey(textEl).includes('1') || titleVariantContentOverflows(textEl)
 }
 
 function getChipTextHeight(textEl: HTMLElement | null) {
@@ -916,11 +923,13 @@ function readChipTextFadeMetrics(
   textRect = textEl.getBoundingClientRect(),
 ): ChipTextFadeMetrics {
   const isTruncated = isChipTextTruncated(textEl)
-  const hasExpandableContent = isTruncated || titleVariantLabelsOverflow(textEl) || titleVariantContentOverflows(textEl)
+  const variantLabelTruncationKey = titleVariantLabelTruncationKey(textEl)
+  const hasExpandableContent = isTruncated || variantLabelTruncationKey.includes('1') || titleVariantContentOverflows(textEl)
   return {
     hasExpandableContent,
     height: Math.round(textRect.height * 100) / 100,
     isTruncated,
+    titleVariantLabelTruncationKey: variantLabelTruncationKey,
     width: Math.round(textRect.width * 100) / 100,
   }
 }
@@ -943,7 +952,7 @@ function syncChipTextFade(
   syncFadeEnd = true,
   measuredMetrics?: ChipTextFadeMetrics,
 ) {
-  if (!textEl) return { hasExpandableContent: false, height: 0, isTruncated: false, width: 0 }
+  if (!textEl) return { ...DEFAULT_CHIP_TEXT_METRICS, height: 0 }
 
   return applyChipTextFadeMetrics(
     textEl,
@@ -953,14 +962,15 @@ function syncChipTextFade(
 }
 
 function getChipTextMetrics(textEl: HTMLElement | null): ChipTextMetrics {
-  const { hasExpandableContent, isTruncated, width } = syncChipTextFade(textEl)
-  return { hasExpandableContent, isTruncated, width }
+  const { hasExpandableContent, isTruncated, titleVariantLabelTruncationKey, width } = syncChipTextFade(textEl)
+  return { hasExpandableContent, isTruncated, titleVariantLabelTruncationKey, width }
 }
 
 function chipTextMetricsEqual(left: ChipTextMetrics, right: ChipTextMetrics) {
   return (
     left.hasExpandableContent === right.hasExpandableContent &&
     left.isTruncated === right.isTruncated &&
+    left.titleVariantLabelTruncationKey === right.titleVariantLabelTruncationKey &&
     Math.abs(left.width - right.width) < 0.1
   )
 }
@@ -989,6 +999,7 @@ function readChipTextLayout(textEl: HTMLElement, clampEligible: boolean, clampKe
   const nextMetrics = {
     hasExpandableContent: fadeMetrics.hasExpandableContent,
     isTruncated: fadeMetrics.isTruncated,
+    titleVariantLabelTruncationKey: fadeMetrics.titleVariantLabelTruncationKey,
     width: fadeMetrics.width,
   }
   let nextClamp: ChipTextClamp | null = null
@@ -1246,7 +1257,15 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   const activeSuppressionTone = titleSuppressionToneForText(activeSuppressedTitle, suppressedTitleToneByText)
   const suppressionHighlighted = activeSuppressedTitleKey !== '' && suppressedTitleParts.some((part) => part.toLowerCase() === activeSuppressedTitleKey)
   const chipTextClampEligible = !chip.iconOnly && !isFolded && !isTitleVariantGroup
-  const chipTextClampKey = JSON.stringify([chip.displaySegments, chip.leadPrefix ?? '', chip.pathGroupLabel ?? '', chip.pathSuffix ?? '', suppressedTitleParts, highlightTerms])
+  const chipTextClampKey = JSON.stringify([
+    chip.displaySegments,
+    chip.leadPrefix ?? '',
+    chip.pathGroupLabel ?? '',
+    chip.pathSuffix ?? '',
+    suppressedTitleParts,
+    highlightTerms,
+    sameTitleRows.map((row) => [row.id, row.label, row.duplicateCount, row.exactTargetCount]),
+  ])
   const chipExpansionId = useId()
   const chipSlotRef = useRef<HTMLDivElement | null>(null)
   const chipTextRef = useRef<HTMLSpanElement | null>(null)
@@ -1418,6 +1437,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   // resize-driven metric updates would stop. Re-register against the current
   // element on every render instead.
   const observedChipTextElRef = useRef<HTMLElement | null>(null)
+  // react-doctor-disable-next-line react-doctor/effect-needs-cleanup -- the observer stays attached across renders by design; the unmount-only effect below unobserves the current element.
   useEffect(() => {
     const textEl = chipTextRef.current
     const previous = observedChipTextElRef.current
@@ -1431,9 +1451,9 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     observedChipTextElRef.current = textEl
     if (!textEl) return
 
-    chipTextTruncationCallbacks.set(textEl, ({ hasExpandableContent, isTruncated, width }) => {
+    chipTextTruncationCallbacks.set(textEl, ({ hasExpandableContent, isTruncated, titleVariantLabelTruncationKey, width }) => {
       setChipTextLayout((current) => {
-        const nextMetrics = { hasExpandableContent, isTruncated, width }
+        const nextMetrics = { hasExpandableContent, isTruncated, titleVariantLabelTruncationKey, width }
         return chipTextMetricsEqual(current.metrics, nextMetrics)
           ? current
           : { ...current, metrics: nextMetrics }
@@ -2571,11 +2591,17 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       !!row.copyTitle ||
       !!row.copyUrl
     )
+    const variantLabelTruncated = mode === 'chip' && chipTextMetrics.titleVariantLabelTruncationKey[index] === '1'
     // Variant rows carry no favicon, so the label text carries the liveness
     // signal the favicon would: dim when this variant has no awake tab.
     const labelContent = (
       <>
-        <span className={cn('chip-title-variant-label min-w-0 overflow-hidden text-left text-ellipsis whitespace-nowrap', row.dimmed && VARIANT_LABEL_DIM_CLASS_NAME)}>
+        <span className={cn(
+          'chip-title-variant-label min-w-0 overflow-hidden text-left whitespace-nowrap [&.chip-title-variant-label-truncated]:mask-(--title-fade-mask)',
+          variantLabelTruncated && (chipExpanded ? 'text-ellipsis' : 'chip-title-variant-label-truncated'),
+          row.dimmed && VARIANT_LABEL_DIM_CLASS_NAME,
+        )}
+        >
           {highlightedTextNodes(row.label, highlightTerms, `${mode}-title-variant-${index}`)}
         </span>
         {row.duplicateCount > 1 && (
