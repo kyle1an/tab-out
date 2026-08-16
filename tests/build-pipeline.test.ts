@@ -162,7 +162,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.ok(pkg.devDependencies?.vite)
   assert.ok(pkg.devDependencies?.vitest)
   assert.ok(pkg.devDependencies?.shadcn)
-  assert.ok(pkg.devDependencies?.['@sinonjs/fake-timers'])
+  assert.equal(pkg.devDependencies?.['@sinonjs/fake-timers'], undefined)
   assert.equal(pkg.devDependencies?.['type-fest'], undefined)
   assert.ok(tsconfig.compilerOptions?.types?.includes('chrome'))
   assert.equal(tsconfig.compilerOptions?.allowArbitraryExtensions, undefined)

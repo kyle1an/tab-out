@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { it, vi } from '@effect/vitest'
 import fc from 'fast-check'
 
-import { canonicalDedupeKey } from '../src/extension/url-canonical.js'
+import { canonicalDedupeKey } from '../../src/extension/url-canonical.js'
 
 const longForm =
   'https://example.atlassian.net/browse/ABC-123?focusedCommentId=100&sourceType=mention&page=com.atlassian.jira.plugin.system.issuetabpanels%3Acomment-tabpanel#comment-100'
@@ -20,125 +20,117 @@ const projectKeyArbitrary = fc
   )
   .map(([first, rest]) => `${first}${rest.join('')}`)
 
-test('the two Jira URL forms of the same comment produce the same key', () => {
+it('the two Jira URL forms of the same comment produce the same key', () => {
   assert.equal(canonicalDedupeKey(longForm), canonical)
   assert.equal(canonicalDedupeKey(shortForm), canonical)
 })
 
-test('Jira comment canonicalization holds across generated issue and comment ids', () => {
-  fc.assert(
-    fc.property(
-      projectKeyArbitrary,
-      fc.integer({ min: 0, max: 1_000_000 }),
-      fc.integer({ min: 0, max: 1_000_000 }),
-      (projectKey, issueId, commentId) => {
-        const issue = `https://example.atlassian.net/browse/${projectKey}-${issueId}`
-        const expected = `${issue}?focusedCommentId=${commentId}`
+it.prop(
+  'Jira comment canonicalization holds across generated issue and comment ids',
+  [
+    projectKeyArbitrary,
+    fc.integer({ min: 0, max: 1_000_000 }),
+    fc.integer({ min: 0, max: 1_000_000 }),
+  ],
+  ([projectKey, issueId, commentId]) => {
+    const issue = `https://example.atlassian.net/browse/${projectKey}-${issueId}`
+    const expected = `${issue}?focusedCommentId=${commentId}`
 
-        assert.equal(
-          canonicalDedupeKey(
-            `${issue}?focusedCommentId=${commentId}&sourceType=mention&page=comment-panel#comment-${commentId}`,
-          ),
-          expected,
-        )
-        assert.equal(canonicalDedupeKey(`${issue}#comment-${commentId}`), expected)
-      },
-    ),
-  )
-})
+    assert.equal(
+      canonicalDedupeKey(
+        `${issue}?focusedCommentId=${commentId}&sourceType=mention&page=comment-panel#comment-${commentId}`,
+      ),
+      expected,
+    )
+    assert.equal(canonicalDedupeKey(`${issue}#comment-${commentId}`), expected)
+  },
+)
 
-test('a hash-only comment link matches a focusedCommentId link', () => {
+it('a hash-only comment link matches a focusedCommentId link', () => {
   const hashOnly = 'https://example.atlassian.net/browse/ABC-123#comment-100'
   assert.equal(canonicalDedupeKey(hashOnly), canonical)
 })
 
-test('different focused comments on the same issue stay distinct', () => {
+it('different focused comments on the same issue stay distinct', () => {
   const other = 'https://example.atlassian.net/browse/ABC-123?focusedCommentId=200'
   assert.notEqual(canonicalDedupeKey(other), canonical)
 })
 
-test('an issue with no comment is distinct from one with a comment', () => {
+it('an issue with no comment is distinct from one with a comment', () => {
   const noComment = 'https://example.atlassian.net/browse/ABC-123'
   assert.equal(canonicalDedupeKey(noComment), 'https://example.atlassian.net/browse/ABC-123')
   assert.notEqual(canonicalDedupeKey(noComment), canonical)
 })
 
-test('different issue keys stay distinct', () => {
+it('different issue keys stay distinct', () => {
   const other = 'https://example.atlassian.net/browse/XYZ-9?focusedCommentId=100'
   assert.notEqual(canonicalDedupeKey(other), canonical)
 })
 
-test('GitHub repository root trailing slashes collapse to the no-slash key', () => {
+it('GitHub repository root trailing slashes collapse to the no-slash key', () => {
   const repository = 'https://github.com/example/repo'
   assert.equal(canonicalDedupeKey(repository), repository)
   assert.equal(canonicalDedupeKey(`${repository}/`), repository)
 })
 
-test('GitHub repository root canonicalization holds across generated identities', () => {
-  fc.assert(
-    fc.property(fc.nat(), fc.nat(), fc.string(), fc.string(), (ownerId, repositoryId, query, fragment) => {
-      const repository = `https://github.com/user-${ownerId}/repo-${repositoryId}`
-      const suffix = `?q=${encodeURIComponent(query)}#section-${encodeURIComponent(fragment)}`
+it.prop(
+  'GitHub repository root canonicalization holds across generated identities',
+  [fc.nat(), fc.nat(), fc.string(), fc.string()],
+  ([ownerId, repositoryId, query, fragment]) => {
+    const repository = `https://github.com/user-${ownerId}/repo-${repositoryId}`
+    const suffix = `?q=${encodeURIComponent(query)}#section-${encodeURIComponent(fragment)}`
 
-      assert.equal(
-        canonicalDedupeKey(`${repository}/${suffix}`),
-        canonicalDedupeKey(`${repository}${suffix}`),
-      )
-    }),
-  )
-})
+    assert.equal(
+      canonicalDedupeKey(`${repository}/${suffix}`),
+      canonicalDedupeKey(`${repository}${suffix}`),
+    )
+  },
+)
 
-test('GitHub repository root canonicalization preserves query and hash identity', () => {
+it('GitHub repository root canonicalization preserves query and hash identity', () => {
   const repository = 'https://github.com/example/repo'
   const canonicalVariant = `${repository}?tab=readme#example-section`
   assert.equal(canonicalDedupeKey(`${repository}/?tab=readme#example-section`), canonicalVariant)
   assert.notEqual(canonicalDedupeKey(`${repository}/?tab=issues#example-section`), canonicalVariant)
 })
 
-test('GitHub trailing-slash canonicalization stays scoped to repository roots', () => {
+it('GitHub trailing-slash canonicalization stays scoped to repository roots', () => {
   const nestedRoute = 'https://github.com/example/repo/issues/'
   const reservedRoute = 'https://github.com/settings/profile/'
   assert.equal(canonicalDedupeKey(nestedRoute), nestedRoute)
   assert.equal(canonicalDedupeKey(reservedRoute), reservedRoute)
 })
 
-test('non-Jira URLs are returned unchanged', () => {
+it('non-Jira URLs are returned unchanged', () => {
   const url = 'https://example.com/page?utm_source=x#frag'
   assert.equal(canonicalDedupeKey(url), url)
 })
 
-test('a Confluence /wiki path on atlassian.net is returned unchanged', () => {
+it('a Confluence /wiki path on atlassian.net is returned unchanged', () => {
   const url = 'https://example.atlassian.net/wiki/spaces/DOCS/pages/1'
   assert.equal(canonicalDedupeKey(url), url)
 })
 
-test('malformed URLs are returned unchanged without throwing', () => {
+it('malformed URLs are returned unchanged without throwing', () => {
   assert.equal(canonicalDedupeKey('not a url'), 'not a url')
   assert.equal(canonicalDedupeKey(''), '')
 })
 
-test('canonical URL keys are idempotent for arbitrary input', () => {
-  fc.assert(
-    fc.property(fc.string(), (url) => {
-      const canonicalUrl = canonicalDedupeKey(url)
-      assert.equal(canonicalDedupeKey(canonicalUrl), canonicalUrl)
-    }),
-  )
-})
+it.prop(
+  'canonical URL keys are idempotent for arbitrary input',
+  [fc.string()],
+  ([url]) => {
+    const canonicalUrl = canonicalDedupeKey(url)
+    assert.equal(canonicalDedupeKey(canonicalUrl), canonicalUrl)
+  },
+)
 
 function withExtensionId<T>(id: string, fn: () => T): T {
-  const g = globalThis as { chrome?: unknown }
-  const previous = g.chrome
-  g.chrome = { runtime: { id } }
-  try {
-    return fn()
-  } finally {
-    if (previous === undefined) delete g.chrome
-    else g.chrome = previous
-  }
+  vi.stubGlobal('chrome', { runtime: { id } })
+  return fn()
 }
 
-test('Tab Out dashboard variants collapse to a single dedupe key', () => {
+it('Tab Out dashboard variants collapse to a single dedupe key', () => {
   withExtensionId('tab-out', () => {
     const base = 'chrome-extension://tab-out/index.html'
     assert.equal(canonicalDedupeKey(base), base)
@@ -148,7 +140,7 @@ test('Tab Out dashboard variants collapse to a single dedupe key', () => {
   })
 })
 
-test('chrome://newtab/ folds into the Tab Out dashboard key', () => {
+it('chrome://newtab/ folds into the Tab Out dashboard key', () => {
   withExtensionId('tab-out', () => {
     assert.equal(
       canonicalDedupeKey('chrome://newtab/'),
@@ -157,7 +149,7 @@ test('chrome://newtab/ folds into the Tab Out dashboard key', () => {
   })
 })
 
-test('other Chrome new-tab implementation URLs remain exact', () => {
+it('other Chrome new-tab implementation URLs remain exact', () => {
   withExtensionId('tab-out', () => {
     for (const url of [
       'chrome-search://local-ntp/local-ntp.html',
@@ -168,7 +160,7 @@ test('other Chrome new-tab implementation URLs remain exact', () => {
   })
 })
 
-test('other chrome-extension pages are left unchanged', () => {
+it('other chrome-extension pages are left unchanged', () => {
   withExtensionId('tab-out', () => {
     const other = 'chrome-extension://tab-out/suspended.html#uri=https%3A%2F%2Fx.com'
     assert.equal(canonicalDedupeKey(other), other)

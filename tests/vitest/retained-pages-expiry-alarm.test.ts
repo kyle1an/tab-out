@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { it } from '@effect/vitest'
 
 import { Effect } from 'effect'
 
@@ -7,13 +7,13 @@ import {
   RETAINED_PAGES_EXPIRY_ALARM,
   earliestRetainedPageExpiry,
   scheduleRetainedPagesExpiryAlarm,
-} from '../src/extension/background/retained-pages-expiry-alarm.js'
+} from '../../src/extension/background/retained-pages-expiry-alarm.js'
 import {
   emptyRetainedPageLedger,
   RETAINED_PAGE_LIFETIME_MS,
   type RetainedPageLedger,
   type RetainedPageRecord,
-} from '../src/extension/retained-pages-ledger.js'
+} from '../../src/extension/retained-pages-ledger.js'
 
 function page(identityDigest: string, closedAt: number): RetainedPageRecord {
   return {
@@ -34,7 +34,7 @@ function ledgerWith(...pages: RetainedPageRecord[]): RetainedPageLedger {
   }
 }
 
-test('earliestRetainedPageExpiry selects the earliest visible-page expiry deterministically', () => {
+it('earliestRetainedPageExpiry selects the earliest visible-page expiry deterministically', () => {
   const ledger = ledgerWith(
     page('later', 30_000),
     page('earliest', 10_000),
@@ -47,18 +47,18 @@ test('earliestRetainedPageExpiry selects the earliest visible-page expiry determ
   )
 })
 
-test('expiry scheduling creates exactly one deterministic alarm at the earliest expiry', async () => {
+it.effect('expiry scheduling creates exactly one deterministic alarm at the earliest expiry', () => Effect.gen(function* () {
   const creates: Array<{ name: string, info: chrome.alarms.AlarmCreateInfo }> = []
   const clears: string[] = []
   const ledger = ledgerWith(page('later', 30_000), page('earliest', 10_000))
 
-  await Effect.runPromise(scheduleRetainedPagesExpiryAlarm({
+  yield* scheduleRetainedPagesExpiryAlarm({
     create: async (name, info) => { creates.push({ name, info }) },
     clear: async (name) => {
       clears.push(name)
       return true
     },
-  }, ledger))
+  }, ledger)
 
   assert.deepEqual(creates, [{
     name: RETAINED_PAGES_EXPIRY_ALARM,
@@ -68,25 +68,25 @@ test('expiry scheduling creates exactly one deterministic alarm at the earliest 
     },
   }])
   assert.deepEqual(clears, [])
-})
+}))
 
-test('expiry scheduling clears the named alarm when no retained pages remain', async () => {
+it.effect('expiry scheduling clears the named alarm when no retained pages remain', () => Effect.gen(function* () {
   const creates: Array<{ name: string, info: chrome.alarms.AlarmCreateInfo }> = []
   const clears: string[] = []
 
-  await Effect.runPromise(scheduleRetainedPagesExpiryAlarm({
+  yield* scheduleRetainedPagesExpiryAlarm({
     create: async (name, info) => { creates.push({ name, info }) },
     clear: async (name) => {
       clears.push(name)
       return false
     },
-  }, emptyRetainedPageLedger()))
+  }, emptyRetainedPageLedger())
 
   assert.deepEqual(creates, [])
   assert.deepEqual(clears, [RETAINED_PAGES_EXPIRY_ALARM])
-})
+}))
 
-test('invisible removal boundaries do not keep the visible-page expiry alarm alive', async () => {
+it.effect('invisible removal boundaries do not keep the visible-page expiry alarm alive', () => Effect.gen(function* () {
   const clears: string[] = []
   const ledger: RetainedPageLedger = {
     ...emptyRetainedPageLedger(),
@@ -100,18 +100,18 @@ test('invisible removal boundaries do not keep the visible-page expiry alarm ali
   }
 
   assert.equal(earliestRetainedPageExpiry(ledger), null)
-  await Effect.runPromise(scheduleRetainedPagesExpiryAlarm({
+  yield* scheduleRetainedPagesExpiryAlarm({
     create: async () => assert.fail('must not schedule an alarm for a boundary alone'),
     clear: async (name) => {
       clears.push(name)
       return true
     },
-  }, ledger))
+  }, ledger)
   assert.deepEqual(clears, [RETAINED_PAGES_EXPIRY_ALARM])
-})
+}))
 
-test('alarm transport failures stay typed for service-owned recovery policy', async () => {
-  const failure = await Effect.runPromiseExit(scheduleRetainedPagesExpiryAlarm({
+it.effect('alarm transport failures stay typed for service-owned recovery policy', () => Effect.gen(function* () {
+  const failure = yield* Effect.exit(scheduleRetainedPagesExpiryAlarm({
     create: async () => { throw new Error('alarm unavailable') },
     clear: async () => true,
   }, ledgerWith(page('example', 1_000))))
@@ -120,4 +120,4 @@ test('alarm transport failures stay typed for service-owned recovery policy', as
   if (failure._tag === 'Failure') {
     assert.equal(String(failure.cause).includes('RetainedPagesExpiryAlarmError'), true)
   }
-})
+}))

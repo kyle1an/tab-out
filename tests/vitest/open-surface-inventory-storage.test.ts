@@ -1,18 +1,18 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
-import { ManagedRuntime } from 'effect'
+import { it } from '@effect/vitest'
+import { Effect } from 'effect'
 
 import {
   emptyOpenSurfaceInventory,
   OPEN_SURFACE_INVENTORY_SCHEMA_VERSION,
-} from '../src/extension/open-surface-inventory.js'
+} from '../../src/extension/open-surface-inventory.js'
 import {
   OpenSurfaceInventoryStorage,
   parseOpenSurfaceInventoryValue,
-} from '../src/extension/open-surface-inventory-storage.js'
-import { createRetainedPageIdentity } from '../src/extension/retained-page-identity.js'
+} from '../../src/extension/open-surface-inventory-storage.js'
+import { createRetainedPageIdentity } from '../../src/extension/retained-page-identity.js'
 
-test('Open Surface Inventory decoding treats missing storage as empty and accepts v1', () => {
+it('Open Surface Inventory decoding treats missing storage as empty and accepts v1', () => {
   const missing = parseOpenSurfaceInventoryValue(undefined)
   assert.equal(missing.status, 'missing')
   assert.deepEqual(missing.inventory, emptyOpenSurfaceInventory())
@@ -23,10 +23,21 @@ test('Open Surface Inventory decoding treats missing storage as empty and accept
   assert.deepEqual(valid.inventory, inventory)
 })
 
-test('Open Surface Inventory storage keeps session and durable checkpoints separate', async (t) => {
+it.effect('Open Surface Inventory storage keeps session and durable checkpoints separate', () => Effect.gen(function* () {
   let sessionStored: unknown
   let durableStored: unknown
-  const runtime = ManagedRuntime.make(OpenSurfaceInventoryStorage.layer({
+  const inventory = emptyOpenSurfaceInventory()
+
+  yield* Effect.gen(function* () {
+    const storage = yield* OpenSurfaceInventoryStorage
+
+    yield* storage.writeSession(inventory)
+    assert.equal((yield* storage.readSession()).status, 'valid')
+    assert.equal((yield* storage.readDurable()).status, 'missing')
+
+    yield* storage.writeDurable(inventory)
+    assert.equal((yield* storage.readDurable()).status, 'valid')
+  }).pipe(Effect.provide(OpenSurfaceInventoryStorage.layer({
     readSession: async () => sessionStored,
     writeSession: async (value) => {
       sessionStored = value
@@ -35,20 +46,10 @@ test('Open Surface Inventory storage keeps session and durable checkpoints separ
     writeDurable: async (value) => {
       durableStored = value
     },
-  }))
-  t.after(() => runtime.dispose())
-  const storage = runtime.runSync(OpenSurfaceInventoryStorage)
-  const inventory = emptyOpenSurfaceInventory()
+  })))
+}))
 
-  await runtime.runPromise(storage.writeSession(inventory))
-  assert.equal((await runtime.runPromise(storage.readSession())).status, 'valid')
-  assert.equal((await runtime.runPromise(storage.readDurable())).status, 'missing')
-
-  await runtime.runPromise(storage.writeDurable(inventory))
-  assert.equal((await runtime.runPromise(storage.readDurable())).status, 'valid')
-})
-
-test('Open Surface Inventory storage preserves backend method receivers', async (t) => {
+it.effect('Open Surface Inventory storage preserves backend method receivers', () => Effect.gen(function* () {
   const backend = {
     sessionStored: undefined as unknown,
     durableStored: undefined as unknown,
@@ -65,18 +66,18 @@ test('Open Surface Inventory storage preserves backend method receivers', async 
       this.durableStored = value
     },
   }
-  const runtime = ManagedRuntime.make(OpenSurfaceInventoryStorage.layer(backend))
-  t.after(() => runtime.dispose())
-  const storage = runtime.runSync(OpenSurfaceInventoryStorage)
   const inventory = emptyOpenSurfaceInventory()
 
-  await runtime.runPromise(storage.writeSession(inventory))
-  await runtime.runPromise(storage.writeDurable(inventory))
-  assert.equal((await runtime.runPromise(storage.readSession())).status, 'valid')
-  assert.equal((await runtime.runPromise(storage.readDurable())).status, 'valid')
-})
+  yield* Effect.gen(function* () {
+    const storage = yield* OpenSurfaceInventoryStorage
+    yield* storage.writeSession(inventory)
+    yield* storage.writeDurable(inventory)
+    assert.equal((yield* storage.readSession()).status, 'valid')
+    assert.equal((yield* storage.readDurable()).status, 'valid')
+  }).pipe(Effect.provide(OpenSurfaceInventoryStorage.layer(backend)))
+}))
 
-test('Open Surface Inventory storage reindexes identities without collapsing physical tabs', async (t) => {
+it.effect('Open Surface Inventory storage reindexes identities without collapsing physical tabs', () => Effect.gen(function* () {
   const url = 'https://example.test/reindexed'
   let sessionStored: unknown = {
     schemaVersion: 1,
@@ -104,7 +105,7 @@ test('Open Surface Inventory storage reindexes identities without collapsing phy
   }
   let writes = 0
   let hashCalls = 0
-  const runtime = ManagedRuntime.make(OpenSurfaceInventoryStorage.layer({
+  const storageLayer = OpenSurfaceInventoryStorage.layer({
     readSession: async () => structuredClone(sessionStored),
     writeSession: async (value) => {
       writes += 1
@@ -119,15 +120,15 @@ test('Open Surface Inventory storage reindexes identities without collapsing phy
       hashCalls += 1
       return globalThis.crypto.subtle.digest('SHA-256', input)
     },
-  }))
-  t.after(() => runtime.dispose())
-
-  const first = await runtime.runPromise(runtime.runSync(OpenSurfaceInventoryStorage).readSession())
-  const repeated = await runtime.runPromise(runtime.runSync(OpenSurfaceInventoryStorage).readSession())
-  const identity = await createRetainedPageIdentity({
+  })
+  const [first, repeated] = yield* Effect.gen(function* () {
+    const storage = yield* OpenSurfaceInventoryStorage
+    return [yield* storage.readSession(), yield* storage.readSession()] as const
+  }).pipe(Effect.provide(storageLayer))
+  const identity = yield* Effect.promise(() => createRetainedPageIdentity({
     surfaceKind: 'normal-tab',
     url,
-  }, { runtimeId: 'tab-out-id' })
+  }, { runtimeId: 'tab-out-id' }))
   assert.ok(identity)
 
   assert.equal(first.status, 'valid')
@@ -150,7 +151,7 @@ test('Open Surface Inventory storage reindexes identities without collapsing phy
   sessionStored = { ...first.inventory, schemaVersion: 1 }
   let upgradeHashCalls = 0
   let upgradeWrites = 0
-  const upgradeRuntime = ManagedRuntime.make(OpenSurfaceInventoryStorage.layer({
+  const upgradeLayer = OpenSurfaceInventoryStorage.layer({
     readSession: async () => structuredClone(sessionStored),
     writeSession: async (value) => {
       upgradeWrites += 1
@@ -165,10 +166,10 @@ test('Open Surface Inventory storage reindexes identities without collapsing phy
       upgradeHashCalls += 1
       return globalThis.crypto.subtle.digest('SHA-256', input)
     },
-  }))
-  t.after(() => upgradeRuntime.dispose())
-  const upgraded = await upgradeRuntime.runPromise(
-    upgradeRuntime.runSync(OpenSurfaceInventoryStorage).readSession(),
+  })
+  const upgraded = yield* OpenSurfaceInventoryStorage.pipe(
+    Effect.flatMap((storage) => storage.readSession()),
+    Effect.provide(upgradeLayer),
   )
   assert.equal(upgraded.status, 'valid')
   assert.equal(upgraded.inventory.schemaVersion, OPEN_SURFACE_INVENTORY_SCHEMA_VERSION)
@@ -177,7 +178,7 @@ test('Open Surface Inventory storage reindexes identities without collapsing phy
 
   let coldHashCalls = 0
   let coldWrites = 0
-  const coldRuntime = ManagedRuntime.make(OpenSurfaceInventoryStorage.layer({
+  const coldLayer = OpenSurfaceInventoryStorage.layer({
     readSession: async () => structuredClone(sessionStored),
     writeSession: async () => {
       coldWrites += 1
@@ -191,19 +192,18 @@ test('Open Surface Inventory storage reindexes identities without collapsing phy
       coldHashCalls += 1
       return globalThis.crypto.subtle.digest('SHA-256', input)
     },
-  }))
-  t.after(() => coldRuntime.dispose())
-
-  const cold = await coldRuntime.runPromise(
-    coldRuntime.runSync(OpenSurfaceInventoryStorage).readSession(),
+  })
+  const cold = yield* OpenSurfaceInventoryStorage.pipe(
+    Effect.flatMap((storage) => storage.readSession()),
+    Effect.provide(coldLayer),
   )
   assert.equal(cold.status, 'valid')
   assert.equal(cold.inventory.schemaVersion, OPEN_SURFACE_INVENTORY_SCHEMA_VERSION)
   assert.equal(coldHashCalls, 0)
   assert.equal(coldWrites, 0)
-})
+}))
 
-test('Open Surface Inventory decoding salvages valid entries and rejects invalid closure times', () => {
+it('Open Surface Inventory decoding salvages valid entries and rejects invalid closure times', () => {
   const parsed = parseOpenSurfaceInventoryValue({
     schemaVersion: 1,
     identityVersion: 1,
@@ -236,7 +236,7 @@ test('Open Surface Inventory decoding salvages valid entries and rejects invalid
   assert.equal(parsed.inventory.entries['1']?.closedAt, 900)
 })
 
-test('Open Surface Inventory decoding strips metadata-bearing envelopes and entries', () => {
+it('Open Surface Inventory decoding strips metadata-bearing envelopes and entries', () => {
   const parsed = parseOpenSurfaceInventoryValue({
     schemaVersion: 1,
     identityVersion: 1,
@@ -269,7 +269,7 @@ test('Open Surface Inventory decoding strips metadata-bearing envelopes and entr
   assert.equal('privateNote' in parsed.inventory, false)
 })
 
-test('Open Surface Inventory decoding preserves unknown newer envelopes untouched', () => {
+it('Open Surface Inventory decoding preserves unknown newer envelopes untouched', () => {
   const stored = {
     schemaVersion: OPEN_SURFACE_INVENTORY_SCHEMA_VERSION + 1,
     identityVersion: 1,
@@ -282,7 +282,7 @@ test('Open Surface Inventory decoding preserves unknown newer envelopes untouche
   assert.equal(parsed.raw, stored)
 })
 
-test('Open Surface Inventory restore drops entries with unbounded or unusable metadata', () => {
+it('Open Surface Inventory restore drops entries with unbounded or unusable metadata', () => {
   const base = {
     tabId: 1,
     closureToken: 'lifetime-valid',
@@ -319,7 +319,7 @@ test('Open Surface Inventory restore drops entries with unbounded or unusable me
   assert.deepEqual(Object.keys(parsed.inventory.entries), ['1'])
 })
 
-test('marked Open Surface Inventories keep strict derived-field validation', () => {
+it('marked Open Surface Inventories keep strict derived-field validation', () => {
   const parsed = parseOpenSurfaceInventoryValue({
     schemaVersion: OPEN_SURFACE_INVENTORY_SCHEMA_VERSION,
     identityVersion: 1,

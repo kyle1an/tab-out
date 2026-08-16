@@ -9,7 +9,6 @@ import {
   buildRepresentativeDurableInventory,
   buildSaturatedRetainedPageLedger,
   exerciseRetainedStorageTransitions,
-  measureRetainedStorageBatchWrites,
   measureRetainedStorageProfile,
   RETAINED_STORAGE_PROFILE_DURABLE_SIZE_BANDS,
   RETAINED_STORAGE_PROFILE_DURABLE_SURFACES,
@@ -98,23 +97,4 @@ test('the deterministic retained ledger crosses expiry and capacity boundaries e
   })
   assert.equal(RETAINED_PAGE_LIFETIME_MS, 30 * 24 * 60 * 60 * 1_000)
   t.diagnostic(`deterministic retained-storage transitions: ${JSON.stringify(measurements)}`)
-})
-
-test('a deterministic 500-close batch uses one ledger write and bounded two-phase inventory writes', async (t) => {
-  const measurements = await measureRetainedStorageBatchWrites()
-
-  assert.equal(measurements.closeEvents, 500)
-  assert.deepEqual(measurements.outcomes, { inserted: 500 })
-  assert.equal(measurements.resultingPages, 500)
-  assert.equal(measurements.resultingSessionSurfaces, 0)
-  assert.equal(measurements.resultingDurableSurfaces, 0)
-  assert.ok(measurements.ledgerWrites <= 3)
-  assert.equal(measurements.ledgerWrites, 1)
-  assert.equal(measurements.sessionWrites, 2)
-  assert.equal(measurements.durableWrites, 2)
-  assert.equal(measurements.totalWrites, 5)
-  t.diagnostic(`deterministic retained-storage 500-close batch: ${JSON.stringify({
-    ...measurements,
-    authority: 'Write counts only; one-second p95 requires five warmups and 30 installed-extension measurements.',
-  })}`)
 })

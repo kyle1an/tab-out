@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
-import FakeTimers from '@sinonjs/fake-timers'
+import { afterEach, it, vi } from '@effect/vitest'
 
-import { createHoverStateStore } from '../src/lib/hover-state.js'
-import { createUrlPreviewController, URL_PREVIEW_HIDE_DELAY_MS } from '../src/hooks/useUrlPreview.js'
+import { createUrlPreviewController, URL_PREVIEW_HIDE_DELAY_MS } from '../../src/hooks/useUrlPreview.js'
+import { createHoverStateStore } from '../../src/lib/hover-state.js'
 
-test('hover store notifies only old and new matches across hundreds of leaf selectors', () => {
+afterEach(() => vi.useRealTimers())
+
+it('hover store notifies only old and new matches across hundreds of leaf selectors', () => {
   const store = createHoverStateStore()
   const urls = Array.from({ length: 500 }, (_, index) => `https://example.test/page-${index}`)
   const notifications = Array.from({ length: urls.length }, () => 0)
@@ -58,8 +59,8 @@ test('hover store notifies only old and new matches across hundreds of leaf sele
   assert.equal(notifications.reduce((total, count) => total + count, 0), 4)
 })
 
-test('url preview updates independently and preserves the delayed hide contract', () => {
-  const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
+it('url preview updates independently and preserves the delayed hide contract', () => {
+  vi.useFakeTimers()
   const controller = createUrlPreviewController()
   let notifications = 0
   const unsubscribe = controller.store.subscribe(() => { notifications += 1 })
@@ -73,12 +74,12 @@ test('url preview updates independently and preserves the delayed hide contract'
     assert.equal(notifications, 1)
 
     controller.setUrlPreview('')
-    clock.tick(URL_PREVIEW_HIDE_DELAY_MS - 1)
+    vi.advanceTimersByTime(URL_PREVIEW_HIDE_DELAY_MS - 1)
     assert.equal(controller.store.getSnapshot().visible, true)
     assert.equal(notifications, 1)
 
     controller.setUrlPreview('https://example.test/second')
-    clock.tick(URL_PREVIEW_HIDE_DELAY_MS)
+    vi.advanceTimersByTime(URL_PREVIEW_HIDE_DELAY_MS)
     assert.deepEqual(controller.store.getSnapshot(), {
       url: 'https://example.test/second',
       visible: true,
@@ -86,7 +87,7 @@ test('url preview updates independently and preserves the delayed hide contract'
     assert.equal(notifications, 2)
 
     controller.setUrlPreview('')
-    clock.tick(URL_PREVIEW_HIDE_DELAY_MS)
+    vi.advanceTimersByTime(URL_PREVIEW_HIDE_DELAY_MS)
     assert.deepEqual(controller.store.getSnapshot(), {
       url: 'https://example.test/second',
       visible: false,
@@ -99,6 +100,5 @@ test('url preview updates independently and preserves the delayed hide contract'
   } finally {
     unsubscribe()
     controller.dispose()
-    clock.uninstall()
   }
 })

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import { Layer, ManagedRuntime } from 'effect'
+import { Effect, Layer } from 'effect'
 
 import { RetainedPages } from '../../src/extension/background/retained-pages-service.js'
 import {
@@ -337,7 +337,7 @@ function batchInventory(): OpenSurfaceInventory {
   return { ...emptyOpenSurfaceInventory(), entries }
 }
 
-export async function measureRetainedStorageBatchWrites(): Promise<RetainedStorageBatchMeasurements> {
+export function measureRetainedStorageBatchWrites(): Effect.Effect<RetainedStorageBatchMeasurements, unknown> {
   let ledgerStored: unknown
   let sessionStored: unknown = batchInventory()
   let durableStored: unknown = sessionStored
@@ -373,17 +373,16 @@ export async function measureRetainedStorageBatchWrites(): Promise<RetainedStora
       clear: async () => undefined,
     }, () => RETAINED_STORAGE_PROFILE_NOW),
   )
-  const runtime = ManagedRuntime.make(
-    RetainedPages.layer({ now: () => RETAINED_STORAGE_PROFILE_NOW }).pipe(
-      Layer.provide(dependencies),
-    ),
+  const retainedPagesLayer = RetainedPages.layer({
+    now: () => RETAINED_STORAGE_PROFILE_NOW,
+  }).pipe(
+    Layer.provide(dependencies),
   )
 
-  try {
-    const captured = await runtime.runPromise(
-      runtime.runSync(RetainedPages).captureClosedSurfaces(
-        Array.from({ length: RETAINED_PAGE_CAPACITY }, (_, index) => index + 1),
-      ),
+  return Effect.gen(function* () {
+    const retainedPages = yield* RetainedPages
+    const captured = yield* retainedPages.captureClosedSurfaces(
+      Array.from({ length: RETAINED_PAGE_CAPACITY }, (_, index) => index + 1),
     )
     const outcomes: Record<string, number> = {}
     for (const result of captured.results) {
@@ -418,7 +417,5 @@ export async function measureRetainedStorageBatchWrites(): Promise<RetainedStora
       durableWrites,
       totalWrites: ledgerWrites + sessionWrites + durableWrites,
     }
-  } finally {
-    await runtime.dispose()
-  }
+  }).pipe(Effect.provide(retainedPagesLayer))
 }

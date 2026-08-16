@@ -75,7 +75,6 @@
     "@iconify/tailwind4": "^1.2.3",
     "@playwright/test": "1.62.1",
     "@rolldown/plugin-babel": "^0.2.3",
-    "@sinonjs/fake-timers": "^15.4.0",
     "@stylistic/eslint-plugin": "5.10.0",
     "@tailwindcss/language-server": "0.16.0",
     "@tailwindcss/vite": "^4.3.3",

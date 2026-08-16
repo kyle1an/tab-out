@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
-import FakeTimers from '@sinonjs/fake-timers'
+import { afterEach, it, vi } from '@effect/vitest'
 
-import { createMoveAnimator } from '../src/extension/move-animation.js'
-import type { MoveAnimatorConfig, MovePositionMap } from '../src/extension/move-animation.js'
+import { createMoveAnimator } from '../../src/extension/move-animation.js'
+import type { MoveAnimatorConfig, MovePositionMap } from '../../src/extension/move-animation.js'
+
+afterEach(() => vi.useRealTimers())
 
 type Rect = { left: number, top: number, width?: number, height?: number }
 
@@ -61,9 +62,8 @@ function makeConfig(overrides: Partial<MoveAnimatorConfig> = {}): MoveAnimatorCo
   }
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-test('move animation inverts, plays on the motion token, and cleans up by timeout', async () => {
+it('move animation inverts, plays on the motion token, and cleans up by timeout', async () => {
+  vi.useFakeTimers()
   const cleaned: string[] = []
   const item = fakeItem('a', { left: 100, top: 100 })
   const root = fakeRoot([item])
@@ -78,12 +78,12 @@ test('move animation inverts, plays on the motion token, and cleans up by timeou
   assert.equal(item.classes.has('moving'), true)
   assert.equal(item.style.willChange, 'transform')
 
-  await sleep(25)
+  await vi.advanceTimersByTimeAsync(25)
   assert.equal(item.style.transform, 'translate(0, 0)')
   assert.equal(item.style.transition, 'transform 30ms var(--ease-swift)')
   assert.equal(item.classes.has('moving-active'), true)
 
-  await sleep(120)
+  await vi.advanceTimersByTimeAsync(120)
   assert.deepEqual(cleaned, ['a'])
   assert.equal(item.classes.size, 0)
   assert.equal(item.style.transform, '')
@@ -91,7 +91,7 @@ test('move animation inverts, plays on the motion token, and cleans up by timeou
   assert.equal(item.style.willChange, '')
 })
 
-test('sub-pixel moves are skipped entirely', () => {
+it('sub-pixel moves are skipped entirely', () => {
   const item = fakeItem('a', { left: 100, top: 100 })
   const root = fakeRoot([item])
   const animator = createMoveAnimator(makeConfig())
@@ -104,7 +104,7 @@ test('sub-pixel moves are skipped entirely', () => {
   assert.equal(item.style.transform ?? '', '')
 })
 
-test('duplicate keys resolve by closest previous position', () => {
+it('duplicate keys resolve by closest previous position', () => {
   const first = fakeItem('dup', { left: 0, top: 0 })
   const second = fakeItem('dup', { left: 500, top: 0 })
   const root = fakeRoot([first, second])
@@ -119,7 +119,8 @@ test('duplicate keys resolve by closest previous position', () => {
   assert.equal(second.style.transform, 'translate(-10px, 0px)')
 })
 
-test('cancel clears a mid-flight move, fires onCancel, and suppresses cleanup hooks', async () => {
+it('cancel clears a mid-flight move, fires onCancel, and suppresses cleanup hooks', async () => {
+  vi.useFakeTimers()
   const events: string[] = []
   const item = fakeItem('a', { left: 0, top: 0 })
   const root = fakeRoot([item])
@@ -140,36 +141,32 @@ test('cancel clears a mid-flight move, fires onCancel, and suppresses cleanup ho
   assert.equal(item.style.transform, '')
   assert.ok(events.includes('cancel'))
 
-  await sleep(150)
+  await vi.advanceTimersByTimeAsync(150)
   assert.equal(events.includes('cleanup'), false)
 })
 
-test('transitionend on transform cleans up and cancels the fallback timeout', () => {
-  const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
+it('transitionend on transform cleans up and cancels the fallback timeout', () => {
+  vi.useFakeTimers()
   const cleaned: string[] = []
   const item = fakeItem('a', { left: 0, top: 0 })
   const root = fakeRoot([item])
   const animator = createMoveAnimator(makeConfig({ duration: 5000, afterCleanup: () => cleaned.push('a') }))
 
-  try {
-    const previous = animator.snapshot([root])
-    item.moveTo({ left: 300, top: 0 })
-    animator.animate([root], previous)
+  const previous = animator.snapshot([root])
+  item.moveTo({ left: 300, top: 0 })
+  animator.animate([root], previous)
 
-    clock.tick(16)
-    assert.equal(item.classes.has('moving-active'), true)
-    assert.equal(clock.countTimers(), 1)
-    item.listeners.slice().forEach((handler) => handler({ target: item.el, propertyName: 'transform' }))
+  vi.advanceTimersByTime(16)
+  assert.equal(item.classes.has('moving-active'), true)
+  assert.equal(vi.getTimerCount(), 1)
+  item.listeners.slice().forEach((handler) => handler({ target: item.el, propertyName: 'transform' }))
 
-    assert.deepEqual(cleaned, ['a'])
-    assert.equal(item.classes.size, 0)
-    assert.equal(clock.countTimers(), 0)
-  } finally {
-    clock.uninstall()
-  }
+  assert.deepEqual(cleaned, ['a'])
+  assert.equal(item.classes.size, 0)
+  assert.equal(vi.getTimerCount(), 0)
 })
 
-test('beforePlay fires only when movers exist and can be suppressed per call', () => {
+it('beforePlay fires only when movers exist and can be suppressed per call', () => {
   const calls: string[] = []
   const item = fakeItem('a', { left: 0, top: 0 })
   const root = fakeRoot([item])
@@ -191,7 +188,7 @@ test('beforePlay fires only when movers exist and can be suppressed per call', (
   animator.cancel([root])
 })
 
-test('root coordinate space measures grid-local positions', () => {
+it('root coordinate space measures grid-local positions', () => {
   const item = fakeItem('a', { left: 312, top: 234 })
   const root = fakeRoot([item], { left: 300, top: 200 })
   const animator = createMoveAnimator(makeConfig({ coordinateSpace: 'root' }))
@@ -200,7 +197,7 @@ test('root coordinate space measures grid-local positions', () => {
   assert.deepEqual(positions.get('a'), [{ left: 12, top: 34, width: 100, height: 40 }])
 })
 
-test('move animation can snapshot a structural anchor and animate its replacement item', () => {
+it('move animation can snapshot a structural anchor and animate its replacement item', () => {
   const anchor = fakeItem('a', { left: 40, top: 20, width: 60, height: 20 })
   const item = fakeItem('a', { left: 160, top: 80, width: 120, height: 40 })
   const selectors: string[] = []
@@ -224,7 +221,7 @@ test('move animation can snapshot a structural anchor and animate its replacemen
   animator.cancel([root])
 })
 
-test('nested move suppression animates the stable parent surface only', () => {
+it('nested move suppression animates the stable parent surface only', () => {
   const parent = fakeItem('section', { left: 20, top: 100, width: 300, height: 120 })
   const child = fakeItem('page', { left: 30, top: 140, width: 280, height: 36 })
   ;(parent.el as unknown as { contains: (candidate: unknown) => boolean }).contains = (candidate) => (
@@ -248,51 +245,41 @@ test('nested move suppression animates the stable parent surface only', () => {
   animator.cancel([root])
 })
 
-test('a newer animator owns the element through an older animator cleanup deadline', () => {
-  const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
+it('a newer animator owns the element through an older animator cleanup deadline', () => {
+  vi.useFakeTimers()
   const item = fakeItem('a', { left: 100, top: 0 })
   const root = fakeRoot([item])
   const firstAnimator = createMoveAnimator(makeConfig({ duration: 30 }))
   const secondAnimator = createMoveAnimator(makeConfig({ duration: 500 }))
 
-  try {
-    firstAnimator.animate([root], new Map([[
-      'a',
-      [{ left: 0, top: 0, width: 100, height: 40 }],
-    ]]))
-    clock.tick(16)
+  firstAnimator.animate([root], new Map([[
+    'a',
+    [{ left: 0, top: 0, width: 100, height: 40 }],
+  ]]))
+  vi.advanceTimersByTime(16)
 
-    secondAnimator.animate([root], new Map([[
-      'a',
-      [{ left: 50, top: 0, width: 100, height: 40 }],
-    ]]))
-    clock.tick(16)
-    assert.equal(item.style.transition, 'transform 500ms var(--ease-swift)')
+  secondAnimator.animate([root], new Map([[
+    'a',
+    [{ left: 50, top: 0, width: 100, height: 40 }],
+  ]]))
+  vi.advanceTimersByTime(16)
+  assert.equal(item.style.transition, 'transform 500ms var(--ease-swift)')
 
-    clock.tick(80)
-    assert.equal(item.style.transition, 'transform 500ms var(--ease-swift)')
-    assert.equal(item.classes.has('moving'), true)
-    assert.equal(item.classes.has('moving-active'), true)
-  } finally {
-    clock.uninstall()
-  }
+  vi.advanceTimersByTime(80)
+  assert.equal(item.style.transition, 'transform 500ms var(--ease-swift)')
+  assert.equal(item.classes.has('moving'), true)
+  assert.equal(item.classes.has('moving-active'), true)
 })
 
-test('reduced motion disables snapshot and animate', () => {
-  const previousWindow = (globalThis as { window?: unknown }).window
-  ;(globalThis as { window?: unknown }).window = { matchMedia: () => ({ matches: true }) }
-  try {
-    const item = fakeItem('a', { left: 0, top: 0 })
-    const root = fakeRoot([item])
-    const animator = createMoveAnimator(makeConfig())
+it('reduced motion disables snapshot and animate', () => {
+  vi.stubGlobal('window', { matchMedia: () => ({ matches: true }) })
+  const item = fakeItem('a', { left: 0, top: 0 })
+  const root = fakeRoot([item])
+  const animator = createMoveAnimator(makeConfig())
 
-    assert.equal(animator.snapshot([root]).size, 0)
+  assert.equal(animator.snapshot([root]).size, 0)
 
-    const previous: MovePositionMap = new Map([['a', [{ left: 500, top: 0, width: 100, height: 40 }]]])
-    animator.animate([root], previous)
-    assert.equal(item.classes.size, 0)
-  } finally {
-    if (previousWindow !== undefined) (globalThis as { window?: unknown }).window = previousWindow
-    else delete (globalThis as { window?: unknown }).window
-  }
+  const previous: MovePositionMap = new Map([['a', [{ left: 500, top: 0, width: 100, height: 40 }]]])
+  animator.animate([root], previous)
+  assert.equal(item.classes.size, 0)
 })

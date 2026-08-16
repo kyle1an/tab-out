@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
-import FakeTimers from '@sinonjs/fake-timers'
+import { afterEach, it, vi } from '@effect/vitest'
 
 import {
   createDashboardPageRefreshScheduler,
   dashboardTabUpdateRefreshOptions,
-} from '../src/extension/dashboard-page-refresh.js'
+} from '../../src/extension/dashboard-page-refresh.js'
 
-test('Tab Out and native new-tab items refresh for every material tab update', () => {
+afterEach(() => vi.useRealTimers())
+
+it('Tab Out and native new-tab items refresh for every material tab update', () => {
   const runtimeId = 'tab-out-runtime'
   const dashboardUrl = `chrome-extension://${runtimeId}/index.html`
 
@@ -74,57 +75,49 @@ test('Tab Out and native new-tab items refresh for every material tab update', (
   ), null)
 })
 
-test('hidden dashboard event bursts do no refresh work and catch up once when visible', async () => {
-  const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
+it('hidden dashboard event bursts do no refresh work and catch up once when visible', async () => {
+  vi.useFakeTimers()
   let visible = false
   const refreshes: Array<{ animateCards?: boolean }> = []
 
-  try {
-    const scheduler = createDashboardPageRefreshScheduler({
-      isVisible: () => visible,
-      refresh: (options) => { refreshes.push(options) },
-    })
+  const scheduler = createDashboardPageRefreshScheduler({
+    isVisible: () => visible,
+    refresh: (options) => { refreshes.push(options) },
+  })
 
-    scheduler.schedule()
-    scheduler.schedule({ animateCards: true })
-    scheduler.schedule()
-    assert.equal(clock.countTimers(), 0)
+  scheduler.schedule()
+  scheduler.schedule({ animateCards: true })
+  scheduler.schedule()
+  assert.equal(vi.getTimerCount(), 0)
 
-    await clock.tickAsync(10_000)
-    assert.deepEqual(refreshes, [])
+  await vi.advanceTimersByTimeAsync(10_000)
+  assert.deepEqual(refreshes, [])
 
-    visible = true
-    scheduler.visibilityChanged()
-    assert.deepEqual(refreshes, [{ animateCards: true }])
+  visible = true
+  scheduler.visibilityChanged()
+  assert.deepEqual(refreshes, [{ animateCards: true }])
 
-    await clock.tickAsync(10_000)
-    assert.equal(refreshes.length, 1)
-  } finally {
-    clock.uninstall()
-  }
+  await vi.advanceTimersByTimeAsync(10_000)
+  assert.equal(refreshes.length, 1)
 })
 
-test('a scheduled visible refresh becomes one pending catch-up if the page hides', async () => {
-  const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
+it('a scheduled visible refresh becomes one pending catch-up if the page hides', async () => {
+  vi.useFakeTimers()
   let visible = true
   const refreshes: Array<{ animateCards?: boolean }> = []
 
-  try {
-    const scheduler = createDashboardPageRefreshScheduler({
-      isVisible: () => visible,
-      refresh: (options) => { refreshes.push(options) },
-    })
+  const scheduler = createDashboardPageRefreshScheduler({
+    isVisible: () => visible,
+    refresh: (options) => { refreshes.push(options) },
+  })
 
-    scheduler.schedule({ animateCards: true })
-    visible = false
-    scheduler.visibilityChanged()
-    await clock.tickAsync(1000)
-    assert.deepEqual(refreshes, [])
+  scheduler.schedule({ animateCards: true })
+  visible = false
+  scheduler.visibilityChanged()
+  await vi.advanceTimersByTimeAsync(1000)
+  assert.deepEqual(refreshes, [])
 
-    visible = true
-    scheduler.visibilityChanged()
-    assert.deepEqual(refreshes, [{ animateCards: true }])
-  } finally {
-    clock.uninstall()
-  }
+  visible = true
+  scheduler.visibilityChanged()
+  assert.deepEqual(refreshes, [{ animateCards: true }])
 })

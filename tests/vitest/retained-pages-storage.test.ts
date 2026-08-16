@@ -1,20 +1,20 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
-import { ManagedRuntime } from 'effect'
+import { it, test } from '@effect/vitest'
+import { Effect } from 'effect'
 
 import {
   emptyRetainedPageLedger,
   RETAINED_PAGE_LIFETIME_MS,
   recordRetainedPageClosure,
-} from '../src/extension/retained-pages-ledger.js'
+} from '../../src/extension/retained-pages-ledger.js'
 import {
   RetainedPageLedgerStorage,
   createRetainedPageLedgerStorageDecodeCache,
   decodeRetainedPageLedgerStorageValue,
   encodeRetainedPageLedgerStorageValue,
   parseRetainedPageLedgerValue,
-} from '../src/extension/retained-pages-storage.js'
-import { createRetainedPageIdentity } from '../src/extension/retained-page-identity.js'
+} from '../../src/extension/retained-pages-storage.js'
+import { createRetainedPageIdentity } from '../../src/extension/retained-page-identity.js'
 
 test('Retained Page Ledger decoding treats missing storage as empty and accepts a valid envelope', () => {
   const missing = parseRetainedPageLedgerValue(undefined)
@@ -37,7 +37,7 @@ test('Retained Page Ledger decoding treats missing storage as empty and accepts 
   assert.deepEqual(valid.ledger, stored)
 })
 
-test('Retained Page Ledger storage reindexes expanded identities and keeps the newest collision', async (t) => {
+it.effect('Retained Page Ledger storage reindexes expanded identities and keeps the newest collision', () => {
   const url = 'https://example.test/reindexed'
   const boundaryExpiry = Date.now() + RETAINED_PAGE_LIFETIME_MS
   let stored: unknown = {
@@ -77,7 +77,7 @@ test('Retained Page Ledger storage reindexes expanded identities and keeps the n
     },
   }
   let writes = 0
-  const runtime = ManagedRuntime.make(RetainedPageLedgerStorage.layer({
+  const storageLayer = RetainedPageLedgerStorage.layer({
     read: async () => stored,
     write: async (ledger) => {
       writes += 1
@@ -86,28 +86,30 @@ test('Retained Page Ledger storage reindexes expanded identities and keeps the n
   }, {
     reindexExpandedIdentities: true,
     runtimeId: 'tab-out-id',
-  }))
-  t.after(() => runtime.dispose())
+  })
 
-  const result = await runtime.runPromise(runtime.runSync(RetainedPageLedgerStorage).read())
-  const identity = await createRetainedPageIdentity({
-    surfaceKind: 'normal-tab',
-    url,
-  }, { runtimeId: 'tab-out-id' })
-  assert.ok(identity)
+  return Effect.gen(function* () {
+    const storage = yield* RetainedPageLedgerStorage
+    const result = yield* storage.read()
+    const identity = yield* Effect.promise(() => createRetainedPageIdentity({
+      surfaceKind: 'normal-tab',
+      url,
+    }, { runtimeId: 'tab-out-id' }))
+    assert.ok(identity)
 
-  assert.equal(result.status, 'valid')
-  assert.deepEqual(Object.keys(result.ledger.pages), [identity.identityDigest])
-  assert.equal(result.ledger.pages[identity.identityDigest]?.closureToken, 'lifetime-new')
-  assert.equal(result.ledger.pages[identity.identityDigest]?.canonicalKey, identity.canonicalKey)
-  assert.deepEqual(
-    Object.values(result.ledger.removalBoundaries).map((boundary) => boundary.identityDigest),
-    [identity.identityDigest, identity.identityDigest],
-  )
-  assert.equal(writes, 1)
+    assert.equal(result.status, 'valid')
+    assert.deepEqual(Object.keys(result.ledger.pages), [identity.identityDigest])
+    assert.equal(result.ledger.pages[identity.identityDigest]?.closureToken, 'lifetime-new')
+    assert.equal(result.ledger.pages[identity.identityDigest]?.canonicalKey, identity.canonicalKey)
+    assert.deepEqual(
+      Object.values(result.ledger.removalBoundaries).map((boundary) => boundary.identityDigest),
+      [identity.identityDigest, identity.identityDigest],
+    )
+    assert.equal(writes, 1)
+  }).pipe(Effect.provide(storageLayer))
 })
 
-test('Retained Page Ledger storage merges expanded collisions before enforcing capacity', async (t) => {
+it.effect('Retained Page Ledger storage merges expanded collisions before enforcing capacity', () => {
   const pages = Object.fromEntries(Array.from({ length: 501 }, (_, index) => {
     const identityDigest = `legacy-identity-${String(index).padStart(3, '0')}`
     const url = index >= 499
@@ -130,7 +132,7 @@ test('Retained Page Ledger storage merges expanded collisions before enforcing c
     removalBoundaries: {},
   }
   let writes = 0
-  const runtime = ManagedRuntime.make(RetainedPageLedgerStorage.layer({
+  const storageLayer = RetainedPageLedgerStorage.layer({
     read: async () => stored,
     write: async (ledger) => {
       writes += 1
@@ -139,18 +141,20 @@ test('Retained Page Ledger storage merges expanded collisions before enforcing c
   }, {
     reindexExpandedIdentities: true,
     runtimeId: 'tab-out-id',
-  }))
-  t.after(() => runtime.dispose())
+  })
 
-  const result = await runtime.runPromise(runtime.runSync(RetainedPageLedgerStorage).read())
-  assert.equal(result.status, 'valid')
-  assert.equal(Object.keys(result.ledger.pages).length, 500)
-  assert.ok(Object.values(result.ledger.pages).some((page) => page.closureToken === 'lifetime-000'))
-  assert.ok(Object.values(result.ledger.pages).some((page) => page.closureToken === 'lifetime-500'))
-  assert.equal(writes, 1)
+  return Effect.gen(function* () {
+    const storage = yield* RetainedPageLedgerStorage
+    const result = yield* storage.read()
+    assert.equal(result.status, 'valid')
+    assert.equal(Object.keys(result.ledger.pages).length, 500)
+    assert.ok(Object.values(result.ledger.pages).some((page) => page.closureToken === 'lifetime-000'))
+    assert.ok(Object.values(result.ledger.pages).some((page) => page.closureToken === 'lifetime-500'))
+    assert.equal(writes, 1)
+  }).pipe(Effect.provide(storageLayer))
 })
 
-test('Retained Page Ledger storage trusts current compact keys and leaves newer data opaque', async (t) => {
+it.effect('Retained Page Ledger storage trusts current compact keys and leaves newer data opaque', () => {
   const compact = {
     schemaVersion: 1,
     identityVersion: 1,
@@ -168,7 +172,7 @@ test('Retained Page Ledger storage trusts current compact keys and leaves newer 
   let stored: unknown = compact
   let writes = 0
   let hashCalls = 0
-  const runtime = ManagedRuntime.make(RetainedPageLedgerStorage.layer({
+  const storageLayer = RetainedPageLedgerStorage.layer({
     read: async () => stored,
     write: async () => {
       writes += 1
@@ -180,33 +184,34 @@ test('Retained Page Ledger storage trusts current compact keys and leaves newer 
       hashCalls += 1
       return globalThis.crypto.subtle.digest('SHA-256', input)
     },
-  }))
-  t.after(() => runtime.dispose())
-  const storage = runtime.runSync(RetainedPageLedgerStorage)
+  })
 
-  const current = await runtime.runPromise(storage.read())
-  assert.equal(current.status, 'valid')
-  assert.ok('writer-owned-identity' in current.ledger.pages)
-  assert.equal(hashCalls, 0)
-  assert.equal(writes, 0)
+  return Effect.gen(function* () {
+    const storage = yield* RetainedPageLedgerStorage
+    const current = yield* storage.read()
+    assert.equal(current.status, 'valid')
+    assert.ok('writer-owned-identity' in current.ledger.pages)
+    assert.equal(hashCalls, 0)
+    assert.equal(writes, 0)
 
-  stored = {
-    schemaVersion: 2,
-    identityVersion: 1,
-    pages: {
-      future: {
-        identityDigest: 'future-derived-field',
-        surfaceKind: 'normal-tab',
-        url: 'https://example.test/future',
+    stored = {
+      schemaVersion: 2,
+      identityVersion: 1,
+      pages: {
+        future: {
+          identityDigest: 'future-derived-field',
+          surfaceKind: 'normal-tab',
+          url: 'https://example.test/future',
+        },
       },
-    },
-    removalBoundaries: {},
-  }
-  const newer = await runtime.runPromise(storage.read())
-  assert.equal(newer.status, 'newer')
-  assert.equal(newer.raw, stored)
-  assert.equal(hashCalls, 0)
-  assert.equal(writes, 0)
+      removalBoundaries: {},
+    }
+    const newer = yield* storage.read()
+    assert.equal(newer.status, 'newer')
+    assert.equal(newer.raw, stored)
+    assert.equal(hashCalls, 0)
+    assert.equal(writes, 0)
+  }).pipe(Effect.provide(storageLayer))
 })
 
 test('Retained Page Ledger storage compression round-trips the compact field allowlist', async () => {
@@ -611,26 +616,27 @@ test('Retained Page Ledger restore keeps only the 500 newest valid identities', 
   assert.ok(parsed.ledger.pages['identity-501'])
 })
 
-test('Retained Page Ledger storage reads and writes through one typed background boundary', async (t) => {
+it.effect('Retained Page Ledger storage reads and writes through one typed background boundary', () => {
   let stored: unknown
-  const runtime = ManagedRuntime.make(RetainedPageLedgerStorage.layer({
+  const storageLayer = RetainedPageLedgerStorage.layer({
     read: async () => stored,
     write: async (value) => {
       stored = value
     },
-  }))
-  t.after(() => runtime.dispose())
-  const storage = runtime.runSync(RetainedPageLedgerStorage)
+  })
   const ledger = emptyRetainedPageLedger()
 
-  await runtime.runPromise(storage.write(ledger))
-  const loaded = await runtime.runPromise(storage.read())
+  return Effect.gen(function* () {
+    const storage = yield* RetainedPageLedgerStorage
+    yield* storage.write(ledger)
+    const loaded = yield* storage.read()
 
-  assert.equal(loaded.status, 'valid')
-  assert.deepEqual(loaded.ledger, ledger)
+    assert.equal(loaded.status, 'valid')
+    assert.deepEqual(loaded.ledger, ledger)
+  }).pipe(Effect.provide(storageLayer))
 })
 
-test('Retained Page Ledger storage reuses only a byte-identical decoded valid parse', async (t) => {
+it.effect('Retained Page Ledger storage reuses only a byte-identical decoded valid parse', () => {
   let stored: unknown = recordRetainedPageClosure(emptyRetainedPageLedger(), {
     identityDigest: 'identity-cached',
     surfaceKind: 'normal-tab',
@@ -640,28 +646,29 @@ test('Retained Page Ledger storage reuses only a byte-identical decoded valid pa
     closedAt: 1_000,
     closureToken: 'lifetime-cached',
   }).ledger
-  const runtime = ManagedRuntime.make(RetainedPageLedgerStorage.layer({
+  const storageLayer = RetainedPageLedgerStorage.layer({
     read: async () => stored,
     write: async (value) => {
       stored = value
     },
-  }))
-  t.after(() => runtime.dispose())
-  const storage = runtime.runSync(RetainedPageLedgerStorage)
+  })
 
-  const first = await runtime.runPromise(storage.read())
-  const repeated = await runtime.runPromise(storage.read())
-  assert.equal(first.status, 'valid')
-  assert.equal(repeated, first)
+  return Effect.gen(function* () {
+    const storage = yield* RetainedPageLedgerStorage
+    const first = yield* storage.read()
+    const repeated = yield* storage.read()
+    assert.equal(first.status, 'valid')
+    assert.equal(repeated, first)
 
-  stored = structuredClone(stored)
-  const equalButNew = await runtime.runPromise(storage.read())
-  assert.equal(equalButNew.status, 'valid')
-  assert.notEqual(equalButNew, first)
+    stored = structuredClone(stored)
+    const equalButNew = yield* storage.read()
+    assert.equal(equalButNew.status, 'valid')
+    assert.notEqual(equalButNew, first)
 
-  stored = { schemaVersion: 1, identityVersion: 1, pages: { broken: true }, removalBoundaries: {} }
-  const malformed = await runtime.runPromise(storage.read())
-  const repeatedMalformed = await runtime.runPromise(storage.read())
-  assert.equal(malformed.status, 'malformed')
-  assert.notEqual(repeatedMalformed, malformed)
+    stored = { schemaVersion: 1, identityVersion: 1, pages: { broken: true }, removalBoundaries: {} }
+    const malformed = yield* storage.read()
+    const repeatedMalformed = yield* storage.read()
+    assert.equal(malformed.status, 'malformed')
+    assert.notEqual(repeatedMalformed, malformed)
+  }).pipe(Effect.provide(storageLayer))
 })

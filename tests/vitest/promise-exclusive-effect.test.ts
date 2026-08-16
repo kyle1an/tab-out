@@ -54,7 +54,9 @@ it.effect('interrupting an acquired exclusive Effect releases the callback lock'
     const acquired = Deferred.makeUnsafe<void>()
     const neverFinishes = Deferred.makeUnsafe<void>()
     let released = false
-    const signalAcquired = () => Effect.runSync(Deferred.succeed(acquired, undefined))
+    const signalAcquired = () => {
+      Deferred.doneUnsafe(acquired, Effect.void)
+    }
     const runExclusive = async <Value>(task: () => Promise<Value>): Promise<Value> => {
       try {
         const result = task()

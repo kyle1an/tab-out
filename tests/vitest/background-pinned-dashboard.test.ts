@@ -1,59 +1,56 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
 import { setImmediate } from 'node:timers/promises'
-import FakeTimers from '@sinonjs/fake-timers'
+import { afterAll, afterEach, beforeAll, beforeEach, test, vi } from '@effect/vitest'
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
-import { STARTUP_SNAPSHOT_DEBOUNCE_MS } from '../src/extension/background/startup-snapshot-service.js'
-import { WORKING_SET_ACTIVITY_AUTHORITY_KEY } from '../src/extension/background/working-set-activity-authority.js'
-import { RETAINED_PAGES_EXPIRY_ALARM } from '../src/extension/background/retained-pages-expiry-alarm.js'
-import { CLOSED_TAB_RESTORE_STATE_MESSAGE } from '../src/extension/closed-tabs.js'
+import { STARTUP_SNAPSHOT_DEBOUNCE_MS } from '../../src/extension/background/startup-snapshot-service.js'
+import { WORKING_SET_ACTIVITY_AUTHORITY_KEY } from '../../src/extension/background/working-set-activity-authority.js'
+import { RETAINED_PAGES_EXPIRY_ALARM } from '../../src/extension/background/retained-pages-expiry-alarm.js'
+import { CLOSED_TAB_RESTORE_STATE_MESSAGE } from '../../src/extension/closed-tabs.js'
 import {
   decodeDashboardRetainedPagesWire,
   type DashboardRetainedPagesWire,
-} from '../src/extension/dashboard-retained-pages-wire.js'
+} from '../../src/extension/dashboard-retained-pages-wire.js'
 import {
   CLOSED_TAB_RETENTION_SETTLE_MESSAGE,
   RETAINED_PAGE_ACTIVATE_MESSAGE,
   RETAINED_PAGES_REMOVE_MESSAGE,
   SAVED_PAGE_ACTIVATE_MESSAGE,
-} from '../src/extension/runtime-messages.js'
-import { SAVED_PAGES_STORAGE_KEY } from '../src/extension/saved-pages.js'
-import type { CapturedDashboardServiceState } from '../src/extension/dashboard-service-messages.js'
-import { RETENTION_HEALTH_STORAGE_KEY } from '../src/extension/retention-health.js'
+} from '../../src/extension/runtime-messages.js'
+import { SAVED_PAGES_STORAGE_KEY } from '../../src/extension/saved-pages.js'
+import type { CapturedDashboardServiceState } from '../../src/extension/dashboard-service-messages.js'
+import { RETENTION_HEALTH_STORAGE_KEY } from '../../src/extension/retention-health.js'
 import {
   OPEN_SURFACE_DURABLE_STORAGE_KEY,
   OPEN_SURFACE_SESSION_STORAGE_KEY,
   parseOpenSurfaceInventoryValue,
-} from '../src/extension/open-surface-inventory-storage.js'
-import { seedOpenSurfaceInventory } from '../src/extension/open-surface-inventory.js'
+} from '../../src/extension/open-surface-inventory-storage.js'
+import { seedOpenSurfaceInventory } from '../../src/extension/open-surface-inventory.js'
 import {
   RETAINED_PAGE_LIFETIME_MS,
   type RetainedPageLedger,
   type RetainedPageRecord,
   type RetainedPageRemovalBoundary,
-} from '../src/extension/retained-pages-ledger.js'
+} from '../../src/extension/retained-pages-ledger.js'
 import {
   RETAINED_PAGES_STORAGE_KEY,
   RETAINED_PAGES_STORAGE_ENCODING,
   decodeRetainedPageLedgerStorageValue,
   encodeRetainedPageLedgerStorageValue,
   parseRetainedPageLedgerValue,
-} from '../src/extension/retained-pages-storage.js'
+} from '../../src/extension/retained-pages-storage.js'
 import {
   DASHBOARD_STARTUP_SEED_CACHE_KEY,
   type DashboardStartupSeed,
-} from '../src/extension/startup-snapshot.js'
-import { parseDashboardStartupSeedBoundary } from '../src/extension/startup-snapshot-schema.js'
-import { normalizeChromeOpenTabs } from '../src/extension/tabs.js'
-import type { TabHistorySnapshot } from '../src/extension/types'
-import { buildWorkingSetSnapshot } from '../src/extension/working-set.js'
+} from '../../src/extension/startup-snapshot.js'
+import { parseDashboardStartupSeedBoundary } from '../../src/extension/startup-snapshot-schema.js'
+import { normalizeChromeOpenTabs } from '../../src/extension/tabs.js'
+import type { TabHistorySnapshot } from '../../src/extension/types'
+import { buildWorkingSetSnapshot } from '../../src/extension/working-set.js'
 
-const backgroundUrl = new URL('../src/extension/background.ts', import.meta.url)
+const backgroundUrl = new URL('../../src/extension/background.ts', import.meta.url)
 const extensionUrl = 'chrome-extension://tab-out/index.html'
 let backgroundImportId = 0
-const backgroundClock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
-
 type TestBackgroundRuntime = {
   readonly dispose: () => Promise<void>
   runPromise: (...args: any[]) => Promise<unknown>
@@ -158,15 +155,18 @@ function trackBackgroundRuntime(runtime: TestBackgroundRuntime): TestBackgroundR
   return runtime
 }
 
-test.after(async () => {
-  await disposeBackgroundRuntime()
-  backgroundClock.uninstall()
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
 })
-test.afterEach(async () => {
+afterAll(async () => {
+  await disposeBackgroundRuntime()
+  vi.useRealTimers()
+})
+afterEach(async () => {
   await disposeBackgroundRuntime()
 })
-test.beforeEach(async () => {
-  backgroundClock.reset()
+beforeEach(async () => {
+  vi.clearAllTimers()
   globalThis.indexedDB = new IDBFactory()
 })
 
@@ -791,7 +791,7 @@ async function loadBackground(initialTabs: any[], options: any = {}) {
     background.backgroundRuntime as unknown as TestBackgroundRuntime,
   )
   if (!options.deferInitialOpenSurfaceReconciliation) {
-    await backgroundClock.tickAsync(0)
+    await vi.advanceTimersByTimeAsync(0)
   }
   await flushBackgroundWork()
   return mock
@@ -1509,7 +1509,7 @@ for (const action of ['explicit removal', 'activation consumption'] as const) {
       [priorBoundaryToken]: priorBoundary,
     })
 
-    await backgroundClock.tickAsync(60_000)
+    await vi.advanceTimersByTimeAsync(60_000)
     await flushBackgroundWork()
     assert.equal(
       attemptedRetainedValues.length,
@@ -2068,7 +2068,7 @@ test('browser startup clears persisted tab-id history before refreshing the star
   const onStartup = mock.listeners.runtimeOnStartup[0]
   assert.equal(typeof onStartup, 'function')
   const startup = onStartup()
-  await backgroundClock.tickAsync(0)
+  await vi.advanceTimersByTimeAsync(0)
   await startup
   await flushBackgroundWork()
 
@@ -2095,7 +2095,7 @@ test('failed initial open-surface reconciliation retries on the next readiness w
   })
 
   mock.failNextTabQuery('Initial inventory capture unavailable')
-  await backgroundClock.tickAsync(0)
+  await vi.advanceTimersByTimeAsync(0)
   await flushBackgroundWork()
 
   assert.equal(
@@ -2156,7 +2156,7 @@ test('browser startup owns retained-page reconciliation before worker-resume can
   const onStartup = mock.listeners.runtimeOnStartup[0]
   assert.equal(typeof onStartup, 'function')
   const startup = onStartup()
-  await backgroundClock.tickAsync(0)
+  await vi.advanceTimersByTimeAsync(0)
   await startup
   await flushBackgroundWork()
 
@@ -2186,7 +2186,7 @@ test('browser startup owns retained-page reconciliation before worker-resume can
     session.inventory.entries['111']?.closureToken,
   )
 
-  await backgroundClock.tickAsync(0)
+  await vi.advanceTimersByTimeAsync(0)
   await flushBackgroundWork()
   const afterDeferredFallback = await parseStoredRetainedPageLedger(
     mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY],
@@ -2232,7 +2232,7 @@ test('first installation seeds current surfaces before the deferred worker-resum
   assert.equal(typeof onInstalled, 'function')
   onInstalled({ reason: 'install' })
   await flushBackgroundWork()
-  await backgroundClock.tickAsync(0)
+  await vi.advanceTimersByTimeAsync(0)
   await waitForBackgroundState(() => (
     parseOpenSurfaceInventoryValue(
       mock.storageValues.session[OPEN_SURFACE_SESSION_STORAGE_KEY],
@@ -2310,7 +2310,7 @@ test('extension update owns initial reconciliation and preserves surviving live 
   assert.equal(typeof onInstalled, 'function')
   onInstalled({ reason: 'update' })
   await flushBackgroundWork()
-  await backgroundClock.tickAsync(0)
+  await vi.advanceTimersByTimeAsync(0)
   await waitForBackgroundState(() => (
     mock.storageValues.local[RETAINED_PAGES_STORAGE_KEY] !== undefined &&
     parseOpenSurfaceInventoryValue(
@@ -2407,7 +2407,7 @@ test('tab replacement rebases live state while the URL-keyed Warm seed remains s
 
   await mock.replaceTab(201, 211)
   await flushBackgroundWork()
-  await backgroundClock.tickAsync(STARTUP_SNAPSHOT_DEBOUNCE_MS)
+  await vi.advanceTimersByTimeAsync(STARTUP_SNAPSHOT_DEBOUNCE_MS)
   await flushBackgroundWork()
 
   const warmAfter = requireStartupSeed(
@@ -3395,7 +3395,7 @@ test('background restore messages remain acknowledged without scheduling seed wo
     restoreId: 'restore-slow',
     phase: 'settled',
   }), { ok: true })
-  await backgroundClock.tickAsync(STARTUP_SNAPSHOT_DEBOUNCE_MS * 2)
+  await vi.advanceTimersByTimeAsync(STARTUP_SNAPSHOT_DEBOUNCE_MS * 2)
   await flushBackgroundWork()
   assert.equal(mock.storageValues.session[DASHBOARD_STARTUP_SEED_CACHE_KEY], undefined)
 })

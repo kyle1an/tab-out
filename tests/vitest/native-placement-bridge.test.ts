@@ -1,23 +1,34 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
-import FakeTimers from '@sinonjs/fake-timers'
-import { Effect, ManagedRuntime } from 'effect'
+import { afterEach, it, vi } from '@effect/vitest'
+import { Effect, Exit, Layer, Scope } from 'effect'
+import { TestClock } from 'effect/testing'
 
 import {
   NATIVE_PLACEMENT_BRIDGE_VERSION,
   handleNativePlacementBridgeMessageEffect,
   makeNativePlacementBridgeLayer,
-} from '../src/extension/background/native-placement-bridge.js'
-import type { ChromeApi } from '../src/extension/background/chrome-api.js'
+} from '../../src/extension/background/native-placement-bridge.js'
+import type { ChromeApi } from '../../src/extension/background/chrome-api.js'
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.useRealTimers()
+})
 
 const nowMs = 1_800_000_000_000
+
+function valueAt<T>(values: readonly T[], index: number): T {
+  const value = values[index]
+  assert.ok(value !== undefined, `expected value at index ${index}`)
+  return value
+}
 
 function handleNativePlacementBridgeMessage(
   message: unknown,
   chromeApi: ChromeApi,
   at: number,
 ) {
-  return Effect.runPromise(handleNativePlacementBridgeMessageEffect(message, chromeApi, at))
+  return handleNativePlacementBridgeMessageEffect(message, chromeApi, at)
 }
 
 const targetDisplay = {
@@ -69,11 +80,11 @@ function createRequest(overrides: Record<string, unknown> = {}) {
   }
 }
 
-test('native placement bridge preserves the v3 token echo for staggered reloads', async () => {
+it.effect('native placement bridge preserves the v3 token echo for staggered reloads', () => Effect.gen(function* () {
   const { chromeApi, createCalls } = createChromeApi()
   const creationToken = 'hs:1800000000000:filter'
 
-  const result = await handleNativePlacementBridgeMessage(createRequest({
+  const result = yield* handleNativePlacementBridgeMessage(createRequest({
     requestId: creationToken,
   }), chromeApi, nowMs)
 
@@ -94,13 +105,13 @@ test('native placement bridge preserves the v3 token echo for staggered reloads'
     width: 1920,
     height: 1055,
   }])
-})
+}))
 
-test('native placement bridge creates new-page requests through a uniquely tokenized Tab Out document', async () => {
+it.effect('native placement bridge creates new-page requests through a uniquely tokenized Tab Out document', () => Effect.gen(function* () {
   const { chromeApi, createCalls } = createChromeApi()
   const creationToken = 'hs:1800000000000:newPage'
 
-  const result = await handleNativePlacementBridgeMessage(createRequest({
+  const result = yield* handleNativePlacementBridgeMessage(createRequest({
     operation: 'newPage',
     requestId: creationToken,
   }), chromeApi, nowMs)
@@ -122,18 +133,18 @@ test('native placement bridge creates new-page requests through a uniquely token
     width: 1920,
     height: 1055,
   }])
-})
+}))
 
-test('native placement bridge status handshake does not create a window', async () => {
+it.effect('native placement bridge status handshake does not create a window', () => Effect.gen(function* () {
   const { chromeApi, createCalls } = createChromeApi()
 
-  const result = await handleNativePlacementBridgeMessage(createRequest({ type: 'status' }), chromeApi, nowMs)
+  const result = yield* handleNativePlacementBridgeMessage(createRequest({ type: 'status' }), chromeApi, nowMs)
 
   assert.equal(result.status, 'accepted')
   assert.deepEqual(createCalls, [])
-})
+}))
 
-test('native placement bridge reports profile-owned normal window identities without focusing them', async () => {
+it.effect('native placement bridge reports profile-owned normal window identities without focusing them', () => Effect.gen(function* () {
   const { chromeApi, createCalls } = createChromeApi([
     { id: 71, type: 'normal', focused: false, state: 'normal' },
     { id: 72, type: 'popup', focused: false, state: 'normal' },
@@ -141,7 +152,7 @@ test('native placement bridge reports profile-owned normal window identities wit
     { type: 'normal', focused: false, state: 'normal' },
   ] as chrome.windows.Window[])
 
-  const result = await handleNativePlacementBridgeMessage(
+  const result = yield* handleNativePlacementBridgeMessage(
     createRequest({ type: 'list-profile-windows' }),
     chromeApi,
     nowMs,
@@ -155,9 +166,9 @@ test('native placement bridge reports profile-owned normal window identities wit
     windowIds: [71],
   })
   assert.deepEqual(createCalls, [])
-})
+}))
 
-test('native placement bridge turns a rejected profile-window read into a response', async () => {
+it.effect('native placement bridge turns a rejected profile-window read into a response', () => Effect.gen(function* () {
   const { chromeApi, createCalls } = createChromeApi()
   Object.assign(chromeApi.windows, {
     async getAll() {
@@ -165,7 +176,7 @@ test('native placement bridge turns a rejected profile-window read into a respon
     },
   })
 
-  const result = await handleNativePlacementBridgeMessage(
+  const result = yield* handleNativePlacementBridgeMessage(
     createRequest({ type: 'list-profile-windows' }),
     chromeApi,
     nowMs,
@@ -179,9 +190,9 @@ test('native placement bridge turns a rejected profile-window read into a respon
     reason: 'Profile window inventory unavailable',
   })
   assert.deepEqual(createCalls, [])
-})
+}))
 
-test('native placement bridge turns a rejected placement read into a response', async () => {
+it.effect('native placement bridge turns a rejected placement read into a response', () => Effect.gen(function* () {
   const { chromeApi, createCalls } = createChromeApi()
   Object.assign(chromeApi.system.display, {
     async getInfo() {
@@ -189,7 +200,7 @@ test('native placement bridge turns a rejected placement read into a response', 
     },
   })
 
-  const result = await handleNativePlacementBridgeMessage(createRequest(), chromeApi, nowMs)
+  const result = yield* handleNativePlacementBridgeMessage(createRequest(), chromeApi, nowMs)
 
   assert.deepEqual(result, {
     version: NATIVE_PLACEMENT_BRIDGE_VERSION,
@@ -199,12 +210,12 @@ test('native placement bridge turns a rejected placement read into a response', 
     reason: 'Display inventory unavailable',
   })
   assert.deepEqual(createCalls, [])
-})
+}))
 
-test('native placement bridge rejects an expired request before mutation', async () => {
+it.effect('native placement bridge rejects an expired request before mutation', () => Effect.gen(function* () {
   const { chromeApi, createCalls } = createChromeApi()
 
-  const result = await handleNativePlacementBridgeMessage(
+  const result = yield* handleNativePlacementBridgeMessage(
     createRequest({ expiresAtMs: nowMs - 1 }),
     chromeApi,
     nowMs,
@@ -213,12 +224,12 @@ test('native placement bridge rejects an expired request before mutation', async
   assert.equal(result.status, 'rejected')
   assert.match(result.reason ?? '', /expired/)
   assert.deepEqual(createCalls, [])
-})
+}))
 
-test('native placement bridge rejects malformed target bounds before mutation', async () => {
+it.effect('native placement bridge rejects malformed target bounds before mutation', () => Effect.gen(function* () {
   const { chromeApi, createCalls } = createChromeApi()
 
-  const result = await handleNativePlacementBridgeMessage(
+  const result = yield* handleNativePlacementBridgeMessage(
     createRequest({ targetBounds: { left: 0, top: 0, width: 0, height: 900 } }),
     chromeApi,
     nowMs,
@@ -227,9 +238,9 @@ test('native placement bridge rejects malformed target bounds before mutation', 
   assert.equal(result.status, 'rejected')
   assert.match(result.reason ?? '', /target bounds/)
   assert.deepEqual(createCalls, [])
-})
+}))
 
-test('native placement bridge schema preserves envelope rejection reasons', async () => {
+it.effect('native placement bridge schema preserves envelope rejection reasons', () => Effect.gen(function* () {
   const { chromeApi, createCalls } = createChromeApi()
   const cases: ReadonlyArray<{ message: unknown, reason: RegExp, requestId: string }> = [
     { message: null, reason: /not an object/, requestId: 'invalid' },
@@ -263,16 +274,15 @@ test('native placement bridge schema preserves envelope rejection reasons', asyn
   ]
 
   for (const entry of cases) {
-    const result = await handleNativePlacementBridgeMessage(entry.message, chromeApi, nowMs)
+    const result = yield* handleNativePlacementBridgeMessage(entry.message, chromeApi, nowMs)
     assert.equal(result.status, 'rejected')
     assert.equal(result.requestId, entry.requestId)
     assert.match(result.reason ?? '', entry.reason)
   }
   assert.deepEqual(createCalls, [])
-})
+}))
 
-test('native placement bridge reconnects after the host port disconnects', async () => {
-  const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
+it.effect('native placement bridge reconnects after the host port disconnects', () => Effect.gen(function* () {
   const disconnectListeners: Array<() => void> = []
   let connectionCount = 0
   const noOp = () => {}
@@ -298,27 +308,18 @@ test('native placement bridge reconnects after the host port disconnects', async
     },
   } as unknown as ChromeApi
 
-  try {
-    const runtime = ManagedRuntime.make(makeNativePlacementBridgeLayer(chromeApi))
-    runtime.runSync(Effect.void)
-    assert.equal(connectionCount, 1)
+  yield* Layer.build(makeNativePlacementBridgeLayer(chromeApi))
+  assert.equal(connectionCount, 1)
 
-    disconnectListeners[0]!()
-    await clock.tickAsync(250)
+  valueAt(disconnectListeners, 0)()
+  yield* TestClock.adjust(250)
 
-    assert.equal(connectionCount, 2)
-    await runtime.dispose()
-  } finally {
-    clock.uninstall()
-  }
-})
+  assert.equal(connectionCount, 2)
+}))
 
-test('native placement bridge escalates delays across connection failures', async () => {
-  const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
-  const previousWarn = console.warn
+it.effect('native placement bridge escalates delays across connection failures', () => Effect.gen(function* () {
   let connectionCount = 0
-  let disposeRuntime = async () => {}
-  console.warn = () => {}
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
   const chromeApi = {
     runtime: {
       connectNative() {
@@ -334,71 +335,48 @@ test('native placement bridge escalates delays across connection failures', asyn
     },
   } as unknown as ChromeApi
 
-  try {
-    const runtime = ManagedRuntime.make(makeNativePlacementBridgeLayer(chromeApi))
-    disposeRuntime = () => runtime.dispose()
-    runtime.runSync(Effect.void)
-    assert.equal(connectionCount, 1)
+  yield* Layer.build(makeNativePlacementBridgeLayer(chromeApi))
+  assert.equal(connectionCount, 1)
 
-    await clock.tickAsync(249)
-    assert.equal(connectionCount, 1)
-    await clock.tickAsync(1)
-    assert.equal(connectionCount, 2)
+  yield* TestClock.adjust(249)
+  assert.equal(connectionCount, 1)
+  yield* TestClock.adjust(1)
+  assert.equal(connectionCount, 2)
 
-    await clock.tickAsync(999)
-    assert.equal(connectionCount, 2)
-    await clock.tickAsync(1)
-    assert.equal(connectionCount, 3)
-  } finally {
-    await disposeRuntime()
-    console.warn = previousWarn
-    clock.uninstall()
-  }
-})
+  yield* TestClock.adjust(999)
+  assert.equal(connectionCount, 2)
+  yield* TestClock.adjust(1)
+  assert.equal(connectionCount, 3)
+}))
 
-test('native placement bridge backs off beyond the MV3 idle window when the host stays unavailable', async () => {
-  const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
-  const previousWarn = console.warn
+it.effect('native placement bridge backs off beyond the MV3 idle window when the host stays unavailable', () => Effect.gen(function* () {
   let connectionCount = 0
-  let disposeRuntime = async () => {}
-  console.warn = () => {}
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
   const { chromeApi } = createChromeApi()
   chromeApi.runtime.connectNative = () => {
     connectionCount += 1
     throw new Error('Native host unavailable')
   }
 
-  try {
-    const runtime = ManagedRuntime.make(makeNativePlacementBridgeLayer(chromeApi))
-    disposeRuntime = () => runtime.dispose()
-    runtime.runSync(Effect.void)
-    assert.equal(connectionCount, 1)
+  yield* Layer.build(makeNativePlacementBridgeLayer(chromeApi))
+  assert.equal(connectionCount, 1)
 
-    await clock.tickAsync(250)
-    assert.equal(connectionCount, 2)
-    await clock.tickAsync(1_000)
-    assert.equal(connectionCount, 3)
-    await clock.tickAsync(5_000)
-    assert.equal(connectionCount, 4)
+  yield* TestClock.adjust(250)
+  assert.equal(connectionCount, 2)
+  yield* TestClock.adjust(1_000)
+  assert.equal(connectionCount, 3)
+  yield* TestClock.adjust(5_000)
+  assert.equal(connectionCount, 4)
 
-    await clock.tickAsync(30_000)
-    assert.equal(connectionCount, 4)
-  } finally {
-    await disposeRuntime()
-    console.warn = previousWarn
-    clock.uninstall()
-  }
-})
+  yield* TestClock.adjust(30_000)
+  assert.equal(connectionCount, 4)
+}))
 
-test('native placement bridge resets backoff after a native message', async () => {
-  const clock = FakeTimers.install({
-    now: nowMs,
-    toFake: ['Date', 'setTimeout', 'clearTimeout'],
-  })
+it.effect('native placement bridge resets backoff after a native message', () => Effect.gen(function* () {
+  vi.useFakeTimers({ now: nowMs, toFake: ['Date'] })
   const messageListeners: Array<(message: unknown) => void> = []
   const disconnectListeners: Array<() => void> = []
   let connectionCount = 0
-  let disposeRuntime = async () => {}
   const chromeApi = {
     runtime: {
       connectNative() {
@@ -423,28 +401,21 @@ test('native placement bridge resets backoff after a native message', async () =
     },
   } as unknown as ChromeApi
 
-  try {
-    const runtime = ManagedRuntime.make(makeNativePlacementBridgeLayer(chromeApi))
-    disposeRuntime = () => runtime.dispose()
-    runtime.runSync(Effect.void)
-    disconnectListeners[0]!()
-    await clock.tickAsync(250)
-    assert.equal(connectionCount, 2)
+  yield* Layer.build(makeNativePlacementBridgeLayer(chromeApi))
+  valueAt(disconnectListeners, 0)()
+  yield* TestClock.adjust(250)
+  assert.equal(connectionCount, 2)
 
-    messageListeners[1]!(createRequest({ type: 'status' }))
-    disconnectListeners[1]!()
-    await clock.tickAsync(249)
-    assert.equal(connectionCount, 2)
-    await clock.tickAsync(1)
-    assert.equal(connectionCount, 3)
-  } finally {
-    await disposeRuntime()
-    clock.uninstall()
-  }
-})
+  valueAt(messageListeners, 1)(createRequest({ type: 'status' }))
+  yield* Effect.yieldNow
+  valueAt(disconnectListeners, 1)()
+  yield* TestClock.adjust(249)
+  assert.equal(connectionCount, 2)
+  yield* TestClock.adjust(1)
+  assert.equal(connectionCount, 3)
+}))
 
-test('disposing the native placement bridge cancels reconnect sleep', async () => {
-  const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
+it.effect('disposing the native placement bridge cancels reconnect sleep', () => Effect.gen(function* () {
   const disconnectListeners: Array<() => void> = []
   let connectionCount = 0
   const chromeApi = {
@@ -466,15 +437,11 @@ test('disposing the native placement bridge cancels reconnect sleep', async () =
     },
   } as unknown as ChromeApi
 
-  try {
-    const runtime = ManagedRuntime.make(makeNativePlacementBridgeLayer(chromeApi))
-    runtime.runSync(Effect.void)
-    disconnectListeners[0]!()
-    await runtime.dispose()
+  const scope = yield* Scope.make()
+  yield* Layer.buildWithScope(makeNativePlacementBridgeLayer(chromeApi), scope)
+  valueAt(disconnectListeners, 0)()
+  yield* Scope.close(scope, Exit.void)
 
-    await clock.tickAsync(15_000)
-    assert.equal(connectionCount, 1)
-  } finally {
-    clock.uninstall()
-  }
-})
+  yield* TestClock.adjust(15_000)
+  assert.equal(connectionCount, 1)
+}))
