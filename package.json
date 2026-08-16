@@ -31,7 +31,10 @@
     "react-doctor:diff": "react-doctor . --scope changed --no-telemetry",
     "react-doctor:full": "react-doctor . --scope full --blocking none --no-telemetry",
     "knip": "knip",
-    "test": "node --import tsx --test tests/*.test.ts",
+    "test": "pnpm test:node && pnpm test:vitest",
+    "test:node": "node --import tsx --test tests/*.test.ts",
+    "test:vitest": "vitest run",
+    "test:vitest:watch": "vitest",
     "test:browser": "pnpm test:browser:all",
     "test:browser:all": "playwright test --config tests/playwright.config.ts",
     "test:browser:smoke": "playwright test --config tests/playwright.config.ts tests/browser/dashboard-smoke.spec.ts",
@@ -52,7 +55,7 @@
   "dependencies": {
     "@base-ui/react": "^1.7.0",
     "cnfast": "^0.1.0",
-    "effect": "4.0.0-beta.107",
+    "effect": "4.0.0-rc.109",
     "foxact": "^0.3.8",
     "idb": "8.0.3",
     "lucide-react": "^1.31.0",
@@ -62,7 +65,8 @@
     "tldts": "^7.4.10"
   },
   "devDependencies": {
-    "@effect/platform-node": "4.0.0-beta.107",
+    "@effect/platform-node": "4.0.0-rc.109",
+    "@effect/vitest": "4.0.0-rc.109",
     "@eslint/js": "^10.0.1",
     "@iconify-json/lucide": "^1.2.123",
     "@iconify-json/mingcute": "^1.2.8",
@@ -96,6 +100,7 @@
     "tsx": "^4.23.12",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.67.0",
-    "vite": "^8.2.1"
+    "vite": "^8.2.1",
+    "vitest": "4.1.10"
   }
 }

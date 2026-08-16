@@ -106,7 +106,13 @@ test('extension HTML loads the Vite-built React entry', async () => {
     'node scripts/chrome-support.ts release-check',
   )
   assert.match(pkg.scripts?.typecheck, /tsconfig\.node\.json/)
-  assert.equal(pkg.scripts?.test, 'node --import tsx --test tests/*.test.ts')
+  assert.equal(pkg.scripts?.test, 'pnpm test:node && pnpm test:vitest')
+  assert.equal(
+    pkg.scripts?.['test:node'],
+    'node --import tsx --test tests/*.test.ts',
+  )
+  assert.equal(pkg.scripts?.['test:vitest'], 'vitest run')
+  assert.equal(pkg.scripts?.['test:vitest:watch'], 'vitest')
   assert.equal(pkg.scripts?.lint, 'eslint . --max-warnings=0')
   assert.equal(
     pkg.scripts?.['deps:architecture'],
@@ -147,9 +153,14 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.ok(pkg.devDependencies?.['@iconify-json/ooui'])
   assert.ok(pkg.devDependencies?.['babel-plugin-react-compiler'])
   assert.ok(pkg.devDependencies?.['dependency-cruiser'])
+  assert.equal(
+    pkg.devDependencies?.['@effect/vitest'],
+    pkg.dependencies?.effect,
+  )
   assert.ok(pkg.devDependencies?.['fast-check'])
   assert.ok(pkg.devDependencies?.tailwindcss)
   assert.ok(pkg.devDependencies?.vite)
+  assert.ok(pkg.devDependencies?.vitest)
   assert.ok(pkg.devDependencies?.shadcn)
   assert.ok(pkg.devDependencies?.['@sinonjs/fake-timers'])
   assert.equal(pkg.devDependencies?.['type-fest'], undefined)

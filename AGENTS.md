@@ -70,6 +70,10 @@ pnpm dev
 - `pnpm typecheck` intentionally resolves TypeScript 7's native `tsc` from the `@typescript/native` alias. Native Node entrypoints that do not import the browser render graph are additionally checked through `tsconfig.node.json` with `NodeNext` resolution; keep their syntax erasable so the pinned Node runtime can execute them directly. The build orchestrator is checked by the browser-aware root project because it imports the manifest and prerender generators. The dependency named `typescript` intentionally aliases `@typescript/typescript6` for legacy compiler-API consumers; use `tsc6` only for targeted bridge diagnosis, and do not collapse the bridge or introduce TypeScript-7-only source syntax until those consumers move to the new API. See [ADR 0006](docs/adr/0006-run-typescript-7-with-a-typescript-6-api-bridge.md).
 - Run `pnpm install` when dependencies are missing or `pnpm-lock.yaml` changes.
 - Run `pnpm dev` while editing source or bundled styles.
+- `pnpm test` runs both unit-test lanes: Node tests under `tests/*.test.ts` and
+  Effect-aware Vitest tests under `tests/vitest/**/*.test.ts`. Use
+  `pnpm test:node` or `pnpm test:vitest` for a focused lane, and
+  `pnpm test:vitest:watch` for Vitest watch mode.
 - Use `pnpm verify:quick` for an iteration-only parallel pass over typechecking, lint, architecture, peer dependencies, unused code, React Doctor, and the React Compiler baseline check. It does not replace the full verification pipeline.
 - Use `pnpm lint:tailwind` to run the official Tailwind language server across repository source documents; it checks all enabled diagnostics, including canonical-class suggestions and CSS conflicts, and runs inside both verification pipelines.
 - Refresh the Tab Out page for dashboard/UI changes.
