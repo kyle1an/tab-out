@@ -1,5 +1,5 @@
 import { once } from 'node:events'
-import { createServer, type Server } from 'node:net'
+import { createConnection, createServer, type Server, type Socket } from 'node:net'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 
@@ -61,7 +61,10 @@ type RunningNativeHost = {
   readonly stdoutFiber: Fiber.Fiber<void, NativeHostTestError>
   readonly stderrFiber: Fiber.Fiber<void, NativeHostTestError>
   readonly stderr: Ref.Ref<string>
+  readonly nativeMessages: Queue.Queue<unknown> | null
 }
+
+type NativeOutputMode = 'capture' | 'ignore' | 'respond-v3'
 
 function nativeHostTestError(operation: string, cause: unknown): NativeHostTestError {
   return NativeHostTestError.make({ operation, cause })
@@ -132,12 +135,41 @@ function makeNativeRequestResponder(input: Queue.Queue<Uint8Array, Cause.Done<vo
   })
 }
 
+function makeNativeMessageCollector(output: Queue.Queue<unknown>) {
+  let nativeBuffer = Buffer.alloc(0)
+
+  return Effect.fn('nativeHostTest.collectNativeMessage')(function* (chunk: Uint8Array) {
+    nativeBuffer = Buffer.concat([nativeBuffer, chunk])
+    while (nativeBuffer.length >= 4) {
+      const messageLength = nativeBuffer.readUInt32LE(0)
+      if (messageLength > 64 * 1024) {
+        return yield* Effect.fail(nativeHostTestError(
+          'decode native messaging output',
+          new Error(`native message length ${messageLength} exceeds the protocol limit`),
+        ))
+      }
+      if (nativeBuffer.length < messageLength + 4) return
+
+      const body = nativeBuffer.subarray(4, messageLength + 4)
+      nativeBuffer = nativeBuffer.subarray(messageLength + 4)
+      const message = yield* Effect.try({
+        try: () => JSON.parse(body.toString('utf8')) as unknown,
+        catch: (cause) => nativeHostTestError('decode native messaging output', cause),
+      })
+      yield* Queue.offer(output, message)
+    }
+  })
+}
+
 const startNativeHost = Effect.fn('nativeHostTest.startNativeHost')(function* (
   hostPath: string,
   socketPath: string,
-  respondToRequests: boolean,
+  outputMode: NativeOutputMode,
 ) {
   const input = yield* Queue.unbounded<Uint8Array, Cause.Done<void>>()
+  const nativeMessages = outputMode === 'capture'
+    ? yield* Queue.unbounded<unknown>()
+    : null
   const stderr = yield* Ref.make('')
   const handle = yield* ChildProcess.make(
     hostPath,
@@ -149,19 +181,24 @@ const startNativeHost = Effect.fn('nativeHostTest.startNativeHost')(function* (
         stream: Stream.fromQueue(input),
         endOnDone: true,
       },
-      stdout: respondToRequests ? 'pipe' : 'ignore',
+      stdout: outputMode === 'ignore' ? 'ignore' : 'pipe',
       stderr: 'pipe',
     },
   ).pipe(
     Effect.mapError((cause) => nativeHostTestError('start native host', cause)),
   )
 
-  const stdoutFiber = yield* (respondToRequests
+  const stdoutFiber = yield* (outputMode === 'respond-v3'
     ? handle.stdout.pipe(
         Stream.mapError((cause) => nativeHostTestError('read native host stdout', cause)),
         Stream.runForEach(makeNativeRequestResponder(input)),
       )
-    : Effect.void
+    : outputMode === 'capture' && nativeMessages
+      ? handle.stdout.pipe(
+          Stream.mapError((cause) => nativeHostTestError('read native host stdout', cause)),
+          Stream.runForEach(makeNativeMessageCollector(nativeMessages)),
+        )
+      : Effect.void
   ).pipe(Effect.forkScoped)
   const stderrFiber = yield* handle.stderr.pipe(
     Stream.decodeText(),
@@ -180,7 +217,14 @@ const startNativeHost = Effect.fn('nativeHostTest.startNativeHost')(function* (
     Effect.ignoreCause,
   ))
 
-  return { handle, input, stdoutFiber, stderrFiber, stderr } satisfies RunningNativeHost
+  return {
+    handle,
+    input,
+    stdoutFiber,
+    stderrFiber,
+    stderr,
+    nativeMessages,
+  } satisfies RunningNativeHost
 })
 
 const finishNativeHost = Effect.fn('nativeHostTest.finishNativeHost')(function* (
@@ -293,6 +337,75 @@ function listenOnUnixSocket(socketPath: string) {
   })
 }
 
+type ControllerClient = {
+  readonly messages: Queue.Queue<unknown>
+  readonly socket: Socket
+}
+
+const connectController = Effect.fn('nativeHostTest.connectController')(function* (
+  socketPath: string,
+) {
+  const messages = yield* Queue.unbounded<unknown>()
+  const socket = createConnection(socketPath)
+  socket.on('error', () => {})
+  yield* Effect.tryPromise({
+    try: (signal) => once(socket, 'connect', { signal }),
+    catch: (cause) => nativeHostTestError('connect desktop-window controller', cause),
+  })
+
+  let lineBuffer = ''
+  socket.on('data', (chunk: Buffer) => {
+    lineBuffer += chunk.toString('utf8')
+    while (true) {
+      const newlineIndex = lineBuffer.indexOf('\n')
+      if (newlineIndex < 0) return
+      const line = lineBuffer.slice(0, newlineIndex)
+      lineBuffer = lineBuffer.slice(newlineIndex + 1)
+      try {
+        Queue.offerUnsafe(messages, JSON.parse(line) as unknown)
+      } catch {
+        Queue.offerUnsafe(messages, { type: 'invalid-json', line })
+      }
+    }
+  })
+  yield* Effect.addFinalizer(() => Effect.sync(() => socket.destroy()))
+  return { messages, socket } satisfies ControllerClient
+})
+
+const writeControllerMessage = Effect.fn('nativeHostTest.writeControllerMessage')(function* (
+  client: ControllerClient,
+  message: unknown,
+) {
+  yield* Effect.tryPromise({
+    try: () => new Promise<void>((resolveWrite, rejectWrite) => {
+      client.socket.write(`${JSON.stringify(message)}\n`, (error) => {
+        if (error) rejectWrite(error)
+        else resolveWrite()
+      })
+    }),
+    catch: (cause) => nativeHostTestError('write desktop-window controller message', cause),
+  })
+})
+
+function takeMessage(
+  queue: Queue.Queue<unknown>,
+  operation: string,
+): Effect.Effect<unknown, NativeHostTestError> {
+  return Queue.take(queue).pipe(Effect.timeoutOrElse({
+    duration: '2 seconds',
+    orElse: () => Effect.fail(nativeHostTestError(
+      operation,
+      new Error('timed out waiting for protocol message'),
+    )),
+  }))
+}
+
+function objectMessage(message: unknown): Record<string, unknown> {
+  return typeof message === 'object' && message !== null
+    ? message as Record<string, unknown>
+    : {}
+}
+
 const testRoundTrip = Effect.fn('nativeHostTest.roundTrip')(function* (hostPath: string) {
   const fileSystem = yield* FileSystem.FileSystem
   const temporaryDirectory = yield* fileSystem.makeTempDirectoryScoped({
@@ -301,7 +414,7 @@ const testRoundTrip = Effect.fn('nativeHostTest.roundTrip')(function* (hostPath:
     Effect.mapError((cause) => nativeHostTestError('create round-trip directory', cause)),
   )
   const socketPath = join(temporaryDirectory, 'bridge.sock')
-  const host = yield* startNativeHost(hostPath, socketPath, true)
+  const host = yield* startNativeHost(hostPath, socketPath, 'respond-v3')
   yield* waitForSocket(host, socketPath)
 
   const currentTime = yield* Clock.currentTimeMillis
@@ -341,7 +454,7 @@ const testSocketHandoff = Effect.fn('nativeHostTest.socketHandoff')(function* (h
     Effect.mapError((cause) => nativeHostTestError('create handoff directory', cause)),
   )
   const socketPath = join(temporaryDirectory, 'bridge.sock')
-  const host = yield* startNativeHost(hostPath, socketPath, false)
+  const host = yield* startNativeHost(hostPath, socketPath, 'ignore')
   yield* waitForSocket(host, socketPath)
   yield* fileSystem.remove(socketPath).pipe(
     Effect.mapError((cause) => nativeHostTestError('unlink native host socket for handoff', cause)),
@@ -383,6 +496,209 @@ const testDeadlineOverflow = Effect.fn('nativeHostTest.deadlineOverflow')(functi
   )
 })
 
+const testDesktopControllerRoundTrip = Effect.fn(
+  'nativeHostTest.desktopControllerRoundTrip',
+)(function* (hostPath: string) {
+  const fileSystem = yield* FileSystem.FileSystem
+  const temporaryDirectory = yield* fileSystem.makeTempDirectoryScoped({
+    prefix: 'tab-out-native-controller-',
+  }).pipe(
+    Effect.mapError((cause) => nativeHostTestError('create controller directory', cause)),
+  )
+  const socketPath = join(temporaryDirectory, 'bridge.sock')
+  const host = yield* startNativeHost(hostPath, socketPath, 'capture')
+  yield* waitForSocket(host, socketPath)
+  const nativeMessages = host.nativeMessages
+  if (!nativeMessages) {
+    return yield* Effect.fail(nativeHostTestError(
+      'capture native controller output',
+      new Error('native output queue is unavailable'),
+    ))
+  }
+
+  const controller = yield* connectController(socketPath)
+  const currentTime = yield* Clock.currentTimeMillis
+  yield* writeControllerMessage(controller, {
+    version: 4,
+    type: 'controller-register',
+    requestId: 'controller-round-trip',
+    expiresAtMs: currentTime + 5_000,
+    capabilities: ['merge-desktop'],
+  })
+  const registration = objectMessage(yield* takeMessage(
+    controller.messages,
+    'read controller registration response',
+  ))
+  yield* check(
+    registration.version === 4 &&
+    registration.requestId === 'controller-round-trip' &&
+    registration.status === 'accepted',
+    'validate controller registration',
+    JSON.stringify(registration),
+  )
+
+  const status = objectMessage(yield* takeMessage(
+    nativeMessages,
+    'read native controller status',
+  ))
+  yield* check(
+    status.version === 4 &&
+    status.type === 'controller-status' &&
+    status.connected === true,
+    'validate native controller status',
+    JSON.stringify(status),
+  )
+
+  const controlRequest = {
+    version: 4,
+    type: 'resolve-desktop-windows',
+    requestId: 'merge-round-trip',
+    expiresAtMs: currentTime + 5_000,
+    destinationWindowId: 71,
+    profileWindowIds: [71, 72],
+  }
+  yield* Queue.offer(host.input, yield* encodeNativeMessage(controlRequest))
+  const forwarded = objectMessage(yield* takeMessage(
+    controller.messages,
+    'read forwarded native control request',
+  ))
+  yield* check(
+    forwarded.requestId === 'merge-round-trip' &&
+    forwarded.type === 'resolve-desktop-windows' &&
+    JSON.stringify(forwarded.profileWindowIds) === '[71,72]',
+    'validate forwarded native control request',
+    JSON.stringify(forwarded),
+  )
+
+  yield* writeControllerMessage(controller, {
+    version: 4,
+    type: 'response',
+    requestId: 'merge-round-trip',
+    status: 'accepted',
+    selectionToken: 'selection-round-trip',
+    windowIds: [72, 71],
+  })
+  const response = objectMessage(yield* takeMessage(
+    nativeMessages,
+    'read native control response',
+  ))
+  yield* check(
+    response.requestId === 'merge-round-trip' &&
+    response.selectionToken === 'selection-round-trip' &&
+    JSON.stringify(response.windowIds) === '[72,71]',
+    'validate native control response',
+    JSON.stringify(response),
+  )
+
+  yield* Queue.offer(host.input, yield* encodeNativeMessage({
+    ...controlRequest,
+    requestId: 'private-field-round-trip',
+    url: 'https://example.test/private-field',
+  }))
+  const rejectedPrivateRequest = objectMessage(yield* takeMessage(
+    nativeMessages,
+    'read rejected private-field control request',
+  ))
+  yield* check(
+    rejectedPrivateRequest.status === 'rejected' &&
+    rejectedPrivateRequest.requestId === 'private-field-round-trip' &&
+    /unsupported fields/.test(String(rejectedPrivateRequest.reason)),
+    'reject private fields before Hammerspoon transport',
+    JSON.stringify(rejectedPrivateRequest),
+  )
+  yield* check(
+    !JSON.stringify(rejectedPrivateRequest).includes('example.test'),
+    'keep rejected private fields out of native responses',
+    JSON.stringify(rejectedPrivateRequest),
+  )
+
+  yield* Queue.offer(host.input, yield* encodeNativeMessage({
+    ...controlRequest,
+    requestId: 'boolean-window-id-round-trip',
+    profileWindowIds: [71, true],
+  }))
+  const rejectedBooleanWindowId = objectMessage(yield* takeMessage(
+    nativeMessages,
+    'read rejected boolean window ID request',
+  ))
+  yield* check(
+    rejectedBooleanWindowId.status === 'rejected' &&
+    rejectedBooleanWindowId.requestId === 'boolean-window-id-round-trip' &&
+    /window inventory/.test(String(rejectedBooleanWindowId.reason)),
+    'reject JSON booleans where numeric window IDs are required',
+    JSON.stringify(rejectedBooleanWindowId),
+  )
+
+  yield* Queue.offer(host.input, yield* encodeNativeMessage({
+    ...controlRequest,
+    requestId: 'oversized-window-inventory-round-trip',
+    profileWindowIds: Array.from({ length: 513 }, (_, index) => index + 1),
+  }))
+  const rejectedOversizedWindowInventory = objectMessage(yield* takeMessage(
+    nativeMessages,
+    'read rejected oversized window inventory request',
+  ))
+  yield* check(
+    rejectedOversizedWindowInventory.status === 'rejected' &&
+    rejectedOversizedWindowInventory.requestId === 'oversized-window-inventory-round-trip' &&
+    /window inventory/.test(String(rejectedOversizedWindowInventory.reason)),
+    'reject oversized window inventories',
+    JSON.stringify(rejectedOversizedWindowInventory),
+  )
+
+  yield* Queue.offer(host.input, yield* encodeNativeMessage({
+    ...controlRequest,
+    requestId: 'controller-private-field-round-trip',
+  }))
+  const forwardedPrivateResponseRequest = objectMessage(yield* takeMessage(
+    controller.messages,
+    'read control request before private controller response',
+  ))
+  yield* check(
+    forwardedPrivateResponseRequest.requestId === 'controller-private-field-round-trip',
+    'validate request before private controller response',
+    JSON.stringify(forwardedPrivateResponseRequest),
+  )
+  yield* writeControllerMessage(controller, {
+    version: 4,
+    type: 'response',
+    requestId: 'controller-private-field-round-trip',
+    status: 'accepted',
+    selectionToken: 'selection-private-field-round-trip',
+    windowIds: [72, 71],
+    title: 'Example private field',
+  })
+  const disconnectedStatus = objectMessage(yield* takeMessage(
+    nativeMessages,
+    'read controller disconnect after private response',
+  ))
+  const rejectedPrivateResponse = objectMessage(yield* takeMessage(
+    nativeMessages,
+    'read rejected private controller response',
+  ))
+  yield* check(
+    disconnectedStatus.type === 'controller-status' &&
+    disconnectedStatus.connected === false,
+    'disconnect a controller that returns private fields',
+    JSON.stringify(disconnectedStatus),
+  )
+  yield* check(
+    rejectedPrivateResponse.status === 'rejected' &&
+    rejectedPrivateResponse.requestId === 'controller-private-field-round-trip' &&
+    !JSON.stringify(rejectedPrivateResponse).includes('Example private field'),
+    'reject private controller fields without forwarding them',
+    JSON.stringify(rejectedPrivateResponse),
+  )
+
+  const result = yield* finishNativeHost(host)
+  yield* check(
+    result.exitCode === ChildProcessSpawner.ExitCode(0),
+    'stop controller native host',
+    `native host exited with code ${result.exitCode}`,
+  )
+  yield* check(result.stderr === '', 'inspect controller native host', result.stderr)
+})
+
 const runNativeHostTests = Effect.fn('nativeHostTest.run')(function* () {
   const hostArgument = process.argv[2]
   if (!hostArgument) {
@@ -394,6 +710,7 @@ const runNativeHostTests = Effect.fn('nativeHostTest.run')(function* () {
   const hostPath = resolve(hostArgument)
 
   yield* testRoundTrip(hostPath)
+  yield* testDesktopControllerRoundTrip(hostPath)
   yield* testSocketHandoff(hostPath)
   yield* testDeadlineOverflow(hostPath)
   yield* Console.log('native bridge round trip: ok')

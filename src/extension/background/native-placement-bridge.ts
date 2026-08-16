@@ -1,12 +1,16 @@
 import {
+  Context,
+  Deferred,
   Effect,
   Layer,
   Queue,
+  Ref,
   Result,
   Schema,
 } from 'effect'
 
 import { omitUndefined } from '../../lib/omit-undefined.js'
+import { DESKTOP_WINDOW_MERGE_STATUS_CHANGED_MESSAGE } from '../desktop-window-merge-contract.js'
 import type { ChromeApi } from './chrome-api.js'
 import {
   createInactiveWindow,
@@ -14,6 +18,9 @@ import {
 } from './native-window-placement.js'
 
 export const NATIVE_PLACEMENT_BRIDGE_VERSION = 3
+export const NATIVE_CONTROL_BRIDGE_VERSION = 4
+export const NATIVE_MERGE_DESKTOP_CAPABILITY = 'merge-desktop'
+const NATIVE_CONTROL_MAXIMUM_WINDOW_IDS = 512
 // The final delay deliberately exceeds Chrome's normal 30-second MV3 idle
 // window. A missing optional host can therefore let an otherwise idle worker
 // terminate, while a later worker wake restarts the fast reconnect sequence.
@@ -36,6 +43,69 @@ export type NativePlacementBridgeResponse = {
   version: typeof NATIVE_PLACEMENT_BRIDGE_VERSION
   windowIds?: number[]
 }
+
+const nativeControlRequestIdSchema = Schema.String.check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(128),
+  Schema.isPattern(/^[A-Za-z0-9._:-]+$/),
+)
+const nativeControlWindowIdSchema = Schema.Int.check(Schema.isGreaterThan(0))
+const nativeControlCapabilitiesSchema = Schema.Array(Schema.Literals([
+  NATIVE_MERGE_DESKTOP_CAPABILITY,
+])).check(Schema.isMaxLength(16))
+const nativeControlWindowIdsSchema = Schema.Array(nativeControlWindowIdSchema).check(
+  Schema.isMaxLength(NATIVE_CONTROL_MAXIMUM_WINDOW_IDS),
+)
+const nativeControlResponseSchema = Schema.Struct({
+  version: Schema.Literals([NATIVE_CONTROL_BRIDGE_VERSION]),
+  type: Schema.Literals(['response']),
+  requestId: nativeControlRequestIdSchema,
+  status: Schema.Literals(['accepted', 'rejected']),
+  reason: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(1_024))),
+  connected: Schema.optionalKey(Schema.Boolean),
+  capabilities: Schema.optionalKey(nativeControlCapabilitiesSchema),
+  windowIds: Schema.optionalKey(nativeControlWindowIdsSchema),
+  selectionToken: Schema.optionalKey(nativeControlRequestIdSchema),
+})
+const nativeControllerStatusMessageSchema = Schema.Struct({
+  version: Schema.Literals([NATIVE_CONTROL_BRIDGE_VERSION]),
+  type: Schema.Literals(['controller-status']),
+  connected: Schema.Boolean,
+  capabilities: nativeControlCapabilitiesSchema,
+})
+
+type NativeControlResponse = typeof nativeControlResponseSchema.Type
+type NativeControllerStatusMessage = typeof nativeControllerStatusMessageSchema.Type
+
+const isNativeControlResponse = Schema.is(nativeControlResponseSchema)
+const isNativeControllerStatusMessage = Schema.is(nativeControllerStatusMessageSchema)
+
+export interface NativeDesktopWindowSelection {
+  readonly selectionToken: string
+  readonly windowIds: readonly number[]
+}
+
+export interface NativeDesktopControllerStatus {
+  readonly capabilities: readonly string[]
+  readonly controllerConnected: boolean
+  readonly hostConnected: boolean
+}
+
+export class NativeDesktopControlError extends Schema.TaggedError<NativeDesktopControlError>()(
+  'NativeDesktopControlError',
+  { reason: Schema.String },
+) {}
+
+export class NativePlacementBridge extends Context.Service<NativePlacementBridge, {
+  readonly getStatus: () => Effect.Effect<NativeDesktopControllerStatus>
+  readonly resolveDesktopWindows: (
+    destinationWindowId: number,
+  ) => Effect.Effect<NativeDesktopWindowSelection, NativeDesktopControlError>
+  readonly revalidateDesktopWindows: (
+    destinationWindowId: number,
+    selectionToken: string,
+  ) => Effect.Effect<NativeDesktopWindowSelection, NativeDesktopControlError>
+}>()('tab-out/background/NativePlacementBridge') {}
 
 class NativePlacementOperationError extends Schema.TaggedError<NativePlacementOperationError>()(
   'NativePlacementOperationError',
@@ -164,17 +234,103 @@ export const handleNativePlacementBridgeMessageEffect = Effect.fn('nativePlaceme
 
 export function makeNativePlacementBridgeLayer(
   chromeApi: ChromeApi,
-): Layer.Layer<never> {
-  return Layer.effectDiscard(Effect.gen(function* () {
+): Layer.Layer<NativePlacementBridge> {
+  return Layer.effect(NativePlacementBridge, Effect.gen(function* () {
     const scope = yield* Effect.scope
     const runtimeApi = chromeApi.runtime
-    if (!runtimeApi || typeof runtimeApi.connectNative !== 'function') return
+    const status = yield* Ref.make<NativeDesktopControllerStatus>({
+      capabilities: [],
+      controllerConnected: false,
+      hostConnected: false,
+    })
+    const activePort = yield* Ref.make<chrome.runtime.Port | null>(null)
+    const pendingControlRequests = yield* Ref.make<ReadonlyMap<
+      string,
+      Deferred.Deferred<NativeControlResponse, NativeDesktopControlError>
+    >>(new Map())
+    const incomingMessages = yield* Queue.unbounded<{
+      readonly message: unknown
+      readonly port: chrome.runtime.Port
+    }>()
     let reconnectAttempt = 0
+    let nextControlRequestId = 0
+
+    const controlError = (reason: string) => new NativeDesktopControlError({ reason })
+
+    const notifyControllerStatusChanged = Effect.fn(
+      'NativePlacementBridge.notifyControllerStatusChanged',
+    )(function* () {
+      if (!runtimeApi?.sendMessage) return
+      yield* Effect.tryPromise({
+        try: () => runtimeApi.sendMessage({
+          type: DESKTOP_WINDOW_MERGE_STATUS_CHANGED_MESSAGE,
+        }),
+        catch: () => undefined,
+      }).pipe(Effect.catch(() => Effect.void))
+    })
+
+    const setControllerStatus = Effect.fn(
+      'NativePlacementBridge.setControllerStatus',
+    )(function* (next: NativeDesktopControllerStatus) {
+      const previous = yield* Ref.get(status)
+      if (
+        previous.hostConnected === next.hostConnected &&
+        previous.controllerConnected === next.controllerConnected &&
+        previous.capabilities.length === next.capabilities.length &&
+        previous.capabilities.every((capability, index) =>
+          next.capabilities[index] === capability)
+      ) return
+      yield* Ref.set(status, next)
+      yield* notifyControllerStatusChanged().pipe(
+        Effect.forkChild({ startImmediately: true }),
+      )
+    })
+
+    const failPendingControlRequests = Effect.fn(
+      'NativePlacementBridge.failPendingControlRequests',
+    )(function* (reason: string) {
+      const pending = yield* Ref.getAndSet(pendingControlRequests, new Map())
+      yield* Effect.forEach(
+        pending.values(),
+        (completion) => Deferred.fail(completion, controlError(reason)),
+        { concurrency: 'unbounded', discard: true },
+      )
+    })
+
+    const updateControllerStatus = Effect.fn(
+      'NativePlacementBridge.updateControllerStatus',
+    )(function* (message: NativeControllerStatusMessage) {
+      const current = yield* Ref.get(status)
+      yield* setControllerStatus({
+        capabilities: message.capabilities,
+        controllerConnected: message.connected,
+        hostConnected: current.hostConnected,
+      })
+    })
 
     const replyToNativeMessage = Effect.fn('NativePlacementBridge.reply')(function* (
       port: chrome.runtime.Port,
       message: unknown,
     ) {
+      if ((yield* Ref.get(activePort)) !== port) return
+      if (isNativeControllerStatusMessage(message)) {
+        yield* updateControllerStatus(message)
+        return
+      }
+      if (isNativeControlResponse(message)) {
+        if (typeof message.connected === 'boolean') {
+          yield* updateControllerStatus({
+            version: NATIVE_CONTROL_BRIDGE_VERSION,
+            type: 'controller-status',
+            connected: message.connected,
+            capabilities: message.capabilities ?? [],
+          })
+        }
+        const completion = (yield* Ref.get(pendingControlRequests)).get(message.requestId)
+        if (completion) yield* Deferred.succeed(completion, message)
+        return
+      }
+
       const result = yield* handleNativePlacementBridgeMessageEffect(message, chromeApi, Date.now())
       yield* Effect.try({
         try: () => port.postMessage(result),
@@ -189,26 +345,37 @@ export function makeNativePlacementBridgeLayer(
       )
     })
 
+    yield* Queue.take(incomingMessages).pipe(
+      Effect.flatMap(({ port, message }) => replyToNativeMessage(port, message).pipe(
+        Effect.forkChild({ startImmediately: true }),
+      )),
+      Effect.forever,
+      Effect.forkIn(scope, { startImmediately: true }),
+    )
+
     const connectUntilDisconnected = Effect.fn('NativePlacementBridge.connect')(function* () {
+      if (!runtimeApi || typeof runtimeApi.connectNative !== 'function') {
+        return yield* Effect.fail(NativePlacementConnectionError.make({
+          cause: new Error('Native messaging is unavailable'),
+        }))
+      }
       const port = yield* Effect.try({
         try: () => runtimeApi.connectNative(NATIVE_PLACEMENT_HOST_NAME),
         catch: (cause) => NativePlacementConnectionError.make({ cause }),
       })
-      const messages = yield* Queue.unbounded<unknown>()
-      yield* Queue.take(messages).pipe(
-        Effect.flatMap((message) => replyToNativeMessage(port, message).pipe(
-          Effect.forkChild({ startImmediately: true }),
-        )),
-        Effect.forever,
-        Effect.forkChild({ startImmediately: true }),
-      )
+      yield* Ref.set(activePort, port)
+      yield* setControllerStatus({
+        capabilities: [],
+        controllerConnected: false,
+        hostConnected: true,
+      })
 
       yield* Effect.callback<void>((resume) => {
         let disconnected = false
 
         const onMessage = (message: unknown) => {
           reconnectAttempt = 0
-          Queue.offerUnsafe(messages, message)
+          Queue.offerUnsafe(incomingMessages, { port, message })
         }
         const removeListeners = () => {
           port.onMessage.removeListener(onMessage)
@@ -240,6 +407,13 @@ export function makeNativePlacementBridgeLayer(
           } catch {}
         })
       })
+      yield* Ref.update(activePort, (current) => current === port ? null : current)
+      yield* setControllerStatus({
+        capabilities: [],
+        controllerConnected: false,
+        hostConnected: false,
+      })
+      yield* failPendingControlRequests('The native bridge disconnected')
     })
 
     const reconnect = Effect.fn('NativePlacementBridge.reconnect')(function* () {
@@ -267,5 +441,125 @@ export function makeNativePlacementBridgeLayer(
       Effect.forever,
       Effect.forkIn(scope, { startImmediately: true }),
     )
+
+    const readProfileWindowIds = Effect.fn(
+      'NativePlacementBridge.readProfileWindowIds',
+    )(function* () {
+      const windows = yield* Effect.tryPromise({
+        try: () => chromeApi.windows.getAll({ windowTypes: ['normal'] }),
+        catch: (cause) => controlError(errorMessage(cause)),
+      })
+      const windowIds: number[] = []
+      for (const window of windows) {
+        if (
+          window.type === 'normal' &&
+          window.state !== 'minimized' &&
+          Number.isInteger(window.id) &&
+          (window.id ?? 0) > 0
+        ) windowIds.push(window.id as number)
+      }
+      if (windowIds.length > NATIVE_CONTROL_MAXIMUM_WINDOW_IDS) {
+        return yield* Effect.fail(controlError(
+          'The configured-profile window inventory is too large',
+        ))
+      }
+      return windowIds
+    })
+
+    const requestControl = Effect.fn('NativePlacementBridge.requestControl')(function* (
+      type: 'resolve-desktop-windows' | 'revalidate-desktop-windows',
+      destinationWindowId: number,
+      selectionToken?: string,
+    ) {
+      const port = yield* Ref.get(activePort)
+      if (!port) return yield* Effect.fail(controlError('The native bridge is not connected'))
+      const currentStatus = yield* Ref.get(status)
+      if (
+        !currentStatus.controllerConnected ||
+        !currentStatus.capabilities.includes(NATIVE_MERGE_DESKTOP_CAPABILITY)
+      ) {
+        return yield* Effect.fail(controlError(
+          'The Hammerspoon desktop-window controller is not connected',
+        ))
+      }
+
+      const profileWindowIds = yield* readProfileWindowIds()
+      if (!profileWindowIds.includes(destinationWindowId)) {
+        return yield* Effect.fail(controlError(
+          'The invoking Tab Out window is not an eligible profile window',
+        ))
+      }
+
+      nextControlRequestId += 1
+      const requestId = `extension-control-${Date.now()}-${nextControlRequestId}`
+      const completion = yield* Deferred.make<
+        NativeControlResponse,
+        NativeDesktopControlError
+      >()
+      yield* Ref.update(pendingControlRequests, (current) => {
+        const next = new Map(current)
+        next.set(requestId, completion)
+        return next
+      })
+      const removePending = Ref.update(pendingControlRequests, (current) => {
+        if (current.get(requestId) !== completion) return current
+        const next = new Map(current)
+        next.delete(requestId)
+        return next
+      })
+
+      const result = yield* Effect.try({
+        try: () => port.postMessage(omitUndefined({
+          version: NATIVE_CONTROL_BRIDGE_VERSION,
+          type,
+          requestId,
+          expiresAtMs: Date.now() + 5_000,
+          destinationWindowId,
+          profileWindowIds,
+          selectionToken,
+        })),
+        catch: (cause) => controlError(errorMessage(cause)),
+      }).pipe(
+        Effect.andThen(Deferred.await(completion)),
+        Effect.timeoutOrElse({
+          duration: '6 seconds',
+          orElse: () => Effect.fail(controlError('The native control request timed out')),
+        }),
+        Effect.ensuring(removePending),
+      )
+
+      if (result.status === 'rejected') {
+        return yield* Effect.fail(controlError(
+          result.reason || 'The desktop-window controller rejected the request',
+        ))
+      }
+      if (
+        !result.selectionToken ||
+        !result.windowIds ||
+        !result.windowIds.includes(destinationWindowId) ||
+        new Set(result.windowIds).size !== result.windowIds.length
+      ) {
+        return yield* Effect.fail(controlError(
+          'The desktop-window controller returned an invalid window selection',
+        ))
+      }
+      return {
+        selectionToken: result.selectionToken,
+        windowIds: result.windowIds,
+      }
+    })
+
+    return NativePlacementBridge.of({
+      getStatus: () => Ref.get(status),
+      resolveDesktopWindows: (destinationWindowId) => requestControl(
+        'resolve-desktop-windows',
+        destinationWindowId,
+      ),
+      revalidateDesktopWindows: (destinationWindowId, selectionToken) => requestControl(
+        'revalidate-desktop-windows',
+        destinationWindowId,
+        selectionToken,
+      ),
+    })
   }))
 }

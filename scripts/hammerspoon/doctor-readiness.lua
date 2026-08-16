@@ -5,6 +5,7 @@ local requiredChecks = {
   { "Accessibility permission", "accessibility" },
   { "private exact-window focus", "privateFocusReady" },
   { "Native Placement Bridge host installation", "nativeBridgeInstalled" },
+  { "desktop-window controller connection", "desktopWindowControllerReady" },
   { "configured-profile metadata", "profileMetadataReady" },
   { "configured-profile extension discovery", "extensionReady" },
 }

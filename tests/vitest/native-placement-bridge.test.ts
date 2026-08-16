@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict'
 import { afterEach, it, vi } from '@effect/vitest'
-import { Effect, Exit, Layer, Scope } from 'effect'
+import { Context, Deferred, Effect, Exit, Fiber, Layer, Scope } from 'effect'
 import { TestClock } from 'effect/testing'
 
 import {
+  NATIVE_CONTROL_BRIDGE_VERSION,
+  NATIVE_MERGE_DESKTOP_CAPABILITY,
   NATIVE_PLACEMENT_BRIDGE_VERSION,
+  NativePlacementBridge,
   handleNativePlacementBridgeMessageEffect,
   makeNativePlacementBridgeLayer,
 } from '../../src/extension/background/native-placement-bridge.js'
@@ -280,6 +283,141 @@ it.effect('native placement bridge schema preserves envelope rejection reasons',
     assert.match(result.reason ?? '', entry.reason)
   }
   assert.deepEqual(createCalls, [])
+}))
+
+it.effect('native bridge negotiates the desktop controller and correlates selections', () => Effect.gen(function* () {
+  const messageListeners: Array<(message: unknown) => void> = []
+  const postedMessages: unknown[] = []
+  const runtimeMessages: unknown[] = []
+  const postedMessage = Deferred.makeUnsafe<unknown>()
+  const noOp = () => {}
+  const chromeApi = {
+    runtime: {
+      async sendMessage(message: unknown) {
+        runtimeMessages.push(message)
+      },
+      connectNative() {
+        return {
+          disconnect() {},
+          onMessage: {
+            addListener(listener: (message: unknown) => void) {
+              messageListeners.push(listener)
+            },
+            removeListener: noOp,
+          },
+          onDisconnect: { addListener: noOp, removeListener: noOp },
+          postMessage(message: unknown) {
+            postedMessages.push(message)
+            Deferred.doneUnsafe(postedMessage, Effect.succeed(message))
+          },
+        }
+      },
+    },
+    windows: {
+      async getAll() {
+        return [
+          { id: 71, type: 'normal', state: 'normal' },
+          { id: 72, type: 'normal', state: 'maximized' },
+          { id: 73, type: 'normal', state: 'minimized' },
+          { id: 74, type: 'popup', state: 'normal' },
+        ]
+      },
+    },
+  } as unknown as ChromeApi
+
+  const scope = yield* Scope.make()
+  const context = yield* Layer.buildWithScope(makeNativePlacementBridgeLayer(chromeApi), scope)
+  const bridge = Context.get(context, NativePlacementBridge)
+  valueAt(messageListeners, 0)({
+    version: NATIVE_CONTROL_BRIDGE_VERSION,
+    type: 'controller-status',
+    connected: true,
+    capabilities: [NATIVE_MERGE_DESKTOP_CAPABILITY],
+  })
+  yield* Effect.yieldNow
+
+  assert.deepEqual(yield* bridge.getStatus(), {
+    capabilities: [NATIVE_MERGE_DESKTOP_CAPABILITY],
+    controllerConnected: true,
+    hostConnected: true,
+  })
+  assert.deepEqual(runtimeMessages, [
+    { type: 'tab-out:desktop-window-merge-status-changed' },
+    { type: 'tab-out:desktop-window-merge-status-changed' },
+  ])
+
+  const selectionFiber = yield* Effect.forkChild(bridge.resolveDesktopWindows(71))
+  const request = (yield* Deferred.await(postedMessage)) as Record<string, unknown>
+  assert.equal(postedMessages.length, 1)
+  assert.equal(request.version, NATIVE_CONTROL_BRIDGE_VERSION)
+  assert.equal(request.type, 'resolve-desktop-windows')
+  assert.equal(request.destinationWindowId, 71)
+  assert.deepEqual(request.profileWindowIds, [71, 72])
+
+  valueAt(messageListeners, 0)({
+    version: NATIVE_CONTROL_BRIDGE_VERSION,
+    type: 'response',
+    requestId: request.requestId,
+    status: 'accepted',
+    selectionToken: 'selection-1',
+    windowIds: [72, 71],
+  })
+  assert.deepEqual(yield* Fiber.join(selectionFiber), {
+    selectionToken: 'selection-1',
+    windowIds: [72, 71],
+  })
+  yield* Scope.close(scope, Exit.void)
+}))
+
+it.effect('native bridge rejects an oversized profile window inventory before transport', () => Effect.gen(function* () {
+  const messageListeners: Array<(message: unknown) => void> = []
+  const postedMessages: unknown[] = []
+  const noOp = () => {}
+  const chromeApi = {
+    runtime: {
+      async sendMessage() {},
+      connectNative() {
+        return {
+          disconnect() {},
+          onMessage: {
+            addListener(listener: (message: unknown) => void) {
+              messageListeners.push(listener)
+            },
+            removeListener: noOp,
+          },
+          onDisconnect: { addListener: noOp, removeListener: noOp },
+          postMessage(message: unknown) {
+            postedMessages.push(message)
+          },
+        }
+      },
+    },
+    windows: {
+      async getAll() {
+        return Array.from({ length: 513 }, (_, index) => ({
+          id: index + 1,
+          type: 'normal',
+          state: 'normal',
+        }))
+      },
+    },
+  } as unknown as ChromeApi
+
+  const scope = yield* Scope.make()
+  const context = yield* Layer.buildWithScope(makeNativePlacementBridgeLayer(chromeApi), scope)
+  const bridge = Context.get(context, NativePlacementBridge)
+  valueAt(messageListeners, 0)({
+    version: NATIVE_CONTROL_BRIDGE_VERSION,
+    type: 'controller-status',
+    connected: true,
+    capabilities: [NATIVE_MERGE_DESKTOP_CAPABILITY],
+  })
+  yield* Effect.yieldNow
+
+  const result = yield* Effect.exit(bridge.resolveDesktopWindows(71))
+  assert.equal(Exit.isFailure(result), true)
+  assert.deepEqual(postedMessages, [])
+  yield* Scope.close(scope, Exit.void)
 }))
 
 it.effect('native placement bridge reconnects after the host port disconnects', () => Effect.gen(function* () {

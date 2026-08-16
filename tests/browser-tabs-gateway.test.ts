@@ -16,6 +16,7 @@ import {
   groupTabs,
   highlightTabs,
   moveTab,
+  moveTabGroup,
   queryAllTabsResult,
   queryTabsInWindowResult,
   queryTabGroupsResult,
@@ -87,6 +88,7 @@ test('gateway never throws: missing global and rejecting apis normalize to empty
   assert.equal(await highlightTabs(1, [0]), false)
   assert.equal(await groupTabs([1], 5), false)
   assert.equal(await moveTab(1, { index: 0 }), null)
+  assert.equal(await moveTabGroup(5, { index: 0 }), null)
   assert.deepEqual(await getAllWindowsResult(), { ok: false, value: [] })
   assert.equal(await getWindow(1), null)
   assert.equal(await getCurrentWindow(), null)
@@ -297,6 +299,44 @@ test('groupTabs guards a missing tabs.group and reports success through the fake
   setChromeTabsApi(createFakeChromeApi({ tabs }))
   assert.equal(await groupTabs([1], 7), true)
   assert.equal(tabs[0]?.groupId, 7)
+})
+
+test('moveTabGroup preserves the native group move result and normalizes failures', async (t) => {
+  t.after(() => setChromeTabsApi(null))
+
+  const movedGroup = {
+    collapsed: true,
+    color: 'blue',
+    id: 7,
+    shared: false,
+    title: 'Example group',
+    windowId: 3,
+  } as chrome.tabGroups.TabGroup
+  const calls: Array<{ groupId: number, properties: chrome.tabGroups.MoveProperties }> = []
+  setChromeTabsApi({
+    tabs: { query: async () => [] },
+    tabGroups: {
+      query: async () => [movedGroup],
+      move: async (groupId, properties) => {
+        calls.push({ groupId, properties })
+        return movedGroup
+      },
+    },
+  })
+
+  assert.equal(await moveTabGroup(7, { index: -1, windowId: 3 }), movedGroup)
+  assert.deepEqual(calls, [{ groupId: 7, properties: { index: -1, windowId: 3 } }])
+
+  setChromeTabsApi({
+    tabs: { query: async () => [] },
+    tabGroups: {
+      query: async () => [],
+      move: async () => {
+        throw new Error('group disappeared')
+      },
+    },
+  })
+  assert.equal(await moveTabGroup(7, { index: -1, windowId: 3 }), null)
 })
 
 test('requestExternalUnsuspend refuses self, missing messaging, and suspender errors', async (t) => {

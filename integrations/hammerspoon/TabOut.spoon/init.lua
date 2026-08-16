@@ -18,6 +18,7 @@ local function loadSiblingModule(fileName)
 end
 
 local ChromeCatalog = loadSiblingModule("chrome_catalog.lua")
+local DesktopWindowController = loadSiblingModule("desktop_window_controller.lua")
 local WindowTransition = loadSiblingModule("window_transition.lua")
 local WindowRouter = loadSiblingModule("window_router.lua")
 
@@ -26,6 +27,8 @@ local state = {
   chromeCatalog = nil,
   chromeWindowFilter = nil,
   config = nil,
+  desktopWindowController = nil,
+  desktopWindowControllerError = nil,
   hotkeys = {},
   nativeBridge = nil,
   nativeBridgeError = nil,
@@ -222,6 +225,37 @@ local function configureChromeCatalog(config)
   })
 end
 
+local function configureDesktopWindowController(config)
+  state.desktopWindowController = nil
+  state.desktopWindowControllerError = nil
+
+  if not hs.socket or type(hs.socket.new) ~= "function" then
+    state.desktopWindowControllerError = "This Hammerspoon build does not expose Unix sockets"
+    return
+  end
+
+  local created, controllerOrError = pcall(DesktopWindowController.new, {
+    catalog = state.chromeCatalog,
+    chromeBundleId = config.chromeBundleId,
+    chromeWindows = function()
+      return state.chromeWindowFilter and state.chromeWindowFilter:getWindows() or nil
+    end,
+    hs = hs,
+    later = later,
+    log = log,
+    socketPath = config.nativeBridgeSocketPath,
+    stopTimer = stopTimer,
+  })
+  if not created then
+    state.desktopWindowControllerError = "The desktop-window controller could not initialize: "
+      .. tostring(controllerOrError)
+    return
+  end
+
+  state.desktopWindowController = controllerOrError
+  state.desktopWindowController:start()
+end
+
 local function configureWindowRouter(config)
   state.windowRouter = WindowRouter.new({
     catalog = state.chromeCatalog,
@@ -288,6 +322,7 @@ local function validateConfig(config)
     type(config.nativeBridge) == "table" or type(config.nativeBridgeHostPath) == "string",
     "nativeBridge or nativeBridgeHostPath is required"
   )
+  assert(type(config.nativeBridgeSocketPath) == "string", "nativeBridgeSocketPath is required")
   assert(type(config.shortcuts) == "table", "shortcuts are required")
   assert(type(config.shortcuts.filter) == "table", "filter shortcut is required")
   assert(type(config.shortcuts.newPage) == "table", "newPage shortcut is required")
@@ -307,6 +342,8 @@ local function configWithDefaults(config)
     or (homeDirectory .. "/Library/Application Support/Google/Chrome")
   resolved.nativeBridgeHostPath = resolved.nativeBridgeHostPath
     or (homeDirectory .. "/Library/Application Support/Tab Out/bin/tab-out-native-bridge")
+  resolved.nativeBridgeSocketPath = resolved.nativeBridgeSocketPath
+    or (homeDirectory .. "/Library/Application Support/Tab Out/run/native-bridge-v1.sock")
   resolved.privateFocusModulePath = resolved.privateFocusModulePath
     or (moduleDirectory .. "/native/build/tab_out_private_focus.dylib")
   return resolved
@@ -340,6 +377,7 @@ function M:start(config)
     state.windowRouter:refreshSpaces()
   end):start()
   configureChromeWindowCache()
+  configureDesktopWindowController(config)
   configureCreatedWindowCloseGestures()
 
   state.chromeCatalog:extensionId()
@@ -379,6 +417,9 @@ function M.status()
     busy = routingIsBusy(),
     cachedOtherProfileWindows = catalogStatus.cachedOtherProfileWindows or 0,
     cachedTargetProfileWindows = catalogStatus.cachedTargetProfileWindows or 0,
+    desktopWindowControllerAvailable = state.desktopWindowController ~= nil,
+    desktopWindowControllerError = state.desktopWindowControllerError,
+    desktopWindowControllerReady = false,
     extensionReady = catalogStatus.extensionReady == true,
     launchAtLogin = hs.autoLaunch(),
     nativeBridgeError = state.nativeBridgeError,
@@ -400,6 +441,19 @@ function M.status()
       diagnostics.nativeBridge = bridgeStatus
       diagnostics.nativeBridgeInstalled = bridgeStatus.hostInstalled == true
       diagnostics.nativeBridgeReady = bridgeStatus.connected == true
+    end
+  end
+
+  if state.desktopWindowController
+    and type(state.desktopWindowController.status) == "function"
+  then
+    local called, controllerStatus = pcall(
+      state.desktopWindowController.status,
+      state.desktopWindowController
+    )
+    if called then
+      diagnostics.desktopWindowController = controllerStatus
+      diagnostics.desktopWindowControllerReady = controllerStatus.connected == true
     end
   end
 

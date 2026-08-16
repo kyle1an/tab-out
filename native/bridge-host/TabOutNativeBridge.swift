@@ -1,10 +1,13 @@
 import Darwin
+import CoreFoundation
 import Foundation
 
-private let bridgeVersion = 3
-private let bridgeVersionString = "3.0.0"
+private let placementBridgeVersion = 3
+private let controlBridgeVersion = 4
+private let bridgeVersionString = "4.0.0"
 private let maximumMessageBytes = 64 * 1024
 private let maximumRequestLifetimeMs: Int64 = 60_000
+private let mergeDesktopCapability = "merge-desktop"
 
 private enum BridgeError: Error, CustomStringConvertible {
   case message(String)
@@ -104,20 +107,41 @@ private func jsonData(_ object: [String: Any]) throws -> Data {
   return try JSONSerialization.data(withJSONObject: object)
 }
 
-private func rejection(requestId: String, reason: String) -> [String: Any] {
-  [
-    "version": bridgeVersion,
+private func response(
+  version: Int,
+  requestId: String,
+  status: String,
+  reason: String? = nil,
+  fields: [String: Any] = [:]
+) -> [String: Any] {
+  var value: [String: Any] = [
+    "version": version,
     "type": "response",
     "requestId": requestId,
-    "status": "rejected",
-    "reason": reason,
+    "status": status,
   ]
+  if let reason, !reason.isEmpty {
+    value["reason"] = reason
+  }
+  for (key, field) in fields {
+    value[key] = field
+  }
+  return value
 }
 
-private func writeLocalMessage(_ object: [String: Any], to fileDescriptor: Int32) {
-  guard var data = try? jsonData(object) else { return }
+private func rejection(
+  version: Int = placementBridgeVersion,
+  requestId: String,
+  reason: String
+) -> [String: Any] {
+  response(version: version, requestId: requestId, status: "rejected", reason: reason)
+}
+
+@discardableResult
+private func writeLocalMessage(_ object: [String: Any], to fileDescriptor: Int32) -> Bool {
+  guard var data = try? jsonData(object), data.count <= maximumMessageBytes else { return false }
   data.append(0x0A)
-  _ = writeAll(fileDescriptor, data: data)
+  return writeAll(fileDescriptor, data: data)
 }
 
 private func validRequestId(_ value: Any?) -> String? {
@@ -129,6 +153,18 @@ private func validRequestId(_ value: Any?) -> String? {
   return requestId
 }
 
+private func hasOnlyKeys(_ object: [String: Any], _ allowedKeys: Set<String>) -> Bool {
+  object.keys.allSatisfy(allowedKeys.contains)
+}
+
+private func validReason(_ value: Any?) -> String? {
+  guard let reason = value as? String,
+        !reason.isEmpty,
+        reason.utf8.count <= 1_024
+  else { return nil }
+  return reason
+}
+
 private func validExtensionOrigin(_ value: String) -> Bool {
   value.range(
     of: "^chrome-extension://[a-p]{32}/$",
@@ -137,9 +173,45 @@ private func validExtensionOrigin(_ value: String) -> Bool {
 }
 
 private func finiteNumber(_ value: Any?) -> Double? {
-  guard let number = value as? NSNumber else { return nil }
+  guard let number = value as? NSNumber,
+        CFGetTypeID(number) != CFBooleanGetTypeID()
+  else { return nil }
   let result = number.doubleValue
   return result.isFinite ? result : nil
+}
+
+private func positiveInteger(_ value: Any?) -> Int? {
+  guard let number = finiteNumber(value),
+        number.rounded() == number,
+        number > 0,
+        number <= Double(Int.max)
+  else { return nil }
+  return Int(number)
+}
+
+private func validCapabilities(_ value: Any?) -> [String]? {
+  guard let values = value as? [Any], values.count <= 16 else { return nil }
+  var capabilities: [String] = []
+  var seen = Set<String>()
+  for value in values {
+    guard let capability = value as? String,
+          capability == mergeDesktopCapability,
+          seen.insert(capability).inserted
+    else { return nil }
+    capabilities.append(capability)
+  }
+  return capabilities
+}
+
+private func validWindowIds(_ value: Any?) -> [Int]? {
+  guard let values = value as? [Any], values.count <= 512 else { return nil }
+  var windowIds: [Int] = []
+  var seen = Set<Int>()
+  for value in values {
+    guard let windowId = positiveInteger(value), seen.insert(windowId).inserted else { return nil }
+    windowIds.append(windowId)
+  }
+  return windowIds
 }
 
 private func validateBounds(_ value: Any?) -> Bool {
@@ -161,36 +233,40 @@ private struct ValidatedRequest {
   let requestId: String
 }
 
-private func validateRequest(_ object: [String: Any]) throws -> ValidatedRequest {
-  guard finiteNumber(object["version"]) == Double(bridgeVersion) else {
-    throw BridgeError.message("The native placement protocol version is unsupported")
-  }
+private func validateDeadline(_ object: [String: Any], requestKind: String) throws -> ValidatedRequest {
   guard let requestId = validRequestId(object["requestId"]) else {
-    throw BridgeError.message("The native placement request ID is invalid")
+    throw BridgeError.message("The \(requestKind) request ID is invalid")
   }
   guard let expiresNumber = finiteNumber(object["expiresAtMs"]),
         expiresNumber.rounded() == expiresNumber
   else {
-    throw BridgeError.message("The native placement request deadline is invalid")
+    throw BridgeError.message("The \(requestKind) request deadline is invalid")
   }
 
   let nowMs = currentTimeMs()
   guard expiresNumber >= Double(nowMs) else {
-    throw BridgeError.message("The native placement request expired")
+    throw BridgeError.message("The \(requestKind) request expired")
   }
   guard expiresNumber <= Double(nowMs + maximumRequestLifetimeMs) else {
-    throw BridgeError.message("The native placement request deadline is too far in the future")
+    throw BridgeError.message("The \(requestKind) request deadline is too far in the future")
   }
-  let expiresAtMs = Int64(expiresNumber)
+  return ValidatedRequest(expiresAtMs: Int64(expiresNumber), requestId: requestId)
+}
+
+private func validatePlacementRequest(_ object: [String: Any]) throws -> ValidatedRequest {
+  guard finiteNumber(object["version"]) == Double(placementBridgeVersion) else {
+    throw BridgeError.message("The native placement protocol version is unsupported")
+  }
+  let request = try validateDeadline(object, requestKind: "native placement")
 
   guard let type = object["type"] as? String else {
     throw BridgeError.message("The native placement request type is invalid")
   }
   if type == "status" {
-    return ValidatedRequest(expiresAtMs: expiresAtMs, requestId: requestId)
+    return request
   }
   if type == "list-profile-windows" {
-    return ValidatedRequest(expiresAtMs: expiresAtMs, requestId: requestId)
+    return request
   }
   guard type == "create-window" else {
     throw BridgeError.message("The native placement request type is unsupported")
@@ -204,7 +280,101 @@ private func validateRequest(_ object: [String: Any]) throws -> ValidatedRequest
     throw BridgeError.message("The native placement target bounds are invalid")
   }
 
-  return ValidatedRequest(expiresAtMs: expiresAtMs, requestId: requestId)
+  return request
+}
+
+private struct ValidatedControllerRegistration {
+  let capabilities: [String]
+  let request: ValidatedRequest
+}
+
+private func validateControllerRegistration(
+  _ object: [String: Any]
+) throws -> ValidatedControllerRegistration {
+  guard hasOnlyKeys(object, [
+    "version", "type", "requestId", "expiresAtMs", "capabilities",
+  ]) else {
+    throw BridgeError.message("The native controller registration contains unsupported fields")
+  }
+  guard finiteNumber(object["version"]) == Double(controlBridgeVersion),
+        object["type"] as? String == "controller-register"
+  else {
+    throw BridgeError.message("The native controller registration is unsupported")
+  }
+  guard let capabilities = validCapabilities(object["capabilities"]),
+        capabilities.contains(mergeDesktopCapability)
+  else {
+    throw BridgeError.message("The native controller capabilities are invalid")
+  }
+  return ValidatedControllerRegistration(
+    capabilities: capabilities,
+    request: try validateDeadline(object, requestKind: "native controller")
+  )
+}
+
+private func validateControlRequest(_ object: [String: Any]) throws -> ValidatedRequest {
+  guard finiteNumber(object["version"]) == Double(controlBridgeVersion) else {
+    throw BridgeError.message("The native control protocol version is unsupported")
+  }
+  let request = try validateDeadline(object, requestKind: "native control")
+  guard let type = object["type"] as? String else {
+    throw BridgeError.message("The native control request type is invalid")
+  }
+  if type == "get-controller-status" {
+    guard hasOnlyKeys(object, ["version", "type", "requestId", "expiresAtMs"]) else {
+      throw BridgeError.message("The native controller status request contains unsupported fields")
+    }
+    return request
+  }
+  guard type == "resolve-desktop-windows" || type == "revalidate-desktop-windows" else {
+    throw BridgeError.message("The native control request type is unsupported")
+  }
+  var allowedKeys: Set<String> = [
+    "version", "type", "requestId", "expiresAtMs", "destinationWindowId",
+    "profileWindowIds",
+  ]
+  if type == "revalidate-desktop-windows" {
+    allowedKeys.insert("selectionToken")
+  }
+  guard hasOnlyKeys(object, allowedKeys) else {
+    throw BridgeError.message("The native control request contains unsupported fields")
+  }
+  guard let destinationWindowId = positiveInteger(object["destinationWindowId"]),
+        let profileWindowIds = validWindowIds(object["profileWindowIds"]),
+        profileWindowIds.contains(destinationWindowId)
+  else {
+    throw BridgeError.message("The native control window inventory is invalid")
+  }
+  if type == "revalidate-desktop-windows",
+     validRequestId(object["selectionToken"]) == nil {
+    throw BridgeError.message("The native control selection token is invalid")
+  }
+  return request
+}
+
+private func validateControllerResponse(_ object: [String: Any]) -> String? {
+  guard hasOnlyKeys(object, [
+    "version", "type", "requestId", "status", "reason", "selectionToken", "windowIds",
+  ]) else { return nil }
+  guard finiteNumber(object["version"]) == Double(controlBridgeVersion),
+        object["type"] as? String == "response",
+        let requestId = validRequestId(object["requestId"]),
+        let status = object["status"] as? String,
+        status == "accepted" || status == "rejected"
+  else { return nil }
+  if status == "accepted" {
+    guard object["reason"] == nil,
+          validRequestId(object["selectionToken"]) != nil,
+          let windowIds = validWindowIds(object["windowIds"]),
+          !windowIds.isEmpty
+    else { return nil }
+  } else {
+    guard validReason(object["reason"]) != nil,
+          object["selectionToken"] == nil,
+          object["windowIds"] == nil
+    else { return nil }
+  }
+  return requestId
 }
 
 private func makeUnixAddress(path: String) throws -> sockaddr_un {
@@ -260,30 +430,95 @@ private func socketIsLive(path: String) -> Bool {
 
 private final class BridgeState: @unchecked Sendable {
   private let lock = NSLock()
-  private var pending: [String: Int32] = [:]
+  private var controllerCapabilities: [String] = []
+  private var controllerDescriptor: Int32?
+  private var controllerPending = Set<String>()
+  private var placementPending: [String: Int32] = [:]
   private var shuttingDown = false
 
-  func register(requestId: String, fileDescriptor: Int32) -> Bool {
+  func registerPlacement(requestId: String, fileDescriptor: Int32) -> Bool {
     lock.lock()
     defer { lock.unlock() }
-    guard !shuttingDown, pending[requestId] == nil else { return false }
-    pending[requestId] = fileDescriptor
+    guard !shuttingDown, placementPending[requestId] == nil else { return false }
+    placementPending[requestId] = fileDescriptor
     return true
   }
 
-  func take(requestId: String) -> Int32? {
+  func takePlacement(requestId: String) -> Int32? {
     lock.lock()
     defer { lock.unlock() }
-    return pending.removeValue(forKey: requestId)
+    return placementPending.removeValue(forKey: requestId)
   }
 
-  func beginShutdown() -> [Int32] {
+  func registerController(fileDescriptor: Int32, capabilities: [String]) -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    guard !shuttingDown, controllerDescriptor == nil else { return false }
+    controllerDescriptor = fileDescriptor
+    controllerCapabilities = capabilities
+    return true
+  }
+
+  func controllerStatus() -> (connected: Bool, capabilities: [String]) {
+    lock.lock()
+    defer { lock.unlock() }
+    return (controllerDescriptor != nil, controllerCapabilities)
+  }
+
+  func forwardToController(requestId: String, object: [String: Any]) -> String? {
+    lock.lock()
+    defer { lock.unlock() }
+    guard !shuttingDown else { return "The native bridge is shutting down" }
+    guard let fileDescriptor = controllerDescriptor else {
+      return "The Hammerspoon controller is not connected"
+    }
+    guard controllerPending.insert(requestId).inserted else {
+      return "The native control request ID is already pending"
+    }
+    guard writeLocalMessage(object, to: fileDescriptor) else {
+      controllerPending.remove(requestId)
+      return "The native control request could not reach Hammerspoon"
+    }
+    return nil
+  }
+
+  func completeControllerRequest(requestId: String) -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return controllerPending.remove(requestId) != nil
+  }
+
+  func removeController(fileDescriptor: Int32) -> (removed: Bool, requestIds: [String]) {
+    lock.lock()
+    defer { lock.unlock() }
+    guard controllerDescriptor == fileDescriptor else { return (false, []) }
+    controllerDescriptor = nil
+    controllerCapabilities = []
+    let pending = Array(controllerPending)
+    controllerPending.removeAll()
+    return (true, pending)
+  }
+
+  struct ShutdownState {
+    let controllerDescriptor: Int32?
+    let controllerRequestIds: [String]
+    let placementDescriptors: [Int32]
+  }
+
+  func beginShutdown() -> ShutdownState {
     lock.lock()
     defer { lock.unlock() }
     shuttingDown = true
-    let fileDescriptors = Array(pending.values)
-    pending.removeAll()
-    return fileDescriptors
+    let state = ShutdownState(
+      controllerDescriptor: controllerDescriptor,
+      controllerRequestIds: Array(controllerPending),
+      placementDescriptors: Array(placementPending.values)
+    )
+    controllerDescriptor = nil
+    controllerCapabilities = []
+    controllerPending.removeAll()
+    placementPending.removeAll()
+    return state
   }
 
   func isShuttingDown() -> Bool {
@@ -291,6 +526,18 @@ private final class BridgeState: @unchecked Sendable {
     defer { lock.unlock() }
     return shuttingDown
   }
+}
+
+private func controllerStatusMessage(
+  connected: Bool,
+  capabilities: [String]
+) -> [String: Any] {
+  [
+    "version": controlBridgeVersion,
+    "type": "controller-status",
+    "connected": connected,
+    "capabilities": capabilities,
+  ]
 }
 
 private final class NativeOutput: @unchecked Sendable {
@@ -423,6 +670,7 @@ private func handleLocalClient(
   nativeOutput: NativeOutput
 ) {
   var requestId = "invalid"
+  var responseVersion = placementBridgeVersion
   var peerUserId = uid_t.max
   var peerGroupId = gid_t.max
   guard getpeereid(fileDescriptor, &peerUserId, &peerGroupId) == 0,
@@ -435,20 +683,61 @@ private func handleLocalClient(
 
   do {
     let object = try jsonObject(from: readLine(fileDescriptor))
+    if finiteNumber(object["version"]) == Double(controlBridgeVersion) {
+      responseVersion = controlBridgeVersion
+    }
     requestId = validRequestId(object["requestId"]) ?? "invalid"
-    let request = try validateRequest(object)
-    guard state.register(requestId: request.requestId, fileDescriptor: fileDescriptor) else {
+    if finiteNumber(object["version"]) == Double(controlBridgeVersion),
+       object["type"] as? String == "controller-register" {
+      let registration = try validateControllerRegistration(object)
+      guard state.registerController(
+        fileDescriptor: fileDescriptor,
+        capabilities: registration.capabilities
+      ) else {
+        throw BridgeError.message("Another Hammerspoon controller is already connected")
+      }
+      guard writeLocalMessage(response(
+        version: controlBridgeVersion,
+        requestId: registration.request.requestId,
+        status: "accepted",
+        fields: ["capabilities": registration.capabilities]
+      ), to: fileDescriptor) else {
+        _ = state.removeController(fileDescriptor: fileDescriptor)
+        throw BridgeError.message("The native controller acknowledgement could not be sent")
+      }
+      _ = nativeOutput.send(controllerStatusMessage(
+        connected: true,
+        capabilities: registration.capabilities
+      ))
+
+      while !state.isShuttingDown() {
+        let controllerObject = try jsonObject(from: readLine(fileDescriptor))
+        guard let controllerRequestId = validateControllerResponse(controllerObject) else {
+          throw BridgeError.message("The Hammerspoon controller returned an invalid response")
+        }
+        guard state.completeControllerRequest(requestId: controllerRequestId) else {
+          continue
+        }
+        guard nativeOutput.send(controllerObject) else {
+          throw BridgeError.message("Chrome is no longer connected to the native bridge")
+        }
+      }
+      return
+    }
+
+    let request = try validatePlacementRequest(object)
+    guard state.registerPlacement(requestId: request.requestId, fileDescriptor: fileDescriptor) else {
       throw BridgeError.message("The native placement request ID is already pending")
     }
 
     guard nativeOutput.send(object) else {
-      _ = state.take(requestId: request.requestId)
+      _ = state.takePlacement(requestId: request.requestId)
       throw BridgeError.message("Chrome is no longer connected to the native bridge")
     }
 
     let delay = max(0, Double(request.expiresAtMs - currentTimeMs()) / 1_000)
     DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + delay) {
-      guard let pendingDescriptor = state.take(requestId: request.requestId) else { return }
+      guard let pendingDescriptor = state.takePlacement(requestId: request.requestId) else { return }
       writeLocalMessage(
         rejection(requestId: request.requestId, reason: "The native placement request timed out"),
         to: pendingDescriptor
@@ -456,8 +745,71 @@ private func handleLocalClient(
       Darwin.close(pendingDescriptor)
     }
   } catch {
-    writeLocalMessage(rejection(requestId: requestId, reason: String(describing: error)), to: fileDescriptor)
+    let controllerRemoval = state.removeController(fileDescriptor: fileDescriptor)
+    if controllerRemoval.removed {
+      _ = nativeOutput.send(controllerStatusMessage(connected: false, capabilities: []))
+      for pendingRequestId in controllerRemoval.requestIds {
+        _ = nativeOutput.send(rejection(
+          version: controlBridgeVersion,
+          requestId: pendingRequestId,
+          reason: "The Hammerspoon controller disconnected"
+        ))
+      }
+    }
+    writeLocalMessage(rejection(
+      version: responseVersion,
+      requestId: requestId,
+      reason: String(describing: error)
+    ), to: fileDescriptor)
     Darwin.close(fileDescriptor)
+  }
+}
+
+private func handleNativeControlRequest(
+  _ object: [String: Any],
+  state: BridgeState,
+  nativeOutput: NativeOutput
+) {
+  let requestId = validRequestId(object["requestId"]) ?? "invalid"
+  do {
+    let request = try validateControlRequest(object)
+    if object["type"] as? String == "get-controller-status" {
+      let status = state.controllerStatus()
+      _ = nativeOutput.send(response(
+        version: controlBridgeVersion,
+        requestId: request.requestId,
+        status: "accepted",
+        fields: [
+          "connected": status.connected,
+          "capabilities": status.capabilities,
+        ]
+      ))
+      return
+    }
+    if let reason = state.forwardToController(requestId: request.requestId, object: object) {
+      _ = nativeOutput.send(rejection(
+        version: controlBridgeVersion,
+        requestId: request.requestId,
+        reason: reason
+      ))
+      return
+    }
+
+    let delay = max(0, Double(request.expiresAtMs - currentTimeMs()) / 1_000)
+    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + delay) {
+      guard state.completeControllerRequest(requestId: request.requestId) else { return }
+      _ = nativeOutput.send(rejection(
+        version: controlBridgeVersion,
+        requestId: request.requestId,
+        reason: "The native control request timed out"
+      ))
+    }
+  } catch {
+    _ = nativeOutput.send(rejection(
+      version: controlBridgeVersion,
+      requestId: requestId,
+      reason: String(describing: error)
+    ))
   }
 }
 
@@ -483,19 +835,35 @@ private func runNativeHost() throws {
   }
 
   while let object = readNativeMessage() {
+    if finiteNumber(object["version"]) == Double(controlBridgeVersion),
+       object["type"] as? String != "response" {
+      handleNativeControlRequest(object, state: state, nativeOutput: nativeOutput)
+      continue
+    }
     guard object["type"] as? String == "response",
-          finiteNumber(object["version"]) == Double(bridgeVersion),
+          finiteNumber(object["version"]) == Double(placementBridgeVersion),
           let requestId = validRequestId(object["requestId"]),
           let status = object["status"] as? String,
           status == "accepted" || status == "rejected",
-          let clientDescriptor = state.take(requestId: requestId)
+          let clientDescriptor = state.takePlacement(requestId: requestId)
     else { continue }
 
     writeLocalMessage(object, to: clientDescriptor)
     Darwin.close(clientDescriptor)
   }
 
-  for clientDescriptor in state.beginShutdown() {
+  let shutdown = state.beginShutdown()
+  if let controllerDescriptor = shutdown.controllerDescriptor {
+    Darwin.shutdown(controllerDescriptor, SHUT_RDWR)
+  }
+  for requestId in shutdown.controllerRequestIds {
+    _ = nativeOutput.send(rejection(
+      version: controlBridgeVersion,
+      requestId: requestId,
+      reason: "Chrome disconnected from the native bridge"
+    ))
+  }
+  for clientDescriptor in shutdown.placementDescriptors {
     writeLocalMessage(rejection(requestId: "invalid", reason: "Chrome disconnected from the native bridge"), to: clientDescriptor)
     Darwin.close(clientDescriptor)
   }
@@ -508,7 +876,7 @@ private func runNativeHost() throws {
 
 private func runClient(requestData: Data) throws -> [String: Any] {
   let object = try jsonObject(from: requestData)
-  _ = try validateRequest(object)
+  _ = try validatePlacementRequest(object)
   let fileDescriptor = try connectSocket(path: bridgeSocketURL().path)
   defer { Darwin.close(fileDescriptor) }
 
@@ -538,7 +906,7 @@ private func main() -> Int32 {
     if arguments.count == 2 && arguments[1] == "--status" {
       let nowMs = currentTimeMs()
       let result = try runClient(requestData: try jsonData([
-        "version": bridgeVersion,
+        "version": placementBridgeVersion,
         "type": "status",
         "requestId": "status-\(getpid())-\(nowMs)",
         "expiresAtMs": nowMs + 3_000,

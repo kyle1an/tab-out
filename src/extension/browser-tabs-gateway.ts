@@ -39,6 +39,10 @@ export type ChromeTabsApi = {
   }
   tabGroups?: {
     query(queryInfo: chrome.tabGroups.QueryInfo): Promise<chrome.tabGroups.TabGroup[]>
+    move?(
+      groupId: number,
+      moveProperties: chrome.tabGroups.MoveProperties,
+    ): Promise<chrome.tabGroups.TabGroup>
   }
   sessions?: {
     getRecentlyClosed?(filter?: chrome.sessions.Filter): Promise<chrome.sessions.Session[]>
@@ -233,6 +237,19 @@ export async function moveTab(tabId: number, moveProperties: chrome.tabs.MovePro
   if (!api?.tabs?.move) return null
   try {
     return (await api.tabs.move(tabId, moveProperties)) ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function moveTabGroup(
+  groupId: number,
+  moveProperties: chrome.tabGroups.MoveProperties,
+): Promise<chrome.tabGroups.TabGroup | null> {
+  const api = chromeTabsApi()
+  if (!api?.tabGroups?.move) return null
+  try {
+    return (await api.tabGroups.move(groupId, moveProperties)) ?? null
   } catch {
     return null
   }

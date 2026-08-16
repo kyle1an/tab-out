@@ -16,6 +16,7 @@ import {
   groupTabs,
   highlightTabs,
   moveTab,
+  moveTabGroup,
   queryAllTabsResult,
   queryTabGroupsResult,
   queryTabsInWindowResult,
@@ -60,6 +61,10 @@ export class BrowserTabs extends Context.Service<BrowserTabs, {
     tabId: number,
     moveProperties: chrome.tabs.MoveProperties,
   ) => Effect.Effect<chrome.tabs.Tab | chrome.tabs.Tab[] | null>
+  readonly moveTabGroup: (
+    groupId: number,
+    moveProperties: chrome.tabGroups.MoveProperties,
+  ) => Effect.Effect<chrome.tabGroups.TabGroup | null>
   readonly queryAllTabsResult: () => Effect.Effect<BrowserReadResult<chrome.tabs.Tab[]>>
   readonly queryTabGroupsResult: () => Effect.Effect<
     BrowserReadResult<chrome.tabGroups.TabGroup[]>
@@ -103,6 +108,8 @@ export class BrowserTabs extends Context.Service<BrowserTabs, {
         Effect.promise(() => highlightTabs(windowId, tabIndexes)),
       moveTab: (tabId, moveProperties) =>
         Effect.promise(() => moveTab(tabId, moveProperties)),
+      moveTabGroup: (groupId, moveProperties) =>
+        Effect.promise(() => moveTabGroup(groupId, moveProperties)),
       queryAllTabsResult: () => Effect.promise(() => queryAllTabsResult()),
       queryTabGroupsResult: () => Effect.promise(() => queryTabGroupsResult()),
       queryTabsInWindowResult: (windowId) =>

@@ -27,7 +27,10 @@ export type FakeChromeApi = ChromeTabsApi & {
   tabs: ChromeTabsApi['tabs'] & Record<`on${string}`, FakeChromeEvent>
   windows: NonNullable<ChromeTabsApi['windows']> & { onFocusChanged: FakeChromeEvent }
   tabGroups: NonNullable<ChromeTabsApi['tabGroups']> & Record<`on${string}`, FakeChromeEvent>
-  runtime: NonNullable<ChromeTabsApi['runtime']> & { getURL: (path: string) => string }
+  runtime: NonNullable<ChromeTabsApi['runtime']> & {
+    getURL: (path: string) => string
+    onMessage: FakeChromeEvent
+  }
   storage: {
     local: {
       get(keys?: string | string[] | Record<string, unknown> | null): Promise<Record<string, unknown>>

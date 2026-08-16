@@ -190,6 +190,7 @@ export function createFakeChromeApi({
     runtime: {
       id: runtimeId,
       getURL,
+      onMessage: createFakeChromeEvent(),
       sendMessage: async (...args) => {
         if (sendMessage) return sendMessage(...args)
         return undefined

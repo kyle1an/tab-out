@@ -787,7 +787,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.doesNotMatch(appComponentSource, /missions-divider-label[^"]*absolute/)
   assert.doesNotMatch(appComponentSource, /missions-divider-label[^"]*bg-\(--paper\)/)
   assert.match(appComponentSource, /missions-divider-label[\s\S]*missions-divider-action[\s\S]*missions-divider-rule/)
-  assert.deepEqual(uiFiles, ['context-menu-registry.ts', 'context-menu.tsx', 'menu-styles.ts', 'menu.tsx', 'select.tsx', 'tabs.tsx', 'tooltip.tsx'])
+  assert.deepEqual(uiFiles, ['context-menu-registry.ts', 'context-menu.tsx', 'dialog.tsx', 'menu-styles.ts', 'menu.tsx', 'select.tsx', 'tabs.tsx', 'tooltip.tsx'])
   assert.match(toastSource, /p-4!/)
   assert.match(toastSource, /mt-2!/)
   assert.match(toastSource, /px-3!/)

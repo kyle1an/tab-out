@@ -58,6 +58,10 @@ The host socket still has one active extension peer, so the supported setup
 installs Tab Out only in the configured automation profile. Hammerspoon uses the
 profile-scoped IDs for focus-independent native-window correlation as described
 by ADR 0012; the bridge does not transmit tab URLs or other matching data.
+[ADR 0020](0020-use-hammerspoon-to-select-same-desktop-chrome-windows.md)
+extends the same host with a separately versioned, capability-negotiated
+Hammerspoon controller for same-Desktop window selection; the host remains a
+validated transport and still owns no window policy.
 
 ## Qualification
 

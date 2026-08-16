@@ -505,6 +505,34 @@ test('header Tab actions closes suspended tabs from Bookmarks with single-flight
   await expect(trigger).toBeEnabled()
   await expect(dashboardView).toBeVisible()
 
+  await page.evaluate(() => {
+    const runtime = window.chrome.runtime
+    const originalSendMessage = runtime.sendMessage.bind(runtime)
+    const mergeRequests = { previewCount: 0 }
+    Reflect.set(window, '__tabOutMergeRequests', mergeRequests)
+    Reflect.set(runtime, 'sendMessage', async (...args: unknown[]) => {
+      const message = args[0] as { type?: string } | undefined
+      if (message?.type === 'tab-out:get-desktop-window-merge-status') {
+        return { ok: true, availability: { available: true }, session: null }
+      }
+      if (message?.type === 'tab-out:preview-desktop-window-merge') {
+        mergeRequests.previewCount += 1
+        return {
+          ok: true,
+          status: 'ready',
+          previewId: 'preview-reentry',
+          sourceWindowCount: 1,
+          movingTabCount: 1,
+        }
+      }
+      return Reflect.apply(originalSendMessage, runtime, args)
+    })
+    const onMessage = Reflect.get(runtime, 'onMessage') as unknown as {
+      dispatch: (message: unknown) => void
+    }
+    onMessage.dispatch({ type: 'tab-out:desktop-window-merge-status-changed' })
+  })
+
   const suspendedRawUrl = 'chrome-extension://suspender/suspended.html#ttl=Example&uri=https%3A%2F%2Fglobal-close.example.test%2Fdocs'
   await page.evaluate(async (url) => {
     await window.chrome.tabs.create({
@@ -519,6 +547,7 @@ test('header Tab actions closes suspended tabs from Bookmarks with single-flight
     const blocked = Promise.withResolvers<void>()
     const gate = {
       queryCount: 0,
+      mergeReentered: false,
       reentered: false,
       release: blocked.resolve,
       started: false,
@@ -528,10 +557,13 @@ test('header Tab actions closes suspended tabs from Bookmarks with single-flight
       gate.queryCount += 1
       if (!gate.started) {
         gate.started = true
-        const item = document.querySelector<HTMLElement>('[data-tabout-part="close-suspended-button"]')
-        if (!item) throw new Error('Close-suspended item is unavailable for reentry')
-        item.click()
+        const closeItem = document.querySelector<HTMLElement>('[data-tabout-part="close-suspended-button"]')
+        const mergeItem = document.querySelector<HTMLElement>('[data-tabout-part="merge-desktop-windows-button"]')
+        if (!closeItem || !mergeItem) throw new Error('Tab action items are unavailable for reentry')
+        closeItem.click()
+        mergeItem.click()
         gate.reentered = true
+        gate.mergeReentered = true
       }
       await blocked.promise
       return Reflect.apply(queryTabs, tabsApi, args)
@@ -542,12 +574,14 @@ test('header Tab actions closes suspended tabs from Bookmarks with single-flight
   await page.keyboard.press('Enter')
   let closeItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="close-suspended-button"]')
   let combinedItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="close-suspended-and-dedupe-button"]')
+  let mergeItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="merge-desktop-windows-button"]')
   await expect(closeItem).toHaveText('Close all suspended tabs')
   await expect(combinedItem).toHaveText('Close all suspended tabs and dedupe')
   await expect(closeItem).toHaveAttribute('data-variant', 'default')
   await expect(combinedItem).toHaveAttribute('data-variant', 'default')
   await expect(closeItem).not.toHaveAttribute('data-disabled', '')
   await expect(combinedItem).not.toHaveAttribute('data-disabled', '')
+  await expect(mergeItem).not.toHaveAttribute('data-disabled', '')
   await closeItem.click()
 
   await expect.poll(() => page.evaluate(() => (
@@ -556,14 +590,23 @@ test('header Tab actions closes suspended tabs from Bookmarks with single-flight
   await expect.poll(() => page.evaluate(() => (
     Reflect.get(window, '__tabOutCloseSuspendedQueryGate')?.reentered === true
   ))).toBe(true)
+  await expect.poll(() => page.evaluate(() => (
+    Reflect.get(window, '__tabOutCloseSuspendedQueryGate')?.mergeReentered === true
+  ))).toBe(true)
   expect(await page.evaluate(() => (
     Reflect.get(window, '__tabOutCloseSuspendedQueryGate')?.queryCount
   ))).toBe(1)
+  expect(await page.evaluate(() => (
+    Reflect.get(window, '__tabOutMergeRequests')?.previewCount
+  ))).toBe(0)
   await trigger.click()
   closeItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="close-suspended-button"]')
   combinedItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="close-suspended-and-dedupe-button"]')
+  mergeItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="merge-desktop-windows-button"]')
   await expect(closeItem).toHaveAttribute('data-disabled', '')
   await expect(combinedItem).toHaveAttribute('data-disabled', '')
+  await expect(mergeItem).toHaveAttribute('data-disabled', '')
+  await expect(mergeItem).toContainText('Another tab action is in progress')
 
   await page.evaluate(() => {
     const release = Reflect.get(window, '__tabOutCloseSuspendedQueryGate')?.release
@@ -624,6 +667,246 @@ test('header Tab actions combines suspended close and dedupe into one Undo', asy
   })
   await expect(page.getByText('Closed 2 tabs', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Undo' })).toBeVisible()
+})
+
+test('header window merge confirms, stays modal during progress, and reports exact counts', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  await page.evaluate(() => {
+    const runtime = window.chrome.runtime
+    const originalSendMessage = runtime.sendMessage.bind(runtime)
+    const completion = Promise.withResolvers<unknown>()
+    Reflect.set(window, '__tabOutMergeCompletion', completion)
+    Reflect.set(runtime, 'sendMessage', async (...args: unknown[]) => {
+      const message = args[0] as { type?: string } | undefined
+      if (message?.type === 'tab-out:get-desktop-window-merge-status') {
+        return { ok: true, availability: { available: true }, session: null }
+      }
+      if (message?.type === 'tab-out:preview-desktop-window-merge') {
+        return {
+          ok: true,
+          status: 'ready',
+          previewId: 'preview-fixture',
+          sourceWindowCount: 2,
+          movingTabCount: 4,
+        }
+      }
+      if (message?.type === 'tab-out:confirm-desktop-window-merge') {
+        return completion.promise
+      }
+      if (message?.type === 'tab-out:acknowledge-desktop-window-merge') {
+        return { ok: true }
+      }
+      return Reflect.apply(originalSendMessage, runtime, args)
+    })
+    const onMessage = Reflect.get(runtime, 'onMessage') as unknown as {
+      dispatch: (message: unknown) => void
+    }
+    onMessage.dispatch({ type: 'tab-out:desktop-window-merge-status-changed' })
+  })
+
+  const trigger = page.locator('[data-tabout="tab-actions"]')
+    .getByRole('button', { name: 'Tab actions' })
+  await trigger.click()
+  const mergeItem = page.locator(
+    '[data-slot="menu-content"]:visible [data-tabout-part="merge-desktop-windows-button"]',
+  )
+  await expect(mergeItem).toContainText('Merge windows on this desktop…')
+  await expect(mergeItem).not.toHaveAttribute('data-disabled', '')
+  await mergeItem.click()
+
+  const dialog = page.locator('[data-tabout="desktop-window-merge-dialog"]')
+  await expect(dialog).toContainText('Merge windows on this desktop?')
+  await expect(dialog).toContainText(
+    'Move 4 tabs from 2 other windows into this window. The other windows will close.',
+  )
+  const cancel = dialog.locator('[data-tabout-part="cancel-button"]')
+  await expect(cancel).toBeFocused()
+  await dialog.evaluate((element) => element.setAttribute('data-fixture-dialog', 'same'))
+
+  await dialog.locator('[data-tabout-part="confirm-button"]').click()
+  await expect(dialog).toHaveAttribute('data-fixture-dialog', 'same')
+  await expect(dialog).toContainText('Merging windows…')
+  await expect(dialog.locator('[aria-busy="true"]')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeVisible()
+
+  await page.evaluate(() => {
+    const completion = Reflect.get(window, '__tabOutMergeCompletion') as {
+      resolve: (value: unknown) => void
+    }
+    completion.resolve({
+      ok: true,
+      status: 'succeeded',
+      journal: {
+        version: 1,
+        sessionId: 'session-fixture',
+        status: 'succeeded',
+        ownerTabId: 1,
+        destinationWindowId: 1,
+        sourceWindowCount: 2,
+        plannedTabCount: 4,
+        movedTabCount: 4,
+        remainingTabCount: 0,
+        startedAtMs: 1_800_000_000_000,
+        updatedAtMs: 1_800_000_000_500,
+      },
+    })
+  })
+  await expect(page.getByText('Merged 4 tabs from 2 other windows.', { exact: true }))
+    .toBeVisible()
+  await expect(dialog).not.toBeAttached()
+})
+
+test('header window merge clears restored progress when status reports success', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  await page.evaluate(() => {
+    const runtime = window.chrome.runtime
+    const originalSendMessage = runtime.sendMessage.bind(runtime)
+    const journal = {
+      version: 1,
+      sessionId: 'session-restored',
+      status: 'running',
+      ownerTabId: 1,
+      destinationWindowId: 1,
+      sourceWindowCount: 2,
+      plannedTabCount: 4,
+      movedTabCount: 2,
+      remainingTabCount: 2,
+      startedAtMs: 1_800_000_000_000,
+      updatedAtMs: 1_800_000_000_250,
+    }
+    Reflect.set(window, '__tabOutMergeStatus', {
+      ok: true,
+      availability: { available: true },
+      session: { isOwner: true, journal },
+    })
+    Reflect.set(runtime, 'sendMessage', async (...args: unknown[]) => {
+      const message = args[0] as { type?: string } | undefined
+      if (message?.type === 'tab-out:get-desktop-window-merge-status') {
+        return Reflect.get(window, '__tabOutMergeStatus')
+      }
+      if (message?.type === 'tab-out:acknowledge-desktop-window-merge') {
+        return { ok: true }
+      }
+      return Reflect.apply(originalSendMessage, runtime, args)
+    })
+    const onMessage = Reflect.get(runtime, 'onMessage') as unknown as {
+      dispatch: (message: unknown) => void
+    }
+    onMessage.dispatch({ type: 'tab-out:desktop-window-merge-status-changed' })
+  })
+
+  const dialog = page.locator('[data-tabout="desktop-window-merge-dialog"]')
+  await expect(dialog).toContainText('Merging windows…')
+
+  await page.evaluate(() => {
+    const current = Reflect.get(window, '__tabOutMergeStatus')
+    Reflect.set(window, '__tabOutMergeStatus', {
+      ...current,
+      session: {
+        isOwner: true,
+        journal: {
+          ...current.session.journal,
+          status: 'succeeded',
+          movedTabCount: 4,
+          remainingTabCount: 0,
+          updatedAtMs: 1_800_000_000_500,
+        },
+      },
+    })
+    const onMessage = Reflect.get(window.chrome.runtime, 'onMessage') as unknown as {
+      dispatch: (message: unknown) => void
+    }
+    onMessage.dispatch({ type: 'tab-out:desktop-window-merge-status-changed' })
+  })
+
+  await expect(page.getByText('Merged 4 tabs from 2 other windows.', { exact: true }))
+    .toBeVisible()
+  await expect(dialog).not.toBeAttached()
+})
+
+test('header window merge keeps a partial result open until acknowledgement succeeds', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  await page.evaluate(() => {
+    const runtime = window.chrome.runtime
+    const originalSendMessage = runtime.sendMessage.bind(runtime)
+    const acknowledgementGate = Promise.withResolvers<void>()
+    Reflect.set(window, '__tabOutMergeAcknowledgementAttempts', 0)
+    Reflect.set(window, '__tabOutMergeAcknowledgementGate', acknowledgementGate)
+    Reflect.set(window, '__tabOutMergeAcknowledgementSucceeds', false)
+    const journal = {
+      version: 1,
+      sessionId: 'session-partial',
+      status: 'partial',
+      ownerTabId: 1,
+      destinationWindowId: 1,
+      sourceWindowCount: 2,
+      plannedTabCount: 4,
+      movedTabCount: 3,
+      remainingTabCount: 1,
+      startedAtMs: 1_800_000_000_000,
+      updatedAtMs: 1_800_000_000_500,
+      errorCode: 'browser-mutation-failed',
+    }
+    Reflect.set(runtime, 'sendMessage', async (...args: unknown[]) => {
+      const message = args[0] as { type?: string } | undefined
+      if (message?.type === 'tab-out:get-desktop-window-merge-status') {
+        return {
+          ok: true,
+          availability: { available: true },
+          session: { isOwner: true, journal },
+        }
+      }
+      if (message?.type === 'tab-out:acknowledge-desktop-window-merge') {
+        const attempts = Number(
+          Reflect.get(window, '__tabOutMergeAcknowledgementAttempts'),
+        ) + 1
+        Reflect.set(window, '__tabOutMergeAcknowledgementAttempts', attempts)
+        await acknowledgementGate.promise
+        return {
+          ok: Reflect.get(window, '__tabOutMergeAcknowledgementSucceeds') === true,
+        }
+      }
+      return Reflect.apply(originalSendMessage, runtime, args)
+    })
+    const onMessage = Reflect.get(runtime, 'onMessage') as unknown as {
+      dispatch: (message: unknown) => void
+    }
+    onMessage.dispatch({ type: 'tab-out:desktop-window-merge-status-changed' })
+  })
+
+  const dialog = page.locator('[data-tabout="desktop-window-merge-dialog"]')
+  await expect(dialog).toContainText('Some windows couldn’t be merged')
+  await dialog.locator('[data-tabout-part="close-button"]').evaluate((button) => {
+    if (!(button instanceof HTMLButtonElement)) throw new Error('Close button missing')
+    button.click()
+    button.click()
+  })
+  await expect.poll(() => page.evaluate(() => (
+    Reflect.get(window, '__tabOutMergeAcknowledgementAttempts')
+  ))).toBe(1)
+  await page.evaluate(() => {
+    const gate = Reflect.get(window, '__tabOutMergeAcknowledgementGate') as {
+      resolve: () => void
+    }
+    gate.resolve()
+  })
+
+  await expect(page.getByText('Could not clear the window merge result', { exact: true }))
+    .toBeVisible()
+  await expect(dialog).toBeVisible()
+
+  await page.evaluate(() => {
+    Reflect.set(window, '__tabOutMergeAcknowledgementSucceeds', true)
+  })
+  await dialog.locator('[data-tabout-part="close-button"]').click()
+  await expect(dialog).not.toBeAttached()
 })
 
 test('header stats keep counts and actions compact and accessible', async ({ page }) => {

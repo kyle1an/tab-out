@@ -20,6 +20,7 @@
   "ignoreIssues": {
     // Shared UI primitives intentionally preserve the upstream-supported
     // component family even when current product callers use only a subset.
+    "src/components/ui/dialog.tsx": ["exports"],
     "src/components/ui/select.tsx": ["exports"]
   },
   "ignoreDependencies": [

@@ -2,9 +2,10 @@
 
 This optional macOS integration routes the global Tab Out shortcuts to the
 active Space on the display under the pointer while preserving every other
-display. Tab Out owns the Spoon, its private exact-window helper, the Native
-Placement Bridge protocol, installation and diagnosis, and their regression
-tests.
+display. It also enables the header action that merges eligible Chrome windows
+on the invoking Tab Out page's active Desktop. Tab Out owns the Spoon, its
+private exact-window helper, the Native Placement Bridge and desktop-control
+protocols, installation and diagnosis, and their regression tests.
 
 ## Install and configure
 
@@ -153,6 +154,8 @@ After it succeeds:
 
 1. Reload Tab Out in `chrome://extensions` so its service worker reconnects.
 2. Open Hammerspoon, or reload it from its menu if it was already running.
+3. Open a Tab Out page and confirm the final Tab actions option no longer shows
+   an integration setup or update reason.
 
 ### 6. Complete macOS permissions
 
@@ -164,7 +167,8 @@ In **System Settings > Privacy & Security**:
   routed shortcut.
 - **Screen Recording** is optional. It enables the target-display transition
   shield; without it, routing remains available but the ordinary
-  inactive-to-front transition may be visible.
+  inactive-to-front transition may be visible. Desktop Window Merge does not
+  capture the screen and does not depend on this permission.
 
 These permissions require the user. Relaunch or reload Hammerspoon when macOS
 requests it, then reload Tab Out once more.
@@ -185,6 +189,26 @@ display, exercise both configured shortcuts over create and reuse routes:
 Confirm destination focus and the absence of remote focus, ordering, or window
 flash regressions. Repeat create and reuse acceptance after macOS updates or
 changes to Private Exact-Window Activation.
+
+Then exercise **Merge windows on this desktop…** from a Tab Out page:
+
+- keep two or more normal configured-profile Chrome windows on the same active
+  regular Desktop, including pinned tabs and a titled, colored tab group;
+- keep another configured-profile window on a different Desktop or display,
+  and, when available, a minimized, app, popup, fullscreen, sticky, Incognito,
+  or other-profile window;
+- confirm the preview counts only the eligible same-Desktop source windows and
+  tabs, gives Cancel initial focus, and becomes the same non-dismissible
+  `Merging windows…` modal after confirmation; and
+- confirm the invoking window keeps focus and its active tab, destination tabs
+  stay first, source windows follow native front-to-back order, pins and whole
+  groups retain their state, eligible emptied windows close, and excluded
+  windows remain unchanged.
+
+Repeat with only the invoking window eligible and confirm no modal opens. The
+page should report that all windows on the Desktop are already merged. Live
+acceptance is required after macOS or Chrome updates because Space inspection
+uses Hammerspoon's experimental macOS Spaces interface.
 
 ### 8. Run the final diagnostic
 
@@ -209,8 +233,12 @@ hs -c 'return hs.inspect(spoon.TabOut.status())'
 ```
 
 In the Spoon output, `nativeBridgeReady` records whether its most recent bridge
-round trip succeeded. The product doctor performs a fresh status round trip for
-current connectivity instead of requiring that historical field.
+round trip succeeded. `desktopWindowControllerAvailable` confirms that the
+controller loaded, while `desktopWindowControllerReady` is true only while the
+extension-owned native host is running and connected. The product doctor
+performs a fresh placement-bridge status round trip and separately requires the
+desktop-window controller connection instead of treating a loaded controller as
+ready.
 
 ## Runtime behavior
 
@@ -222,12 +250,24 @@ identity, Accessibility, bridge, or Private Exact-Window Activation capability
 Safe Aborts instead of using an unsafe focus or activation fallback. Screen
 Recording adds transition shielding but is not required for routing.
 
+Desktop Window Merge starts from the Tab Out page that invoked the header
+action. The extension sends only configured-profile browser window IDs to the
+controller. Hammerspoon maps them to visible native Chrome windows, selects the
+exact same active regular Space and display, returns their front-to-back browser
+window IDs, and revalidates that topology at confirmation. Raw URLs may be used
+ephemerally inside the local Chrome-to-Accessibility correlation, but they are
+never returned across the native protocol, persisted, or logged. Ambiguous
+identity, Space, display, profile, or z-order state aborts before mutation.
+
 The canonical behavior is in the root
 [Runtime and Interaction Contracts](../../CONTEXT.md#runtime-and-interaction-contracts).
 The placement seam and repository ownership are recorded in
 [ADR 0008](../../docs/adr/0008-use-native-messaging-for-macos-window-placement.md)
 and
-[ADR 0009](../../docs/adr/0009-co-locate-the-macos-integration.md); subsequent
+[ADR 0009](../../docs/adr/0009-co-locate-the-macos-integration.md). The
+same-Desktop controller boundary is recorded in
+[ADR 0020](../../docs/adr/0020-use-hammerspoon-to-select-same-desktop-chrome-windows.md);
+subsequent
 macOS-placement decisions remain under [`docs/adr/`](../../docs/adr/).
 
 ## Source layout
@@ -239,6 +279,9 @@ invocation through a small set of deep modules:
   choice, request queueing, cold Chrome launch, and Native Placement Bridge
   creation.
 - `chrome_catalog.lua` owns configured-profile discovery and its window cache.
+- `desktop_window_controller.lua` owns the persistent versioned control socket,
+  exact same-Desktop selection tokens, native z-order, and fail-closed
+  revalidation used by Desktop Window Merge.
 - `window_transition.lua` owns exact activation, the transition shield,
   destination focus, and the bridge-created window close lifecycle.
 - `bridge.lua` owns the local Native Placement Bridge client protocol.

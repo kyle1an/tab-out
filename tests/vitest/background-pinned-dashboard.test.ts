@@ -359,7 +359,8 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
           },
         }
       },
-      async sendMessage(extensionId: string, message: any) {
+      async sendMessage(extensionId: string | unknown, message?: any) {
+        if (typeof extensionId !== 'string') return undefined
         calls.runtimeMessages.push({ extensionId, message: clone(message) })
         if (extensionId === 'blocked') throw new Error('Cannot message extension')
         if (extensionId === 'rejects') return 'Error: tab is not suspended'

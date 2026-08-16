@@ -11,6 +11,8 @@ end
 local function readyStatus()
   return {
     accessibility = true,
+    desktopWindowControllerAvailable = true,
+    desktopWindowControllerReady = true,
     extensionReady = true,
     nativeBridgeInstalled = true,
     nativeBridgeReady = false,
@@ -35,6 +37,7 @@ local requiredFields = {
   { "accessibility", "Accessibility permission" },
   { "privateFocusReady", "private exact-window focus" },
   { "nativeBridgeInstalled", "Native Placement Bridge host installation" },
+  { "desktopWindowControllerReady", "desktop-window controller connection" },
   { "profileMetadataReady", "configured-profile metadata" },
   { "extensionReady", "configured-profile extension discovery" },
 }
@@ -64,5 +67,13 @@ expect(
 local statusWithoutBridgeHistory = readyStatus()
 statusWithoutBridgeHistory.nativeBridgeReady = nil
 expect(readiness.evaluate(tabOutWithStatus(statusWithoutBridgeHistory)), "ready")
+
+local disconnectedController = readyStatus()
+disconnectedController.desktopWindowControllerAvailable = true
+disconnectedController.desktopWindowControllerReady = false
+expect(
+  readiness.evaluate(tabOutWithStatus(disconnectedController)),
+  "missing:desktop-window controller connection"
+)
 
 return "doctor readiness policy regression: ok"

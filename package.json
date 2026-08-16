@@ -10,6 +10,7 @@
     "dev": "node scripts/watch-build.ts",
     "hammerspoon:build": "scripts/hammerspoon/build",
     "hammerspoon:test": "scripts/hammerspoon/test",
+    "macos-integration:install": "scripts/install-macos-integration",
     "native-host:build": "scripts/native-host/build",
     "native-host:test": "scripts/native-host/test",
     "serve": "node scripts/serve.ts",

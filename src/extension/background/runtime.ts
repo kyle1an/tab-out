@@ -20,6 +20,7 @@ import {
 } from '../retention-health.js'
 import { Badge } from './badge.js'
 import type { ChromeApi } from './chrome-api.js'
+import { DesktopWindowMerge } from './desktop-window-merge-service.js'
 import {
   readChromeStorageValue,
   removeChromeStorageValue,
@@ -169,10 +170,16 @@ export function createBackgroundRuntime(chromeApi: ChromeApi) {
     TabHistory.layer(chromeApi),
     WorkingSet.layer(chromeApi),
   ).pipe(Layer.provideMerge(workingSetActivityStorage))
-  const coreServices = Layer.mergeAll(
+  const browserAndNativeServices = Layer.mergeAll(
     BrowserTabs.layer(),
-    Badge.layer(chromeApi),
     makeNativePlacementBridgeLayer(chromeApi),
+  )
+  const desktopWindowMerge = DesktopWindowMerge.layer(chromeApi).pipe(
+    Layer.provideMerge(browserAndNativeServices),
+  )
+  const coreServices = Layer.mergeAll(
+    desktopWindowMerge,
+    Badge.layer(chromeApi),
     retainedPages,
     retentionHealth,
     activityServices,

@@ -30,11 +30,18 @@ import { closeDuplicateTabsEffect } from './tabs.js'
 import { groupColorChanged } from './groups.js'
 import { BrowserTabs } from './browser-tabs-service.js'
 import {
+  isDesktopWindowMergePreviewMessage,
+  isDesktopWindowMergeStatusGetMessage,
+  parseDesktopWindowMergeAcknowledgeMessage,
+  parseDesktopWindowMergeConfirmMessage,
+} from './desktop-window-merge-contract.js'
+import {
   captureCurrentOpenSurfaceObservations,
   captureOpenSurfaceCheckpoint,
   captureOpenSurfaceObservation,
 } from './background/open-surface-capture.js'
 import { recoverRetainedPageSnapshot } from './background/retained-page-recovery.js'
+import { DesktopWindowMerge } from './background/desktop-window-merge-service.js'
 import {
   RetainedPages,
   type CaptureClosedSurfacesResult,
@@ -73,6 +80,7 @@ export const workingSetService = backgroundRuntime.runSync(WorkingSet.WorkingSet
 const tabHistoryService = backgroundRuntime.runSync(TabHistory.TabHistory)
 const startupSnapshotService = backgroundRuntime.runSync(StartupSnapshot)
 const retainedPagesService = backgroundRuntime.runSync(RetainedPages)
+const desktopWindowMergeService = backgroundRuntime.runSync(DesktopWindowMerge)
 
 function settleBackgroundEffect<Success, Failure, Requirements>(
   effect: Effect.Effect<Success, Failure, Requirements>,
@@ -298,17 +306,24 @@ chromeApi.tabs.onCreated.addListener((tab) => {
 // follow the user's actual navigation path.
 chromeApi.tabs.onActivated.addListener(({ tabId, windowId }) => {
   refreshBadge()
-  const capturedTab = captureTab(tabId)
-  void backgroundRuntime.runPromise(settleBackgroundEffect(Effect.all([
-    tabHistoryService.recordTabActivation(windowId, tabId, capturedTab),
-    workingSetService.recordTabActivation(windowId, tabId, capturedTab),
-  ], { concurrency: 'unbounded' })))
+  if (!backgroundRuntime.runSync(
+    desktopWindowMergeService.consumeExpectedTabActivation(tabId, windowId),
+  )) {
+    const capturedTab = captureTab(tabId)
+    void backgroundRuntime.runPromise(settleBackgroundEffect(Effect.all([
+      tabHistoryService.recordTabActivation(windowId, tabId, capturedTab),
+      workingSetService.recordTabActivation(windowId, tabId, capturedTab),
+    ], { concurrency: 'unbounded' })))
+  }
   scheduleStartupSnapshotRefresh()
 })
 
 chromeApi.windows.onFocusChanged.addListener((windowId) => {
   refreshBadge()
-  if (windowId != null && windowId !== chromeApi.windows.WINDOW_ID_NONE) {
+  if (
+    windowId != null &&
+    windowId !== chromeApi.windows.WINDOW_ID_NONE
+  ) {
     const capturedActiveTab = captureActiveTab(windowId)
     void backgroundRuntime.runPromise(settleBackgroundEffect(Effect.all([
       tabHistoryService.recordFocusedWindowActiveTab(windowId, capturedActiveTab),
@@ -455,6 +470,74 @@ chromeApi.action.onClicked.addListener((tab) => {
 })
 
 chromeApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  const senderTabId = sender.tab?.id
+  const senderWindowId = sender.tab?.windowId
+  if (
+    isDesktopWindowMergeStatusGetMessage(message) &&
+    typeof senderTabId === 'number' &&
+    typeof senderWindowId === 'number'
+  ) {
+    void backgroundRuntime.runPromise(settleBackgroundEffect(sendEffectResponse(
+      desktopWindowMergeService.getStatus(
+        senderTabId,
+        senderWindowId,
+        sender.tab?.active === true,
+      ),
+      sendResponse,
+      (status) => status,
+      () => ({ ok: false }),
+    )))
+    return true
+  }
+
+  if (
+    isDesktopWindowMergePreviewMessage(message) &&
+    typeof senderTabId === 'number' &&
+    typeof senderWindowId === 'number'
+  ) {
+    void backgroundRuntime.runPromise(settleBackgroundEffect(sendEffectResponse(
+      desktopWindowMergeService.preview(senderTabId, senderWindowId),
+      sendResponse,
+      (preview) => preview,
+      () => ({ ok: false }),
+    )))
+    return true
+  }
+
+  const desktopWindowMergeConfirmation = parseDesktopWindowMergeConfirmMessage(message)
+  if (
+    desktopWindowMergeConfirmation &&
+    typeof senderTabId === 'number' &&
+    typeof senderWindowId === 'number'
+  ) {
+    void backgroundRuntime.runPromise(settleBackgroundEffect(sendEffectResponse(
+      desktopWindowMergeService.confirm(
+        senderTabId,
+        senderWindowId,
+        desktopWindowMergeConfirmation.previewId,
+      ),
+      sendResponse,
+      (result) => result,
+      () => ({ ok: false }),
+    )))
+    return true
+  }
+
+  const desktopWindowMergeAcknowledgement =
+    parseDesktopWindowMergeAcknowledgeMessage(message)
+  if (desktopWindowMergeAcknowledgement && typeof senderTabId === 'number') {
+    void backgroundRuntime.runPromise(settleBackgroundEffect(sendEffectResponse(
+      desktopWindowMergeService.acknowledge(
+        senderTabId,
+        desktopWindowMergeAcknowledgement.sessionId,
+      ),
+      sendResponse,
+      (acknowledged) => ({ ok: acknowledged }),
+      () => ({ ok: false }),
+    )))
+    return true
+  }
+
   if (isClosedTabRestoreMessage(message)) {
     const restoreState = parseClosedTabRestoreStateMessage(message)
     if (!restoreState) {

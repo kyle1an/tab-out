@@ -51,7 +51,7 @@ if [[ ${TAB_OUT_DOCTOR_TEST_FIXTURE:-} == "1" && ${0:t} == "hs" ]]; then
   fi
 
   if [[ $scenario == "missing-runtime" ]]; then
-    printf '%s\n' "missing:Spoon start, Accessibility permission, private exact-window focus, Native Placement Bridge host installation, configured-profile metadata, configured-profile extension discovery"
+    printf '%s\n' "missing:Spoon start, Accessibility permission, private exact-window focus, Native Placement Bridge host installation, desktop-window controller connection, configured-profile metadata, configured-profile extension discovery"
   else
     printf '%s\n' "ready"
   fi
@@ -236,7 +236,7 @@ missing_runtime_status=$?
 set -e
 
 [[ $missing_runtime_status -eq 1 ]]
-[[ $missing_runtime_output == *"ACTION  Hammerspoon runtime is not ready: Spoon start, Accessibility permission, private exact-window focus, Native Placement Bridge host installation, configured-profile metadata, configured-profile extension discovery"* ]]
+[[ $missing_runtime_output == *"ACTION  Hammerspoon runtime is not ready: Spoon start, Accessibility permission, private exact-window focus, Native Placement Bridge host installation, desktop-window controller connection, configured-profile metadata, configured-profile extension discovery"* ]]
 [[ $missing_runtime_output != *"nativeBridgeReady"* ]]
 
 wrong_spoon_source="$temporary_root/wrong-spoon/TabOut.spoon"

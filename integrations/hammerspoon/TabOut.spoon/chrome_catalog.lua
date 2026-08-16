@@ -509,6 +509,106 @@ function M.new(options)
     return matchedWindow
   end
 
+  function catalog:browserWindowIdsFor(candidates, orderedCandidates)
+    local browserWindows, inventoryError = platform.readBrowserWindows()
+    if not browserWindows then
+      return nil, inventoryError
+    end
+
+    local browserIdSeen = {}
+    local browserIdsByFingerprint = {}
+    for _, browserWindow in ipairs(browserWindows) do
+      local browserWindowId = type(browserWindow) == "table"
+        and tonumber(browserWindow.browserWindowId)
+        or nil
+      local browserFingerprint = type(browserWindow) == "table"
+        and fingerprint(browserWindow.bounds, browserWindow.documentUrl)
+        or nil
+      if not browserWindowId
+        or browserWindowId <= 0
+        or browserWindowId % 1 ~= 0
+        or not browserFingerprint
+      then
+        return nil, "Chrome returned an unmappable browser window"
+      end
+      if browserIdSeen[browserWindowId] then
+        return nil, "Chrome returned an ambiguous browser window inventory"
+      end
+      browserIdSeen[browserWindowId] = true
+      local browserIds = browserIdsByFingerprint[browserFingerprint]
+      if not browserIds then
+        browserIds = {}
+        browserIdsByFingerprint[browserFingerprint] = browserIds
+      end
+      table.insert(browserIds, browserWindowId)
+    end
+
+    local nativeFingerprintById = {}
+    local nativeIdsByFingerprint = {}
+    for _, window in ipairs(candidates or {}) do
+      local id = windowId(window)
+      local descriptor = id and platform.describeWindow(window) or nil
+      local nativeFingerprint = descriptor
+        and fingerprint(descriptor.bounds, descriptor.documentUrl)
+        or nil
+      if not id or not nativeFingerprint then
+        return nil, "A native Chrome window could not be mapped safely"
+      end
+      if nativeFingerprintById[id] then
+        return nil, "Chrome returned duplicate native window identities"
+      end
+      nativeFingerprintById[id] = nativeFingerprint
+      local nativeIds = nativeIdsByFingerprint[nativeFingerprint]
+      if not nativeIds then
+        nativeIds = {}
+        nativeIdsByFingerprint[nativeFingerprint] = nativeIds
+      end
+      table.insert(nativeIds, id)
+    end
+
+    local orderedNativeIdsByFingerprint = {}
+    local orderedNativeIdSeen = {}
+    for _, window in ipairs(orderedCandidates or {}) do
+      local id = windowId(window)
+      local nativeFingerprint = id and nativeFingerprintById[id] or nil
+      if nativeFingerprint then
+        if orderedNativeIdSeen[id] then
+          return nil, "Chrome returned an ambiguous native window order"
+        end
+        orderedNativeIdSeen[id] = true
+        local orderedNativeIds = orderedNativeIdsByFingerprint[nativeFingerprint]
+        if not orderedNativeIds then
+          orderedNativeIds = {}
+          orderedNativeIdsByFingerprint[nativeFingerprint] = orderedNativeIds
+        end
+        table.insert(orderedNativeIds, id)
+      end
+    end
+
+    local browserIdByNativeWindowId = {}
+    for nativeFingerprint, nativeIds in pairs(nativeIdsByFingerprint) do
+      local browserIds = browserIdsByFingerprint[nativeFingerprint]
+      if not browserIds then
+        return nil, "A native Chrome window is missing from Chrome's browser inventory"
+      end
+      if #nativeIds == 1 and #browserIds == 1 then
+        browserIdByNativeWindowId[nativeIds[1]] = browserIds[1]
+      else
+        local orderedNativeIds = orderedNativeIdsByFingerprint[nativeFingerprint] or {}
+        if #nativeIds ~= #browserIds or #orderedNativeIds ~= #nativeIds then
+          return nil, "Chrome returned an ambiguous browser window inventory"
+        end
+        -- Chrome's scripting dictionary and hs.window.orderedWindows both
+        -- define their collections as front-to-back. Pair only a complete,
+        -- currently visible duplicate group; partial groups remain ambiguous.
+        for index, id in ipairs(orderedNativeIds) do
+          browserIdByNativeWindowId[id] = browserIds[index]
+        end
+      end
+    end
+    return browserIdByNativeWindowId
+  end
+
   local function cacheFocusIndependentProfiles(candidates, profileWindowIds)
     local browserWindows, inventoryError = platform.readBrowserWindows()
     if not browserWindows then
