@@ -541,9 +541,13 @@ test('header Tab actions closes suspended tabs from Bookmarks with single-flight
   await trigger.focus()
   await page.keyboard.press('Enter')
   let closeItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="close-suspended-button"]')
+  let combinedItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="close-suspended-and-dedupe-button"]')
   await expect(closeItem).toHaveText('Close all suspended tabs')
+  await expect(combinedItem).toHaveText('Close all suspended tabs and dedupe')
   await expect(closeItem).toHaveAttribute('data-variant', 'default')
+  await expect(combinedItem).toHaveAttribute('data-variant', 'default')
   await expect(closeItem).not.toHaveAttribute('data-disabled', '')
+  await expect(combinedItem).not.toHaveAttribute('data-disabled', '')
   await closeItem.click()
 
   await expect.poll(() => page.evaluate(() => (
@@ -557,7 +561,9 @@ test('header Tab actions closes suspended tabs from Bookmarks with single-flight
   ))).toBe(1)
   await trigger.click()
   closeItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="close-suspended-button"]')
+  combinedItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="close-suspended-and-dedupe-button"]')
   await expect(closeItem).toHaveAttribute('data-disabled', '')
+  await expect(combinedItem).toHaveAttribute('data-disabled', '')
 
   await page.evaluate(() => {
     const release = Reflect.get(window, '__tabOutCloseSuspendedQueryGate')?.release
@@ -573,6 +579,51 @@ test('header Tab actions closes suspended tabs from Bookmarks with single-flight
   await expect(closeItem).not.toHaveAttribute('data-disabled', '')
   await closeItem.click()
   await expect(page.getByText('Nothing suspended to close', { exact: true })).toBeVisible()
+})
+
+test('header Tab actions combines suspended close and dedupe into one Undo', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  const suspendedEffectiveUrl = 'https://combined-cleanup.example.test/suspended'
+  const suspendedRawUrl = `chrome-extension://suspender/suspended.html#ttl=Example&uri=${encodeURIComponent(suspendedEffectiveUrl)}`
+  const duplicateUrl = 'https://combined-cleanup.example.test/duplicate'
+  await page.evaluate(async ({ suspendedRawUrl, duplicateUrl }) => {
+    await window.chrome.tabs.create({
+      active: false,
+      url: suspendedRawUrl,
+      windowId: 1,
+    })
+    await window.chrome.tabs.create({
+      active: false,
+      url: duplicateUrl,
+      windowId: 1,
+    })
+    await window.chrome.tabs.create({
+      active: false,
+      url: duplicateUrl,
+      windowId: 1,
+    })
+  }, { suspendedRawUrl, duplicateUrl })
+
+  const trigger = page.locator('[data-tabout="tab-actions"]').getByRole('button', { name: 'Tab actions' })
+  await trigger.click()
+  const combinedItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="close-suspended-and-dedupe-button"]')
+  await expect(combinedItem).toHaveText('Close all suspended tabs and dedupe')
+  await combinedItem.click()
+
+  await expect.poll(() => page.evaluate(async ({ suspendedRawUrl, duplicateUrl }) => {
+    const tabs = await window.chrome.tabs.query({})
+    return {
+      duplicateCount: tabs.filter((tab) => tab.url === duplicateUrl).length,
+      suspendedCount: tabs.filter((tab) => tab.url === suspendedRawUrl).length,
+    }
+  }, { suspendedRawUrl, duplicateUrl })).toEqual({
+    duplicateCount: 1,
+    suspendedCount: 0,
+  })
+  await expect(page.getByText('Closed 2 tabs', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Undo' })).toBeVisible()
 })
 
 test('header stats keep counts and actions compact and accessible', async ({ page }) => {

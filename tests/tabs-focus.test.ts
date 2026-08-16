@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { replaceDashboardRefreshForTesting } from '../src/extension/dashboard-intake.js'
-import { closeAllSuspendedTabs, closeChipTarget, closeDomainTabs, closeExactTabSection, closeExactTabTargets, closeFilteredTabs, closeSuspendedDomainTabs, dedupeTabs, tabCloseProgressLabel } from '../src/extension/tab-actions.js'
+import { closeAllSuspendedTabs, closeAllSuspendedTabsAndDedupe, closeChipTarget, closeDomainTabs, closeExactTabSection, closeExactTabTargets, closeFilteredTabs, closeSuspendedDomainTabs, dedupeTabs, tabCloseProgressLabel } from '../src/extension/tab-actions.js'
 import { closeHistoryEntry, focusHistoryEntryResult } from '../src/extension/tab-history.js'
 import { focusExactTabTargetResult, focusExistingTabTargetResult, tabFocusResultToastMessage } from '../src/extension/tab-focus.js'
 import { closeTabsByTargetsResult, closeTabsExactResult, focusExactTabOrOpenResult, focusTab, openTabUrl, openTabUrlInNewWindow, snapshotChromeTabs } from '../src/extension/tabs.js'
@@ -1078,6 +1078,42 @@ test('close all suspended tabs applies the browser-wide eligibility policy', asy
     removedCount: 3,
     failedCount: 0,
   })
+})
+
+test('close all suspended tabs and dedupe combines both cleanup passes into one Undo', async () => {
+  const suspendedUrl = (effectiveUrl: string) => (
+    `chrome-extension://suspender/suspended.html#ttl=Example&uri=${encodeURIComponent(effectiveUrl)}`
+  )
+  const uniqueSuspendedUrl = 'https://suspended.example.test/docs'
+  const duplicateUrl = 'https://duplicate.example.test/docs'
+  const groupedSuspendedUrl = 'https://grouped.example.test/docs'
+  const { calls, tabs } = createChromeMock([
+    { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
+    { id: 2, windowId: 1, url: suspendedUrl(uniqueSuspendedUrl), title: 'Suspended unique', active: false, pinned: false, groupId: -1 },
+    { id: 3, windowId: 1, url: duplicateUrl, title: 'Older duplicate', active: false, pinned: false, groupId: -1, lastAccessed: 100 },
+    { id: 4, windowId: 1, url: duplicateUrl, title: 'Newer duplicate', active: false, pinned: false, groupId: -1, lastAccessed: 300 },
+    { id: 5, windowId: 1, url: suspendedUrl(duplicateUrl), title: 'Suspended duplicate', active: false, pinned: false, groupId: -1, lastAccessed: 200 },
+    { id: 6, windowId: 1, url: suspendedUrl(groupedSuspendedUrl), title: 'Grouped suspended', active: false, pinned: false, groupId: 7 },
+  ])
+
+  const result = await closeAllSuspendedTabsAndDedupe()
+
+  assert.deepEqual(calls.remove, [2, 5, 3])
+  assert.deepEqual(tabs.map((tab) => tab.id), [1, 4, 6])
+  assert.equal(result.removedCount, 3)
+  assert.deepEqual(result.snapshot.map((tab) => tab.title), [
+    'Suspended unique',
+    'Suspended duplicate',
+    'Older duplicate',
+  ])
+
+  await undoLastClose()
+
+  assert.deepEqual(calls.create.map((properties) => properties.url), [
+    suspendedUrl(uniqueSuspendedUrl),
+    suspendedUrl(duplicateUrl),
+    duplicateUrl,
+  ])
 })
 
 test('close all suspended tabs preserves targets that wake or leave a normal window during revalidation', async () => {

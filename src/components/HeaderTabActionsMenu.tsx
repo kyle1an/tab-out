@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { closeAllSuspendedTabs } from '../extension/tab-actions'
+import { closeAllSuspendedTabs, closeAllSuspendedTabsAndDedupe } from '../extension/tab-actions'
 import { Menu, MenuContent, MenuItem, MenuTrigger } from './ui/menu'
 
 interface HeaderTabActionsMenuProps {
@@ -7,18 +7,18 @@ interface HeaderTabActionsMenuProps {
 }
 
 export function HeaderTabActionsMenu({ ready }: HeaderTabActionsMenuProps) {
-  const closeAllSuspendedPendingRef = useRef(false)
-  const [closeAllSuspendedPending, setCloseAllSuspendedPending] = useState(false)
+  const tabActionPendingRef = useRef(false)
+  const [tabActionPending, setTabActionPending] = useState(false)
 
-  function onCloseSuspended() {
-    if (closeAllSuspendedPendingRef.current) return
-    closeAllSuspendedPendingRef.current = true
-    setCloseAllSuspendedPending(true)
-    return closeAllSuspendedTabs()
+  function runHeaderTabAction(action: () => Promise<unknown>) {
+    if (tabActionPendingRef.current) return
+    tabActionPendingRef.current = true
+    setTabActionPending(true)
+    return action()
       .then(() => undefined)
       .finally(() => {
-        closeAllSuspendedPendingRef.current = false
-        setCloseAllSuspendedPending(false)
+        tabActionPendingRef.current = false
+        setTabActionPending(false)
       })
   }
 
@@ -36,12 +36,21 @@ export function HeaderTabActionsMenu({ ready }: HeaderTabActionsMenuProps) {
         <MenuContent>
           <MenuItem
             data-tabout-part="close-suspended-button"
-            disabled={closeAllSuspendedPending}
+            disabled={tabActionPending}
             label="Close all suspended tabs"
-            onClick={onCloseSuspended}
+            onClick={() => runHeaderTabAction(closeAllSuspendedTabs)}
           >
             <span className="icon-[lucide--circle-x] size-3.5" aria-hidden="true" />
             <span className="min-w-0 flex-1">Close all suspended tabs</span>
+          </MenuItem>
+          <MenuItem
+            data-tabout-part="close-suspended-and-dedupe-button"
+            disabled={tabActionPending}
+            label="Close all suspended tabs and dedupe"
+            onClick={() => runHeaderTabAction(closeAllSuspendedTabsAndDedupe)}
+          >
+            <span className="icon-[lucide--list-x] size-3.5" aria-hidden="true" />
+            <span className="min-w-0 flex-1">Close all suspended tabs and dedupe</span>
           </MenuItem>
         </MenuContent>
       </Menu>

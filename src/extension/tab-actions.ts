@@ -7,6 +7,7 @@ import { requestDashboardRefresh, settleDashboardRefresh } from './dashboard-int
 import { isClosedSavedDashboardTab } from './dashboard-source.js'
 import { isGroupedTab } from './groups.js'
 import { liveTabMatchesIdentity, liveTabsMatchingTarget, liveTabUrlForIdentity } from './live-tab-matching.js'
+import { buildOpenTabDedupePlan } from './open-tab-dedupe-plan.js'
 import { buildSuspendUrl, getSuspendTargetEffect, isSuspended, unwrapSuspenderUrl, type SuspendTarget } from './suspension.js'
 import {
   closeDuplicateTabsEffect,
@@ -190,10 +191,10 @@ function emptyTabActionResult(): TabActionResult {
   }
 }
 
-function unreadableTabCloseResult(): TabCloseResult {
+function emptyTabCloseResult(status: 'complete' | 'unknown' = 'complete'): TabCloseResult {
   return {
-    ok: false,
-    status: 'unknown',
+    ok: status === 'complete',
+    status,
     value: [],
     attemptedCount: 0,
     removedCount: 0,
@@ -349,6 +350,28 @@ function closeAllSuspendedTabTargets(
   })
 }
 
+function normalWindowIds(windows: readonly chrome.windows.Window[]): Set<number> {
+  return new Set(windows.flatMap((window) => (
+    typeof window.id === 'number' && window.type === 'normal' ? [window.id] : []
+  )))
+}
+
+const closeAllSuspendedTabsFromInventory = Effect.fn(
+  'tabActions.closeAllSuspendedTabsFromInventory',
+)(function* (
+  tabs: readonly chrome.tabs.Tab[],
+  windows: readonly chrome.windows.Window[],
+) {
+  const allowedWindowIds = normalWindowIds(windows)
+  const targets = closeAllSuspendedTabTargets(tabs, allowedWindowIds)
+  return yield* closeTabsByTargetsEffect(targets, {
+    allowedWindowIds,
+    preserveGroups: true,
+    preservePinnedTabOut: true,
+    requireSuspended: true,
+  })
+})
+
 const runCloseAllSuspendedTabs = Effect.fn('tabActions.closeAllSuspendedTabs')(function* () {
   const browserTabs = yield* BrowserTabs
   const [allTabsResult, allWindowsResult] = yield* Effect.all([
@@ -358,20 +381,12 @@ const runCloseAllSuspendedTabs = Effect.fn('tabActions.closeAllSuspendedTabs')(f
 
   let closeResult: TabCloseResult
   if (!allTabsResult.ok || !allWindowsResult.ok) {
-    closeResult = unreadableTabCloseResult()
+    closeResult = emptyTabCloseResult('unknown')
   } else {
-    const normalWindowIds = new Set(
-      allWindowsResult.value.flatMap((window) => (
-        typeof window.id === 'number' && window.type === 'normal' ? [window.id] : []
-      )),
+    closeResult = yield* closeAllSuspendedTabsFromInventory(
+      allTabsResult.value,
+      allWindowsResult.value,
     )
-    const targets = closeAllSuspendedTabTargets(allTabsResult.value, normalWindowIds)
-    closeResult = yield* closeTabsByTargetsEffect(targets, {
-      allowedWindowIds: normalWindowIds,
-      preserveGroups: true,
-      preservePinnedTabOut: true,
-      requireSuspended: true,
-    })
   }
 
   return yield* finishTabCloseAction({
@@ -382,6 +397,73 @@ const runCloseAllSuspendedTabs = Effect.fn('tabActions.closeAllSuspendedTabs')(f
 
 export function closeAllSuspendedTabs(): Promise<TabActionResult> {
   return runTabAction(runCloseAllSuspendedTabs())
+}
+
+const runCloseAllSuspendedTabsAndDedupe = Effect.fn(
+  'tabActions.closeAllSuspendedTabsAndDedupe',
+)(function* () {
+  const browserTabs = yield* BrowserTabs
+  const [allTabsResult, allWindowsResult, currentWindowResult] = yield* Effect.all([
+    browserTabs.queryAllTabsResult(),
+    browserTabs.getAllWindowsResult(),
+    browserTabs.getCurrentWindowResult(),
+  ], { concurrency: 'unbounded' })
+
+  if (!allTabsResult.ok || !allWindowsResult.ok) {
+    return yield* finishTabCloseAction({
+      closeResult: emptyTabCloseResult('unknown'),
+      nothingMessage: 'Nothing to close or dedupe',
+    })
+  }
+
+  const currentWindowId = currentWindowResult.ok && typeof currentWindowResult.value?.id === 'number'
+    ? currentWindowResult.value.id
+    : -1
+  const dedupePlan = buildOpenTabDedupePlan(allTabsResult.value, currentWindowId)
+  const suspendedCloseResult = yield* closeAllSuspendedTabsFromInventory(
+    allTabsResult.value,
+    allWindowsResult.value,
+  )
+  if (suspendedCloseResult.status === 'unknown') {
+    return yield* finishTabCloseAction({
+      closeResult: suspendedCloseResult,
+      nothingMessage: 'Nothing to close or dedupe',
+    })
+  }
+
+  const duplicateCloseResult = dedupePlan.urls.length > 0
+    ? yield* closeDuplicateTabsEffect(dedupePlan.urls, true, {
+      ...(currentWindowId >= 0 ? { currentWindowId } : {}),
+      preservePinnedTabOut: true,
+    })
+    : emptyTabCloseResult()
+  const attemptedCount = suspendedCloseResult.attemptedCount + duplicateCloseResult.attemptedCount
+  const removedCount = suspendedCloseResult.removedCount + duplicateCloseResult.removedCount
+  const failedCount = suspendedCloseResult.failedCount + duplicateCloseResult.failedCount
+  let status: TabCloseResult['status']
+  if (duplicateCloseResult.status === 'unknown') status = removedCount > 0 ? 'partial' : 'unknown'
+  else if (failedCount === 0) status = 'complete'
+  else status = removedCount > 0 ? 'partial' : 'failed'
+  const closeResult: TabCloseResult = {
+    ok: status === 'complete',
+    status,
+    value: [...suspendedCloseResult.value, ...duplicateCloseResult.value],
+    attemptedCount,
+    removedCount,
+    failedCount,
+  }
+
+  return yield* finishTabCloseAction({
+    closeResult,
+    nothingMessage: 'Nothing to close or dedupe',
+    labelSuffix: duplicateCloseResult.status === 'unknown'
+      ? '; could not finish cleanup'
+      : '',
+  })
+})
+
+export function closeAllSuspendedTabsAndDedupe(): Promise<TabActionResult> {
+  return runTabAction(runCloseAllSuspendedTabsAndDedupe())
 }
 
 const suspendMutationTargetsEffect = Effect.fn('tabActions.suspendMutationTargets')(function* (
