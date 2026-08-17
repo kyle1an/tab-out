@@ -353,17 +353,18 @@ it.effect('native bridge negotiates the desktop controller and correlates select
   assert.equal(request.type, 'resolve-desktop-windows')
   assert.equal(request.destinationWindowId, 71)
   assert.deepEqual(request.profileWindowIds, [71, 72])
+  const requestId = request.requestId
+  assert.equal(typeof requestId, 'string')
 
   valueAt(messageListeners, 0)({
     version: NATIVE_CONTROL_BRIDGE_VERSION,
     type: 'response',
-    requestId: request.requestId,
+    requestId,
     status: 'accepted',
-    selectionToken: 'selection-1',
     windowIds: [72, 71],
   })
   assert.deepEqual(yield* Fiber.join(selectionFiber), {
-    selectionToken: 'selection-1',
+    selectionToken: requestId,
     windowIds: [72, 71],
   })
   yield* Scope.close(scope, Exit.void)

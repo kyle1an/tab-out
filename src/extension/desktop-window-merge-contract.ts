@@ -43,15 +43,9 @@ export type DesktopWindowMergeRequestFailureReason =
 
 const desktopWindowMergeErrorCodeSchema = Schema.Literals([
   'browser-mutation-failed',
-  'controller-unavailable',
   'interrupted',
   'session-storage-unavailable',
-  'tab-inventory-changed',
-  'window-inventory-changed',
 ])
-
-export type DesktopWindowMergeErrorCode =
-  typeof desktopWindowMergeErrorCodeSchema.Type
 
 const desktopWindowMergeJournalSchema = Schema.Struct({
   version: Schema.Literals([1]),

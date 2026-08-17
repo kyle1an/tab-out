@@ -320,12 +320,6 @@ private func validateControlRequest(_ object: [String: Any]) throws -> Validated
   guard let type = object["type"] as? String else {
     throw BridgeError.message("The native control request type is invalid")
   }
-  if type == "get-controller-status" {
-    guard hasOnlyKeys(object, ["version", "type", "requestId", "expiresAtMs"]) else {
-      throw BridgeError.message("The native controller status request contains unsupported fields")
-    }
-    return request
-  }
   guard type == "resolve-desktop-windows" || type == "revalidate-desktop-windows" else {
     throw BridgeError.message("The native control request type is unsupported")
   }
@@ -354,7 +348,7 @@ private func validateControlRequest(_ object: [String: Any]) throws -> Validated
 
 private func validateControllerResponse(_ object: [String: Any]) -> String? {
   guard hasOnlyKeys(object, [
-    "version", "type", "requestId", "status", "reason", "selectionToken", "windowIds",
+    "version", "type", "requestId", "status", "reason", "windowIds",
   ]) else { return nil }
   guard finiteNumber(object["version"]) == Double(controlBridgeVersion),
         object["type"] as? String == "response",
@@ -364,13 +358,11 @@ private func validateControllerResponse(_ object: [String: Any]) -> String? {
   else { return nil }
   if status == "accepted" {
     guard object["reason"] == nil,
-          validRequestId(object["selectionToken"]) != nil,
           let windowIds = validWindowIds(object["windowIds"]),
           !windowIds.isEmpty
     else { return nil }
   } else {
     guard validReason(object["reason"]) != nil,
-          object["selectionToken"] == nil,
           object["windowIds"] == nil
     else { return nil }
   }
@@ -430,7 +422,6 @@ private func socketIsLive(path: String) -> Bool {
 
 private final class BridgeState: @unchecked Sendable {
   private let lock = NSLock()
-  private var controllerCapabilities: [String] = []
   private var controllerDescriptor: Int32?
   private var controllerPending = Set<String>()
   private var placementPending: [String: Int32] = [:]
@@ -450,19 +441,12 @@ private final class BridgeState: @unchecked Sendable {
     return placementPending.removeValue(forKey: requestId)
   }
 
-  func registerController(fileDescriptor: Int32, capabilities: [String]) -> Bool {
+  func registerController(fileDescriptor: Int32) -> Bool {
     lock.lock()
     defer { lock.unlock() }
     guard !shuttingDown, controllerDescriptor == nil else { return false }
     controllerDescriptor = fileDescriptor
-    controllerCapabilities = capabilities
     return true
-  }
-
-  func controllerStatus() -> (connected: Bool, capabilities: [String]) {
-    lock.lock()
-    defer { lock.unlock() }
-    return (controllerDescriptor != nil, controllerCapabilities)
   }
 
   func forwardToController(requestId: String, object: [String: Any]) -> String? {
@@ -493,7 +477,6 @@ private final class BridgeState: @unchecked Sendable {
     defer { lock.unlock() }
     guard controllerDescriptor == fileDescriptor else { return (false, []) }
     controllerDescriptor = nil
-    controllerCapabilities = []
     let pending = Array(controllerPending)
     controllerPending.removeAll()
     return (true, pending)
@@ -501,7 +484,6 @@ private final class BridgeState: @unchecked Sendable {
 
   struct ShutdownState {
     let controllerDescriptor: Int32?
-    let controllerRequestIds: [String]
     let placementDescriptors: [Int32]
   }
 
@@ -511,11 +493,9 @@ private final class BridgeState: @unchecked Sendable {
     shuttingDown = true
     let state = ShutdownState(
       controllerDescriptor: controllerDescriptor,
-      controllerRequestIds: Array(controllerPending),
       placementDescriptors: Array(placementPending.values)
     )
     controllerDescriptor = nil
-    controllerCapabilities = []
     controllerPending.removeAll()
     placementPending.removeAll()
     return state
@@ -690,10 +670,7 @@ private func handleLocalClient(
     if finiteNumber(object["version"]) == Double(controlBridgeVersion),
        object["type"] as? String == "controller-register" {
       let registration = try validateControllerRegistration(object)
-      guard state.registerController(
-        fileDescriptor: fileDescriptor,
-        capabilities: registration.capabilities
-      ) else {
+      guard state.registerController(fileDescriptor: fileDescriptor) else {
         throw BridgeError.message("Another Hammerspoon controller is already connected")
       }
       guard writeLocalMessage(response(
@@ -773,19 +750,6 @@ private func handleNativeControlRequest(
   let requestId = validRequestId(object["requestId"]) ?? "invalid"
   do {
     let request = try validateControlRequest(object)
-    if object["type"] as? String == "get-controller-status" {
-      let status = state.controllerStatus()
-      _ = nativeOutput.send(response(
-        version: controlBridgeVersion,
-        requestId: request.requestId,
-        status: "accepted",
-        fields: [
-          "connected": status.connected,
-          "capabilities": status.capabilities,
-        ]
-      ))
-      return
-    }
     if let reason = state.forwardToController(requestId: request.requestId, object: object) {
       _ = nativeOutput.send(rejection(
         version: controlBridgeVersion,
@@ -855,13 +819,6 @@ private func runNativeHost() throws {
   let shutdown = state.beginShutdown()
   if let controllerDescriptor = shutdown.controllerDescriptor {
     Darwin.shutdown(controllerDescriptor, SHUT_RDWR)
-  }
-  for requestId in shutdown.controllerRequestIds {
-    _ = nativeOutput.send(rejection(
-      version: controlBridgeVersion,
-      requestId: requestId,
-      reason: "Chrome disconnected from the native bridge"
-    ))
   }
   for clientDescriptor in shutdown.placementDescriptors {
     writeLocalMessage(rejection(requestId: "invalid", reason: "Chrome disconnected from the native bridge"), to: clientDescriptor)

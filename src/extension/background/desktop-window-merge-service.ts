@@ -13,14 +13,12 @@ import {
   desktopWindowMergeRequestFailureReasonSchema,
   parseDesktopWindowMergeJournal,
   type DesktopWindowMergeConfirmResponse,
-  type DesktopWindowMergeErrorCode,
   type DesktopWindowMergeJournal,
   type DesktopWindowMergePreviewResponse,
   type DesktopWindowMergeRequestFailureReason,
   type DesktopWindowMergeStatusResponse,
 } from '../desktop-window-merge-contract.js'
 import { BrowserTabs } from '../browser-tabs-service.js'
-import { omitUndefined } from '../../lib/omit-undefined.js'
 import { runPromiseExclusiveEffect } from '../promise-exclusive-effect.js'
 import type { PromiseExclusiveRunner } from '../promise-exclusive-effect.js'
 import type { ChromeApi } from './chrome-api.js'
@@ -56,7 +54,6 @@ interface DesktopWindowMergePreview {
 }
 
 export interface DesktopWindowMergeLayerOptions {
-  readonly activityReceiptLifetimeMs?: number | undefined
   readonly makeId?: ((kind: 'preview' | 'session') => string) | undefined
   readonly now?: (() => number) | undefined
   readonly runExclusive?: PromiseExclusiveRunner | undefined
@@ -75,7 +72,6 @@ class DesktopWindowMergeLockError extends Schema.TaggedError<DesktopWindowMergeL
 class DesktopWindowMergeLockBusy extends Error {}
 
 type MutationResult = {
-  readonly errorCode?: DesktopWindowMergeErrorCode | undefined
   readonly movedTabCount: number
   readonly remainingTabCount: number
   readonly succeeded: boolean
@@ -167,22 +163,16 @@ function makeDesktopWindowMergeLayer(
   return Layer.effect(DesktopWindowMerge, Effect.gen(function* () {
     const browserTabs = yield* BrowserTabs
     const nativeBridge = yield* NativePlacementBridge
-    const activityReceiptLifetimeMs = options.activityReceiptLifetimeMs ??
-      DESKTOP_WINDOW_MERGE_ACTIVITY_RECEIPT_LIFETIME_MS
     const now = options.now ?? Date.now
     const runExclusive = options.runExclusive ?? defaultRunExclusive
     const previews = yield* Ref.make<ReadonlyMap<string, DesktopWindowMergePreview>>(new Map())
     const activeSessionId = yield* Ref.make<string | null>(null)
     const expectedTabActivations = yield* Ref.make<readonly ExpectedTabActivationReceipt[]>([])
     const lastJournal = yield* Ref.make<DesktopWindowMergeJournal | null>(null)
-    let nextId = 0
     let nextActivityReceiptId = 0
 
-    const makeId = (kind: 'preview' | 'session') => {
-      if (options.makeId) return options.makeId(kind)
-      nextId += 1
-      return `${kind}-${now()}-${nextId}`
-    }
+    const makeId = options.makeId ??
+      ((kind: 'preview' | 'session') => `${kind}-${crypto.randomUUID()}`)
     const serviceError = (
       reason: DesktopWindowMergeRequestFailureReason,
     ) => new DesktopWindowMergeServiceError({ reason })
@@ -437,7 +427,7 @@ function makeDesktopWindowMergeLayer(
       nextActivityReceiptId += 1
       const at = now()
       const receipt: ExpectedTabActivationReceipt = {
-        expiresAtMs: at + activityReceiptLifetimeMs,
+        expiresAtMs: at + DESKTOP_WINDOW_MERGE_ACTIVITY_RECEIPT_LIFETIME_MS,
         id: nextActivityReceiptId,
         tabIds: expectedTabIds,
         windowId,
@@ -732,7 +722,6 @@ function makeDesktopWindowMergeLayer(
           succeeded: false,
           movedTabCount,
           remainingTabCount,
-          errorCode: 'browser-mutation-failed',
         } satisfies MutationResult
       }
 
@@ -805,12 +794,11 @@ function makeDesktopWindowMergeLayer(
         destinationActivePreserved &&
         destinationFocusPreserved &&
         groupStatePreserved
-      return omitUndefined({
+      return {
         succeeded,
         movedTabCount,
         remainingTabCount,
-        errorCode: succeeded ? undefined : 'browser-mutation-failed' as const,
-      }) satisfies MutationResult
+      } satisfies MutationResult
     })
 
     const executeMutation = Effect.fn('DesktopWindowMerge.executeMutation')(function* (
@@ -966,7 +954,7 @@ function makeDesktopWindowMergeLayer(
               movedTabCount: mutation.movedTabCount,
               remainingTabCount: mutation.remainingTabCount,
               updatedAtMs: completedAt,
-              errorCode: mutation.errorCode ?? 'browser-mutation-failed',
+              errorCode: 'browser-mutation-failed',
             }
         const journal = yield* persistTerminalJournal(terminalJournal)
         yield* Ref.update(previews, (current) => {

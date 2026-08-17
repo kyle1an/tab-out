@@ -62,10 +62,7 @@ const nativeControlResponseSchema = Schema.Struct({
   requestId: nativeControlRequestIdSchema,
   status: Schema.Literals(['accepted', 'rejected']),
   reason: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(1_024))),
-  connected: Schema.optionalKey(Schema.Boolean),
-  capabilities: Schema.optionalKey(nativeControlCapabilitiesSchema),
   windowIds: Schema.optionalKey(nativeControlWindowIdsSchema),
-  selectionToken: Schema.optionalKey(nativeControlRequestIdSchema),
 })
 const nativeControllerStatusMessageSchema = Schema.Struct({
   version: Schema.Literals([NATIVE_CONTROL_BRIDGE_VERSION]),
@@ -253,7 +250,6 @@ export function makeNativePlacementBridgeLayer(
       readonly port: chrome.runtime.Port
     }>()
     let reconnectAttempt = 0
-    let nextControlRequestId = 0
 
     const controlError = (reason: string) => new NativeDesktopControlError({ reason })
 
@@ -318,14 +314,6 @@ export function makeNativePlacementBridgeLayer(
         return
       }
       if (isNativeControlResponse(message)) {
-        if (typeof message.connected === 'boolean') {
-          yield* updateControllerStatus({
-            version: NATIVE_CONTROL_BRIDGE_VERSION,
-            type: 'controller-status',
-            connected: message.connected,
-            capabilities: message.capabilities ?? [],
-          })
-        }
         const completion = (yield* Ref.get(pendingControlRequests)).get(message.requestId)
         if (completion) yield* Deferred.succeed(completion, message)
         return
@@ -490,8 +478,7 @@ export function makeNativePlacementBridgeLayer(
         ))
       }
 
-      nextControlRequestId += 1
-      const requestId = `extension-control-${Date.now()}-${nextControlRequestId}`
+      const requestId = `extension-control-${crypto.randomUUID()}`
       const completion = yield* Deferred.make<
         NativeControlResponse,
         NativeDesktopControlError
@@ -534,7 +521,6 @@ export function makeNativePlacementBridgeLayer(
         ))
       }
       if (
-        !result.selectionToken ||
         !result.windowIds ||
         !result.windowIds.includes(destinationWindowId) ||
         new Set(result.windowIds).size !== result.windowIds.length
@@ -544,7 +530,7 @@ export function makeNativePlacementBridgeLayer(
         ))
       }
       return {
-        selectionToken: result.selectionToken,
+        selectionToken: selectionToken ?? requestId,
         windowIds: result.windowIds,
       }
     })

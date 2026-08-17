@@ -99,52 +99,23 @@ function encodeNativeMessage(message: unknown): Effect.Effect<Uint8Array, Native
   })
 }
 
-function makeNativeRequestResponder(input: Queue.Queue<Uint8Array, Cause.Done<void>>) {
-  let nativeBuffer = Buffer.alloc(0)
-  const decodeRequest = Schema.decodeUnknownEffect(
-    Schema.fromJsonString(NativeRequest),
-    { onExcessProperty: 'error' },
-  )
+type NativeMessageHandler = (
+  message: unknown,
+) => Effect.Effect<void, NativeHostTestError>
 
-  return Effect.fn('nativeHostTest.respondToNativeRequest')(function* (chunk: Uint8Array) {
-    nativeBuffer = Buffer.concat([nativeBuffer, chunk])
-
-    while (nativeBuffer.length >= 4) {
-      const messageLength = nativeBuffer.readUInt32LE(0)
-      if (messageLength > 64 * 1024) {
-        return yield* Effect.fail(nativeHostTestError(
-          'decode native messaging request',
-          new Error(`native message length ${messageLength} exceeds the protocol limit`),
-        ))
-      }
-      if (nativeBuffer.length < messageLength + 4) return
-
-      const body = nativeBuffer.subarray(4, messageLength + 4)
-      nativeBuffer = nativeBuffer.subarray(messageLength + 4)
-      const request = yield* decodeRequest(body.toString('utf8')).pipe(
-        Effect.mapError((cause) => nativeHostTestError('decode native messaging request', cause)),
-      )
-      const response = yield* encodeNativeMessage({
-        version: 3,
-        type: 'response',
-        requestId: request.requestId,
-        status: 'accepted',
-      })
-      yield* Queue.offer(input, response)
-    }
-  })
-}
-
-function makeNativeMessageCollector(output: Queue.Queue<unknown>) {
+function makeNativeMessageDecoder(
+  operation: string,
+  handleMessage: NativeMessageHandler,
+) {
   let nativeBuffer = Buffer.alloc(0)
 
-  return Effect.fn('nativeHostTest.collectNativeMessage')(function* (chunk: Uint8Array) {
+  return Effect.fn('nativeHostTest.decodeNativeMessage')(function* (chunk: Uint8Array) {
     nativeBuffer = Buffer.concat([nativeBuffer, chunk])
     while (nativeBuffer.length >= 4) {
       const messageLength = nativeBuffer.readUInt32LE(0)
       if (messageLength > 64 * 1024) {
         return yield* Effect.fail(nativeHostTestError(
-          'decode native messaging output',
+          operation,
           new Error(`native message length ${messageLength} exceeds the protocol limit`),
         ))
       }
@@ -153,12 +124,45 @@ function makeNativeMessageCollector(output: Queue.Queue<unknown>) {
       const body = nativeBuffer.subarray(4, messageLength + 4)
       nativeBuffer = nativeBuffer.subarray(messageLength + 4)
       const message = yield* Effect.try({
-        try: () => JSON.parse(body.toString('utf8')) as unknown,
-        catch: (cause) => nativeHostTestError('decode native messaging output', cause),
+        try: (): unknown => JSON.parse(body.toString('utf8')),
+        catch: (cause) => nativeHostTestError(operation, cause),
       })
-      yield* Queue.offer(output, message)
+      yield* handleMessage(message)
     }
   })
+}
+
+function makeNativeRequestResponder(input: Queue.Queue<Uint8Array, Cause.Done<void>>) {
+  const decodeRequest = Schema.decodeUnknownEffect(
+    NativeRequest,
+    { onExcessProperty: 'error' },
+  )
+  const respond = Effect.fn('nativeHostTest.respondToNativeRequest')(function* (
+    message: unknown,
+  ) {
+    const request = yield* decodeRequest(message).pipe(
+      Effect.mapError((cause) => nativeHostTestError('decode native messaging request', cause)),
+    )
+    const response = yield* encodeNativeMessage({
+      version: 3,
+      type: 'response',
+      requestId: request.requestId,
+      status: 'accepted',
+    })
+    yield* Queue.offer(input, response)
+  })
+
+  return makeNativeMessageDecoder(
+    'decode native messaging request',
+    respond,
+  )
+}
+
+function makeNativeMessageCollector(output: Queue.Queue<unknown>) {
+  return makeNativeMessageDecoder(
+    'decode native messaging output',
+    (message) => Queue.offer(output, message),
+  )
 }
 
 const startNativeHost = Effect.fn('nativeHostTest.startNativeHost')(function* (
@@ -575,7 +579,6 @@ const testDesktopControllerRoundTrip = Effect.fn(
     type: 'response',
     requestId: 'merge-round-trip',
     status: 'accepted',
-    selectionToken: 'selection-round-trip',
     windowIds: [72, 71],
   })
   const response = objectMessage(yield* takeMessage(
@@ -584,7 +587,6 @@ const testDesktopControllerRoundTrip = Effect.fn(
   ))
   yield* check(
     response.requestId === 'merge-round-trip' &&
-    response.selectionToken === 'selection-round-trip' &&
     JSON.stringify(response.windowIds) === '[72,71]',
     'validate native control response',
     JSON.stringify(response),
@@ -664,7 +666,6 @@ const testDesktopControllerRoundTrip = Effect.fn(
     type: 'response',
     requestId: 'controller-private-field-round-trip',
     status: 'accepted',
-    selectionToken: 'selection-private-field-round-trip',
     windowIds: [72, 71],
     title: 'Example private field',
   })

@@ -138,7 +138,6 @@ socketCallback(hs.json.encode({
 }) .. "\n")
 local selection = writes[2]
 assertEqual(selection.status, "accepted", "desktop selection is accepted")
-assertEqual(selection.selectionToken, "selection-alpha", "selection token is opaque")
 assertArray(selection.windowIds, { 102, 101 }, "desktop windows use native front-to-back order")
 assertArray(
   { catalogCandidates[1]:id(), catalogCandidates[2]:id() },

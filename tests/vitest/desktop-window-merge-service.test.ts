@@ -464,7 +464,6 @@ it.effect('desktop merge activation receipts expire without suppressing later ac
   setChromeTabsApi(harness.browserApi)
   yield* Effect.addFinalizer(() => Effect.sync(() => setChromeTabsApi(null)))
   const context = yield* Layer.build(buildService(harness, {
-    activityReceiptLifetimeMs: 50,
     now: () => nowMs,
   }))
   const service = Context.get(context, DesktopWindowMerge)
@@ -474,7 +473,7 @@ it.effect('desktop merge activation receipts expire without suppressing later ac
   const confirmation = yield* Effect.forkChild(service.confirm(1, 10, 'preview-test'))
   yield* Effect.promise(() => moveStarted.promise)
 
-  nowMs += 51
+  nowMs += 2_001
   assert.equal(yield* service.consumeExpectedTabActivation(4, 20), false)
 
   continueMove.resolve()

@@ -327,8 +327,7 @@ function M.new(options)
     end
 
     if request.type == "resolve-desktop-windows" then
-      local selectionToken = request.requestId
-      selections[selectionToken] = {
+      selections[request.requestId] = {
         createdAtMs = atMs,
         destinationWindowId = selection.destinationWindowId,
         screenUuid = selection.screenUuid,
@@ -336,7 +335,6 @@ function M.new(options)
         windowIds = selection.windowIds,
       }
       return response(request.requestId, "accepted", nil, {
-        selectionToken = selectionToken,
         windowIds = selection.windowIds,
       })
     end
@@ -354,7 +352,6 @@ function M.new(options)
       return response(request.requestId, "rejected", "The desktop window topology changed")
     end
     return response(request.requestId, "accepted", nil, {
-      selectionToken = request.selectionToken,
       windowIds = selection.windowIds,
     })
   end
