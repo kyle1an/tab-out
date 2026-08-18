@@ -9,7 +9,11 @@ const JIRA_TICKET_REFERENCE_PATTERN = /\b[A-Z][A-Z0-9_]+-\d+\b/g
 const URL_SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:/i
 const HOSTLIKE_TITLE_HOST_PATTERN = /^(?:localhost|(?:[\w-]+\.)+(?:[a-z]{2,}|xn--[a-z0-9-]+))$/i
 const NUMERIC_TITLE_WORD_PATTERN = /^\p{N}+$/u
+const ASCII_TITLE_WORD_PATTERN = /^[\u0000-\u007F]+$/
+const ASCII_NUMERIC_TITLE_WORD_PATTERN = /^\d+$/
 const BIONIC_TITLE_GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+const BIONIC_TITLE_FIXATION_CACHE_LIMIT = 512
+const bionicTitleFixationCache = new Map<string, readonly TextRange[]>()
 
 function cleanDisplayText(text: string) {
   return text.replaceAll('\u200B', '').trim()
@@ -50,42 +54,25 @@ function overlapsTextRange(start: number, end: number, ranges: readonly TextRang
   return ranges.some((range) => start < range.end && end > range.start)
 }
 
-function visibleTitleGraphemeCount(text: string) {
-  let count = 0
-  for (const { segment } of BIONIC_TITLE_GRAPHEME_SEGMENTER.segment(text)) {
-    if (segment !== '\u200B') count += 1
+function bionicTitleFixationEnd(word: string): number {
+  if (ASCII_TITLE_WORD_PATTERN.test(word)) {
+    if (ASCII_NUMERIC_TITLE_WORD_PATTERN.test(word)) return 0
+    return word.length <= 3 ? 1 : Math.ceil(word.length / 2)
   }
-  return count
-}
+  if (NUMERIC_TITLE_WORD_PATTERN.test(word.replaceAll('\u200B', ''))) return 0
 
-function isBionicTitleWordCandidate(word: string) {
-  const value = cleanDisplayText(word)
-  if (NUMERIC_TITLE_WORD_PATTERN.test(value)) return false
-  return true
-}
-
-function bionicTitleFixationLength(word: string) {
-  if (!isBionicTitleWordCandidate(word)) return 0
-  const visibleLength = visibleTitleGraphemeCount(word)
-  return visibleLength <= 3 ? 1 : Math.ceil(visibleLength / 2)
-}
-
-function splitBionicTitleWord(word: string, fixationLength: number): [string, string] {
-  if (fixationLength <= 0) return ['', word]
-
-  let visibleCount = 0
+  const visibleSegmentEnds: number[] = []
   for (const { segment, index } of BIONIC_TITLE_GRAPHEME_SEGMENTER.segment(word)) {
     if (segment === '\u200B') continue
-    visibleCount += 1
-    if (visibleCount >= fixationLength) {
-      const end = index + segment.length
-      return [word.slice(0, end), word.slice(end)]
-    }
+    visibleSegmentEnds.push(index + segment.length)
   }
-  return [word, '']
+  const fixationLength = visibleSegmentEnds.length <= 3
+    ? 1
+    : Math.ceil(visibleSegmentEnds.length / 2)
+  return visibleSegmentEnds[fixationLength - 1] ?? 0
 }
 
-function findBionicTitleFixationRanges(text: string): TextRange[] {
+function computeBionicTitleFixationRanges(text: string): readonly TextRange[] {
   if (!text || isUrlLikeTitle(text)) return []
 
   const protectedRanges = findJiraTicketReferenceRanges(text)
@@ -96,11 +83,23 @@ function findBionicTitleFixationRanges(text: string): TextRange[] {
     const end = start + word.length
     if (overlapsTextRange(start, end, protectedRanges)) continue
 
-    const fixationLength = bionicTitleFixationLength(word)
-    if (fixationLength <= 0) continue
-    const [fixation] = splitBionicTitleWord(word, fixationLength)
-    fixationRanges.push({ start, end: start + fixation.length })
+    const fixationEnd = bionicTitleFixationEnd(word)
+    if (fixationEnd <= 0) continue
+    fixationRanges.push({ start, end: start + fixationEnd })
   }
+  return fixationRanges
+}
+
+function findBionicTitleFixationRanges(text: string): readonly TextRange[] {
+  const cached = bionicTitleFixationCache.get(text)
+  if (cached) return cached
+
+  const fixationRanges = computeBionicTitleFixationRanges(text)
+  if (bionicTitleFixationCache.size >= BIONIC_TITLE_FIXATION_CACHE_LIMIT) {
+    const oldestTitle = bionicTitleFixationCache.keys().next().value
+    if (oldestTitle !== undefined) bionicTitleFixationCache.delete(oldestTitle)
+  }
+  bionicTitleFixationCache.set(text, fixationRanges)
   return fixationRanges
 }
 
