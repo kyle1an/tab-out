@@ -101,12 +101,27 @@ function normalizedPageChipPinId(id: unknown): string | null {
     : null
 }
 
+function forEachNormalizedPageChipPin(
+  ids: unknown,
+  visit: (id: string, parsed: ParsedPageChipPinId, order: number) => void,
+): void {
+  const seen = new Set<string>()
+  let order = 0
+  for (const id of Array.isArray(ids) ? ids : []) {
+    const parsed = parsePageChipPinId(id)
+    if (!parsed) continue
+    const normalizedId = pageChipPinId(parsed.source, parsed.scopeId, parsed.chipKey)
+    if (seen.has(normalizedId)) continue
+    seen.add(normalizedId)
+    visit(normalizedId, parsed, order)
+    order += 1
+  }
+}
+
 export function normalizePinnedPageChips(ids: unknown = []): string[] {
-  return [...new Set(
-    (Array.isArray(ids) ? ids : [])
-      .map(normalizedPageChipPinId)
-      .filter((id) => id !== null),
-  )]
+  const normalized: string[] = []
+  forEachNormalizedPageChipPin(ids, (id) => normalized.push(id))
+  return normalized
 }
 
 function setPinnedPageChipInList(ids: unknown = [], id: unknown, pinned: boolean): string[] {
@@ -126,9 +141,7 @@ export function applyPinnedPageChipMutation(ids: unknown, mutation: PinnedPageCh
 
 export function createPinnedPageChipIndex(ids: unknown = []): PinnedPageChipIndex {
   const index = new Map<string, Map<string, number>>()
-  normalizePinnedPageChips(ids).forEach((id, order) => {
-    const parsed = parsePageChipPinId(id)
-    if (!parsed) return
+  forEachNormalizedPageChipPin(ids, (_id, parsed, order) => {
     const scopeKey = pageChipPinScopeIndexKey(parsed.source, parsed.scopeId)
     const scopeIndex = index.getOrInsertComputed(scopeKey, () => new Map())
     scopeIndex.getOrInsert(parsed.chipKey, order)
