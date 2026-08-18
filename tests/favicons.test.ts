@@ -18,6 +18,17 @@ test('pickTabFavicon: a live tab resolves a remote favicon through the local fav
   assert.match(result, /\/_favicon\/\?pageUrl=https%3A%2F%2Fsite\.example%2Fpage&size=32$/)
 })
 
+test('pickTabFavicon: the cache URL preserves reserved characters in the page URL', () => {
+  const pageUrl = 'https://site.example/page?first=one&second=two%20words#details'
+  const result = pickTabFavicon({
+    favIconUrl: 'https://site.example/icon.png',
+    url: pageUrl,
+    suspended: false,
+  })
+
+  assert.equal(URL.parse(result)?.searchParams.get('pageUrl'), pageUrl)
+})
+
 test('pickTabFavicon: a live tab keeps a data: favicon verbatim', () => {
   const data = 'data:image/png;base64,AAAA'
   assert.equal(pickTabFavicon({ favIconUrl: data, url: 'https://site.example/page', suspended: false }), data)

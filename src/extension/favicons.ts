@@ -9,10 +9,7 @@ import type { DashboardTab } from './types'
 
 function faviconCacheUrl(url: string): string {
   if (!url || !globalThis.chrome?.runtime?.getURL) return ''
-  const faviconUrl = new URL(chrome.runtime.getURL('/_favicon/'))
-  faviconUrl.searchParams.set('pageUrl', url)
-  faviconUrl.searchParams.set('size', '32')
-  return faviconUrl.toString()
+  return `${chrome.runtime.getURL('/_favicon/')}?pageUrl=${encodeURIComponent(url)}&size=32`
 }
 
 export function pickFavicon(tab?: Pick<DashboardTab, 'favIconUrl' | 'url'> | null): string {
