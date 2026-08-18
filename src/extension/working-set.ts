@@ -24,6 +24,8 @@ const ACTIVITY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 const SAME_DAY_MS = 24 * 60 * 60 * 1000
 const CURRENT_WEEK_MS = 7 * 24 * 60 * 60 * 1000
 const MAX_EVENTS_PER_RECORD = 80
+const WORKING_SET_PAGE_IDENTITY_CACHE_LIMIT = 1024
+const workingSetPageIdentityCache = new Map<string, string>()
 
 const workingSetActivityEnvelopeSchema = Schema.Struct({
   version: Schema.Literals([WORKING_SET_ACTIVITY_VERSION]),
@@ -172,7 +174,7 @@ export function normalizeWorkingSetActivity(value: unknown, now = Date.now()): W
     : emptyWorkingSetActivity()
 }
 
-export function pageIdentityForWorkingSet(url = ''): string {
+function computePageIdentityForWorkingSet(url: string): string {
   const effectiveUrl = unwrapSuspenderUrl(url || '')
   if (!effectiveUrl) return ''
 
@@ -180,21 +182,41 @@ export function pageIdentityForWorkingSet(url = ''): string {
   if (!parsed || isBrowserInternalUrl(parsed.href)) return ''
   if (isGoogleSearchResultPage(parsed)) return ''
 
-  parsed.hash = ''
-  const cleanParams = new URLSearchParams()
-  const paramEntries = parsed.searchParams.entries()
-    .filter(([name]) => !name.toLowerCase().startsWith('utm_') && !NOISY_QUERY_PARAMS.has(name.toLowerCase()))
-    .toArray()
-    .sort(([a], [b]) => a.localeCompare(b))
-  for (const [name, value] of paramEntries) cleanParams.append(name, value)
-  parsed.search = cleanParams.toString()
+  if (parsed.search) {
+    const paramEntries: [string, string][] = []
+    for (const [name, value] of parsed.searchParams) {
+      const normalizedName = name.toLowerCase()
+      if (normalizedName.startsWith('utm_') || NOISY_QUERY_PARAMS.has(normalizedName)) continue
+      paramEntries.push([name, value])
+    }
+    if (paramEntries.length > 1) {
+      paramEntries.sort(([left], [right]) => left.localeCompare(right))
+    }
+    parsed.search = new URLSearchParams(paramEntries).toString()
+  }
 
-  if (parsed.protocol === 'file:') return parsed.href
+  if (parsed.protocol === 'file:') {
+    parsed.hash = ''
+    return parsed.href
+  }
 
   const pathname = parsed.pathname || '/'
   const path = pathname !== '/' && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
   const query = parsed.search ? parsed.search : ''
   return `${parsed.protocol}//${parsed.host.toLowerCase()}${path}${query}`
+}
+
+export function pageIdentityForWorkingSet(url = ''): string {
+  const cached = workingSetPageIdentityCache.get(url)
+  if (cached !== undefined) return cached
+
+  const identity = computePageIdentityForWorkingSet(url)
+  if (workingSetPageIdentityCache.size >= WORKING_SET_PAGE_IDENTITY_CACHE_LIMIT) {
+    const oldestUrl = workingSetPageIdentityCache.keys().next().value
+    if (oldestUrl !== undefined) workingSetPageIdentityCache.delete(oldestUrl)
+  }
+  workingSetPageIdentityCache.set(url, identity)
+  return identity
 }
 
 function isGoogleSearchResultPage(parsed: URL): boolean {

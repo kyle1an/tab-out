@@ -70,6 +70,14 @@ test('pageIdentityForWorkingSet distinguishes meaningful paths and ignores noisy
     pageIdentityForWorkingSet('https://example.com/issues/456'),
     'https://example.com/issues/456',
   )
+  assert.equal(
+    pageIdentityForWorkingSet('https://EXAMPLE.com/issues/?z=last&UTM_campaign=mail&a=first&ref=feed#details'),
+    'https://example.com/issues?a=first&z=last',
+  )
+  assert.equal(
+    pageIdentityForWorkingSet('file:///Users/example/notes/?z=last&a=first#details'),
+    'file:///Users/example/notes/?a=first&z=last',
+  )
   assert.equal(pageIdentityForWorkingSet('chrome-extension://tab-out/index.html'), '')
   assert.equal(pageIdentityForWorkingSet('chrome-search://local-ntp/local-ntp.html'), '')
   assert.equal(pageIdentityForWorkingSet('chrome-untrusted://new-tab-page/'), '')
