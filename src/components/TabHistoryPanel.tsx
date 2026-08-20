@@ -55,8 +55,8 @@ const HISTORY_ENTRY_CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg
 const HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 96.5%, var(--color-neutral-600) 3.5%)'
 const HISTORY_ENTRY_ACTIVE_OTHER_REST_BG = 'color-mix(in srgb, var(--card-bg) 92.5%, var(--color-neutral-600) 7.5%)'
 const HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 84%, var(--color-neutral-600) 16%)'
-const HISTORY_ENTRY_INTERACTION_CLASSES = 'group-hover/history-row:bg-(--history-entry-interaction-bg) focus-within:bg-(--history-entry-interaction-bg) [&.history-entry-expanded-open]:bg-(--history-entry-interaction-bg) [&[data-context-menu-open]]:bg-(--history-entry-interaction-bg) group-hover/history-row:after:opacity-100 [&.history-entry-expanded-open]:after:opacity-100 [&[data-context-menu-open]]:after:opacity-100'
-// Every hoverable row answers interaction with a 1px outline beside the
+const HISTORY_ENTRY_INTERACTION_CLASSES = 'hover:bg-(--history-entry-interaction-bg) focus-within:bg-(--history-entry-interaction-bg) [&.history-entry-expanded-open]:bg-(--history-entry-interaction-bg) [&[data-context-menu-open]]:bg-(--history-entry-interaction-bg) hover:after:opacity-100 [&.history-entry-expanded-open]:after:opacity-100 [&[data-context-menu-open]]:after:opacity-100'
+// Every hoverable entry surface answers interaction with a 1px outline beside the
 // fill (chip-trim's hover-line recipe), across the same interaction states
 // the fill responds to. Focus keeps the amber ring instead. The outline
 // color rides a CSS var (set in entryBaseStyle) exactly like the chips'
@@ -67,7 +67,7 @@ const HISTORY_ENTRY_INTERACTION_CLASSES = 'group-hover/history-row:bg-(--history
 // interaction-fill rim instead — the same 10% mix as their clickable fill, laid
 // once more at the edge — because the darkened fill already carries the
 // open-hover emphasis.
-const HISTORY_ENTRY_HOVER_OUTLINE_CLASSES = 'group-hover/history-row:outline group-hover/history-row:outline-1 group-hover/history-row:-outline-offset-1 group-hover/history-row:outline-(--history-entry-hover-border) [&.history-entry-expanded-open]:outline [&.history-entry-expanded-open]:outline-1 [&.history-entry-expanded-open]:-outline-offset-1 [&.history-entry-expanded-open]:outline-(--history-entry-hover-border) [&[data-context-menu-open]]:outline [&[data-context-menu-open]]:outline-1 [&[data-context-menu-open]]:-outline-offset-1 [&[data-context-menu-open]]:outline-(--history-entry-hover-border)'
+const HISTORY_ENTRY_HOVER_OUTLINE_CLASSES = 'hover:outline hover:outline-1 hover:-outline-offset-1 hover:outline-(--history-entry-hover-border) [&.history-entry-expanded-open]:outline [&.history-entry-expanded-open]:outline-1 [&.history-entry-expanded-open]:-outline-offset-1 [&.history-entry-expanded-open]:outline-(--history-entry-hover-border) [&[data-context-menu-open]]:outline [&[data-context-menu-open]]:outline-1 [&[data-context-menu-open]]:-outline-offset-1 [&[data-context-menu-open]]:outline-(--history-entry-hover-border)'
 const HISTORY_ENTRY_CLOSED_HOVER_BORDER = 'color-mix(in srgb, var(--color-neutral-600) 22%, transparent)'
 const HISTORY_ENTRY_OPEN_HOVER_BORDER = 'color-mix(in srgb, var(--color-neutral-600) 10%, transparent)'
 const HISTORY_ENTRY_CLICKABLE_INTERACTION_CLASSES = `${HISTORY_ENTRY_INTERACTION_CLASSES} ${HISTORY_ENTRY_HOVER_OUTLINE_CLASSES}`
@@ -1075,8 +1075,8 @@ function HistoryEntryMarkerCell({ indexLabel, isIndexHighlighted }: HistoryEntry
     <span
       data-tabout-part="history-entry-marker"
       className={cn(
-        'mt-1.25 inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-muted-foreground group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
-        isIndexHighlighted && 'font-semibold text-tab-live group-hover/history-row:text-tab-live group-focus-within/history-row:text-tab-live',
+        'mt-1.25 inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-muted-foreground group-has-[.history-entry:hover]/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
+        isIndexHighlighted && 'font-semibold text-tab-live group-has-[.history-entry:hover]/history-row:text-tab-live group-focus-within/history-row:text-tab-live',
       )}
     >
       {marker}
@@ -1461,8 +1461,8 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
         )}
         style={expanded ? entryOverlayStyle : entryBaseStyle}
         ref={expanded ? undefined : entryRef}
-        onMouseEnter={expanded ? onMouseEnter : undefined}
-        onMouseLeave={expanded ? onMouseLeave : undefined}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
         onPointerEnter={onHistoryEntryPointerEnter}
         onPointerMove={onHistoryEntryPointerMove}
         onPointerLeave={onHistoryEntryPointerLeave}
@@ -1552,8 +1552,6 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
         'history-entry-row group/history-row flex w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none',
         titleExpanded && 'history-entry-row-expanded-open',
       )}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
       onFocus={onMouseEnter}
       onBlur={onMouseLeave}
     >

@@ -24,7 +24,7 @@ test('a closed history row hovers with the closed-saved chip treatment', () => {
   assert.ok(rowMatch)
   const rowClasses = rowMatch[1]
   assert.ok(rowClasses)
-  assert.match(rowClasses, /group-hover\/history-row:outline\b/)
+  assert.match(rowClasses, /hover:outline\b/)
 })
 
 test('a live history row keeps its live-tab title and no closed treatment', () => {
@@ -80,8 +80,8 @@ test('an open history row hovers with the closed line recipe at the quiet intera
   assert.ok(rowMatch, 'history entry surface should render')
   const rowClasses = rowMatch[1]
   assert.ok(rowClasses)
-  assert.match(rowClasses, /group-hover\/history-row:outline\b/)
-  assert.match(rowClasses, /group-hover\/history-row:outline-\(--history-entry-hover-border\)/)
+  assert.match(rowClasses, /hover:outline\b/)
+  assert.match(rowClasses, /hover:outline-\(--history-entry-hover-border\)/)
   // The interaction-fill rim: same 10% mix as the open rows' clickable fill, laid
   // once more at the edge — the darkened fill carries the hover emphasis.
   assert.match(html, /--history-entry-hover-border:color-mix\(in srgb, var\(--color-neutral-600\) 10%, transparent\)/)
@@ -93,7 +93,7 @@ test('a row active in another window hovers with the quiet open line too', () =>
   assert.ok(rowMatch, 'history entry surface should render')
   const rowClasses = rowMatch[1]
   assert.ok(rowClasses)
-  assert.match(rowClasses, /group-hover\/history-row:outline-\(--history-entry-hover-border\)/)
+  assert.match(rowClasses, /hover:outline-\(--history-entry-hover-border\)/)
   assert.match(html, /--history-entry-hover-border:color-mix\(in srgb, var\(--color-neutral-600\) 10%, transparent\)/)
 })
 

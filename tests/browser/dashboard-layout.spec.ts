@@ -1907,6 +1907,61 @@ test('Activation History expands a faded two-line title on hover', async ({ page
   await expect(row.locator('.history-entry-expanded')).toHaveCount(1)
 })
 
+test('Activation History hover begins at the visible entry surface', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  const row = page.locator('[data-tabout="activation-history-entry"]').filter({
+    hasText: 'Low score history item with enough tooltip text',
+  }).first()
+  const marker = row.locator('[data-tabout-part="history-entry-marker"]')
+  const surface = row.locator('.history-entry:not(.history-entry-expanded)')
+  const urlPreview = page.locator('.url-preview')
+  await surface.scrollIntoViewIfNeeded()
+
+  const geometry = await row.evaluate((element) => {
+    const markerElement = element.querySelector<HTMLElement>('[data-tabout-part="history-entry-marker"]')
+    const surfaceElement = element.querySelector<HTMLElement>('.history-entry:not(.history-entry-expanded)')
+    if (!markerElement || !surfaceElement) return null
+
+    const markerRect = markerElement.getBoundingClientRect()
+    const surfaceRect = surfaceElement.getBoundingClientRect()
+    return {
+      gap: {
+        x: (markerRect.right + surfaceRect.left) / 2,
+        y: surfaceRect.top + surfaceRect.height / 2,
+      },
+      marker: {
+        x: markerRect.left + markerRect.width / 2,
+        y: markerRect.top + markerRect.height / 2,
+      },
+      surface: {
+        x: surfaceRect.left + surfaceRect.width / 2,
+        y: surfaceRect.top + surfaceRect.height / 2,
+      },
+    }
+  })
+  expect(geometry).not.toBeNull()
+
+  await page.mouse.move(2, 2)
+  await expect(urlPreview).toHaveAttribute('aria-hidden', 'true')
+
+  for (const point of [geometry?.marker, geometry?.gap]) {
+    if (!point) throw new Error('History hover-boundary geometry is unavailable')
+    await page.mouse.move(point.x, point.y)
+    await expect(urlPreview).toHaveAttribute('aria-hidden', 'true')
+    await expect.poll(() => surface.evaluate((element) => element.matches(':hover'))).toBe(false)
+    await expect.poll(() => surface.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe('none')
+  }
+
+  if (!geometry?.surface) throw new Error('History entry surface geometry is unavailable')
+  await page.mouse.move(geometry.surface.x, geometry.surface.y)
+  await expect(urlPreview).toHaveAttribute('aria-hidden', 'false')
+  await expect.poll(() => surface.evaluate((element) => element.matches(':hover'))).toBe(true)
+  await expect.poll(() => surface.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe('solid')
+  await expect(marker).toHaveCSS('color', 'rgba(64, 64, 64, 0.76)')
+})
+
 test('Activation History marker stays aligned with the favicon and first title line', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
