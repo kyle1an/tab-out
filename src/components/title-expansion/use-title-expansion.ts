@@ -46,6 +46,7 @@ export function useTitleExpansionController(options: UseTitleExpansionController
       close: (closeOptions) => getInstance().close(closeOptions),
       closeNow: () => getInstance().closeNow(),
       cancelPendingClose: () => instanceRef.current?.cancelPendingClose(),
+      hold: (owner) => getInstance().hold(owner),
       isExpanded: () => instanceRef.current?.isExpanded() ?? false,
       dispose: () => {
         instanceRef.current?.dispose()

@@ -5,13 +5,16 @@
    optional close schedule, while the current tab-title surfaces close
    synchronously on pointer departure.
 
-   The controller owns timing and lane arbitration only. What counts
-   as expandable, how the expanded lines are measured, and the overlay
-   markup all stay with the adapting surface. Per-surface behavior
-   differences ride in as config: the close-veto predicates exist
-   because Page Chips keep an expansion open while their context menu
-   is up, while history rows guard at their call sites instead. An
-   optional delayed consumer gets that veto checked again at fire time.
+   The controller owns timing, lane arbitration, and expansion
+   ownership. What counts as expandable, how the expanded lines are
+   measured, and the overlay markup all stay with the adapting
+   surface. Ownership is the sanctioned keep-open mechanism: a held
+   owner vetoes close() — including the fire-time re-check of a
+   pending delayed close — and a held context menu additionally keeps
+   the expansion through a lane steal, while keyboard focus yields the
+   lane to the next hover. closeNow() and dispose() bypass owners.
+   The close-veto predicates remain only for surfaces not yet
+   migrated to holds.
 
    The scheduler is injectable so the delay logic tests under node
    with a fake clock; production uses setTimeout.
@@ -68,6 +71,14 @@ const defaultScheduler: TitleExpansionScheduler = {
   clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
 }
 
+/**
+ * The interaction surfaces that may keep an expansion open past its
+ * normal close triggers (CONTEXT.md Title Expansion ownership).
+ * @public — sanctioned seam surface; surfaces pass the literals, so no
+ * import site names this union (docs/adr/0021).
+ */
+export type TitleExpansionOwner = 'context-menu' | 'keyboard-focus'
+
 export type TitleExpansionControllerOptions = {
   id: string
   lane: TitleExpansionLane
@@ -83,9 +94,15 @@ export type TitleExpansionControllerOptions = {
 export type TitleExpansionController = {
   open: () => void
   close: (options?: { delayed?: boolean }) => void
-  /** Collapse and release unconditionally — bypasses shouldCancelClose. */
+  /** Collapse and release unconditionally — bypasses owners and shouldCancelClose. */
   closeNow: () => void
   cancelPendingClose: () => void
+  /**
+   * Keep the expansion open while the owner is up. Holds are refcounted
+   * per owner kind, so overlapping menus stay safe; the returned release
+   * is idempotent.
+   */
+  hold: (owner: TitleExpansionOwner) => () => void
   isExpanded: () => boolean
   dispose: () => void
 }
@@ -101,11 +118,16 @@ export function createTitleExpansionController({
 }: TitleExpansionControllerOptions): TitleExpansionController {
   let expanded = false
   let pendingClose: unknown = null
+  const holds = new Map<TitleExpansionOwner, number>()
 
   function setExpanded(next: boolean) {
     if (expanded === next) return
     expanded = next
     onExpandedChange(expanded)
+  }
+
+  function closeVetoed() {
+    return holds.size > 0 || (shouldCancelClose?.() ?? false)
   }
 
   function cancelPendingClose() {
@@ -124,7 +146,7 @@ export function createTitleExpansionController({
 
   const unsubscribe = lane.subscribe((activeId) => {
     if (activeId === id) return
-    if (shouldIgnoreLaneSteal?.()) return
+    if (holds.has('context-menu') || shouldIgnoreLaneSteal?.()) return
     setExpanded(false)
   })
 
@@ -136,14 +158,14 @@ export function createTitleExpansionController({
     },
     close({ delayed = true } = {}) {
       cancelPendingClose()
-      if (shouldCancelClose?.()) return
+      if (closeVetoed()) return
       if (!delayed) {
         collapseAndRelease()
         return
       }
       pendingClose = scheduler.set(() => {
         pendingClose = null
-        if (shouldCancelClose?.()) return
+        if (closeVetoed()) return
         collapseAndRelease()
       }, closeDelayMs)
     },
@@ -152,6 +174,17 @@ export function createTitleExpansionController({
       collapseAndRelease()
     },
     cancelPendingClose,
+    hold(owner) {
+      holds.set(owner, (holds.get(owner) ?? 0) + 1)
+      let released = false
+      return () => {
+        if (released) return
+        released = true
+        const count = holds.get(owner) ?? 0
+        if (count <= 1) holds.delete(owner)
+        else holds.set(owner, count - 1)
+      }
+    },
     isExpanded() {
       return expanded
     },
@@ -159,6 +192,7 @@ export function createTitleExpansionController({
       cancelPendingClose()
       unsubscribe()
       lane.release(id)
+      holds.clear()
     },
   }
 }

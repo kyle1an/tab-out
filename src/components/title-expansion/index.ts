@@ -20,6 +20,7 @@ export type {
   TitleExpansionController,
   TitleExpansionControllerOptions,
   TitleExpansionLane,
+  TitleExpansionOwner,
   TitleExpansionScheduler,
 } from './controller'
 export { useTitleExpansionController } from './use-title-expansion'

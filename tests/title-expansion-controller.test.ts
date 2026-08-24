@@ -258,3 +258,101 @@ test('dispose does not release a lane owned by someone else', () => {
 
   assert.equal(lane.getActiveId(), 'entry-b')
 })
+
+test('a held context-menu owner vetoes close at entry and clears any pending collapse', () => {
+  const { controller, fake, expandedChanges } = createRecordingController()
+
+  controller.open()
+  controller.close()
+  const release = controller.hold('context-menu')
+  controller.close()
+
+  assert.equal(fake.pendingCount(), 0)
+  fake.firePending()
+  assert.equal(controller.isExpanded(), true)
+  assert.deepEqual(expandedChanges, [true])
+  release()
+})
+
+test('a hold taken after a delayed close schedules is re-checked when that close fires', () => {
+  const { controller, lane, fake } = createRecordingController()
+
+  controller.open()
+  controller.close()
+  const release = controller.hold('keyboard-focus')
+  fake.firePending()
+
+  assert.equal(controller.isExpanded(), true)
+  assert.equal(lane.getActiveId(), 'entry-a')
+  release()
+})
+
+test('releasing the last hold lets close proceed', () => {
+  const { controller, lane } = createRecordingController()
+
+  controller.open()
+  const release = controller.hold('context-menu')
+  release()
+  controller.close({ delayed: false })
+
+  assert.equal(controller.isExpanded(), false)
+  assert.equal(lane.getActiveId(), null)
+})
+
+test('holds are refcounted per owner kind so overlapping menus keep the veto', () => {
+  const { controller } = createRecordingController()
+
+  controller.open()
+  const releaseFirst = controller.hold('context-menu')
+  const releaseSecond = controller.hold('context-menu')
+  releaseFirst()
+  controller.close({ delayed: false })
+  assert.equal(controller.isExpanded(), true)
+
+  releaseSecond()
+  controller.close({ delayed: false })
+  assert.equal(controller.isExpanded(), false)
+})
+
+test('a release function is idempotent and cannot consume a later hold', () => {
+  const { controller } = createRecordingController()
+
+  controller.open()
+  const staleRelease = controller.hold('context-menu')
+  staleRelease()
+  const release = controller.hold('context-menu')
+  staleRelease()
+  controller.close({ delayed: false })
+
+  assert.equal(controller.isExpanded(), true)
+  release()
+})
+
+test('only a context-menu hold keeps the expansion through a lane steal', () => {
+  const lane = createTitleExpansionLane()
+  const first = createRecordingController(lane)
+
+  first.controller.open()
+  const releaseMenu = first.controller.hold('context-menu')
+  lane.activate('entry-b')
+  assert.equal(first.controller.isExpanded(), true)
+
+  releaseMenu()
+  first.controller.open()
+  const releaseFocus = first.controller.hold('keyboard-focus')
+  lane.activate('entry-c')
+  assert.equal(first.controller.isExpanded(), false)
+  releaseFocus()
+})
+
+test('closeNow collapses and releases even while owners are held', () => {
+  const { controller, lane } = createRecordingController()
+
+  controller.open()
+  controller.hold('context-menu')
+  controller.hold('keyboard-focus')
+  controller.closeNow()
+
+  assert.equal(controller.isExpanded(), false)
+  assert.equal(lane.getActiveId(), null)
+})
