@@ -93,6 +93,11 @@ test('worker listeners enter the shared background runtime', () => {
     {
       name: 'action click',
       start: 'chromeApi.action.onClicked.addListener',
+      end: 'chromeApi.contextMenus.onClicked.addListener',
+    },
+    {
+      name: 'action context-menu click',
+      start: 'chromeApi.contextMenus.onClicked.addListener',
       end: 'chromeApi.runtime.onMessage.addListener',
     },
     {
@@ -114,6 +119,16 @@ test('worker listeners enter the shared background runtime', () => {
       `${name} listener must submit its workflow through the shared runtime`,
     )
   }
+})
+
+test('toolbar tab actions mutate windows only through the Browser Tabs Gateway', () => {
+  const source = readProductionSource(
+    'src/extension/background/action-context-menu.ts',
+  )
+
+  assert.match(source, /\byield\* BrowserTabs\b/)
+  assert.match(source, /\bbrowserTabs\.createWindow\(/)
+  assert.doesNotMatch(source, /\bchrome(?:Api)?\.windows\./)
 })
 
 test('adopted Promise adapters enter the shared app runtime', () => {

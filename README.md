@@ -32,6 +32,7 @@ The agent will walk you through it. Takes about 1 minute.
 - **Click any tab to jump to it** across Chrome windows
 - **Dashboard views** — start with **All Tabs**, narrow the page to open tabs and Saved Pages with **Open + Saved**, or browse **Bookmarks**
 - **Move or open with a modifier-click** — Cmd-click any chip or history row to pull that tab into the current window in the background, Cmd+Shift-click to pull it here and switch to it, or Shift-click to move the tab into a new Chrome window; if the page has no live tab, the current-window move gesture opens it in a new tab and Shift-click opens it in a new window
+- **Move the page you are viewing** — right-click the Tab Out toolbar icon and choose **Move current tab to new window** to detach that exact tab without opening the Dashboard
 - **Merge this macOS Desktop into one window** — with the optional local Hammerspoon integration, the final header Tab actions option safely combines eligible Chrome windows from the same active Desktop while preserving tab order, pins, mute/discard state, and whole tab groups
 - **Activation history column** — your chronological tab-switching path with working-set hints and recently closed rows you can restore or forget
 - **Saved pages** — explicitly keep a page on its card after the tab closes, and reopen it with one click (local state, not a Chrome bookmark)

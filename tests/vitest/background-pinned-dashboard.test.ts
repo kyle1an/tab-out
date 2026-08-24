@@ -3,6 +3,7 @@ import { setImmediate } from 'node:timers/promises'
 import { afterAll, afterEach, beforeAll, beforeEach, test, vi } from '@effect/vitest'
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
+import { MOVE_CURRENT_TAB_TO_NEW_WINDOW_MENU_ID } from '../../src/extension/background/action-context-menu.js'
 import { STARTUP_SNAPSHOT_DEBOUNCE_MS } from '../../src/extension/background/startup-snapshot-service.js'
 import { WORKING_SET_ACTIVITY_AUTHORITY_KEY } from '../../src/extension/background/working-set-activity-authority.js'
 import { RETAINED_PAGES_EXPIRY_ALARM } from '../../src/extension/background/retained-pages-expiry-alarm.js'
@@ -65,6 +66,7 @@ type BackgroundMockCalls = {
   badgeColor: chrome.action.BadgeColorDetails[]
   badgeText: chrome.action.BadgeTextDetails[]
   badgeTitle: chrome.action.TitleDetails[]
+  contextMenuCreate: chrome.contextMenus.CreateProperties[]
   create: chrome.tabs.CreateProperties[]
   nativeHostNames: string[]
   nativeMessages: unknown[]
@@ -286,6 +288,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
   const commandsOnCommand = createEventSlot()
   const alarmsOnAlarm = createEventSlot()
   const actionOnClicked = createEventSlot()
+  const contextMenusOnClicked = createEventSlot()
   const storageOnChanged = createEventSlot()
   const nativePortOnMessage = createEventSlot()
   const nativePortOnDisconnect = createEventSlot()
@@ -331,6 +334,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
     badgeText: [],
     badgeColor: [],
     badgeTitle: [],
+    contextMenuCreate: [],
     tabGet: [],
     tabQuery: [],
     windowsGetAll: [],
@@ -411,6 +415,13 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
       async setTitle(payload: chrome.action.TitleDetails) {
         calls.badgeTitle.push(clone(payload))
       },
+    },
+    contextMenus: {
+      create(createProperties: chrome.contextMenus.CreateProperties) {
+        calls.contextMenuCreate.push(clone(createProperties))
+        return createProperties.id || calls.contextMenuCreate.length
+      },
+      onClicked: contextMenusOnClicked.api,
     },
     tabs: {
       async get(tabId: number) {
@@ -614,6 +625,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
     listeners: {
       actionOnClicked: actionOnClicked.listeners,
       alarmsOnAlarm: alarmsOnAlarm.listeners,
+      contextMenusOnClicked: contextMenusOnClicked.listeners,
       runtimeOnInstalled: runtimeOnInstalled.listeners,
       runtimeOnMessage: runtimeOnMessage.listeners,
       runtimeOnStartup: runtimeOnStartup.listeners,
@@ -939,6 +951,45 @@ test('metadata-only tab updates do not trigger redundant badge tab queries', asy
   onUpdated(25, { url: 'https://example.test/next' }, { ...mock.state.tabsById[25], url: 'https://example.test/next' })
   await flushBackgroundWork()
   assert.equal(mock.calls.tabQuery.length, queriesBeforeUpdate + 1)
+})
+
+test('toolbar context menu moves the exact current tab into a focused new window', async () => {
+  const currentTab = {
+    id: 40,
+    windowId: 1,
+    url: 'https://example.test/current',
+    title: 'Current page',
+    active: true,
+    pinned: false,
+    groupId: -1,
+    index: 0,
+  }
+  const mock = await loadBackground([currentTab])
+  const onInstalled = mock.listeners.runtimeOnInstalled[0]
+  const onContextMenuClicked = mock.listeners.contextMenusOnClicked[0]
+  assert.equal(typeof onInstalled, 'function')
+  assert.equal(typeof onContextMenuClicked, 'function')
+
+  onInstalled({ reason: 'install' })
+  await flushBackgroundWork()
+
+  assert.deepEqual(mock.calls.contextMenuCreate, [{
+    id: MOVE_CURRENT_TAB_TO_NEW_WINDOW_MENU_ID,
+    title: 'Move current tab to new window',
+    contexts: ['action'],
+  }])
+
+  await onContextMenuClicked({
+    menuItemId: MOVE_CURRENT_TAB_TO_NEW_WINDOW_MENU_ID,
+    editable: false,
+  }, clone(currentTab))
+  await flushBackgroundWork()
+
+  assert.deepEqual(mock.calls.windowCreate.at(-1), {
+    tabId: 40,
+    focused: true,
+    type: 'normal',
+  })
 })
 
 test('toolbar badge counts closable duplicates and clicking it runs global dedupe', async () => {

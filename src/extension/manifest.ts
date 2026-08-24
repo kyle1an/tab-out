@@ -12,7 +12,7 @@ export function createExtensionManifest(input: ExtensionManifestInput): chrome.r
     version: input.version,
     description: 'Keep tabs on your tabs. New tab page that groups your open tabs by domain and lets you close them with style.',
     incognito: 'not_allowed',
-    permissions: ['tabs', 'tabGroups', 'bookmarks', 'history', 'sessions', 'storage', 'alarms', 'favicon', 'system.display', 'nativeMessaging'],
+    permissions: ['tabs', 'tabGroups', 'bookmarks', 'history', 'sessions', 'storage', 'alarms', 'favicon', 'system.display', 'nativeMessaging', 'contextMenus'],
     chrome_url_overrides: { newtab: 'index.html' },
     background: { service_worker: 'dist/background.js' },
     commands: {
