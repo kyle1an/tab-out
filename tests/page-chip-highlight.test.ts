@@ -1491,7 +1491,13 @@ test('PageChip expands same-title URL variant groups in place', () => {
   assert.match(pageChipSource, /closeOnPointerMove[\s\S]*?chipSlotRef\.current\?\.querySelector<HTMLElement>\('\.page-chip'\)/)
   assert.match(pageChipSource, /closeOnPointerMove[\s\S]*?insideExpandedChip/)
   assert.doesNotMatch(pageChipSource, /PAGE_CHIP_EXPANDED_POINTER_LEAVE_TOLERANCE_PX/)
-  assert.match(pageChipSource, /function onChipPointerLeave[\s\S]*?matches\(':focus-visible'\)[\s\S]*?closeChipExpansion\(\)/)
+  // Pointer departure always requests the close; an open menu or root
+  // keyboard focus vetoes it inside the title-expansion controller via
+  // ownership holds instead of call-site focus-visible guards.
+  assert.match(pageChipSource, /function onChipPointerLeave[\s\S]*?closeChipExpansion\(\)/)
+  assert.doesNotMatch(pageChipSource, /function onChipPointerLeave[\s\S]*?matches\(':focus-visible'\)[\s\S]*?closeChipExpansion\(\)/)
+  assert.match(pageChipSource, /chipExpansionController\.hold\('keyboard-focus'\)/)
+  assert.match(pageChipSource, /chipExpansionController\.hold\('context-menu'\)/)
   assert.doesNotMatch(pageChipSource, /backgroundColor: 'var\(--chip-hover-fade-bg\)'/)
   assert.match(pageChipSource, /width: chipExpandedWidth/)
   assert.match(pageChipSource, /Math\.max\(rect\.width, minWidth, contentMetrics\.width \+ horizontalInset\)/)

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import type { FocusEvent, KeyboardEvent, MouseEvent, PointerEvent } from 'react'
+import type { FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, RefObject } from 'react'
 import { X } from 'lucide-react'
 import { isClosedSavedDashboardTab, isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
 import { groupCloseActionLabel, pageChipTargetActionPolicy } from '../extension/page-chip-target-policy.js'
@@ -1273,6 +1273,10 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   const updateChipTextMeasurementsRef = useRef<(textEl: HTMLElement | null) => void>(() => {})
   const chipTextMeasurementRef = useRef<ChipTextMeasurement | null>(null)
   const contextMenuOpenRef = useRef(false)
+  const chipMenuHoldRef = useRef<(() => void) | null>(null)
+  const envMenuHoldRef = useRef<(() => void) | null>(null)
+  const variantMenuHoldRef = useRef<(() => void) | null>(null)
+  const chipFocusHoldRef = useRef<(() => void) | null>(null)
   const contextMenuFocusRecoveryRef = useRef<PageChipFocusRecovery | null>(null)
   const chipExpandedRef = useRef(false)
   const [chipTooltipOpen, setChipTooltipOpen] = useState(false)
@@ -1298,18 +1302,25 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     setChipExpandedState(nextExpanded)
   }, [])
 
-  // Page Chips close synchronously on pointer exit, but an open context menu
-  // or visible keyboard focus still owns the expansion. Context menus also
-  // keep ownership against lane steals, unlike history rows which guard at
-  // call sites.
+  // Page Chips close synchronously on pointer exit; the controller's
+  // ownership holds keep the expansion open past that. Each of the chip's
+  // menus (chip, env pill, title variant) holds 'context-menu' through its
+  // own ref so overlapping menus refcount instead of fighting one boolean,
+  // and root keyboard focus holds 'keyboard-focus' so pointer departure
+  // cannot collapse a focused chip. contextMenuOpenRef stays for the
+  // URL-preview retention guards only.
   const chipExpansionController = useTitleExpansionController({
     id: chipExpansionId,
     lane: pageChipExpansionLane,
     closeDelayMs: 0,
     onExpandedChange: setChipExpanded,
-    shouldCancelClose: () => contextMenuOpenRef.current,
-    shouldIgnoreLaneSteal: () => contextMenuOpenRef.current,
   })
+
+  function updateMenuExpansionHold(holdRef: RefObject<(() => void) | null>, open: boolean) {
+    contextMenuOpenRef.current = open
+    holdRef.current?.()
+    holdRef.current = open ? chipExpansionController.hold('context-menu') : null
+  }
 
   const updateChipTextMeasurements = useCallback((textEl: HTMLElement | null) => {
     const nextMetrics = getChipTextMetrics(textEl)
@@ -1684,7 +1695,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   }
 
   function onChipContextMenuOpenChange(open: boolean, details: ContextMenuChangeEventDetails) {
-    contextMenuOpenRef.current = open
+    updateMenuExpansionHold(chipMenuHoldRef, open)
     if (open) {
       captureContextMenuFocusRecovery()
       openChipExpansion()
@@ -1701,7 +1712,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   }
 
   function onEnvContextMenuOpenChange(open: boolean, env: DashboardChipEnv) {
-    contextMenuOpenRef.current = open
+    updateMenuExpansionHold(envMenuHoldRef, open)
     if (open) {
       captureContextMenuFocusRecovery()
       setPreview(env.tabUrl, [env.tabUrl, env.rawUrl], env)
@@ -1711,7 +1722,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   }
 
   function onTitleVariantContextMenuOpenChange(open: boolean, row: SameTitlePageChipRowView) {
-    contextMenuOpenRef.current = open
+    updateMenuExpansionHold(variantMenuHoldRef, open)
     if (open) {
       captureContextMenuFocusRecovery()
       previewTitleVariant(row.id)
@@ -1760,14 +1771,13 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       chipExpansionController.closeNow()
     }
     const closeOnPointerMove = (event: globalThis.PointerEvent) => {
-      if (contextMenuOpenRef.current) return
       // Measure the EXPANDED chip, not the original slot: the expanded chip floats
       // wider/taller than its 1:1 slot, so testing the slot rect collapsed the chip
       // the instant the pointer crossed into the revealed overflow — blinking it shut
       // at the border before the revealed content could be reached. The expanded
-      // bounding box is the complete pointer region; leaving it closes immediately.
+      // bounding box is the complete pointer region; leaving it closes immediately,
+      // vetoed inside the controller while a menu or root keyboard focus holds it.
       const expandedChipEl = chipSlotRef.current?.querySelector<HTMLElement>('.page-chip')
-      if (expandedChipEl?.matches(':focus-visible')) return
       const rect = expandedChipEl?.getBoundingClientRect() ?? chipSlotRef.current?.getBoundingClientRect()
       if (!rect) return
       const insideExpandedChip =
@@ -1775,7 +1785,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
         event.clientX <= rect.right &&
         event.clientY >= rect.top &&
         event.clientY <= rect.bottom
-      if (!insideExpandedChip) closeNow()
+      if (!insideExpandedChip) chipExpansionController.close({ delayed: false })
     }
     const closeOnVisibilityChange = () => {
       if (document.hidden) closeNow()
@@ -1799,21 +1809,28 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   }
 
   function onChipFocus(e: FocusEvent<HTMLDivElement>) {
+    const rootKeyboardFocus = e.target === e.currentTarget && e.currentTarget.matches(':focus-visible')
+    if (rootKeyboardFocus && chipFocusHoldRef.current === null) {
+      chipFocusHoldRef.current = chipExpansionController.hold('keyboard-focus')
+    }
     if (isFolded) return
-    if (e.target === e.currentTarget && e.currentTarget.matches(':focus-visible')) openChipExpansion()
+    if (rootKeyboardFocus) openChipExpansion()
     setPreview(primaryPreviewUrl, previewUrlsForChip(chip), chip)
   }
 
   function onChipBlur(e: FocusEvent<HTMLDivElement>) {
+    if (e.target === e.currentTarget) {
+      chipFocusHoldRef.current?.()
+      chipFocusHoldRef.current = null
+    }
     if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
-    if (contextMenuOpenRef.current) return
     closeChipExpansion()
+    if (contextMenuOpenRef.current) return
     setPreview('')
   }
 
   function onChipPointerLeave(e: PointerEvent<HTMLDivElement>) {
     if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
-    if (e.currentTarget.matches(':focus-visible')) return
     if (chipExpandedRef.current) {
       const rect = e.currentTarget.getBoundingClientRect()
       const insideExpandedBounds =
