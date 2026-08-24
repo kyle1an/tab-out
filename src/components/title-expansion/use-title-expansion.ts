@@ -7,8 +7,6 @@ export type UseTitleExpansionControllerOptions = {
   lane: TitleExpansionLane
   closeDelayMs: number
   onExpandedChange: (expanded: boolean) => void
-  shouldCancelClose?: () => boolean
-  shouldIgnoreLaneSteal?: () => boolean
 }
 
 /**
@@ -35,8 +33,6 @@ export function useTitleExpansionController(options: UseTitleExpansionController
           lane,
           closeDelayMs,
           onExpandedChange: (expanded) => optionsRef.current.onExpandedChange(expanded),
-          shouldCancelClose: () => optionsRef.current.shouldCancelClose?.() ?? false,
-          shouldIgnoreLaneSteal: () => optionsRef.current.shouldIgnoreLaneSteal?.() ?? false,
         })
       }
       return instanceRef.current

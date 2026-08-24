@@ -694,14 +694,16 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
     setTitleExpandedState(nextExpanded)
   }
 
-  // History rows pass no close veto: their context menu guards closes at the
-  // call sites instead (unlike Page Chips, which veto inside close itself).
+  // An open row menu owns the expansion as a controller hold; history rows
+  // have no keyboard-focus owner (unlike Page Chips), so blur and pointer
+  // departure close unless the menu hold vetoes inside the controller.
+  // contextMenuOpenRef stays for the hover-preview retention guards only.
+  const menuHoldRef = useRef<(() => void) | null>(null)
   const titleExpansionController = useTitleExpansionController({
     id: entryExpansionId,
     lane: historyEntryExpansionLane,
     closeDelayMs: 0,
     onExpandedChange: setTitleExpanded,
-    shouldIgnoreLaneSteal: () => contextMenuOpenRef.current,
   })
 
   function updateHistoryEntryExpansionMeasurements() {
@@ -825,7 +827,6 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
       titleExpansionController.closeNow()
     }
     const closeOnPointerMove = (event: globalThis.PointerEvent) => {
-      if (contextMenuOpenRef.current) return
       const slotRect = entrySlotRef.current?.getBoundingClientRect()
       if (!slotRect) return
       const insideOriginalSlot =
@@ -833,7 +834,9 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
         event.clientX <= slotRect.right &&
         event.clientY >= slotRect.top &&
         event.clientY <= slotRect.bottom
-      if (!insideOriginalSlot) closeNow()
+      // Leaving the original entry slot closes immediately, vetoed inside
+      // the controller while the row menu holds the expansion.
+      if (!insideOriginalSlot) titleExpansionController.close({ delayed: false })
     }
     const closeOnVisibilityChange = () => {
       if (document.hidden) closeNow()
@@ -846,7 +849,7 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
       window.removeEventListener('pointermove', closeOnPointerMove, true)
       document.removeEventListener('visibilitychange', closeOnVisibilityChange)
     }
-  }, [titleExpansionController, titleExpanded, contextMenuOpenRef])
+  }, [titleExpansionController, titleExpanded])
 
   // Unlike PageChip (which force-opens the title expansion when its menu opens),
   // history rows only keep an already-open expansion from collapsing while the
@@ -854,6 +857,8 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
   // driven separately by the row's onMouseEnter/onMouseLeave.
   function onHistoryEntryContextMenuOpenChange(open: boolean, details: ContextMenuChangeEventDetails) {
     contextMenuOpenRef.current = open
+    menuHoldRef.current?.()
+    menuHoldRef.current = open ? titleExpansionController.hold('context-menu') : null
     if (!open && !isOutsidePressInsideElement(details, entryRef.current)) closeTitleExpansion()
   }
 
@@ -877,7 +882,6 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
   }
 
   function onHistoryEntryPointerLeave(e: PointerEvent<HTMLDivElement>) {
-    if (contextMenuOpenRef.current) return
     if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
     closeTitleExpansion()
   }
@@ -887,7 +891,6 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
   }
 
   function onHistoryEntryBlur(e: FocusEvent<HTMLDivElement>) {
-    if (contextMenuOpenRef.current) return
     if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
     closeTitleExpansion()
   }

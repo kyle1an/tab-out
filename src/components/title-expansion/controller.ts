@@ -8,13 +8,11 @@
    The controller owns timing, lane arbitration, and expansion
    ownership. What counts as expandable, how the expanded lines are
    measured, and the overlay markup all stay with the adapting
-   surface. Ownership is the sanctioned keep-open mechanism: a held
-   owner vetoes close() — including the fire-time re-check of a
-   pending delayed close — and a held context menu additionally keeps
-   the expansion through a lane steal, while keyboard focus yields the
-   lane to the next hover. closeNow() and dispose() bypass owners.
-   The close-veto predicates remain only for surfaces not yet
-   migrated to holds.
+   surface. Ownership is the keep-open mechanism: a held owner vetoes
+   close() — including the fire-time re-check of a pending delayed
+   close — and a held context menu additionally keeps the expansion
+   through a lane steal, while keyboard focus yields the lane to the
+   next hover. closeNow() and dispose() bypass owners.
 
    The scheduler is injectable so the delay logic tests under node
    with a fake clock; production uses setTimeout.
@@ -84,17 +82,13 @@ export type TitleExpansionControllerOptions = {
   lane: TitleExpansionLane
   closeDelayMs: number
   onExpandedChange: (expanded: boolean) => void
-  /** Veto a close (and any pending delayed close, re-checked at fire time). */
-  shouldCancelClose?: () => boolean
-  /** Keep this element expanded when another element takes the lane. */
-  shouldIgnoreLaneSteal?: () => boolean
   scheduler?: TitleExpansionScheduler
 }
 
 export type TitleExpansionController = {
   open: () => void
   close: (options?: { delayed?: boolean }) => void
-  /** Collapse and release unconditionally — bypasses owners and shouldCancelClose. */
+  /** Collapse and release unconditionally — bypasses owners. */
   closeNow: () => void
   cancelPendingClose: () => void
   /**
@@ -112,8 +106,6 @@ export function createTitleExpansionController({
   lane,
   closeDelayMs,
   onExpandedChange,
-  shouldCancelClose,
-  shouldIgnoreLaneSteal,
   scheduler = defaultScheduler,
 }: TitleExpansionControllerOptions): TitleExpansionController {
   let expanded = false
@@ -127,7 +119,7 @@ export function createTitleExpansionController({
   }
 
   function closeVetoed() {
-    return holds.size > 0 || (shouldCancelClose?.() ?? false)
+    return holds.size > 0
   }
 
   function cancelPendingClose() {
@@ -146,7 +138,7 @@ export function createTitleExpansionController({
 
   const unsubscribe = lane.subscribe((activeId) => {
     if (activeId === id) return
-    if (holds.has('context-menu') || shouldIgnoreLaneSteal?.()) return
+    if (holds.has('context-menu')) return
     setExpanded(false)
   })
 

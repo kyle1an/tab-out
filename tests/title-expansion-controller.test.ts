@@ -136,50 +136,6 @@ test('cancelPendingClose keeps the expansion open through the scheduled fire', (
   assert.deepEqual(expandedChanges, [true])
 })
 
-test('shouldCancelClose vetoes close at entry and clears any pending collapse', () => {
-  let menuOpen = false
-  const { controller, fake, expandedChanges } = createRecordingController(createTitleExpansionLane(), {
-    shouldCancelClose: () => menuOpen,
-  })
-
-  controller.open()
-  controller.close()
-  menuOpen = true
-  controller.close()
-
-  assert.equal(fake.pendingCount(), 0)
-  fake.firePending()
-  assert.equal(controller.isExpanded(), true)
-  assert.deepEqual(expandedChanges, [true])
-})
-
-test('shouldCancelClose is re-checked when the delayed close fires', () => {
-  let menuOpen = false
-  const { controller, lane, fake } = createRecordingController(createTitleExpansionLane(), {
-    shouldCancelClose: () => menuOpen,
-  })
-
-  controller.open()
-  controller.close()
-  menuOpen = true
-  fake.firePending()
-
-  assert.equal(controller.isExpanded(), true)
-  assert.equal(lane.getActiveId(), 'entry-a')
-})
-
-test('closeNow collapses and releases even while shouldCancelClose vetoes', () => {
-  const { controller, lane } = createRecordingController(createTitleExpansionLane(), {
-    shouldCancelClose: () => true,
-  })
-
-  controller.open()
-  controller.closeNow()
-
-  assert.equal(controller.isExpanded(), false)
-  assert.equal(lane.getActiveId(), null)
-})
-
 test('a lane steal collapses the previous owner without touching the new owner', () => {
   const lane = createTitleExpansionLane()
   const first = createRecordingController(lane)
@@ -201,29 +157,9 @@ test('a lane steal collapses the previous owner without touching the new owner',
   assert.deepEqual(first.expandedChanges, [true, false])
 })
 
-test('shouldIgnoreLaneSteal keeps the previous owner expanded while the lane moves on', () => {
-  let menuOpen = true
-  const lane = createTitleExpansionLane()
-  const first = createRecordingController(lane, {
-    shouldIgnoreLaneSteal: () => menuOpen,
-  })
-
-  first.controller.open()
-  lane.activate('entry-b')
-
-  assert.equal(first.controller.isExpanded(), true)
-  assert.equal(lane.getActiveId(), 'entry-b')
-
-  menuOpen = false
-  lane.activate('entry-c')
-  assert.equal(first.controller.isExpanded(), false)
-})
-
 test('a delayed close that fires after a steal collapses the entry but leaves the lane with its new owner', () => {
   const lane = createTitleExpansionLane()
-  const first = createRecordingController(lane, {
-    shouldIgnoreLaneSteal: () => true,
-  })
+  const first = createRecordingController(lane)
 
   first.controller.open()
   first.controller.close()
