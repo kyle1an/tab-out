@@ -1892,7 +1892,7 @@ test('Activation History closes its title expansion as soon as the pointer leave
 })
 
 test('Activation History expands a faded two-line title on hover', async ({ page }) => {
-  await page.setViewportSize({ width: 920, height: 900 })
+  await page.setViewportSize({ width: 1000, height: 900 })
   await page.goto('/tests/fixtures/dashboard-resize.html?shortHistoryTitle=1')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
 

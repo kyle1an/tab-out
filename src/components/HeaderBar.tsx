@@ -440,7 +440,7 @@ export function HeaderBar({
           <div
             data-tabout="filter-query"
             className={cn(
-              "tab-filter-wrap relative isolate inline-flex min-w-39 max-w-70 flex-1 items-center before:pointer-events-none before:absolute before:inset-0 before:z-0 before:rounded-(--header-control-radius) before:border before:border-input before:drop-shadow-xs before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:inset-0 after:z-0 after:rounded-(--header-control-radius) after:border after:border-blue-500 after:opacity-0 after:drop-shadow-md after:drop-shadow-blue-500/50 after:transition-opacity after:duration-150 after:ease-out after:[corner-shape:squircle] after:content-[''] motion-reduce:after:transition-none [&:has(input:focus-visible)::after]:opacity-100",
+              "tab-filter-wrap relative isolate inline-flex w-70 shrink-0 items-center min-[981px]:max-[1100px]:[.dashboard-shell.has-history_&]:w-39 before:pointer-events-none before:absolute before:inset-0 before:z-0 before:rounded-(--header-control-radius) before:border before:border-input before:drop-shadow-xs before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:inset-0 after:z-0 after:rounded-(--header-control-radius) after:border after:border-blue-500 after:opacity-0 after:drop-shadow-md after:drop-shadow-blue-500/50 after:transition-opacity after:duration-150 after:ease-out after:[corner-shape:squircle] after:content-[''] motion-reduce:after:transition-none [&:has(input:focus-visible)::after]:opacity-100",
               filter && 'has-value [&_.tab-filter]:pr-7.5 [&_.tab-filter-clear]:inline-flex',
             )}
           >
