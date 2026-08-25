@@ -5319,11 +5319,13 @@ async function measurePlainTitleVariantEdgeExpansion(session: CdpSession) {
     expression: `new Promise((resolve) => {
       const start = Date.now()
       const wait = () => {
+        // The long opaque tail (page=...&sourceType=...#comment-...) renders as a
+        // bounded stable fingerprint, so only the readable semantic query value
+        // is a durable text anchor for this variant row.
         const chip = Array.from(document.querySelectorAll('.page-chip'))
           .find((candidate) =>
             candidate.textContent?.includes('Plain Title Variant') &&
-            candidate.textContent?.includes('focusedCommentId=667321') &&
-            candidate.textContent?.includes('comment-667321')
+            candidate.textContent?.includes('focusedCommentId=667321')
           )
         const chipRect = chip?.getBoundingClientRect()
         const variantLabels = Array.from(chip?.querySelectorAll('.chip-title-variant-label') || [])
@@ -5402,11 +5404,19 @@ async function measurePlainTitleVariantEdgeExpansion(session: CdpSession) {
           resolve({
             chips: Array.from(document.querySelectorAll('.page-chip'))
               .filter((candidate) => candidate.textContent?.includes('Plain Title Variant'))
-              .map((candidate) => ({
-                className: candidate.className,
-                text: candidate.textContent,
-                variantLabels: Array.from(candidate.querySelectorAll('.chip-title-variant-label')).map((label) => label.textContent)
-              })),
+              .map((candidate) => {
+                const rect = candidate.getBoundingClientRect()
+                return {
+                  rect: { top: Math.round(rect.top), bottom: Math.round(rect.bottom), width: Math.round(rect.width) },
+                  variantLabels: Array.from(candidate.querySelectorAll('.chip-title-variant-label')).map((label) => ({
+                    text: label.textContent,
+                    clientWidth: label.clientWidth,
+                    scrollWidth: label.scrollWidth,
+                    height: Math.round(label.getBoundingClientRect().height)
+                  }))
+                }
+              }),
+            innerHeight: window.innerHeight,
             missing: true
           })
         } else {
@@ -5679,6 +5689,7 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
 
   const wide = await measureDashboard(session, 1420)
   const tailFill = await measureTruncatedTitleTailFill(session)
+  const besideFloor = await measureDashboard(session, 1000)
   const constrained = await measureDashboard(session, 920)
   const narrow = await measureDashboard(session, 760)
   const initialTooltipMeasureNodes = await measureInitialTooltipMeasureNodes(session)
@@ -5688,8 +5699,12 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.notEqual(wide.firstWidth, narrow.firstWidth, 'card width should respond to viewport resize')
   assert.ok(Math.abs(wide.headerControlsRight - wide.missionsRight) <= 1, `wide header controls should align to the scrollable missions grid, not the native scrollbar gutter: ${JSON.stringify(wide)}`)
   assert.ok(Math.abs(wide.sourceSwitchRight - wide.missionsRight) <= 1, `wide source switch should align to the scrollable missions grid, not the native scrollbar gutter: ${JSON.stringify(wide)}`)
-  assert.ok(Math.abs(constrained.headerControlsRight - constrained.missionsRight) <= 1, `constrained history layout header controls should align to the scrollable missions grid: ${JSON.stringify(constrained)}`)
-  assert.ok(Math.abs(constrained.sourceSwitchRight - constrained.missionsRight) <= 1, `constrained history layout source switch should align to the scrollable missions grid: ${JSON.stringify(constrained)}`)
+  assert.ok(Math.abs(besideFloor.headerControlsRight - besideFloor.missionsRight) <= 1, `beside-history floor header controls should align to the scrollable missions grid: ${JSON.stringify(besideFloor)}`)
+  assert.ok(Math.abs(besideFloor.sourceSwitchRight - besideFloor.missionsRight) <= 1, `beside-history floor source switch should align to the scrollable missions grid: ${JSON.stringify(besideFloor)}`)
+  assert.ok(Math.abs(constrained.headerControlsRight - constrained.missionsRight) <= 1, `stacked history layout header controls should align to the scrollable missions grid: ${JSON.stringify(constrained)}`)
+  assert.ok(Math.abs(constrained.sourceSwitchRight - constrained.missionsRight) <= 1, `stacked history layout source switch should align to the scrollable missions grid: ${JSON.stringify(constrained)}`)
+  assert.ok(Math.abs(narrow.headerControlsRight - narrow.missionsRight) <= 1, `narrow layout header controls should align to the scrollable missions grid: ${JSON.stringify(narrow)}`)
+  assert.ok(Math.abs(narrow.sourceSwitchRight - narrow.missionsRight) <= 1, `narrow layout source switch should align to the scrollable missions grid: ${JSON.stringify(narrow)}`)
   assert.equal(initialTooltipMeasureNodes.pageChipMeasureNodes, 0, `page chips should not mount hidden tooltip measurement nodes before hover: ${JSON.stringify(initialTooltipMeasureNodes)}`)
   assert.equal(initialTooltipMeasureNodes.historyExpansionMeasureNodes, 0, `history rows should not mount hidden expansion measurement nodes before hover: ${JSON.stringify(initialTooltipMeasureNodes)}`)
   assert.equal(initialTooltipMeasureNodes.visibleTooltipNodes, 0, `dashboard should not show tooltip popups before hover: ${JSON.stringify(initialTooltipMeasureNodes)}`)
@@ -6748,9 +6763,11 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
     markerOnlyLine.target.markerLine,
     `a pill alone on its resting line must stay on that visible line when it hydrates (reveal in place): ${JSON.stringify(markerOnlyLine)}`,
   )
+  // Long opaque assignee values render as bounded stable fingerprints, so the
+  // hydrated suffix is the readable query key plus each variant's fingerprint.
   assert.ok(
-    markerOnlyLine.expansion.text.includes('assignee=712020'),
-    `marker-only-line expansion should reveal the full URL suffix: ${JSON.stringify(markerOnlyLine.expansion)}`,
+    ['assignee=', '1RLVW78', '08KCGBG'].every((part) => markerOnlyLine.expansion.text.includes(part)),
+    `marker-only-line expansion should reveal the fingerprinted URL suffixes: ${JSON.stringify(markerOnlyLine.expansion)}`,
   )
 
   const variantTitleRow = await measureVariantTitleRowStability(session)

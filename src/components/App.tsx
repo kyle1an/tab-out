@@ -349,7 +349,7 @@ function DashboardShell({
         className={cn(
           'dashboard-shell relative z-1 mx-auto grid min-h-0 w-full max-w-(--dashboard-shell-max-width) flex-auto',
           showTabHistory
-            ? 'has-history items-stretch gap-4 grid-cols-[minmax(calc(220px+var(--dashboard-history-edge-gutter)),calc(260px+var(--dashboard-history-edge-gutter)))_minmax(0,1fr)] max-[900px]:[--dashboard-page-gutter:20px] max-[900px]:[--dashboard-history-edge-gutter:12px] max-[900px]:[--dashboard-scrollbar-inset:var(--dashboard-scrollbar-size)] max-[900px]:[&.has-history]:grid-cols-[minmax(0,1fr)] max-[900px]:[&.has-history]:gap-0'
+            ? 'has-history items-stretch gap-4 grid-cols-[minmax(calc(220px+var(--dashboard-history-edge-gutter)),calc(260px+var(--dashboard-history-edge-gutter)))_minmax(0,1fr)] max-[980px]:[--dashboard-page-gutter:20px] max-[980px]:[--dashboard-history-edge-gutter:12px] max-[980px]:[--dashboard-scrollbar-inset:var(--dashboard-scrollbar-size)] max-[980px]:[&.has-history]:grid-cols-[minmax(0,1fr)] max-[980px]:[&.has-history]:gap-0'
             : 'grid-cols-[minmax(0,1fr)]',
           source === 'bookmarks' && 'is-bookmarks',
         )}
@@ -372,7 +372,7 @@ function DashboardShell({
           className={cn(
             'dashboard-main flex min-h-0 min-w-0 flex-col',
             showTabHistory
-              ? 'col-2 pr-(--dashboard-page-gutter) pl-0 max-[900px]:[.dashboard-shell.has-history_&]:col-1 max-[900px]:[.dashboard-shell.has-history_&]:px-(--dashboard-page-gutter)'
+              ? 'col-2 pr-(--dashboard-page-gutter) pl-0 max-[980px]:[.dashboard-shell.has-history_&]:col-1 max-[980px]:[.dashboard-shell.has-history_&]:px-(--dashboard-page-gutter)'
               : 'col-1 px-(--dashboard-page-gutter)',
           )}
         >
@@ -383,7 +383,7 @@ function DashboardShell({
               source === 'bookmarks'
                 ? 'ml-[calc(0px-var(--dashboard-edge-bleed))] pl-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))]'
                 : 'ml-[calc(0px-var(--header-shadow-left-reserve))] pl-(--header-shadow-left-reserve)',
-              showTabHistory && '[clip-path:inset(0_0_-16px_calc(0px-var(--header-shadow-left-reserve)))] focus-within:[clip-path:inset(-4px_-4px_-16px_calc(0px-var(--header-shadow-left-reserve)-4px))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-padding-fade:calc(var(--dashboard-edge-bleed)+var(--dashboard-scrollbar-size))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-left-reserve:var(--dashboard-edge-bleed)] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:ml-[calc(0px-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:pl-(--dashboard-edge-bleed) max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scrollbar-size))]',
+              showTabHistory && '[clip-path:inset(0_0_-16px_calc(0px-var(--header-shadow-left-reserve)))] focus-within:[clip-path:inset(-4px_-4px_-16px_calc(0px-var(--header-shadow-left-reserve)-4px))] max-[980px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-padding-fade:calc(var(--dashboard-edge-bleed)+var(--dashboard-scrollbar-size))] max-[980px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-left-reserve:var(--dashboard-edge-bleed)] max-[980px]:[.dashboard-shell.has-history_.dashboard-main_>&]:ml-[calc(0px-var(--dashboard-edge-bleed))] max-[980px]:[.dashboard-shell.has-history_.dashboard-main_>&]:pl-(--dashboard-edge-bleed) max-[980px]:[.dashboard-shell.has-history_.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scrollbar-size))]',
             )}
           >
             <HeaderBar
@@ -412,7 +412,7 @@ function DashboardShell({
             aria-busy={(source !== sourceSelection && sourceSelection === 'bookmarks') || undefined}
             aria-labelledby={dashboardViewOptionId(dashboardViewSelection)}
             className={cn(
-              'scroll-region relative z-1 flex-auto min-h-0 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain mr-[calc(0px-var(--dashboard-edge-bleed))] pt-1.5 pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))] pb-12.5 scrollbar-gutter-stable max-[900px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-size)-var(--dashboard-scrollbar-thumb-size)-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-size)+var(--dashboard-scrollbar-thumb-size))]',
+              'scroll-region relative z-1 flex-auto min-h-0 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain mr-[calc(0px-var(--dashboard-edge-bleed))] pt-1.5 pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))] pb-12.5 scrollbar-gutter-stable max-[980px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-size)-var(--dashboard-scrollbar-thumb-size)-var(--dashboard-edge-bleed))] max-[980px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-size)+var(--dashboard-scrollbar-thumb-size))]',
               source === 'bookmarks'
                 ? 'ml-[calc(0px-var(--dashboard-edge-bleed)-var(--dashboard-card-shadow-bleed))] pl-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter)+var(--dashboard-card-shadow-bleed))]'
                 : 'ml-[calc(0px-var(--dashboard-card-shadow-bleed))] pl-(--dashboard-card-shadow-bleed)',

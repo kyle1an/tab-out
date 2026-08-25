@@ -1588,7 +1588,7 @@ function HistoryEntryScrollbar({ scrollbar }: { scrollbar: HistoryScrollbar }) {
   return (
     <div
       data-tabout-part="history-scrollbar"
-      className="history-entry-scrollbar pointer-events-none absolute top-0 right-0 bottom-0 z-20 w-(--dashboard-scrollbar-size) select-none max-[900px]:right-[calc(0px-var(--dashboard-scrollbar-inset))]"
+      className="history-entry-scrollbar pointer-events-none absolute top-0 right-0 bottom-0 z-20 w-(--dashboard-scrollbar-size) select-none max-[980px]:right-[calc(0px-var(--dashboard-scrollbar-inset))]"
       style={scrollbarStyle}
       aria-hidden="true"
     >
@@ -1726,20 +1726,20 @@ export function TabHistoryPanel({
   return (
     <section
       data-tabout="activation-history"
-      className="tab-history-panel sticky top-0 z-30 col-start-1 flex h-screen max-h-screen min-w-0 flex-col overflow-visible pl-(--dashboard-history-edge-gutter) max-[900px]:relative max-[900px]:ml-0 max-[900px]:mr-(--dashboard-scrollbar-inset) max-[900px]:h-auto max-[900px]:max-h-65 max-[900px]:border-b max-[900px]:border-(--warm-gray) max-[900px]:pr-0 max-[900px]:pb-0 max-[900px]:[.dashboard-shell.has-history_&]:col-1"
+      className="tab-history-panel sticky top-0 z-30 col-start-1 flex h-screen max-h-screen min-w-0 flex-col overflow-visible pl-(--dashboard-history-edge-gutter) max-[980px]:relative max-[980px]:ml-0 max-[980px]:mr-(--dashboard-scrollbar-inset) max-[980px]:h-auto max-[980px]:max-h-65 max-[980px]:border-b max-[980px]:border-(--warm-gray) max-[980px]:pr-0 max-[980px]:pb-0 max-[980px]:[.dashboard-shell.has-history_&]:col-1"
       aria-label="Activation history"
     >
       <div
         ref={historyListRef}
-        className="history-entry-list pointer-events-none relative flex min-h-0 w-[calc(100vw-var(--dashboard-history-edge-gutter))] min-w-0 flex-auto overflow-x-hidden overflow-y-auto scrollbar-gutter-stable scrollbar-none min-[901px]:ml-[calc(var(--dashboard-page-gutter)-var(--dashboard-edge-bleed)-var(--dashboard-history-edge-gutter))] min-[901px]:pl-[calc(var(--dashboard-edge-bleed)-var(--dashboard-page-gutter)+var(--dashboard-history-edge-gutter))] max-[900px]:w-auto max-[900px]:mr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))]"
+        className="history-entry-list pointer-events-none relative flex min-h-0 w-[calc(100vw-var(--dashboard-history-edge-gutter))] min-w-0 flex-auto overflow-x-hidden overflow-y-auto scrollbar-gutter-stable scrollbar-none min-[981px]:ml-[calc(var(--dashboard-page-gutter)-var(--dashboard-edge-bleed)-var(--dashboard-history-edge-gutter))] min-[981px]:pl-[calc(var(--dashboard-edge-bleed)-var(--dashboard-page-gutter)+var(--dashboard-history-edge-gutter))] max-[980px]:w-auto max-[980px]:mr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))]"
       >
-        <div className="history-entry-scroll-hit-area-frame pointer-events-none sticky top-0 z-0 ml-[calc(var(--dashboard-page-gutter)-var(--dashboard-edge-bleed)-var(--dashboard-history-edge-gutter))] h-0 w-[calc(var(--dashboard-edge-bleed)-var(--dashboard-page-gutter)+var(--dashboard-history-edge-gutter))] flex-none max-[900px]:hidden" aria-hidden="true">
+        <div className="history-entry-scroll-hit-area-frame pointer-events-none sticky top-0 z-0 ml-[calc(var(--dashboard-page-gutter)-var(--dashboard-edge-bleed)-var(--dashboard-history-edge-gutter))] h-0 w-[calc(var(--dashboard-edge-bleed)-var(--dashboard-page-gutter)+var(--dashboard-history-edge-gutter))] flex-none max-[980px]:hidden" aria-hidden="true">
           <div
             data-tabout-part="history-scroll-hit-area"
             className="history-entry-scroll-hit-area h-screen w-full pointer-events-auto"
           />
         </div>
-        <div ref={historyContentRef} className="history-entry-list-content pointer-events-auto flex self-start w-65 min-w-0 flex-col gap-[2.5px] pt-3 pr-3.5 pb-10 max-[900px]:w-full max-[900px]:pr-0 max-[900px]:pb-3">
+        <div ref={historyContentRef} className="history-entry-list-content pointer-events-auto flex self-start w-65 min-w-0 flex-col gap-[2.5px] pt-3 pr-3.5 pb-10 max-[980px]:w-full max-[980px]:pr-0 max-[980px]:pb-3">
           {rows.map((row) => {
             const layoutKey = historyPanelRowLayoutKey(row)
             return (
