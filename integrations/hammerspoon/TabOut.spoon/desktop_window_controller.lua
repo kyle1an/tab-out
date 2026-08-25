@@ -1,6 +1,6 @@
 local M = {}
 
-local CONTROL_VERSION = 4
+local CONTROL_VERSION = 5
 local MERGE_DESKTOP_CAPABILITY = "merge-desktop"
 local MAXIMUM_WINDOW_IDS = 512
 local RECONNECT_DELAYS_SECONDS = { 0.25, 1, 5, 30 }

@@ -59,8 +59,8 @@ needs the reverse direction while the user reviews a preview and confirms it.
 
 The header can promise exact same-Desktop scope instead of a bounds-based
 approximation. Extension reloads remain compatible with the placement-v3 path,
-while the control-v4 capability makes an older native host or Spoon visibly
-unavailable rather than partially functional. The Hammerspoon controller
+while the versioned control capability makes an older native host or Spoon
+visibly unavailable rather than partially functional. The Hammerspoon controller
 reconnects only to the extension-owned host endpoint and creates no LaunchAgent,
 network listener, durable selection record, or independent keepalive.
 
@@ -77,3 +77,12 @@ rejected because it violates fail-closed scope and has no lossless window-layout
 rollback. A new always-running native application was rejected because the
 existing user-local Hammerspoon integration already owns the required native
 identity and Space policy with a smaller lifecycle and permission surface.
+
+## Amendment: Control Protocol V5
+
+On 2026-08-25, the control protocol advanced from v4 to v5 after an accepted
+response shape changed. Keeping the old protocol number had allowed a linked
+Spoon and a previously copied native host to register successfully, then reject
+every Desktop Window Merge response as malformed. Request or response shape
+changes must advance the control protocol so mixed installations fail during
+registration and surface the existing controller-update guidance.

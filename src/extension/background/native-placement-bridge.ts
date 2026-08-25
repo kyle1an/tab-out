@@ -18,7 +18,7 @@ import {
 } from './native-window-placement.js'
 
 export const NATIVE_PLACEMENT_BRIDGE_VERSION = 3
-export const NATIVE_CONTROL_BRIDGE_VERSION = 4
+export const NATIVE_CONTROL_BRIDGE_VERSION = 5
 export const NATIVE_MERGE_DESKTOP_CAPABILITY = 'merge-desktop'
 const NATIVE_CONTROL_MAXIMUM_WINDOW_IDS = 512
 // The final delay deliberately exceeds Chrome's normal 30-second MV3 idle

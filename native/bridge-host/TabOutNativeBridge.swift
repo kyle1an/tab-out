@@ -3,8 +3,8 @@ import CoreFoundation
 import Foundation
 
 private let placementBridgeVersion = 3
-private let controlBridgeVersion = 4
-private let bridgeVersionString = "4.0.0"
+private let controlBridgeVersion = 5
+private let bridgeVersionString = "5.0.0"
 private let maximumMessageBytes = 64 * 1024
 private let maximumRequestLifetimeMs: Int64 = 60_000
 private let mergeDesktopCapability = "merge-desktop"

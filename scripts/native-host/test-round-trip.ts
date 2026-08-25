@@ -523,7 +523,7 @@ const testDesktopControllerRoundTrip = Effect.fn(
   const controller = yield* connectController(socketPath)
   const currentTime = yield* Clock.currentTimeMillis
   yield* writeControllerMessage(controller, {
-    version: 4,
+    version: 5,
     type: 'controller-register',
     requestId: 'controller-round-trip',
     expiresAtMs: currentTime + 5_000,
@@ -534,7 +534,7 @@ const testDesktopControllerRoundTrip = Effect.fn(
     'read controller registration response',
   ))
   yield* check(
-    registration.version === 4 &&
+    registration.version === 5 &&
     registration.requestId === 'controller-round-trip' &&
     registration.status === 'accepted',
     'validate controller registration',
@@ -546,7 +546,7 @@ const testDesktopControllerRoundTrip = Effect.fn(
     'read native controller status',
   ))
   yield* check(
-    status.version === 4 &&
+    status.version === 5 &&
     status.type === 'controller-status' &&
     status.connected === true,
     'validate native controller status',
@@ -554,7 +554,7 @@ const testDesktopControllerRoundTrip = Effect.fn(
   )
 
   const controlRequest = {
-    version: 4,
+    version: 5,
     type: 'resolve-desktop-windows',
     requestId: 'merge-round-trip',
     expiresAtMs: currentTime + 5_000,
@@ -575,7 +575,7 @@ const testDesktopControllerRoundTrip = Effect.fn(
   )
 
   yield* writeControllerMessage(controller, {
-    version: 4,
+    version: 5,
     type: 'response',
     requestId: 'merge-round-trip',
     status: 'accepted',
@@ -662,7 +662,7 @@ const testDesktopControllerRoundTrip = Effect.fn(
     JSON.stringify(forwardedPrivateResponseRequest),
   )
   yield* writeControllerMessage(controller, {
-    version: 4,
+    version: 5,
     type: 'response',
     requestId: 'controller-private-field-round-trip',
     status: 'accepted',
