@@ -315,6 +315,7 @@ function DashboardShell({
   const headerRef = useRef<HTMLDivElement>(null)
   const scrollRegionRef = useRef<HTMLDivElement>(null)
   const scrollSentinelRef = useRef<HTMLSpanElement>(null)
+  const dashboardPanelHadKeyboardFocusRef = useRef(false)
 
   useEffect(() => {
     const header = headerRef.current
@@ -339,6 +340,29 @@ function DashboardShell({
   // the header does not shift when the first snapshot arrives.
   const showTabHistory = source === 'tabs'
   const historyWorkingSet = source === 'tabs' ? workingSet : null
+  const dashboardPanelNeedsFocusTarget = !showHistoryRange
+    && missionSections.some((section) => section.showEmptyState && section.cards.length === 0)
+    && missionSections.every((section) => section.cards.length === 0 && !section.historySearchSummary)
+  useLayoutEffect(() => {
+    if (dashboardPanelNeedsFocusTarget || !dashboardPanelHadKeyboardFocusRef.current) return
+
+    dashboardPanelHadKeyboardFocusRef.current = false
+    const panel = scrollRegionRef.current
+    if (!panel) return
+    const ownerDocument = panel.ownerDocument
+    if (ownerDocument.visibilityState !== 'visible' || !ownerDocument.hasFocus()) return
+    const activeElement = ownerDocument.activeElement
+    if (
+      activeElement &&
+      activeElement !== panel &&
+      activeElement !== ownerDocument.body &&
+      activeElement !== ownerDocument.documentElement
+    ) return
+
+    Array.from(panel.querySelectorAll<HTMLElement>('button:not(:disabled):not([aria-disabled="true"])'))
+      .find((element) => !element.closest('[inert]') && element.getClientRects().length > 0)
+      ?.focus({ preventScroll: true })
+  }, [dashboardPanelNeedsFocusTarget])
   return (
     <TooltipProvider>
       <div
@@ -407,16 +431,20 @@ function DashboardShell({
             ref={scrollRegionRef}
             id="dashboardMissions"
             role="tabpanel"
-            tabIndex={0}
+            tabIndex={dashboardPanelNeedsFocusTarget ? 0 : undefined}
             data-tabout-part="scroll-region"
             aria-busy={(source !== sourceSelection && sourceSelection === 'bookmarks') || undefined}
             aria-labelledby={dashboardViewOptionId(dashboardViewSelection)}
             className={cn(
-              'scroll-region relative z-1 flex-auto min-h-0 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain mr-[calc(0px-var(--dashboard-edge-bleed))] pt-1.5 pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))] pb-12.5 scrollbar-gutter-stable max-[980px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-size)-var(--dashboard-scrollbar-thumb-size)-var(--dashboard-edge-bleed))] max-[980px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-size)+var(--dashboard-scrollbar-thumb-size))]',
+              'scroll-region group/dashboard-panel relative z-1 flex-auto min-h-0 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain mr-[calc(0px-var(--dashboard-edge-bleed))] pt-1.5 pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))] pb-12.5 scrollbar-gutter-stable focus-visible:outline-none max-[980px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-size)-var(--dashboard-scrollbar-thumb-size)-var(--dashboard-edge-bleed))] max-[980px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-size)+var(--dashboard-scrollbar-thumb-size))]',
               source === 'bookmarks'
                 ? 'ml-[calc(0px-var(--dashboard-edge-bleed)-var(--dashboard-card-shadow-bleed))] pl-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter)+var(--dashboard-card-shadow-bleed))]'
                 : 'ml-[calc(0px-var(--dashboard-card-shadow-bleed))] pl-(--dashboard-card-shadow-bleed)',
             )}
+            onFocus={(event) => {
+              if (event.target !== event.currentTarget) return
+              dashboardPanelHadKeyboardFocusRef.current = event.currentTarget.matches(':focus-visible')
+            }}
           >
             <span
               ref={scrollSentinelRef}

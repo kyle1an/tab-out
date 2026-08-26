@@ -19,10 +19,15 @@ function EmptyState({ hint, label, source }: { hint?: string | undefined, label?
     <output
       aria-live="polite"
       aria-atomic="true"
-      className="[column-span:all] flex flex-col items-center justify-center gap-1.5 px-4 pt-10 pb-15 text-center"
+      className="[column-span:all] flex items-center justify-center px-4 pt-10 pb-15 text-center"
     >
-      <span className="text-base font-normal text-foreground">{label ?? `No ${noun}.`}</span>
-      {hint && <span className="text-sm font-normal text-muted-foreground">{hint}</span>}
+      <span
+        data-tabout="dashboard-empty-state"
+        className="inline-flex flex-col items-center gap-1.5 rounded-lg px-2 py-1 [corner-shape:squircle] group-focus-visible/dashboard-panel:outline-2 group-focus-visible/dashboard-panel:outline-offset-2 group-focus-visible/dashboard-panel:outline-(--accent-amber)"
+      >
+        <span className="text-base font-normal text-foreground">{label ?? `No ${noun}.`}</span>
+        {hint && <span className="text-sm font-normal text-muted-foreground">{hint}</span>}
+      </span>
     </output>
   )
 }
@@ -32,10 +37,15 @@ function NoResultsState({ hint, query }: { hint?: string | undefined, query: str
     <output
       aria-live="polite"
       aria-atomic="true"
-      className="[column-span:all] flex flex-col items-center justify-center gap-1.5 px-4 pt-10 pb-15 text-center"
+      className="[column-span:all] flex items-center justify-center px-4 pt-10 pb-15 text-center"
     >
-      <span className="font-normal text-foreground text-[15px]">No matches for “{query}”.</span>
-      {hint && <span className="text-sm font-normal text-muted-foreground">{hint}</span>}
+      <span
+        data-tabout="dashboard-empty-state"
+        className="inline-flex flex-col items-center gap-1.5 rounded-lg px-2 py-1 [corner-shape:squircle] group-focus-visible/dashboard-panel:outline-2 group-focus-visible/dashboard-panel:outline-offset-2 group-focus-visible/dashboard-panel:outline-(--accent-amber)"
+      >
+        <span className="font-normal text-foreground text-[15px]">No matches for “{query}”.</span>
+        {hint && <span className="text-sm font-normal text-muted-foreground">{hint}</span>}
+      </span>
     </output>
   )
 }

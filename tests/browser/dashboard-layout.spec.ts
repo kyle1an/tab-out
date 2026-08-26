@@ -42,6 +42,12 @@ type HistoryReorderFixtureWindow = typeof window & {
   __tabOutSmokeSetHistoryVisibility?: (visibilityState: 'hidden' | 'visible') => void
 }
 
+declare global {
+  interface Window {
+    __tabOutSmokeSetBulkTabs: (count: number) => Promise<void>
+  }
+}
+
 type FirstPointerEntry = {
   cursor: string
   ownerMatched: boolean
@@ -2582,13 +2588,9 @@ test('filter navigation only selects progressive Tabs results after they mount',
   await input.fill('Bulk Tab')
   await expect(cards).toHaveCount(24)
 
-  await page.evaluate(() => (
-    window as typeof window & { __tabOutSmokeSetBulkTabs: (count: number) => Promise<void> }
-  ).__tabOutSmokeSetBulkTabs(60))
+  await page.evaluate(() => window.__tabOutSmokeSetBulkTabs(60))
   await expect(cards).toHaveCount(60)
-  await page.evaluate(() => (
-    window as typeof window & { __tabOutSmokeSetBulkTabs: (count: number) => Promise<void> }
-  ).__tabOutSmokeSetBulkTabs(81))
+  await page.evaluate(() => window.__tabOutSmokeSetBulkTabs(81))
   await expect(cards).toHaveCount(60)
 
   expect(await page.evaluate(() => (
@@ -2880,6 +2882,7 @@ test('Dashboard Views focus retained pages locally without losing URL state', as
   const openSavedView = page.getByRole('tab', { name: 'Open + Saved' })
   const allTabsView = page.getByRole('tab', { name: 'All Tabs' })
   const bookmarksView = page.getByRole('tab', { name: 'Bookmarks' })
+  const historyRange = page.getByRole('combobox', { name: 'History search range' })
   const retainedPages = page.locator('[data-tabout-retained-page-identity]')
   const scrollRegion = page.getByRole('tabpanel')
   const emptyState = page.locator('#openTabsMissions output')
@@ -2888,7 +2891,7 @@ test('Dashboard Views focus retained pages locally without losing URL state', as
   await expect(openSavedView).toHaveAttribute('data-active', '')
   await expect(openSavedView).toHaveAttribute('aria-controls', 'dashboardMissions')
   await expect(scrollRegion).toHaveAttribute('aria-labelledby', 'dashboard-view-option-open-saved')
-  await expect(scrollRegion).toHaveAttribute('tabindex', '0')
+  await expect(scrollRegion).not.toHaveAttribute('tabindex')
   await expect(retainedPages).toHaveCount(0)
   await expect(emptyState).toContainText('No matches for “Retained Focus”.')
   await expect(emptyState).toContainText('Retained matches are available in All Tabs.')
@@ -2900,6 +2903,11 @@ test('Dashboard Views focus retained pages locally without losing URL state', as
   const historyLength = await page.evaluate(() => window.history.length)
 
   const serviceStateReads = await dashboardServiceStateRequestCount(page)
+
+  await expect(historyRange).toBeVisible()
+  await openSavedView.focus()
+  await page.keyboard.press('Tab')
+  await expect(historyRange).toBeFocused()
 
   await openSavedView.focus()
   await openSavedView.press('End')
@@ -3031,15 +3039,46 @@ test('default Dashboard View aliases canonicalize without dropping URL state', a
 test('Open + Saved explains an unfiltered retained-only dashboard', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html?retainedFocus=1&retainedOnly=1&view=open-saved')
 
+  const openSavedView = page.getByRole('tab', { name: 'Open + Saved' })
+  const panel = page.getByRole('tabpanel')
   const emptyState = page.locator('#openTabsMissions output')
-  await expect(page.getByRole('tab', { name: 'Open + Saved' })).toHaveAttribute('data-active', '')
+  const emptyStateFocusTarget = emptyState.locator('[data-tabout="dashboard-empty-state"]')
+  await expect(openSavedView).toHaveAttribute('data-active', '')
   await expect(page.locator('[data-tabout-retained-page-identity]')).toHaveCount(0)
   await expect(emptyState).toContainText('No open or saved pages.')
   await expect(emptyState).toContainText('Retained pages are available in All Tabs.')
 
+  await openSavedView.focus()
+  await page.keyboard.press('Tab')
+  await expect(panel).toBeFocused()
+  await expect(emptyStateFocusTarget).not.toBeFocused()
+  await expect.poll(() => panel.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe('none')
+  await expect.poll(() => emptyStateFocusTarget.evaluate((element) => {
+    const style = getComputedStyle(element)
+    return { style: style.outlineStyle, width: style.outlineWidth }
+  })).toEqual({ style: 'solid', width: '2px' })
   await page.getByRole('tab', { name: 'All Tabs' }).click()
   await expect(page.locator('[data-tabout-retained-page-identity]')).not.toHaveCount(0)
   await expect(emptyState).toHaveCount(0)
+})
+
+test('an empty Dashboard View transfers panel focus when a live tab arrives', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?retainedOnly=1&view=open-saved')
+
+  const panel = page.getByRole('tabpanel')
+  const openSavedView = page.getByRole('tab', { name: 'Open + Saved' })
+  await expect(page.locator('[data-tabout="dashboard-empty-state"]')).toBeVisible()
+
+  await openSavedView.focus()
+  await page.keyboard.press('Tab')
+  await expect(panel).toBeFocused()
+
+  await page.evaluate(() => window.__tabOutSmokeSetBulkTabs(1))
+
+  const firstControl = page.locator('[data-tabout-domain="bulk-tab-0001.test"] [data-tabout-part="card-menu"]')
+  await expect(firstControl).toBeFocused()
+  await expect.poll(() => firstControl.evaluate((element) => element.matches(':focus-visible'))).toBe(true)
+  await expect(panel).not.toHaveAttribute('tabindex')
 })
 
 test('local Tabs-derived view changes preserve scroll and perform no service-state reads', async ({ page }) => {
