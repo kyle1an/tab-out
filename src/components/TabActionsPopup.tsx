@@ -19,7 +19,7 @@ import { showToast } from '../extension/toast.js'
 const DEDUPE_PLAN_REFRESH_DELAY_MS = 150
 
 const popupItemClassName =
-  'relative flex w-full min-h-6 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2 py-1.5 text-left text-[13px] leading-tight text-foreground outline-none select-none [corner-shape:squircle] hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground disabled:pointer-events-none disabled:opacity-50'
+  'relative flex w-full min-h-6 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2 py-1.5 text-left text-sm leading-tight text-foreground outline-none select-none [corner-shape:squircle] hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground disabled:pointer-events-none disabled:opacity-50'
 
 function dedupeItemLabel(plan: OpenTabDedupePlan | null): string {
   if (!plan || plan.closableCount === 0) return 'Dedupe duplicate tabs'
