@@ -62,6 +62,17 @@ test('popup renders the Tab Actions Menu and dedupes all windows from a live cou
     (await window.chrome.tabs.query({})).filter((tab) => tab.url === 'https://duplicate.example.test/docs').length
   ))).toBe(1)
   await expect(page.getByText('Closed 1 duplicate', { exact: true })).toBeVisible()
+  // Inside the popup page the toast viewport uses compact insets instead of
+  // the dashboard's page insets: 6px sides (width 288 - 2×6) and an 8px
+  // bottom that optically matches the sides under the downward drop shadow.
+  const toastViewportGeometry = await page.getByText('Closed 1 duplicate', { exact: true }).evaluate((element) => {
+    let node: HTMLElement | null = element instanceof HTMLElement ? element : null
+    while (node && getComputedStyle(node).position !== 'fixed') node = node.parentElement
+    if (!node) throw new Error('Toast viewport is missing')
+    const styles = getComputedStyle(node)
+    return { left: styles.left, bottom: styles.bottom, width: styles.width }
+  })
+  expect(toastViewportGeometry).toEqual({ left: '6px', bottom: '8px', width: '276px' })
   const undoButton = page.getByRole('button', { name: 'Undo' })
   await expect(undoButton).toBeVisible()
   await undoButton.click()
