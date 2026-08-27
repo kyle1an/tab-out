@@ -57,13 +57,14 @@ export const refreshBadge: Effect.Effect<void, never, Badge> = Effect.flatMap(
 /**
  * Counts tabs that the global dedupe action can safely close and updates the
  * extension toolbar badge. The count is close targets, not duplicate groups.
+ * The hover title stays a constant "Tab Out": clicking the action opens the
+ * Tab Actions Menu popup (whose dedupe item performs the cleanup), so a
+ * dedupe-verb title would promise a click behavior the action no longer has.
  */
 function badgePresentationForTabs(tabs: chrome.tabs.Tab[], currentWindowId: number): BadgePresentation {
   const { closableCount: count } = buildOpenTabDedupePlan(tabs, currentWindowId)
   const text = count > 0 ? String(count) : ''
-  const title = count > 0
-    ? `Dedupe ${count} duplicate tab${count === 1 ? '' : 's'}`
-    : 'Tab Out: no duplicates to dedupe'
+  const title = 'Tab Out'
   if (count === 0) return { color: null, text, title }
   if (count <= 10) return { color: '#3d7a4a', text, title }
   if (count <= 20) return { color: '#b8892e', text, title }

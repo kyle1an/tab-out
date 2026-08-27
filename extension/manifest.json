@@ -36,10 +36,12 @@
     },
     "open-new-tab": {
       "description": "Open a new Tab Out tab"
-    }
+    },
+    "_execute_action": {}
   },
   "action": {
     "default_title": "Tab Out",
+    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png"

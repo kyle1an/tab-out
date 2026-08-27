@@ -8,6 +8,7 @@ import {
   chromeSupportPolicy,
 } from '../src/extension/chrome-support.js'
 import { createIndexHtml } from '../src/index-html.js'
+import { createPopupHtml } from '../src/popup-html.js'
 import { createExtensionManifest } from '../src/extension/manifest.js'
 
 test('verification checks every tracked generated extension surface', () => {
@@ -214,10 +215,9 @@ test('extension build configuration produces the committed package', async () =>
   const appRootContent = indexHtml.slice(appRootStart, appRootEnd)
   assert.equal(appRootContent.trim(), appRootContent)
   assert.match(appRootContent, /^<div data-tabout="dashboard-shell"/)
-  assert.match(appRootContent, /data-tabout="tab-actions"/)
-  assert.match(appRootContent, /data-tabout-part="menu-trigger"/)
-  assert.match(appRootContent, /aria-label="Tab actions"/)
-  assert.match(appRootContent, /<button(?=[^>]*aria-label="Tab actions")(?=[^>]*disabled="")[^>]*>/)
+  // The Tab Actions Menu lives in the toolbar popup page, not the header.
+  assert.doesNotMatch(appRootContent, /data-tabout="tab-actions"/)
+  assert.doesNotMatch(appRootContent, /data-tabout-part="menu-trigger"/)
   assert.doesNotMatch(appRootContent, /filterFocusBootShell/)
   const dashboardViewBootScript = '<script src="dist/dashboard-view-boot.js"></script>'
   assert.ok(indexHtml.indexOf(dashboardViewBootScript) < indexHtml.indexOf('<div id="appRoot">'))
@@ -233,12 +233,26 @@ test('extension build configuration produces the committed package', async () =>
   assert.match(indexHtml, /src="dist\/app\.js"/)
   assert.doesNotMatch(indexHtml, /src="app\.js"/)
 
+  const popupHtml = readFileSync('extension/popup.html', 'utf8')
+  const popupHtmlTemplate = readFileSync('src/popup-html.template.html', 'utf8')
+  assert.equal(popupHtmlTemplate.split('<!-- TAB_OUT_PRERENDERED_POPUP -->').length, 2)
+  assert.equal(popupHtml, await createPopupHtml())
+  assert.doesNotMatch(popupHtml, /TAB_OUT_PRERENDERED_POPUP/)
+  assert.match(popupHtml, /<html lang="en" data-tabout-popup>/)
+  assert.match(popupHtml, /href="dist\/assets\/app\.css"/)
+  assert.match(popupHtml, /<script type="module" src="dist\/popup\.js"><\/script>/)
+  assert.match(popupHtml, /<div id="popupRoot"><div data-tabout="tab-actions"/)
+  assert.match(popupHtml, /data-tabout-part="merge-desktop-windows-button"/)
+  assert.match(popupHtml, /<div id="toastRoot"><\/div>/)
+
   const manifest = JSON.parse(readFileSync('extension/manifest.json', 'utf8'))
   assert.deepEqual(manifest, createExtensionManifest({ version: pkg.version }))
   assert.equal(manifest.background?.service_worker, 'dist/background.js')
   assert.equal(manifest.version, pkg.version)
   assert.equal(manifest.incognito, 'not_allowed')
   assert.equal(manifest.minimum_chrome_version, MINIMUM_CHROME_VERSION)
+  assert.equal(manifest.action?.default_popup, 'popup.html')
+  assert.deepEqual(manifest.commands?.['_execute_action'], {})
 
   const viteConfig = readFileSync('vite.config.ts', 'utf8')
   const buildScript = readFileSync('scripts/build-extension.ts', 'utf8')
@@ -269,7 +283,7 @@ test('extension build configuration produces the committed package', async () =>
   assert.match(viteConfig, /find: \/\^tldts\$\//)
   assert.match(viteConfig, /tldts\/dist\/index\.esm\.min\.js/)
   assert.ok(existsSync('node_modules/tldts/dist/index.esm.min.js'))
-  assert.match(viteConfig, /buildEntry === 'background' \? \{ codeSplitting: false \} : \{\}/)
+  assert.match(viteConfig, /buildEntry === 'background' \|\| buildEntry === 'popup' \? \{ codeSplitting: false \} : \{\}/)
   assert.match(viteConfig, /const repoRoot = import\.meta\.dirname/)
   assert.match(viteConfig, /\{ find: '@', replacement: resolve\(repoRoot, 'src'\) \}/)
   assert.match(viteConfig, /workingSetBackgroundEntryPath/)
@@ -277,9 +291,11 @@ test('extension build configuration produces the committed package', async () =>
   assert.match(workingSetBenchmarkBuildConfig, /resolve\(repositoryRoot, 'extension'\)/)
   assert.match(buildScript, /createExtensionManifest/)
   assert.match(buildScript, /createIndexHtml/)
+  assert.match(buildScript, /createPopupHtml/)
   assert.match(buildScript, /resolveWorkingSetBuildSelection/)
   assert.match(buildScript, /resolve\(extensionPackageDirectory, 'manifest\.json'\)/)
   assert.match(buildScript, /resolve\(extensionPackageDirectory, 'index\.html'\)/)
+  assert.match(buildScript, /resolve\(extensionPackageDirectory, 'popup\.html'\)/)
   assert.match(buildScript, /ChildProcess\.make\('pnpm'/)
   assert.match(buildScript, /runBuild\('app', viteArgs\)/)
   assert.match(buildScript, /runBuild\('background', viteArgs\)/)
@@ -336,7 +352,7 @@ test('built extension bundle is packaged locally', () => {
   const assetFiles = readdirSync('extension/dist/assets').sort()
   const assetJsFiles = assetFiles.filter((name) => name.endsWith('.js'))
   const indexHtml = readFileSync('extension/index.html', 'utf8')
-  assert.deepEqual(distFiles, ['app.js', 'assets', 'background.js', 'dashboard-view-boot.js', 'filter-focus-boot.js'])
+  assert.deepEqual(distFiles, ['app.js', 'assets', 'background.js', 'dashboard-view-boot.js', 'filter-focus-boot.js', 'popup.js'])
   assert.ok(assetFiles.includes('app.css'))
   assert.equal(assetJsFiles.length, 8)
   assert.ok(assetJsFiles.some((name) => /^startup-order-debug-heavy-[A-Za-z0-9_-]+\.js$/.test(name)))
@@ -346,10 +362,10 @@ test('built extension bundle is packaged locally', () => {
   assert.ok(assetJsFiles.some((name) => /^history-source-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^mountToast-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(!assetJsFiles.some((name) => /^PageChipContextMenuLoaded-[A-Za-z0-9_-]+\.js$/.test(name)))
-  assert.ok(assetJsFiles.some((name) => /^utils-[A-Za-z0-9_-]+\.js$/.test(name)))
+  assert.ok(assetJsFiles.some((name) => /^ReactStore-[A-Za-z0-9_-]+\.js$/.test(name)))
+  assert.ok(assetJsFiles.some((name) => /^getPseudoElementBounds-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^rolldown-runtime-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(!assetJsFiles.some((name) => /^TitleSuppressionTokenContextMenuLoaded-[A-Za-z0-9_-]+\.js$/.test(name)))
-  assert.ok(assetJsFiles.some((name) => /^createLucideIcon-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.deepEqual(readdirSync('extension').filter((name) => name.endsWith('.js')), [])
   assert.doesNotMatch(indexHtml, /config\.local\.js/)
 

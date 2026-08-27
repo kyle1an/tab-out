@@ -349,3 +349,23 @@ body[data-tabout-domain-reorder-active='true'] {
   );
   color: var(--color-tab-live);
 }
+
+/* ── Toolbar Tab Actions Menu popup ─────────────────────────────────────
+   popup.html hosts the Tab Actions Menu behind the extension toolbar
+   action. Chrome sizes the popup window from the page's rendered size,
+   so the dashboard's 100vh/flex page lock above must not apply here. The
+   body doubles as the menu popup surface (popover tokens, menu padding);
+   toasts overlay it from the shared #toastRoot without adding layout
+   height. */
+html[data-tabout-popup],
+html[data-tabout-popup] body {
+  height: auto;
+}
+
+html[data-tabout-popup] body {
+  display: block;
+  width: 288px;
+  padding: 4px;
+  background: var(--color-popover);
+  color: var(--color-popover-foreground);
+}

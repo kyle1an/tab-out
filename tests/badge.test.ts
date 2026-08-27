@@ -71,7 +71,7 @@ test('badge refresh coalesces an event burst and never applies an overtaken coun
   assert.equal(queryCount, 2)
   assert.deepEqual(badgeText, ['3'])
   assert.deepEqual(badgeColors, ['#3d7a4a'])
-  assert.deepEqual(badgeTitles, ['Dedupe 3 duplicate tabs'])
+  assert.deepEqual(badgeTitles, ['Tab Out'])
 })
 
 test('badge refresh skips redundant writes when the visible count and color are unchanged', async (t) => {
@@ -103,7 +103,7 @@ test('badge refresh skips redundant writes when the visible count and color are 
   assert.equal(queryCount, 2)
   assert.deepEqual(badgeText, ['2'])
   assert.deepEqual(badgeColors, ['#3d7a4a'])
-  assert.deepEqual(badgeTitles, ['Dedupe 2 duplicate tabs'])
+  assert.deepEqual(badgeTitles, ['Tab Out'])
 })
 
 test('badge refresh preserves its last presentation when the tab read fails', async (t) => {
@@ -135,7 +135,7 @@ test('badge refresh preserves its last presentation when the tab read fails', as
 
   assert.deepEqual(badgeText, ['4'])
   assert.deepEqual(badgeColors, ['#3d7a4a'])
-  assert.deepEqual(badgeTitles, ['Dedupe 4 duplicate tabs'])
+  assert.deepEqual(badgeTitles, ['Tab Out'])
 })
 
 test('badge refresh retries a presentation whose text write failed', async (t) => {
@@ -168,7 +168,7 @@ test('badge refresh retries a presentation whose text write failed', async (t) =
   assert.equal(textWriteCount, 2)
   assert.deepEqual(badgeText, ['5'])
   assert.deepEqual(badgeColors, ['#3d7a4a'])
-  assert.deepEqual(badgeTitles, ['Dedupe 5 duplicate tabs'])
+  assert.deepEqual(badgeTitles, ['Tab Out'])
 })
 
 test('badge hides at zero and explains that there is nothing to dedupe', async (t) => {
@@ -197,5 +197,5 @@ test('badge hides at zero and explains that there is nothing to dedupe', async (
 
   assert.deepEqual(badgeText, [''])
   assert.deepEqual(badgeColors, [])
-  assert.deepEqual(badgeTitles, ['Tab Out: no duplicates to dedupe'])
+  assert.deepEqual(badgeTitles, ['Tab Out'])
 })

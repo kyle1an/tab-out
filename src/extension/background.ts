@@ -1,12 +1,14 @@
 /**
- * background.ts — Service worker for toolbar dedupe, commands, and tab history
+ * background.ts — Service worker for the toolbar badge, commands, and tab history
  *
  * Chrome's event-driven background service worker for Tab Out.
- * It keeps the toolbar dedupe action current, handles extension commands, and
+ * It keeps the toolbar badge current, handles extension commands, and
  * maintains the activation history used by tab switching / close restore.
  *
  * Since we no longer have a server, we query chrome.tabs directly.
- * The badge counts duplicate tabs that the global dedupe policy can close.
+ * The badge counts duplicate tabs that the global dedupe policy can close;
+ * the toolbar click opens the Tab Actions Menu popup, whose dedupe item
+ * performs that cleanup.
  *
  * Color coding gives a quick at-a-glance cleanup signal:
  *   Green  (#3d7a4a) → 1–10 duplicate extras
@@ -30,15 +32,14 @@ import {
   initialOpenSurfaceReconciliationEffect,
 } from './background/initial-open-surface-reconciliation.js'
 import { OPEN_NEW_TAB_COMMAND, openNewTabEffect } from './background/new-tab-command.js'
-import { buildOpenTabDedupePlan } from './open-tab-dedupe-plan.js'
-import { closeDuplicateTabsEffect } from './tabs.js'
+import { handoffDesktopWindowMergeToWindowEffect } from './background/desktop-window-merge-handoff.js'
 import { groupColorChanged } from './groups.js'
-import { BrowserTabs } from './browser-tabs-service.js'
 import {
   isDesktopWindowMergePreviewMessage,
   isDesktopWindowMergeStatusGetMessage,
   parseDesktopWindowMergeAcknowledgeMessage,
   parseDesktopWindowMergeConfirmMessage,
+  parseDesktopWindowMergeOpenMessage,
 } from './desktop-window-merge-contract.js'
 import {
   captureCurrentOpenSurfaceObservations,
@@ -229,26 +230,6 @@ async function captureOpenSurfaceCheckpointByTabId(tabId: number) {
     ? captureOpenSurfaceCheckpoint(chromeApi, tab)
     : { status: 'unavailable' as const }
 }
-
-const handleActionClick = Effect.fn('Background.handleActionClick')(function* (
-  tab: chrome.tabs.Tab,
-) {
-  const browserTabs = yield* BrowserTabs
-  const tabsResult = yield* browserTabs.queryAllTabsResult()
-  if (!tabsResult.ok) {
-    yield* refreshBadgeEffect
-    return
-  }
-
-  const plan = buildOpenTabDedupePlan(tabsResult.value, tab.windowId)
-  if (plan.urls.length > 0) {
-    yield* closeDuplicateTabsEffect(plan.urls, true, {
-      currentWindowId: tab.windowId,
-      preservePinnedTabOut: true,
-    })
-  }
-  yield* refreshBadgeEffect
-})
 
 // ─── Event listeners ──────────────────────────────────────────────────────────
 
@@ -469,12 +450,6 @@ chromeApi.commands.onCommand.addListener((command) => {
   return undefined
 })
 
-chromeApi.action.onClicked.addListener((tab) => {
-  return backgroundRuntime.runPromise(
-    settleBackgroundEffect(handleActionClick(tab)),
-  )
-})
-
 chromeApi.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId !== MOVE_CURRENT_TAB_TO_NEW_WINDOW_MENU_ID) return undefined
   return backgroundRuntime.runPromise(
@@ -485,19 +460,35 @@ chromeApi.contextMenus.onClicked.addListener((info, tab) => {
 chromeApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const senderTabId = sender.tab?.id
   const senderWindowId = sender.tab?.windowId
-  if (
-    isDesktopWindowMergeStatusGetMessage(message) &&
-    typeof senderTabId === 'number' &&
-    typeof senderWindowId === 'number'
-  ) {
+  if (isDesktopWindowMergeStatusGetMessage(message)) {
+    // A tabless sender is the toolbar Tab Actions Menu popup. It can never
+    // own a merge session, so a sentinel requester id keeps it a pure
+    // observer: no journal adoption, isOwner always false.
+    const requester = typeof senderTabId === 'number' && typeof senderWindowId === 'number'
+      ? { tabId: senderTabId, windowId: senderWindowId, active: sender.tab?.active === true }
+      : { tabId: -1, windowId: -1, active: false }
     void backgroundRuntime.runPromise(settleBackgroundEffect(sendEffectResponse(
       desktopWindowMergeService.getStatus(
-        senderTabId,
-        senderWindowId,
-        sender.tab?.active === true,
+        requester.tabId,
+        requester.windowId,
+        requester.active,
       ),
       sendResponse,
       (status) => status,
+      () => ({ ok: false }),
+    )))
+    return true
+  }
+
+  const desktopWindowMergeOpenRequest = parseDesktopWindowMergeOpenMessage(message)
+  if (desktopWindowMergeOpenRequest && senderTabId === undefined) {
+    void backgroundRuntime.runPromise(settleBackgroundEffect(sendEffectResponse(
+      handoffDesktopWindowMergeToWindowEffect(
+        chromeApi,
+        desktopWindowMergeOpenRequest.windowId,
+      ),
+      sendResponse,
+      (delivered) => ({ ok: delivered }),
       () => ({ ok: false }),
     )))
     return true

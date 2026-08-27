@@ -27,13 +27,13 @@ The agent will walk you through it. Takes about 1 minute.
 - **See all your tabs at a glance** on a clean grid, grouped by domain
 - **Homepages stay with their site** so Gmail, GitHub, YouTube, and similar start pages remain in their own domain cards
 - **Close tabs with style** with a polished collapse animation, undoable via toast
-- **Duplicate detection** flags when you have the same page open twice, with one-click Dedupe per card, a global Dedupe in the header, and a toolbar badge that shows how many duplicates can be safely closed and dedupes them when clicked
+- **Duplicate detection** flags when you have the same page open twice, with one-click Dedupe per card, a global Dedupe in the header, and a toolbar badge that shows how many duplicates can be safely closed — clicking the icon opens the Tab Actions menu whose Dedupe option cleans them up
 - **Pin domain cards** to keep important sites at the top of the dashboard, plus per-card section and page-chip pins that keep important pages first inside their card
 - **Click any tab to jump to it** across Chrome windows
 - **Dashboard views** — start with **All Tabs**, narrow the page to open tabs and Saved Pages with **Open + Saved**, or browse **Bookmarks**
 - **Move or open with a modifier-click** — Cmd-click any chip or history row to pull that tab into the current window in the background, Cmd+Shift-click to pull it here and switch to it, or Shift-click to move the tab into a new Chrome window; if the page has no live tab, the current-window move gesture opens it in a new tab and Shift-click opens it in a new window
 - **Move the page you are viewing** — right-click the Tab Out toolbar icon and choose **Move current tab to new window** to detach that exact tab without opening the Dashboard
-- **Merge this macOS Desktop into one window** — with the optional local Hammerspoon integration, the final header Tab actions option safely combines eligible Chrome windows from the same active Desktop while preserving tab order, pins, mute/discard state, and whole tab groups
+- **Merge this macOS Desktop into one window** — with the optional local Hammerspoon integration, the final option in the toolbar Tab Actions menu safely combines eligible Chrome windows from the same active Desktop while preserving tab order, pins, mute/discard state, and whole tab groups
 - **Activation history column** — your chronological tab-switching path with working-set hints and recently closed rows you can restore or forget
 - **Saved pages** — explicitly keep a page on its card after the tab closes, and reopen it with one click (local state, not a Chrome bookmark)
 - **Closed-page retention** — genuinely closed pages remain available in **All Tabs** on their usual cards for up to 30 days, using the same closed-chip presentation as Saved Pages; reopen them, save them permanently, or remove them from Tabs
@@ -81,7 +81,7 @@ You'll see Tab Out.
 
 The companion Hammerspoon shortcuts can create Tab Out on the display under the
 pointer without assigning hidden Chrome shortcuts. The same local integration
-enables **Merge windows on this desktop…** in the header Tab actions menu. Copy
+enables **Merge windows on this desktop…** in the toolbar Tab Actions menu. Copy
 Tab Out's 32-character ID from `chrome://extensions`, then install the Spoon and
 user-level native host:
 

@@ -3398,11 +3398,15 @@ test('manifest keeps only the permissions used by the extension', () => {
   assert.equal(manifest.commands['open-filter-tab'].description, 'Open Tab Out with the filter focused')
   assert.equal(manifest.commands['open-new-tab'].description, 'Open a new Tab Out tab')
   assert.equal('global' in manifest.commands['open-new-tab'], false)
+  // _execute_action stays unbound and description-free: Chrome labels it and
+  // users opt into a binding through chrome://extensions/shortcuts.
+  assert.deepEqual(manifest.commands['_execute_action'], {})
   assert.deepEqual(Object.keys(manifest.commands), [
     'switch-to-last-tab',
     'switch-to-next-tab',
     'open-filter-tab',
     'open-new-tab',
+    '_execute_action',
   ])
 })
 

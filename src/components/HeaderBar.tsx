@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs'
-import { HeaderTabActionsMenu } from './HeaderTabActionsMenu'
 import { HeaderStats } from './HeaderStats'
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs'
 import { dashboardViewOptionId, type DashboardView } from '../extension/dashboard-view.js'
@@ -490,7 +489,6 @@ export function HeaderBar({
           />
         </div>
         <div className="header-controls inline-flex items-center gap-2.5">
-          <HeaderTabActionsMenu ready={ready} />
           <DashboardViewSwitch
             dashboardView={dashboardView}
             onDashboardViewChange={onDashboardViewChange}

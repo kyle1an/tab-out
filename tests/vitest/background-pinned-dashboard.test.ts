@@ -992,7 +992,7 @@ test('toolbar context menu moves the exact current tab into a focused new window
   })
 })
 
-test('toolbar badge counts closable duplicates and clicking it runs global dedupe', async () => {
+test('toolbar badge counts closable duplicates while the click opens the popup menu', async () => {
   const duplicateUrl = 'https://duplicate.example.test/docs'
   const groupedUrl = 'https://grouped.example.test/docs'
   const mock = await loadBackground([
@@ -1039,17 +1039,13 @@ test('toolbar badge counts closable duplicates and clicking it runs global dedup
   ])
 
   assert.deepEqual(mock.calls.badgeText.at(-1), { text: '1' })
-  assert.deepEqual(mock.calls.badgeTitle.at(-1), { title: 'Dedupe 1 duplicate tab' })
-  const onClicked = mock.listeners.actionOnClicked[0]
-  assert.equal(typeof onClicked, 'function')
-
-  await onClicked(clone(mock.state.tabsById[41]))
-  await flushBackgroundWork()
-
-  assert.deepEqual(mock.calls.remove, [42])
-  assert.deepEqual(mock.getWindowTabs(1).map((tab: any) => tab.id), [41, 43, 44])
-  assert.deepEqual(mock.calls.badgeText.at(-1), { text: '' })
-  assert.deepEqual(mock.calls.badgeTitle.at(-1), { title: 'Tab Out: no duplicates to dedupe' })
+  // The hover title stays constant: the click opens the Tab Actions Menu
+  // popup instead of running the dedupe, so the worker registers no
+  // action-click listener and the title must not promise one.
+  assert.deepEqual(mock.calls.badgeTitle.at(-1), { title: 'Tab Out' })
+  assert.deepEqual(mock.listeners.actionOnClicked, [])
+  assert.deepEqual(mock.calls.remove, [])
+  assert.deepEqual(mock.getWindowTabs(1).map((tab: any) => tab.id), [41, 42, 43, 44])
 })
 
 test('dashboard service state captures tabs and windows once for both open tabs and history', async () => {

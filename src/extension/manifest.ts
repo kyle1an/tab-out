@@ -28,9 +28,13 @@ export function createExtensionManifest(input: ExtensionManifestInput): chrome.r
       'open-new-tab': {
         description: 'Open a new Tab Out tab',
       },
+      // Unbound by default; lets users bind a shortcut for the toolbar
+      // Tab Actions Menu popup in chrome://extensions/shortcuts.
+      _execute_action: {},
     },
     action: {
       default_title: 'Tab Out',
+      default_popup: 'popup.html',
       default_icon: {
         16: 'icons/icon16.png',
         48: 'icons/icon48.png',

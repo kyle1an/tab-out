@@ -34,6 +34,7 @@ import { TabHistoryPanel } from './TabHistoryPanel'
 import { TooltipProvider } from './ui/tooltip'
 import { UrlPreview } from './UrlPreview'
 import { AppErrorBoundary } from './AppErrorBoundary'
+import { DesktopWindowMergeHost } from './DesktopWindowMergeHost'
 import { DashboardActionsProvider, HoverStateProvider } from './DashboardInteractionContext'
 import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupOrderDebugVmSample, recordStartupTiming, startStartupOrderDebugDomSampling } from './startup-order-debug'
 import { cn } from '@/lib/utils'
@@ -922,6 +923,7 @@ export function AppRoot() {
   return (
     <AppErrorBoundary>
       <App />
+      <DesktopWindowMergeHost />
     </AppErrorBoundary>
   )
 }

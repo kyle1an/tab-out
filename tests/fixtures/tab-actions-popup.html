@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en" data-tabout-popup>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Tab Out Popup Fixture</title>
+    <link rel="stylesheet" href="/extension/dist/assets/app.css" />
+  </head>
+  <body>
+    <div id="popupRoot"></div>
+    <div id="toastRoot"></div>
+    <script type="module">
+      import { createFakeChromeApi } from '/tests/helpers/fake-chrome.mjs'
+
+      window.__tabOutSmokeErrors = []
+      window.addEventListener('error', (event) => {
+        window.__tabOutSmokeErrors.push(event.message)
+      })
+      window.addEventListener('unhandledrejection', (event) => {
+        window.__tabOutSmokeErrors.push(String(event.reason?.message || event.reason))
+      })
+
+      const tabs = [
+        {
+          id: 1,
+          url: 'chrome://newtab/',
+          title: 'Tab Out',
+          favIconUrl: '',
+          windowId: 1,
+          active: true,
+          pinned: false,
+          groupId: -1,
+          index: 0
+        }
+      ]
+      window.__tabOutPopupSentMessages = []
+      window.chrome = createFakeChromeApi({
+        tabs,
+        getURL: (path) => `${window.location.origin}${path}`,
+        sendMessage: async (message) => {
+          window.__tabOutPopupSentMessages.push(message)
+          const handler = window.__tabOutPopupMessageHandler
+          if (typeof handler === 'function') return handler(message)
+          return undefined
+        }
+      })
+    </script>
+    <script type="module" src="/extension/dist/popup.js"></script>
+  </body>
+</html>

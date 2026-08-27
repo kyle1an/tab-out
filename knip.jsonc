@@ -5,6 +5,7 @@
   "tags": ["-public"],
   "entry": [
     "src/app.tsx",
+    "src/popup.tsx",
     "src/extension/background.ts",
     "src/extension/dashboard-view-boot.ts",
     "src/extension/filter-focus-boot.ts",

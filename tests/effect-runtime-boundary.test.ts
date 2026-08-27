@@ -88,11 +88,6 @@ test('worker listeners enter the shared background runtime', () => {
     {
       name: 'command',
       start: 'chromeApi.commands.onCommand.addListener',
-      end: 'chromeApi.action.onClicked.addListener',
-    },
-    {
-      name: 'action click',
-      start: 'chromeApi.action.onClicked.addListener',
       end: 'chromeApi.contextMenus.onClicked.addListener',
     },
     {

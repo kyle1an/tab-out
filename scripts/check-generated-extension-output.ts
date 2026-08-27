@@ -3,6 +3,7 @@ import process from 'node:process'
 
 const GENERATED_EXTENSION_PATHS = [
   'extension/index.html',
+  'extension/popup.html',
   'extension/manifest.json',
   'extension/dist',
 ] as const

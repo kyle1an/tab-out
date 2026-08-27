@@ -490,192 +490,7 @@ test('dashboard repacks across viewport sizes', async ({ page }) => {
   expect(pageErrors).toEqual([])
 })
 
-test('header Tab actions closes suspended tabs from Bookmarks with single-flight and zero feedback', async ({ page }) => {
-  await page.goto('/tests/fixtures/dashboard-resize.html?initialBookmarks=1')
-  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
-
-  const tabActions = page.locator('[data-tabout="tab-actions"]')
-  const trigger = tabActions.getByRole('button', { name: 'Tab actions' })
-  const dashboardView = page.locator('[data-tabout="dashboard-view"]')
-  await expect(trigger).toBeEnabled()
-  await expect.poll(() => page.evaluate(() => {
-    const triggerRect = document.querySelector('[data-tabout="tab-actions"]')?.getBoundingClientRect()
-    const dashboardViewRect = document.querySelector('[data-tabout="dashboard-view"]')?.getBoundingClientRect()
-    return triggerRect && dashboardViewRect
-      ? Math.round((dashboardViewRect.left - triggerRect.right) * 100) / 100
-      : null
-  })).toBe(10)
-
-  await page.getByRole('tab', { name: 'Bookmarks' }).click()
-  await expect(page.locator('[data-tabout="dashboard-shell"]')).toHaveAttribute('data-dashboard-view', 'bookmarks')
-  await expect(trigger).toBeEnabled()
-  await expect(dashboardView).toBeVisible()
-
-  await page.evaluate(() => {
-    const runtime = window.chrome.runtime
-    const originalSendMessage = runtime.sendMessage.bind(runtime)
-    const mergeRequests = { previewCount: 0 }
-    Reflect.set(window, '__tabOutMergeRequests', mergeRequests)
-    Reflect.set(runtime, 'sendMessage', async (...args: unknown[]) => {
-      const message = args[0] as { type?: string } | undefined
-      if (message?.type === 'tab-out:get-desktop-window-merge-status') {
-        return { ok: true, availability: { available: true }, session: null }
-      }
-      if (message?.type === 'tab-out:preview-desktop-window-merge') {
-        mergeRequests.previewCount += 1
-        return {
-          ok: true,
-          status: 'ready',
-          previewId: 'preview-reentry',
-          sourceWindowCount: 1,
-          movingTabCount: 1,
-        }
-      }
-      return Reflect.apply(originalSendMessage, runtime, args)
-    })
-    const onMessage = Reflect.get(runtime, 'onMessage') as unknown as {
-      dispatch: (message: unknown) => void
-    }
-    onMessage.dispatch({ type: 'tab-out:desktop-window-merge-status-changed' })
-  })
-
-  const suspendedRawUrl = 'chrome-extension://suspender/suspended.html#ttl=Example&uri=https%3A%2F%2Fglobal-close.example.test%2Fdocs'
-  await page.evaluate(async (url) => {
-    await window.chrome.tabs.create({
-      active: false,
-      pinned: true,
-      url,
-      windowId: 1,
-    })
-
-    const tabsApi = window.chrome.tabs
-    const queryTabs = tabsApi.query.bind(tabsApi)
-    const blocked = Promise.withResolvers<void>()
-    const gate = {
-      queryCount: 0,
-      mergeReentered: false,
-      reentered: false,
-      release: blocked.resolve,
-      started: false,
-    }
-    Reflect.set(window, '__tabOutCloseSuspendedQueryGate', gate)
-    Reflect.set(tabsApi, 'query', async (...args: unknown[]) => {
-      gate.queryCount += 1
-      if (!gate.started) {
-        gate.started = true
-        const closeItem = document.querySelector<HTMLElement>('[data-tabout-part="close-suspended-button"]')
-        const mergeItem = document.querySelector<HTMLElement>('[data-tabout-part="merge-desktop-windows-button"]')
-        if (!closeItem || !mergeItem) throw new Error('Tab action items are unavailable for reentry')
-        closeItem.click()
-        mergeItem.click()
-        gate.reentered = true
-        gate.mergeReentered = true
-      }
-      await blocked.promise
-      return Reflect.apply(queryTabs, tabsApi, args)
-    })
-  }, suspendedRawUrl)
-
-  await trigger.focus()
-  await page.keyboard.press('Enter')
-  let closeItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="close-suspended-button"]')
-  let combinedItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="close-suspended-and-dedupe-button"]')
-  let mergeItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="merge-desktop-windows-button"]')
-  await expect(closeItem).toHaveText('Close all suspended tabs')
-  await expect(combinedItem).toHaveText('Close all suspended tabs and dedupe')
-  await expect(closeItem).toHaveAttribute('data-variant', 'default')
-  await expect(combinedItem).toHaveAttribute('data-variant', 'default')
-  await expect(closeItem).not.toHaveAttribute('data-disabled', '')
-  await expect(combinedItem).not.toHaveAttribute('data-disabled', '')
-  await expect(mergeItem).not.toHaveAttribute('data-disabled', '')
-  await closeItem.click()
-
-  await expect.poll(() => page.evaluate(() => (
-    Reflect.get(window, '__tabOutCloseSuspendedQueryGate')?.started === true
-  ))).toBe(true)
-  await expect.poll(() => page.evaluate(() => (
-    Reflect.get(window, '__tabOutCloseSuspendedQueryGate')?.reentered === true
-  ))).toBe(true)
-  await expect.poll(() => page.evaluate(() => (
-    Reflect.get(window, '__tabOutCloseSuspendedQueryGate')?.mergeReentered === true
-  ))).toBe(true)
-  expect(await page.evaluate(() => (
-    Reflect.get(window, '__tabOutCloseSuspendedQueryGate')?.queryCount
-  ))).toBe(1)
-  expect(await page.evaluate(() => (
-    Reflect.get(window, '__tabOutMergeRequests')?.previewCount
-  ))).toBe(0)
-  await trigger.click()
-  closeItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="close-suspended-button"]')
-  combinedItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="close-suspended-and-dedupe-button"]')
-  mergeItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="merge-desktop-windows-button"]')
-  await expect(closeItem).toHaveAttribute('data-disabled', '')
-  await expect(combinedItem).toHaveAttribute('data-disabled', '')
-  await expect(mergeItem).toHaveAttribute('data-disabled', '')
-  await expect(mergeItem).toContainText('Another tab action is in progress')
-
-  await page.evaluate(() => {
-    const release = Reflect.get(window, '__tabOutCloseSuspendedQueryGate')?.release
-    if (typeof release !== 'function') throw new Error('Close-suspended query gate is unavailable')
-    Reflect.apply(release, window, [])
-  })
-  await expect.poll(() => page.evaluate(async (url) => (
-    !(await window.chrome.tabs.query({})).some((tab) => tab.url === url)
-  ), suspendedRawUrl)).toBe(true)
-  await expect(page.getByText('Closed 1 tab', { exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Undo' })).toBeVisible()
-
-  await expect(closeItem).not.toHaveAttribute('data-disabled', '')
-  await closeItem.click()
-  await expect(page.getByText('Nothing suspended to close', { exact: true })).toBeVisible()
-})
-
-test('header Tab actions combines suspended close and dedupe into one Undo', async ({ page }) => {
-  await page.goto('/tests/fixtures/dashboard-resize.html')
-  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
-
-  const suspendedEffectiveUrl = 'https://combined-cleanup.example.test/suspended'
-  const suspendedRawUrl = `chrome-extension://suspender/suspended.html#ttl=Example&uri=${encodeURIComponent(suspendedEffectiveUrl)}`
-  const duplicateUrl = 'https://combined-cleanup.example.test/duplicate'
-  await page.evaluate(async ({ suspendedRawUrl, duplicateUrl }) => {
-    await window.chrome.tabs.create({
-      active: false,
-      url: suspendedRawUrl,
-      windowId: 1,
-    })
-    await window.chrome.tabs.create({
-      active: false,
-      url: duplicateUrl,
-      windowId: 1,
-    })
-    await window.chrome.tabs.create({
-      active: false,
-      url: duplicateUrl,
-      windowId: 1,
-    })
-  }, { suspendedRawUrl, duplicateUrl })
-
-  const trigger = page.locator('[data-tabout="tab-actions"]').getByRole('button', { name: 'Tab actions' })
-  await trigger.click()
-  const combinedItem = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="close-suspended-and-dedupe-button"]')
-  await expect(combinedItem).toHaveText('Close all suspended tabs and dedupe')
-  await combinedItem.click()
-
-  await expect.poll(() => page.evaluate(async ({ suspendedRawUrl, duplicateUrl }) => {
-    const tabs = await window.chrome.tabs.query({})
-    return {
-      duplicateCount: tabs.filter((tab) => tab.url === duplicateUrl).length,
-      suspendedCount: tabs.filter((tab) => tab.url === suspendedRawUrl).length,
-    }
-  }, { suspendedRawUrl, duplicateUrl })).toEqual({
-    duplicateCount: 1,
-    suspendedCount: 0,
-  })
-  await expect(page.getByText('Closed 2 tabs', { exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Undo' })).toBeVisible()
-})
-
-test('header window merge confirms, stays modal during progress, and reports exact counts', async ({ page }) => {
+test('window merge preview handoff confirms, stays modal during progress, and reports exact counts', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
 
@@ -712,15 +527,23 @@ test('header window merge confirms, stays modal during progress, and reports exa
     onMessage.dispatch({ type: 'tab-out:desktop-window-merge-status-changed' })
   })
 
-  const trigger = page.locator('[data-tabout="tab-actions"]')
-    .getByRole('button', { name: 'Tab actions' })
-  await trigger.click()
-  const mergeItem = page.locator(
-    '[data-slot="menu-content"]:visible [data-tabout-part="merge-desktop-windows-button"]',
-  )
-  await expect(mergeItem).toContainText('Merge windows on this desktop…')
-  await expect(mergeItem).not.toHaveAttribute('data-disabled', '')
-  await mergeItem.click()
+  // The toolbar popup's handoff delivers this runtime message after focusing
+  // the page; the dashboard merge host acknowledges it and starts the preview.
+  const startPreviewAcknowledged = await page.evaluate(() => {
+    const onMessage = Reflect.get(window.chrome.runtime, 'onMessage') as unknown as {
+      dispatch: (...args: unknown[]) => void
+    }
+    let acknowledged: unknown = null
+    onMessage.dispatch(
+      { type: 'tab-out:start-desktop-window-merge-preview' },
+      {},
+      (response: unknown) => {
+        acknowledged = response
+      },
+    )
+    return acknowledged
+  })
+  expect(startPreviewAcknowledged).toEqual({ ok: true })
 
   const dialog = page.locator('[data-tabout="desktop-window-merge-dialog"]')
   await expect(dialog).toContainText('Merge windows on this desktop?')
@@ -765,7 +588,7 @@ test('header window merge confirms, stays modal during progress, and reports exa
   await expect(dialog).not.toBeAttached()
 })
 
-test('header window merge clears restored progress when status reports success', async ({ page }) => {
+test('window merge clears restored progress when status reports success', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
 
@@ -835,7 +658,7 @@ test('header window merge clears restored progress when status reports success',
   await expect(dialog).not.toBeAttached()
 })
 
-test('header window merge keeps a partial result open until acknowledgement succeeds', async ({ page }) => {
+test('window merge keeps a partial result open until acknowledgement succeeds', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
 

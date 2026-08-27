@@ -30,20 +30,25 @@ const buildInputs: Record<string, string> =
         'dashboard-view-boot': resolve(repoRoot, 'src/extension/dashboard-view-boot.ts'),
         'filter-focus-boot': resolve(repoRoot, 'src/extension/filter-focus-boot.ts'),
       }
-    : buildEntry === 'background'
+    : buildEntry === 'popup'
       ? {
-          background: workingSetBackgroundEntryPath(
-            repoRoot,
-            workingSetBuildSelection,
-          ),
+          popup: resolve(repoRoot, 'src/popup.tsx'),
         }
-      : {
-          app: resolve(repoRoot, 'src/app.tsx'),
-          background: workingSetBackgroundEntryPath(
-            repoRoot,
-            workingSetBuildSelection,
-          ),
-        }
+      : buildEntry === 'background'
+        ? {
+            background: workingSetBackgroundEntryPath(
+              repoRoot,
+              workingSetBuildSelection,
+            ),
+          }
+        : {
+            app: resolve(repoRoot, 'src/app.tsx'),
+            popup: resolve(repoRoot, 'src/popup.tsx'),
+            background: workingSetBackgroundEntryPath(
+              repoRoot,
+              workingSetBuildSelection,
+            ),
+          }
 
 export default defineConfig({
   plugins: [
@@ -68,13 +73,16 @@ export default defineConfig({
   build: {
     target: CHROME_BUILD_TARGET,
     outDir: workingSetBuildSelection.distDirectory,
-    emptyOutDir: buildEntry !== 'background',
+    emptyOutDir: buildEntry !== 'background' && buildEntry !== 'popup',
     modulePreload: false,
     rolldownOptions: {
       input: buildInputs,
       output: {
         entryFileNames: '[name].js',
-        ...(buildEntry === 'background' ? { codeSplitting: false } : {}),
+        // The popup entry stays standalone like the service worker: inlining
+        // its dynamic imports keeps the dashboard's app.js graph and lazy
+        // chunk layout untouched by shared-chunk hoisting.
+        ...(buildEntry === 'background' || buildEntry === 'popup' ? { codeSplitting: false } : {}),
         assetFileNames: 'assets/[name][extname]',
       },
     },

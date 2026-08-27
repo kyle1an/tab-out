@@ -10,6 +10,10 @@ export const DESKTOP_WINDOW_MERGE_ACKNOWLEDGE_MESSAGE =
   'tab-out:acknowledge-desktop-window-merge'
 export const DESKTOP_WINDOW_MERGE_STATUS_CHANGED_MESSAGE =
   'tab-out:desktop-window-merge-status-changed'
+export const DESKTOP_WINDOW_MERGE_OPEN_MESSAGE =
+  'tab-out:open-desktop-window-merge'
+export const DESKTOP_WINDOW_MERGE_START_PREVIEW_MESSAGE =
+  'tab-out:start-desktop-window-merge-preview'
 
 export const DESKTOP_WINDOW_MERGE_SESSION_STORAGE_KEY =
   'desktopWindowMergeSessionV1'
@@ -172,6 +176,16 @@ const desktopWindowMergeAcknowledgeMessageSchema = Schema.Struct({
 const desktopWindowMergeStatusChangedMessageSchema = Schema.Struct({
   type: Schema.Literals([DESKTOP_WINDOW_MERGE_STATUS_CHANGED_MESSAGE]),
 })
+const desktopWindowMergeOpenMessageSchema = Schema.Struct({
+  type: Schema.Literals([DESKTOP_WINDOW_MERGE_OPEN_MESSAGE]),
+  windowId: positiveIntegerSchema,
+})
+const desktopWindowMergeStartPreviewMessageSchema = Schema.Struct({
+  type: Schema.Literals([DESKTOP_WINDOW_MERGE_START_PREVIEW_MESSAGE]),
+})
+const desktopWindowMergeStartPreviewAcknowledgementSchema = Schema.Struct({
+  ok: Schema.Literals([true]),
+})
 
 export type DesktopWindowMergeStatusResponse =
   typeof desktopWindowMergeStatusResponseSchema.Type
@@ -185,6 +199,9 @@ const isPreviewMessage = Schema.is(desktopWindowMergePreviewMessageSchema)
 const isConfirmMessage = Schema.is(desktopWindowMergeConfirmMessageSchema)
 const isAcknowledgeMessage = Schema.is(desktopWindowMergeAcknowledgeMessageSchema)
 const isStatusChangedMessage = Schema.is(desktopWindowMergeStatusChangedMessageSchema)
+const isOpenMessage = Schema.is(desktopWindowMergeOpenMessageSchema)
+const isStartPreviewMessage = Schema.is(desktopWindowMergeStartPreviewMessageSchema)
+const isStartPreviewAcknowledgement = Schema.is(desktopWindowMergeStartPreviewAcknowledgementSchema)
 const isStatusResponse = Schema.is(desktopWindowMergeStatusResponseSchema)
 const isPreviewResponse = Schema.is(desktopWindowMergePreviewResponseSchema)
 const isConfirmResponse = Schema.is(desktopWindowMergeConfirmResponseSchema)
@@ -213,6 +230,20 @@ export function parseDesktopWindowMergeAcknowledgeMessage(
 
 export function isDesktopWindowMergeStatusChangedMessage(value: unknown): boolean {
   return isStatusChangedMessage(value)
+}
+
+export function parseDesktopWindowMergeOpenMessage(
+  value: unknown,
+): typeof desktopWindowMergeOpenMessageSchema.Type | null {
+  return isOpenMessage(value) ? value : null
+}
+
+export function isDesktopWindowMergeStartPreviewMessage(value: unknown): boolean {
+  return isStartPreviewMessage(value)
+}
+
+export function isDesktopWindowMergeStartPreviewAcknowledgement(value: unknown): boolean {
+  return isStartPreviewAcknowledgement(value)
 }
 
 export function parseDesktopWindowMergeStatusResponse(

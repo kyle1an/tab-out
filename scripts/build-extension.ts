@@ -12,8 +12,9 @@ import { omitUndefined } from '../src/lib/omit-undefined.js'
 import { resolveWorkingSetBuildSelection } from './working-set-benchmark-build-config.js'
 import { createExtensionManifest } from '../src/extension/manifest.js'
 import { createIndexHtml } from '../src/index-html.js'
+import { createPopupHtml } from '../src/popup-html.js'
 
-type BuildEntry = 'app' | 'background'
+type BuildEntry = 'app' | 'popup' | 'background'
 
 const repositoryRoot = resolve(import.meta.dirname, '..')
 const extensionPackageDirectory = resolveWorkingSetBuildSelection(
@@ -75,6 +76,16 @@ const writeGeneratedExtensionFiles = Effect.fn('extensionBuild.writeGeneratedFil
   ).pipe(
     Effect.mapError((cause) => extensionBuildError('write generated dashboard page', cause)),
   )
+  const popupHtml = yield* Effect.tryPromise({
+    try: () => createPopupHtml(),
+    catch: (cause) => extensionBuildError('create toolbar popup page', cause),
+  })
+  yield* fileSystem.writeFileString(
+    resolve(extensionPackageDirectory, 'popup.html'),
+    popupHtml,
+  ).pipe(
+    Effect.mapError((cause) => extensionBuildError('write generated toolbar popup page', cause)),
+  )
 })
 
 const runBuild = Effect.fn('extensionBuild.runVite')(function* (
@@ -107,6 +118,7 @@ const runBuild = Effect.fn('extensionBuild.runVite')(function* (
 const runExtensionBuild = Effect.fn('extensionBuild.run')(function* (viteArgs: readonly string[]) {
   yield* writeGeneratedExtensionFiles()
   yield* runBuild('app', viteArgs)
+  yield* runBuild('popup', viteArgs)
   yield* runBuild('background', viteArgs)
 })
 
