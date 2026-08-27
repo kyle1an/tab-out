@@ -86,3 +86,12 @@ Spoon and a previously copied native host to register successfully, then reject
 every Desktop Window Merge response as malformed. Request or response shape
 changes must advance the control protocol so mixed installations fail during
 registration and surface the existing controller-update guidance.
+
+## Amendment: Control Protocol V6 And Process Authority
+
+On 2026-08-26, [ADR 0022](0022-target-chrome-through-native-host-process-authority.md)
+advanced control to v6. The Chrome-launched native host stamps its validated
+parent PID onto every request before Hammerspoon sees it. Selection now excludes
+all other same-bundle processes before PID-targeted ScriptingBridge and
+Accessibility correlation. Mixed controller or extension versions receive a
+version rejection and cannot fall back to application-name targeting.

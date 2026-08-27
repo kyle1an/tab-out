@@ -20,15 +20,21 @@ local function runShortcut(kind, options)
   local addressBarFocused = false
   local addressBarInputEmpty = false
   local browserInventoryReadCount = 0
+  local fullCorrelationCount = 0
   local createdBrowserIdentityCheckedBeforeFinalization = false
   local createdBootstrapTokenCheckedBeforeFinalization = false
   local closeGestureCallback
   local closeGestureConsumed = false
   local closeMouseUpConsumed = false
+  local chromeLaunchArguments
   local chromeLaunchCount = 0
   local chromeApplicationHidden = false
   local createdBrowserWindowId = 4004
+  local createdMatchCallCount = 0
+  local createdMatchMaximumElapsed = 0
+  local createdMatchStartedAt
   local createdBootstrapReplaced = false
+  local createdTabCount = options.createdTabCount or 1
   local createdNewPageFinalizedAfterPrivateFocus = false
   local createdNewPageNavigationPending = false
   local createdNewPageNavigationReadCount = 0
@@ -39,11 +45,15 @@ local function runShortcut(kind, options)
   local createdWindowMoved = false
   local createdWindowPublished = false
   local createdWindowSpaceId
+  local destinationFocusAttemptCount = 0
+  local destinationIdentityRevalidationReadCount = 0
   local filterInputFocused = false
   local nativeBridgeRequest
   local extensionFocusRequested = false
   local privateFocusCount = 0
   local privateFocusAttemptCount = 0
+  local profileInventoryRequestCount = 0
+  local configuredProcessLookupCount = 0
   local unrelatedPrivateFocusAttempted = false
   local missingOnScreenMetadataAllowed
   local createdChromeWindow
@@ -73,6 +83,8 @@ local function runShortcut(kind, options)
   local windowDestroyedCallback
   local targetBrowserWindowId = 1001
   local inactiveSpaceBrowserWindowId = 1002
+  local isolatedPrivateOperationAttempted = false
+  local isolatedWindowMutated = false
   local otherBrowserWindowId = 2002
   local targetDocumentUrl = "https://example.test/target"
   local inactiveSpaceDocumentUrl = "https://example.test/inactive"
@@ -166,13 +178,31 @@ local function runShortcut(kind, options)
       return 43250
     end,
   }
+  local isolatedChromeApplication = {
+    bundleID = function()
+      return "com.google.Chrome"
+    end,
+    isHidden = function()
+      return false
+    end,
+    pid = function()
+      return 54321
+    end,
+  }
 
-  local function newChromeWindow(id, screen, isOtherWindow, initiallyMinimized)
+  local function newChromeWindow(
+    id,
+    screen,
+    isOtherWindow,
+    initiallyMinimized,
+    owningApplication
+  )
+    owningApplication = owningApplication or chromeApplication
     local currentFrame = screen:frame()
     local minimized = initiallyMinimized == true
     local window = {
       application = function()
-        return chromeApplication
+        return owningApplication
       end,
       focus = function(self)
         if isOtherWindow then
@@ -206,6 +236,7 @@ local function runShortcut(kind, options)
       end,
       setFrame = function(_, frame)
         if id == 404 then createdWindowMoved = true end
+        if id == 606 then isolatedWindowMutated = true end
         currentFrame = frame
       end,
       setMinimized = function(_, value)
@@ -218,6 +249,16 @@ local function runShortcut(kind, options)
   local targetChromeWindow = newChromeWindow(101, targetScreen)
   local inactiveSpaceChromeWindow = newChromeWindow(102, targetScreen)
   local otherChromeWindow = newChromeWindow(202, otherScreen, true)
+  local isolatedChromeWindow = newChromeWindow(
+    606,
+    targetScreen,
+    false,
+    false,
+    isolatedChromeApplication
+  )
+  isolatedChromeApplication.allWindows = function()
+    return options.isolatedChromeWindow and { isolatedChromeWindow } or {}
+  end
   remoteTopApplication = {
     bundleID = function()
       return "com.example.Editor"
@@ -264,7 +305,7 @@ local function runShortcut(kind, options)
     or (not targetHasChromeWindow and otherHasChromeWindow and chromeIsRunning and otherChromeWindow)
     or originalWindow
 
-  local function currentChromeWindows()
+  local function currentConfiguredChromeWindows()
     local windows = {}
     if not chromeIsRunning then
       return windows
@@ -287,6 +328,17 @@ local function runShortcut(kind, options)
     return windows
   end
 
+  local function currentChromeWindows()
+    local windows = {}
+    if options.isolatedChromeWindow then
+      table.insert(windows, isolatedChromeWindow)
+    end
+    for _, window in ipairs(currentConfiguredChromeWindows()) do
+      table.insert(windows, window)
+    end
+    return windows
+  end
+
   local function currentOrderedWindows()
     local windows = {}
     local seen = {}
@@ -303,6 +355,9 @@ local function runShortcut(kind, options)
       append(createdChromeWindow)
     end
     append(unrelatedNewChromeWindow)
+    if options.isolatedChromeWindow then
+      append(isolatedChromeWindow)
+    end
     append(originalWindow)
     if targetHasChromeWindow then
       append(targetChromeWindow)
@@ -320,12 +375,24 @@ local function runShortcut(kind, options)
   end
 
   chromeApplication.allWindows = function()
-    return currentChromeWindows()
+    return currentConfiguredChromeWindows()
   end
 
   local function newAxElement(attributes, setAttribute)
     local element = {}
+    local timeoutSeconds
+    function element:setTimeout(timeout)
+      timeoutSeconds = timeout > 0 and timeout or nil
+      return self
+    end
     function element:attributeValue(attribute)
+      if openedFilter or openedNewPage then
+        local delay = options.destinationAccessibilityReadDelaySeconds or 0
+        clock = clock + math.min(delay, timeoutSeconds or delay)
+        if timeoutSeconds and delay > timeoutSeconds then
+          return nil
+        end
+      end
       local value = attributes[attribute]
       return type(value) == "function" and value() or value
     end
@@ -347,6 +414,10 @@ local function runShortcut(kind, options)
       AXWindow = function() return createdChromeWindow and createdAxRoot or axRoot end,
     }, function(attribute, value)
       if attribute == "AXFocused" and value == true then
+        destinationFocusAttemptCount = destinationFocusAttemptCount + 1
+        if destinationFocusAttemptCount <= (options.destinationFocusRejectedAttempts or 0) then
+          return false
+        end
         onFocus()
         return true
       end
@@ -432,7 +503,7 @@ local function runShortcut(kind, options)
     end
     return false
   end)
-  local systemWideElement = newAxElement({
+  local chromeAxElement = newAxElement({
     AXFocusedUIElement = function()
       if privateFocusCount == 0 or not createdChromeWindow then
         return nil
@@ -444,7 +515,7 @@ local function runShortcut(kind, options)
   local fakeAxElements = {}
   for _, element in ipairs({
     addressBar, axRoot, closeButton, createdAxRoot, filterInput, remoteAxRoot,
-    remoteDestinationControl, systemWideElement, tabButton, secondTabButton, unrelatedAxRoot,
+    remoteDestinationControl, chromeAxElement, tabButton, secondTabButton, unrelatedAxRoot,
   }) do
     if element then fakeAxElements[element] = true end
   end
@@ -468,6 +539,15 @@ local function runShortcut(kind, options)
       end,
     },
     application = {
+      applicationForPID = function(processId)
+        if processId == 43250 and chromeIsRunning then
+          return chromeApplication
+        end
+        if processId == 54321 and options.isolatedChromeWindow then
+          return isolatedChromeApplication
+        end
+        return nil
+      end,
       frontmostApplication = function()
         return frontmostApplication
       end,
@@ -495,8 +575,9 @@ local function runShortcut(kind, options)
       end,
     },
     axuielement = {
-      systemWideElement = function()
-        return systemWideElement
+      applicationElement = function(application)
+        assert(application == chromeApplication, "destination queries use only the configured Chrome process")
+        return chromeAxElement
       end,
       windowElement = function(window)
         if window == otherChromeWindow then
@@ -549,16 +630,23 @@ local function runShortcut(kind, options)
         end
 
         if path:match("/Secure Preferences$") then
+          local isConfiguredProfile = path:find(
+            "/Profile 3/Secure Preferences",
+            1,
+            true
+          ) ~= nil
+          local exposesTabOut = isConfiguredProfile
+            or options.duplicateProfileExtension == true
           return {
             extensions = {
-              settings = {
+              settings = exposesTabOut and {
                 [string.rep("a", 32)] = {
                   commands = {
                     ["open-filter-tab"] = {},
                     ["open-new-tab"] = {},
                   },
                 },
-              },
+              } or {},
             },
           }
         end
@@ -807,7 +895,8 @@ local function runShortcut(kind, options)
       end,
     },
     task = {
-      new = function(_, callback)
+      new = function(_, callback, arguments)
+        chromeLaunchArguments = arguments
         return {
           start = function()
             chromeLaunchCount = chromeLaunchCount + 1
@@ -857,6 +946,7 @@ local function runShortcut(kind, options)
           targetChromeWindow,
           inactiveSpaceChromeWindow,
           otherChromeWindow,
+          isolatedChromeWindow,
           remoteTopWindow,
           originalWindow,
         }) do
@@ -920,6 +1010,32 @@ local function runShortcut(kind, options)
   local chunk, loadError = loadfile(modulePath, "t", environment)
   assert(chunk, loadError)
   local tabOut = chunk()
+
+  local function browserWindowIdentityFor(window)
+    if window == targetChromeWindow then
+      return targetBrowserWindowId
+    end
+    if window == inactiveSpaceChromeWindow then
+      return inactiveSpaceBrowserWindowId
+    end
+    if window == otherChromeWindow then
+      return otherBrowserWindowId
+    end
+    if window == createdChromeWindow then
+      return createdBrowserWindowId
+    end
+    if window == unrelatedNewChromeWindow then
+      return unrelatedBrowserWindowId
+    end
+    return nil
+  end
+
+  local authoritySerial = 0
+  local function issueAuthority()
+    authoritySerial = authoritySerial + 1
+    return "authority-" .. authoritySerial
+  end
+
   local privateFocus = {
     capability = function()
       if not privateFocusAvailable then
@@ -927,12 +1043,63 @@ local function runShortcut(kind, options)
       end
       return true
     end,
-    focus = function(pid, windowId, allowCreatedWindowWithoutOnScreenMetadata)
+    configuredProcess = function()
+      configuredProcessLookupCount = configuredProcessLookupCount + 1
+      if not chromeIsRunning then
+        return nil, "The configured Chrome user-data process lock is unavailable"
+      end
+      if options.firstProfileInventoryProcessUnavailable
+        and configuredProcessLookupCount == 1
+      then
+        return 99999
+      end
+      return options.configuredProcessId or 43250
+    end,
+    closeCreated = function(pid, windowId, browserWindowId, extensionId, creationToken)
+      fullCorrelationCount = fullCorrelationCount + 1
+      isolatedPrivateOperationAttempted = isolatedPrivateOperationAttempted
+        or pid == 54321
+        or windowId == isolatedChromeWindow:id()
+      if pid ~= 43250
+        or not createdChromeWindow
+        or windowId ~= createdChromeWindow:id()
+        or browserWindowId ~= createdBrowserWindowId
+        or extensionId ~= string.rep("a", 32)
+        or creationToken ~= createdPlacementToken
+        or not createdDocumentUrl:find("tabOutPlacement=" .. creationToken, 1, true)
+        or createdTabCount ~= 1
+      then
+        return nil, "The created Chrome window identity changed"
+      end
+      return createdChromeWindow:close()
+    end,
+    focus = function(
+      pid,
+      windowId,
+      browserWindowId,
+      authorityToken,
+      allowCreatedWindowWithoutOnScreenMetadata
+    )
+      isolatedPrivateOperationAttempted = isolatedPrivateOperationAttempted
+        or pid == 54321
+        or windowId == isolatedChromeWindow:id()
       privateFocusAttemptCount = privateFocusAttemptCount + 1
       unrelatedPrivateFocusAttempted = unrelatedPrivateFocusAttempted
         or (unrelatedNewChromeWindow ~= nil and windowId == unrelatedNewChromeWindow:id())
       local targetWindow = createdChromeWindow or targetChromeWindow
-      if pid ~= 43250 or windowId ~= targetWindow:id() then
+      if options.firstPrivateFocusAuthorityChangedBeforeMutation
+        and privateFocusAttemptCount == 1
+      then
+        return nil, "The exact Chrome window identity changed", {
+          authorityChanged = true,
+          mutationStarted = false,
+        }
+      end
+      if pid ~= 43250
+        or type(authorityToken) ~= "string"
+        or windowId ~= targetWindow:id()
+        or browserWindowId ~= browserWindowIdentityFor(targetWindow)
+      then
         return nil, "unknown Chrome window"
       end
       privateFocusCount = privateFocusCount + 1
@@ -957,17 +1124,174 @@ local function runShortcut(kind, options)
       focusedWindow = targetWindow
       return true
     end,
+    inventory = function(pid, timeoutSeconds)
+      browserInventoryReadCount = browserInventoryReadCount + 1
+      fullCorrelationCount = fullCorrelationCount + 1
+      if pid ~= 43250 or not chromeIsRunning then
+        return nil, "The configured Chrome instance is unavailable"
+      end
+      if options.privateInventoryError then
+        return nil, options.privateInventoryError
+      end
+      local result = {}
+      for _, window in ipairs(currentChromeWindows()) do
+        local browserWindowId = browserWindowIdentityFor(window)
+        if browserWindowId then
+          result[window:id()] = browserWindowId
+        end
+      end
+      return result, issueAuthority()
+    end,
+    matchCreated = function(
+      pid,
+      browserWindowId,
+      extensionId,
+      creationToken,
+      timeoutSeconds
+    )
+      fullCorrelationCount = fullCorrelationCount + 1
+      createdMatchCallCount = createdMatchCallCount + 1
+      local requestedDelay = options.createdMatchDelaySeconds or 0
+      if requestedDelay > 0 then
+        clock = clock + math.min(requestedDelay, timeoutSeconds or 5, 5)
+        createdMatchMaximumElapsed = math.max(
+          createdMatchMaximumElapsed,
+          clock - (createdMatchStartedAt or clock)
+        )
+      end
+      if pid ~= 43250
+        or browserWindowId ~= createdBrowserWindowId
+        or extensionId ~= string.rep("a", 32)
+        or creationToken ~= createdPlacementToken
+      then
+        return nil, "The created Chrome window identity changed"
+      end
+      if options.createdWindowNeverMatches
+        or not chromeIsRunning
+        or not createdChromeWindow
+        or not createdWindowPublished
+      then
+        return nil, "The created window token is not yet available"
+      end
+      local documentUrl = createdAxRoot:attributeValue("AXDocument")
+      local expectedOrigin = "chrome-extension://" .. extensionId .. "/index.html?"
+      if type(documentUrl) ~= "string"
+        or not documentUrl:find(expectedOrigin, 1, true)
+        or not documentUrl:find("tabOutPlacement=" .. creationToken, 1, true)
+      then
+        return nil, "The created window token is not yet available"
+      end
+      return createdChromeWindow:id(), issueAuthority()
+    end,
+    navigate = function(
+      pid,
+      windowId,
+      browserWindowId,
+      authorityToken,
+      operation,
+      destinationUrl,
+      expectedUrl
+    )
+      isolatedPrivateOperationAttempted = isolatedPrivateOperationAttempted
+        or pid == 54321
+        or windowId == isolatedChromeWindow:id()
+      local targetWindow = createdChromeWindow or targetChromeWindow
+      if pid ~= 43250
+        or type(authorityToken) ~= "string"
+        or not targetWindow
+        or windowId ~= targetWindow:id()
+        or browserWindowId ~= browserWindowIdentityFor(targetWindow)
+        or focusedWindow ~= targetWindow
+        or frontmostApplication ~= chromeApplication
+      then
+        return nil, "The exact Chrome window identity changed"
+      end
+
+      navigationAfterPrivateFocus = privateFocusCount > 0
+      if operation == "open-tab" then
+        if destinationUrl:find("focusFilter=1", 1, true) then
+          openedFilter = true
+        elseif destinationUrl == "chrome://newtab/" then
+          openedNewPage = true
+        else
+          return nil, "The requested Chrome destination is invalid"
+        end
+        return true
+      end
+
+      if operation ~= "replace-active-tab" or targetWindow ~= createdChromeWindow then
+        return nil, "The requested Chrome operation is invalid"
+      end
+      createdBrowserIdentityCheckedBeforeFinalization = true
+      createdBootstrapTokenCheckedBeforeFinalization = type(expectedUrl) == "string"
+      createdTokenObservedBeforeFinalization = createdAxDocumentReadCount > 0
+      if options.createdFinalizationBrowserIdentityMismatch then
+        return nil, "The exact Chrome window identity changed"
+      end
+      if options.createdFinalizationTabChanged then
+        createdDocumentUrl = "https://example.test/changed"
+      end
+      if expectedUrl ~= createdDocumentUrl then
+        return nil, "The created new-page bootstrap changed"
+      end
+      if options.createdFinalizationActiveTabSwitchRace then
+        createdTabCount = 2
+        return nil, "The created bootstrap tab changed"
+      end
+      createdBootstrapReplaced = true
+      createdNewPageFinalizedAfterPrivateFocus = privateFocusCount > 0
+      createdNewPageNavigationPending = true
+      openedNewPage = true
+      if (options.createdNewPageNavigationDelayReads or 0) == 0 then
+        finishCreatedNewPageNavigation()
+      end
+      return true
+    end,
+    release = function()
+      return true
+    end,
+    validate = function(pid, windowId, browserWindowId, authorityToken, timeoutSeconds)
+      destinationIdentityRevalidationReadCount = destinationIdentityRevalidationReadCount + 1
+      local delay = options.destinationIdentityRevalidationDelaySeconds or 0
+      clock = clock + math.min(delay, timeoutSeconds or delay)
+      local targetWindow = createdChromeWindow or targetChromeWindow
+      if destinationIdentityRevalidationReadCount
+        <= (options.destinationIdentityMismatchReads or 0)
+      then
+        return nil, "The exact Chrome window identity changed"
+      end
+      if pid ~= 43250
+        or type(authorityToken) ~= "string"
+        or not targetWindow
+        or windowId ~= targetWindow:id()
+        or browserWindowId ~= browserWindowIdentityFor(targetWindow)
+        or focusedWindow ~= targetWindow
+        or frontmostApplication ~= chromeApplication
+      then
+        return nil, "The exact Chrome window identity changed"
+      end
+      return true
+    end,
   }
   local nativeBridge = {
     isReady = function()
       return options.nativeBridgeStarts ~= false
     end,
     listProfileWindows = function(_, _, callback)
+      profileInventoryRequestCount = profileInventoryRequestCount + 1
       if options.nativeBridgeStarts == false then
         return false, "native bridge unavailable"
       end
+      if options.profileWindowInventoryVersionMismatch then
+        callback(nil, "The native bridge protocol version does not match")
+        return true
+      end
       if options.profileWindowInventoryUnavailable then
         callback(nil, "profile-window inventory unavailable")
+        return true
+      end
+      if not chromeIsRunning then
+        callback(nil, "The native bridge is not connected")
         return true
       end
 
@@ -978,7 +1302,10 @@ local function runShortcut(kind, options)
       if otherHasChromeWindow and chromeIsRunning then
         table.insert(windowIds, otherBrowserWindowId)
       end
-      callback(windowIds)
+      callback({
+        browserProcessId = options.nativeBridgeBrowserProcessId or 43250,
+        windowIds = windowIds,
+      })
       return true
     end,
     createWindow = function(_, createOptions, callback)
@@ -986,7 +1313,11 @@ local function runShortcut(kind, options)
         return false, "native bridge unavailable"
       end
 
+      if options.duplicateProfileExtensionDuringCreation then
+        options.duplicateProfileExtension = true
+      end
       nativeBridgeRequest = createOptions
+      createdMatchStartedAt = clock
       if createOptions.operation == "filter" then
         openedFilter = true
       else
@@ -1036,12 +1367,12 @@ local function runShortcut(kind, options)
       if not options.deferCreatedWindowPublication and windowCreatedCallback then
         windowCreatedCallback(createdChromeWindow)
       end
-      callback(
-        true,
-        nil,
-        options.returnWrongCreatedBrowserWindowId and 9999 or createdBrowserWindowId,
-        createdPlacementToken
-      )
+      callback(true, nil, {
+        browserProcessId = options.returnWrongCreatedBrowserProcessId and 54321 or 43250,
+        browserWindowId = options.returnWrongCreatedBrowserWindowId and 9999
+          or createdBrowserWindowId,
+        creationToken = createdPlacementToken,
+      })
       if options.emitBaselineWindowAfterBridge and windowCreatedCallback then
         windowCreatedCallback(inactiveSpaceChromeWindow)
       end
@@ -1062,7 +1393,7 @@ local function runShortcut(kind, options)
       return {
         connected = nativeBridgeRequest ~= nil and options.nativeBridgeStarts ~= false,
         hostInstalled = options.nativeBridgeStarts ~= false,
-        version = 3,
+        version = 5,
       }
     end,
   }
@@ -1078,8 +1409,13 @@ local function runShortcut(kind, options)
   })
 
   runPendingTimers()
-  focusedWindow = options.sourceWindowOnRemote and remoteTopWindow or originalWindow
-  frontmostApplication = remoteTopApplication
+  if options.sourceWindowIsIsolatedChrome then
+    focusedWindow = isolatedChromeWindow
+    frontmostApplication = isolatedChromeApplication
+  else
+    focusedWindow = options.sourceWindowOnRemote and remoteTopWindow or originalWindow
+    frontmostApplication = remoteTopApplication
+  end
   otherChromeReceivedFocus = false
   otherChromeRaised = false
 
@@ -1152,11 +1488,32 @@ local function runShortcut(kind, options)
     createdWindowClosed = createdWindowClosed,
     createdWindowMoved = createdWindowMoved,
     createdWindowNativeTabCloseAllowed = createdWindowNativeTabCloseAllowed,
+    completionWithinDestinationDeadline = clock <= 6.2,
+    completionWithinCreatedDeadline = createdMatchMaximumElapsed <= 12.2,
+    createdMatchCallCount = createdMatchCallCount,
+    createExpectedBrowserProcessId = nativeBridgeRequest
+      and nativeBridgeRequest.expectedBrowserProcessId
+      or nil,
+    destinationFocusAttemptCount = destinationFocusAttemptCount,
+    destinationIdentityRevalidationReadCount = destinationIdentityRevalidationReadCount,
     extensionFocusRequested = extensionFocusRequested,
     chromeLaunched = chromeLaunchCount > 0,
+    chromeLaunchUsedConfiguredProfile = chromeLaunchArguments
+      and chromeLaunchArguments[1] == "-n"
+      and chromeLaunchArguments[2] == "-g"
+      and chromeLaunchArguments[3] == "-b"
+      and chromeLaunchArguments[4] == "com.google.Chrome"
+      and chromeLaunchArguments[5] == "--args"
+      and type(chromeLaunchArguments[6]) == "string"
+      and chromeLaunchArguments[6]:find("^%-%-user%-data%-dir=") ~= nil
+      and chromeLaunchArguments[7] == "--profile-directory=Profile 3"
+      and chromeLaunchArguments[8] == "--no-startup-window",
     failed = failureAlert ~= nil,
     failureLog = failureLog,
     filterInputFocused = filterInputFocused,
+    fullCorrelationCount = fullCorrelationCount,
+    isolatedPrivateOperationAttempted = isolatedPrivateOperationAttempted,
+    isolatedWindowMutated = isolatedWindowMutated,
     bridgeUsed = nativeBridgeRequest ~= nil,
     browserInventoryReadCount = browserInventoryReadCount,
     nativeBridgeInstalled = diagnostics.nativeBridgeInstalled,
@@ -1172,6 +1529,7 @@ local function runShortcut(kind, options)
     originalWindowFocused = focusedWindow == originalWindow,
     privateFocusUsed = privateFocusCount > 0,
     privateFocusAttemptCount = privateFocusAttemptCount,
+    profileInventoryRequestCount = profileInventoryRequestCount,
     unrelatedPrivateFocusAttempted = unrelatedPrivateFocusAttempted,
     missingOnScreenMetadataAllowed = missingOnScreenMetadataAllowed,
     spaceSwitchCount = spaceSwitchCount,

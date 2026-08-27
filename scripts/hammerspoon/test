@@ -9,6 +9,7 @@ escaped_test_directory=${test_directory//\\/\\\\}
 escaped_test_directory=${escaped_test_directory//\"/\\\"}
 
 "$script_directory/test-build"
+zsh "$script_directory/test-native"
 hs -c "return dofile(\"$escaped_test_directory/tab_out_spoon_spec.lua\")"
 hs -c "return dofile(\"$escaped_test_directory/tab_out_bridge_spec.lua\")"
 hs -c "return dofile(\"$escaped_test_directory/chrome_catalog_spec.lua\")"

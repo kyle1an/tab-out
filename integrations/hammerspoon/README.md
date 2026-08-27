@@ -7,6 +7,12 @@ on the invoking Tab Out page's active Desktop. Tab Out owns the Spoon, its
 private exact-window helper, the Native Placement Bridge and desktop-control
 protocols, installation and diagnosis, and their regression tests.
 
+The Chrome-launched native host supplies the fresh process identity of the
+configured Chrome instance for each route. A separately launched automation or
+MCP Chrome process may use the same Google Chrome app bundle and executable; Tab
+Out excludes that isolated process without changing its launcher, profile,
+flags, windows, or tabs.
+
 ## Install and configure
 
 This is the canonical setup and acceptance guide for the integration. It works
@@ -30,6 +36,11 @@ HAMMERSPOON_CONFIG_DIRECTORY=/path/to/hammerspoon-config
 The diagnostic is read-only and does not create or focus Chrome windows. A
 nonzero result is expected before setup; its `ACTION` lines identify remaining
 work.
+
+Installation and diagnosis do not inspect or modify external browser automation
+configuration. Do not replace an automation tool's temporary `--user-data-dir`
+or debugging transport to make Tab Out work; instance selection belongs to Tab
+Out's native bridge.
 
 ```zsh
 "$TAB_OUT_CHECKOUT/scripts/doctor-macos-integration" \
@@ -97,6 +108,15 @@ In the Chrome profile that should own Tab Out:
    `Profile 3`. Do not guess from Chrome's visible profile name.
 3. Configure that directory and the desired global shortcuts through the
    settings table passed to `spoon.TabOut:start(config)`.
+
+This selected profile is the **Configured Profile**. At runtime Tab Out accepts
+only the **Configured Chrome Instance** whose Chrome-launched native host proves
+that profile's current process. Keep the unpacked Tab Out extension loaded in
+only this profile within the selected Chrome user-data directory; if it was
+loaded in another profile, remove that copy there. The Spoon fails closed when
+two profiles can host Tab Out because Chrome gives both profiles the same browser
+process. Another Chrome process is not eligible merely because
+`chrome://version` shows the same executable or application name.
 
 The companion `hammerspoon-config` repository keeps those values in ignored
 `tab-out.local.lua`. Create it only when absent, then replace the profile
@@ -186,6 +206,19 @@ display, exercise both configured shortcuts over create and reuse routes:
 - closing a bridge-created window while that remote focus and ordering must
   remain unchanged.
 
+Also exercise the process-isolation cases for both shortcuts:
+
+- leave a separately launched same-bundle automation/MCP Chrome instance open,
+  ideally with one window matching the configured window's bounds;
+- run reuse and create routes and confirm only the configured-profile window
+  receives the destination;
+- stop the Configured Chrome Instance while leaving the isolated instance open,
+  invoke each shortcut, and confirm Tab Out cold-launches the configured
+  user-data directory and profile instead of adopting the isolated process; and
+- confirm the isolated process keeps the same windows, tabs, geometry, profile,
+  command line, and lifecycle. An ordinary focus change away from it is expected
+  when Tab Out focuses the configured destination.
+
 Confirm destination focus and the absence of remote focus, ordering, or window
 flash regressions. Repeat create and reuse acceptance after macOS updates or
 changes to Private Exact-Window Activation.
@@ -243,12 +276,33 @@ ready.
 ## Runtime behavior
 
 Each configured shortcut targets the active Space on the display under the
-pointer. The Spoon reuses only a verified window from the selected Chrome
-profile; otherwise the Native Placement Bridge creates the destination directly
-without activating Chrome on another display. A route that needs an unavailable
-identity, Accessibility, bridge, or Private Exact-Window Activation capability
-Safe Aborts instead of using an unsafe focus or activation fallback. Screen
-Recording adds transition shielding but is not required for routing.
+pointer. The Spoon first requests fresh configured-profile window IDs and the
+Chrome-launched host's process ID. Its native helper targets ScriptingBridge and
+Accessibility through that exact PID, correlates browser and native window IDs
+internally, and revalidates all three identities before focus or navigation. The
+host PID must also match the configured user-data directory's live Chrome
+process lock, and no other profile in that directory may expose Tab Out's
+shortcut commands. It reuses only a verified Configured Profile window in that
+Configured Chrome Instance; otherwise the Native Placement Bridge creates the
+destination there without activating Chrome on another display. A route that
+needs an unavailable identity, Accessibility, bridge, or Private Exact-Window
+Activation capability Safe Aborts instead of using an unsafe focus or activation
+fallback. Screen Recording adds transition shielding but is not required for
+routing.
+
+Active URLs from the Configured Chrome Instance may be read ephemerally inside
+the native helper solely to correlate browser and macOS windows. They never
+cross the native protocol, persist, or enter logs. Tab Out does not read browser
+content from a same-bundle Isolated Chrome Instance and never navigates, creates,
+closes, moves, resizes, terminates, or reconfigures it. A pre-mutation identity
+change receives one fresh-authority retry. After mutation starts, Tab Out never
+replays the route; it cleans up a failed created window only while the full
+process, browser-window, native-window, and creation-token identity is unchanged.
+After exact navigation, it may wait through transient ScriptingBridge,
+Accessibility-document, or destination-focus convergence. That bounded wait
+retries only read-only correlation and control focus, revalidates the full
+process/browser/native identity before every focus attempt, and never replays
+navigation.
 
 Desktop Window Merge starts from the Tab Out page that invoked the header
 action. The extension sends only configured-profile browser window IDs to the
@@ -266,8 +320,9 @@ The placement seam and repository ownership are recorded in
 and
 [ADR 0009](../../docs/adr/0009-co-locate-the-macos-integration.md). The
 same-Desktop controller boundary is recorded in
-[ADR 0020](../../docs/adr/0020-use-hammerspoon-to-select-same-desktop-chrome-windows.md);
-subsequent
+[ADR 0020](../../docs/adr/0020-use-hammerspoon-to-select-same-desktop-chrome-windows.md).
+[ADR 0022](../../docs/adr/0022-target-chrome-through-native-host-process-authority.md)
+records the configured-instance process-authority boundary. Subsequent
 macOS-placement decisions remain under [`docs/adr/`](../../docs/adr/).
 
 ## Source layout
@@ -278,13 +333,16 @@ invocation through a small set of deep modules:
 - `window_router.lua` owns pointer-display and Space selection, existing-window
   choice, request queueing, cold Chrome launch, and Native Placement Bridge
   creation.
-- `chrome_catalog.lua` owns configured-profile discovery and its window cache.
+- `chrome_catalog.lua` intersects configured-profile browser IDs with exact-PID
+  native inventory and owns the resulting window cache.
 - `desktop_window_controller.lua` owns the persistent versioned control socket,
   exact same-Desktop selection tokens, native z-order, and fail-closed
   revalidation used by Desktop Window Merge.
 - `window_transition.lua` owns exact activation, the transition shield,
   destination focus, and the bridge-created window close lifecycle.
 - `bridge.lua` owns the local Native Placement Bridge client protocol.
+- `native/tab_out_private_focus.m` owns PID-targeted Chrome inventory,
+  browser/native correlation, exact focus, navigation, and token-guarded cleanup.
 
 Keep orchestration in `init.lua`; keep mutable lifecycle state inside the module
 that owns it. Tests exercise the public Spoon interface through the reusable

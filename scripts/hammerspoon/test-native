@@ -1,0 +1,22 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+script_directory=${0:A:h}
+repository_root=${script_directory:h:h}
+test_directory=$(mktemp -d)
+test_executable="$test_directory/private-focus-spec"
+trap 'rm -f "$test_executable"; rmdir "$test_directory"' EXIT
+
+xcrun clang \
+  -fobjc-arc -fblocks -Wall -Wextra -Werror -O2 \
+  -mmacosx-version-min=13.0 \
+  -F/Applications/Hammerspoon.app/Contents/Frameworks \
+  -I/Applications/Hammerspoon.app/Contents/Frameworks/LuaSkin.framework/Headers \
+  -Wl,-rpath,/Applications/Hammerspoon.app/Contents/Frameworks \
+  "$repository_root/integrations/hammerspoon/tests/private_focus_spec.m" \
+  -framework LuaSkin -framework Cocoa -framework ApplicationServices \
+  -framework ScriptingBridge -ldl \
+  -o "$test_executable"
+
+"$test_executable"

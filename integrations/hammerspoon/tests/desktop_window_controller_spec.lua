@@ -19,17 +19,25 @@ local controllerChunk, loadError = loadfile(
 assert(controllerChunk, loadError)
 local DesktopWindowController = controllerChunk()
 
+local CONFIGURED_PROCESS_ID = 43250
 local chromeApplication = {
   bundleID = function() return "com.google.Chrome" end,
   isHidden = function() return false end,
+  pid = function() return CONFIGURED_PROCESS_ID end,
+}
+local isolatedChromeApplication = {
+  bundleID = function() return "com.google.Chrome" end,
+  isHidden = function() return false end,
+  pid = function() return 54321 end,
 }
 local screen = {
   getUUID = function() return "display-alpha" end,
 }
 
-local function window(nativeId)
+local function window(nativeId, owner)
+  owner = owner or chromeApplication
   return {
-    application = function() return chromeApplication end,
+    application = function() return owner end,
     id = function() return nativeId end,
     isMinimized = function() return false end,
     isStandard = function() return true end,
@@ -39,10 +47,12 @@ end
 
 local destinationWindow = window(501)
 local sourceWindow = window(502)
-local orderedWindows = { sourceWindow, destinationWindow }
+local isolatedWindow = window(503, isolatedChromeApplication)
+local orderedWindows = { isolatedWindow, sourceWindow, destinationWindow }
 local spacesByWindowId = {
   [501] = { 91 },
   [502] = { 91 },
+  [503] = { 91 },
 }
 local writes = {}
 local socketCallback
@@ -84,11 +94,11 @@ local fakeHs = {
   },
 }
 local catalogCandidates
-local catalogOrderedCandidates
+local catalogProcessId
 local catalog = {
-  browserWindowIdsFor = function(_, candidates, orderedCandidates)
+  browserWindowIdsFor = function(_, processId, candidates)
+    catalogProcessId = processId
     catalogCandidates = candidates
-    catalogOrderedCandidates = orderedCandidates
     return {
       [501] = 101,
       [502] = 102,
@@ -100,7 +110,7 @@ local controller = DesktopWindowController.new({
   catalog = catalog,
   chromeBundleId = "com.google.Chrome",
   chromeWindows = function()
-    return { destinationWindow, sourceWindow }
+    return { isolatedWindow, destinationWindow, sourceWindow }
   end,
   hs = fakeHs,
   later = function(delay, callback)
@@ -116,11 +126,11 @@ local controller = DesktopWindowController.new({
 
 controller:start()
 assertEqual(writes[1].type, "controller-register", "controller registers")
-assertEqual(writes[1].version, 5, "controller protocol version")
+assertEqual(writes[1].version, 6, "controller protocol version")
 assertArray(writes[1].capabilities, { "merge-desktop" }, "controller capabilities")
 
 socketCallback(hs.json.encode({
-  version = 5,
+  version = 6,
   type = "response",
   requestId = writes[1].requestId,
   status = "accepted",
@@ -129,10 +139,11 @@ socketCallback(hs.json.encode({
 assertEqual(controller:status().connected, true, "controller accepts registration")
 
 socketCallback(hs.json.encode({
-  version = 5,
+  version = 6,
   type = "resolve-desktop-windows",
   requestId = "selection-alpha",
   expiresAtMs = 1800000005000,
+  browserProcessId = CONFIGURED_PROCESS_ID,
   destinationWindowId = 101,
   profileWindowIds = { 101, 102 },
 }) .. "\n")
@@ -144,20 +155,18 @@ assertArray(
   { 501, 502 },
   "catalog receives every tracked Chrome window"
 )
-assertArray(
-  { catalogOrderedCandidates[1]:id(), catalogOrderedCandidates[2]:id() },
-  { 502, 501 },
-  "catalog receives native front-to-back order"
-)
+assertEqual(#catalogCandidates, 2, "isolated same-bundle windows never reach the catalog")
+assertEqual(catalogProcessId, CONFIGURED_PROCESS_ID, "catalog receives process authority")
 local encodedSelection = hs.json.encode(selection)
 assert(not encodedSelection:find("url", 1, true), "controller response must not contain URLs")
 assert(not encodedSelection:find("title", 1, true), "controller response must not contain titles")
 
 socketCallback(hs.json.encode({
-  version = 5,
+  version = 6,
   type = "revalidate-desktop-windows",
   requestId = "revalidate-alpha",
   expiresAtMs = 1800000005000,
+  browserProcessId = CONFIGURED_PROCESS_ID,
   destinationWindowId = 101,
   profileWindowIds = { 101, 102 },
   selectionToken = "selection-alpha",
@@ -166,19 +175,21 @@ assertEqual(writes[3].status, "accepted", "unchanged desktop selection revalidat
 assertArray(writes[3].windowIds, { 102, 101 }, "revalidated window order")
 
 socketCallback(hs.json.encode({
-  version = 5,
+  version = 6,
   type = "resolve-desktop-windows",
   requestId = "selection-beta",
   expiresAtMs = 1800000005000,
+  browserProcessId = CONFIGURED_PROCESS_ID,
   destinationWindowId = 101,
   profileWindowIds = { 101, 102 },
 }) .. "\n")
 orderedWindows = { destinationWindow, sourceWindow }
 socketCallback(hs.json.encode({
-  version = 5,
+  version = 6,
   type = "revalidate-desktop-windows",
   requestId = "revalidate-beta",
   expiresAtMs = 1800000005000,
+  browserProcessId = CONFIGURED_PROCESS_ID,
   destinationWindowId = 101,
   profileWindowIds = { 101, 102 },
   selectionToken = "selection-beta",
@@ -191,10 +202,11 @@ assert(
 
 orderedWindows = { destinationWindow }
 socketCallback(hs.json.encode({
-  version = 5,
+  version = 6,
   type = "resolve-desktop-windows",
   requestId = "selection-gamma",
   expiresAtMs = 1800000005000,
+  browserProcessId = CONFIGURED_PROCESS_ID,
   destinationWindowId = 101,
   profileWindowIds = { 101, 102 },
 }) .. "\n")
@@ -202,10 +214,11 @@ assertEqual(writes[6].status, "accepted", "off-screen source windows are exclude
 assertArray(writes[6].windowIds, { 101 }, "only on-screen profile windows are selected")
 
 socketCallback(hs.json.encode({
-  version = 5,
+  version = 6,
   type = "resolve-desktop-windows",
   requestId = "selection-private-field",
   expiresAtMs = 1800000005000,
+  browserProcessId = CONFIGURED_PROCESS_ID,
   destinationWindowId = 101,
   profileWindowIds = { 101, 102 },
   title = "Example private field",
@@ -225,10 +238,11 @@ for index = 1, 513 do
   table.insert(oversizedWindowIds, index)
 end
 socketCallback(hs.json.encode({
-  version = 5,
+  version = 6,
   type = "resolve-desktop-windows",
   requestId = "selection-oversized",
   expiresAtMs = 1800000005000,
+  browserProcessId = CONFIGURED_PROCESS_ID,
   destinationWindowId = 101,
   profileWindowIds = oversizedWindowIds,
 }) .. "\n")
@@ -237,6 +251,27 @@ assert(
   writes[8].reason:find("inventory is invalid", 1, true),
   "oversized profile inventories should identify the inventory failure"
 )
+
+socketCallback(hs.json.encode({
+  version = 6,
+  type = "resolve-desktop-windows",
+  requestId = "selection-missing-process",
+  expiresAtMs = 1800000005000,
+  destinationWindowId = 101,
+  profileWindowIds = { 101, 102 },
+}) .. "\n")
+assertEqual(writes[9].status, "rejected", "missing process authority is rejected")
+
+socketCallback(hs.json.encode({
+  version = 6,
+  type = "resolve-desktop-windows",
+  requestId = "selection-isolated-process",
+  expiresAtMs = 1800000005000,
+  browserProcessId = 54321,
+  destinationWindowId = 101,
+  profileWindowIds = { 101, 102 },
+}) .. "\n")
+assertEqual(writes[10].status, "rejected", "a different same-bundle process cannot be selected")
 
 controller:stop()
 assertEqual(controller:status().connected, false, "controller stop disconnects")
@@ -276,7 +311,7 @@ local capabilityController = DesktopWindowController.new({
   catalog = catalog,
   chromeBundleId = "com.google.Chrome",
   chromeWindows = function()
-    return { destinationWindow, sourceWindow }
+    return { isolatedWindow, destinationWindow, sourceWindow }
   end,
   hs = capabilityHs,
   later = function(delay, callback)
@@ -292,7 +327,7 @@ local capabilityController = DesktopWindowController.new({
 
 capabilityController:start()
 capabilityCallbacks[1](hs.json.encode({
-  version = 5,
+  version = 6,
   type = "response",
   requestId = capabilityWrites[1].requestId,
   status = "accepted",
@@ -314,7 +349,7 @@ assertEqual(
   "a stale socket callback cannot disconnect the replacement socket"
 )
 capabilityCallbacks[2](hs.json.encode({
-  version = 5,
+  version = 6,
   type = "response",
   requestId = capabilityWrites[2].requestId,
   status = "accepted",

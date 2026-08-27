@@ -2,9 +2,9 @@ import Darwin
 import CoreFoundation
 import Foundation
 
-private let placementBridgeVersion = 3
-private let controlBridgeVersion = 5
-private let bridgeVersionString = "5.0.0"
+private let placementBridgeVersion = 5
+private let controlBridgeVersion = 6
+private let bridgeVersionString = "7.0.0"
 private let maximumMessageBytes = 64 * 1024
 private let maximumRequestLifetimeMs: Int64 = 60_000
 private let mergeDesktopCapability = "merge-desktop"
@@ -21,6 +21,17 @@ private enum BridgeError: Error, CustomStringConvertible {
 
 private func currentTimeMs() -> Int64 {
   Int64(Date().timeIntervalSince1970 * 1_000)
+}
+
+private func validatedBrowserProcessId() throws -> Int {
+  let processId = getppid()
+  guard processId > 1 else {
+    throw BridgeError.message("The native bridge could not identify its browser process")
+  }
+  guard kill(processId, 0) == 0 || errno == EPERM else {
+    throw BridgeError.message("The native bridge browser process is no longer running")
+  }
+  return Int(processId)
 }
 
 private func bridgeSocketURL() -> URL {
@@ -189,6 +200,13 @@ private func positiveInteger(_ value: Any?) -> Int? {
   return Int(number)
 }
 
+private func validProcessId(_ value: Any?) -> Int? {
+  guard let processId = positiveInteger(value), processId > 1, processId <= Int(Int32.max) else {
+    return nil
+  }
+  return processId
+}
+
 private func validCapabilities(_ value: Any?) -> [String]? {
   guard let values = value as? [Any], values.count <= 16 else { return nil }
   var capabilities: [String] = []
@@ -253,7 +271,13 @@ private func validateDeadline(_ object: [String: Any], requestKind: String) thro
   return ValidatedRequest(expiresAtMs: Int64(expiresNumber), requestId: requestId)
 }
 
-private func validatePlacementRequest(_ object: [String: Any]) throws -> ValidatedRequest {
+private struct ValidatedPlacementRequest {
+  let expectedBrowserProcessId: Int?
+  let expiresAtMs: Int64
+  let requestId: String
+}
+
+private func validatePlacementRequest(_ object: [String: Any]) throws -> ValidatedPlacementRequest {
   guard finiteNumber(object["version"]) == Double(placementBridgeVersion) else {
     throw BridgeError.message("The native placement protocol version is unsupported")
   }
@@ -262,11 +286,16 @@ private func validatePlacementRequest(_ object: [String: Any]) throws -> Validat
   guard let type = object["type"] as? String else {
     throw BridgeError.message("The native placement request type is invalid")
   }
-  if type == "status" {
-    return request
-  }
-  if type == "list-profile-windows" {
-    return request
+  if type == "status" || type == "list-profile-windows" {
+    let requestKind = type == "status" ? "status" : "inventory"
+    guard hasOnlyKeys(object, ["version", "type", "requestId", "expiresAtMs"]) else {
+      throw BridgeError.message("The native placement \(requestKind) request contains unsupported fields")
+    }
+    return ValidatedPlacementRequest(
+      expectedBrowserProcessId: nil,
+      expiresAtMs: request.expiresAtMs,
+      requestId: request.requestId
+    )
   }
   guard type == "create-window" else {
     throw BridgeError.message("The native placement request type is unsupported")
@@ -279,8 +308,21 @@ private func validatePlacementRequest(_ object: [String: Any]) throws -> Validat
   guard validateBounds(object["targetBounds"]) else {
     throw BridgeError.message("The native placement target bounds are invalid")
   }
+  guard hasOnlyKeys(object, [
+    "version", "type", "requestId", "expiresAtMs", "expectedBrowserProcessId",
+    "operation", "targetBounds",
+  ]) else {
+    throw BridgeError.message("The native placement create request contains unsupported fields")
+  }
+  guard let expectedBrowserProcessId = validProcessId(object["expectedBrowserProcessId"]) else {
+    throw BridgeError.message("The expected browser process is invalid")
+  }
 
-  return request
+  return ValidatedPlacementRequest(
+    expectedBrowserProcessId: expectedBrowserProcessId,
+    expiresAtMs: request.expiresAtMs,
+    requestId: request.requestId
+  )
 }
 
 private struct ValidatedControllerRegistration {
@@ -646,6 +688,7 @@ private func makeServerSocket(path: String) throws -> ServerSocket {
 
 private func handleLocalClient(
   _ fileDescriptor: Int32,
+  browserProcessId: Int,
   state: BridgeState,
   nativeOutput: NativeOutput
 ) {
@@ -667,8 +710,11 @@ private func handleLocalClient(
       responseVersion = controlBridgeVersion
     }
     requestId = validRequestId(object["requestId"]) ?? "invalid"
-    if finiteNumber(object["version"]) == Double(controlBridgeVersion),
-       object["type"] as? String == "controller-register" {
+    if object["type"] as? String == "controller-register" {
+      responseVersion = positiveInteger(object["version"]) ?? controlBridgeVersion
+      guard finiteNumber(object["version"]) == Double(controlBridgeVersion) else {
+        throw BridgeError.message("The native controller protocol version is unsupported")
+      }
       let registration = try validateControllerRegistration(object)
       guard state.registerController(fileDescriptor: fileDescriptor) else {
         throw BridgeError.message("Another Hammerspoon controller is already connected")
@@ -703,11 +749,17 @@ private func handleLocalClient(
     }
 
     let request = try validatePlacementRequest(object)
+    if let expectedBrowserProcessId = request.expectedBrowserProcessId,
+       expectedBrowserProcessId != browserProcessId {
+      throw BridgeError.message("The expected browser process does not match the connected Chrome instance")
+    }
     guard state.registerPlacement(requestId: request.requestId, fileDescriptor: fileDescriptor) else {
       throw BridgeError.message("The native placement request ID is already pending")
     }
 
-    guard nativeOutput.send(object) else {
+    var extensionObject = object
+    extensionObject.removeValue(forKey: "expectedBrowserProcessId")
+    guard nativeOutput.send(extensionObject) else {
       _ = state.takePlacement(requestId: request.requestId)
       throw BridgeError.message("Chrome is no longer connected to the native bridge")
     }
@@ -744,13 +796,19 @@ private func handleLocalClient(
 
 private func handleNativeControlRequest(
   _ object: [String: Any],
+  browserProcessId: Int,
   state: BridgeState,
   nativeOutput: NativeOutput
 ) {
   let requestId = validRequestId(object["requestId"]) ?? "invalid"
   do {
     let request = try validateControlRequest(object)
-    if let reason = state.forwardToController(requestId: request.requestId, object: object) {
+    var controllerObject = object
+    controllerObject["browserProcessId"] = browserProcessId
+    if let reason = state.forwardToController(
+      requestId: request.requestId,
+      object: controllerObject
+    ) {
       _ = nativeOutput.send(rejection(
         version: controlBridgeVersion,
         requestId: request.requestId,
@@ -779,6 +837,7 @@ private func handleNativeControlRequest(
 
 private func runNativeHost() throws {
   signal(SIGPIPE, SIG_IGN)
+  let browserProcessId = try validatedBrowserProcessId()
   let path = bridgeSocketURL().path
   let serverSocket = try makeServerSocket(path: path)
   let serverDescriptor = serverSocket.fileDescriptor
@@ -793,26 +852,58 @@ private func runNativeHost() throws {
         break
       }
       DispatchQueue.global(qos: .utility).async {
-        handleLocalClient(clientDescriptor, state: state, nativeOutput: nativeOutput)
+        handleLocalClient(
+          clientDescriptor,
+          browserProcessId: browserProcessId,
+          state: state,
+          nativeOutput: nativeOutput
+        )
       }
     }
   }
 
   while let object = readNativeMessage() {
+    let messageType = object["type"] as? String
+    if (messageType == "resolve-desktop-windows"
+      || messageType == "revalidate-desktop-windows"),
+       finiteNumber(object["version"]) != Double(controlBridgeVersion) {
+      _ = nativeOutput.send(rejection(
+        version: positiveInteger(object["version"]) ?? controlBridgeVersion,
+        requestId: validRequestId(object["requestId"]) ?? "invalid",
+        reason: "The native control protocol version is unsupported"
+      ))
+      continue
+    }
     if finiteNumber(object["version"]) == Double(controlBridgeVersion),
-       object["type"] as? String != "response" {
-      handleNativeControlRequest(object, state: state, nativeOutput: nativeOutput)
+       messageType != "response" {
+      handleNativeControlRequest(
+        object,
+        browserProcessId: browserProcessId,
+        state: state,
+        nativeOutput: nativeOutput
+      )
       continue
     }
     guard object["type"] as? String == "response",
-          finiteNumber(object["version"]) == Double(placementBridgeVersion),
           let requestId = validRequestId(object["requestId"]),
-          let status = object["status"] as? String,
-          status == "accepted" || status == "rejected",
           let clientDescriptor = state.takePlacement(requestId: requestId)
     else { continue }
 
-    writeLocalMessage(object, to: clientDescriptor)
+    guard finiteNumber(object["version"]) == Double(placementBridgeVersion),
+          let status = object["status"] as? String,
+          status == "accepted" || status == "rejected"
+    else {
+      writeLocalMessage(rejection(
+        requestId: requestId,
+        reason: "The extension native placement protocol version does not match"
+      ), to: clientDescriptor)
+      Darwin.close(clientDescriptor)
+      continue
+    }
+
+    var localResponse = object
+    localResponse["browserProcessId"] = browserProcessId
+    writeLocalMessage(localResponse, to: clientDescriptor)
     Darwin.close(clientDescriptor)
   }
 

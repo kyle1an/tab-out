@@ -22,6 +22,7 @@ trap cleanup EXIT
 
 xcrun clang \
   -fobjc-arc \
+  -fblocks \
   -Wall \
   -Wextra \
   -Werror \
@@ -35,6 +36,7 @@ xcrun clang \
   -framework LuaSkin \
   -framework Cocoa \
   -framework ApplicationServices \
+  -framework ScriptingBridge \
   -ldl \
   -o "$temporary_output"
 

@@ -17,8 +17,8 @@ import {
   type TargetDisplayBounds,
 } from './native-window-placement.js'
 
-export const NATIVE_PLACEMENT_BRIDGE_VERSION = 3
-export const NATIVE_CONTROL_BRIDGE_VERSION = 5
+export const NATIVE_PLACEMENT_BRIDGE_VERSION = 5
+export const NATIVE_CONTROL_BRIDGE_VERSION = 6
 export const NATIVE_MERGE_DESKTOP_CAPABILITY = 'merge-desktop'
 const NATIVE_CONTROL_MAXIMUM_WINDOW_IDS = 512
 // The final delay deliberately exceeds Chrome's normal 30-second MV3 idle
@@ -35,7 +35,6 @@ const NATIVE_PLACEMENT_HOST_NAME = 'com.tabout.native_bridge'
 
 export type NativePlacementBridgeResponse = {
   browserWindowId?: number
-  creationToken?: string
   reason?: string
   requestId: string
   status: 'accepted' | 'rejected'
@@ -222,10 +221,6 @@ export const handleNativePlacementBridgeMessageEffect = Effect.fn('nativePlaceme
   return {
     ...response(requestId, 'accepted'),
     browserWindowId: placementResult.success,
-    // Protocol v3 originally required this echo. Current Hammerspoon derives
-    // the token from its validated request ID, but an already-loaded v3 client
-    // still needs the field during a staggered extension-only reload.
-    creationToken: requestId,
   }
 })
 

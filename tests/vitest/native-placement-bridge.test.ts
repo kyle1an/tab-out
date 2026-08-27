@@ -83,7 +83,7 @@ function createRequest(overrides: Record<string, unknown> = {}) {
   }
 }
 
-it.effect('native placement bridge preserves the v3 token echo for staggered reloads', () => Effect.gen(function* () {
+it.effect('native placement bridge uses its request ID only in the created bootstrap URL', () => Effect.gen(function* () {
   const { chromeApi, createCalls } = createChromeApi()
   const creationToken = 'hs:1800000000000:filter'
 
@@ -97,7 +97,6 @@ it.effect('native placement bridge preserves the v3 token echo for staggered rel
     requestId: creationToken,
     status: 'accepted',
     browserWindowId: 91,
-    creationToken,
   })
   assert.deepEqual(createCalls, [{
     type: 'normal',
@@ -125,7 +124,6 @@ it.effect('native placement bridge creates new-page requests through a uniquely 
     requestId: creationToken,
     status: 'accepted',
     browserWindowId: 91,
-    creationToken,
   })
   assert.deepEqual(createCalls, [{
     type: 'normal',

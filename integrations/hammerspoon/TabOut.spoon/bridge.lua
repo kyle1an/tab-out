@@ -1,7 +1,8 @@
 local M = {}
 
-local BRIDGE_VERSION = 3
+local BRIDGE_VERSION = 5
 local MAXIMUM_COORDINATE = 100000
+local MAXIMUM_PROCESS_ID = 2147483647
 local MAXIMUM_REQUEST_TIMEOUT_SECONDS = 60
 
 local function trim(value)
@@ -34,6 +35,13 @@ local function finiteNumber(value)
     and value ~= -math.huge
 end
 
+local function validProcessId(value)
+  return finiteNumber(value)
+    and value > 1
+    and value <= MAXIMUM_PROCESS_ID
+    and value % 1 == 0
+end
+
 local function validTargetBounds(bounds)
   return type(bounds) == "table"
     and finiteNumber(bounds.left)
@@ -50,6 +58,10 @@ end
 
 local function validateCreateOptions(options, callback)
   assert(type(options) == "table", "native bridge create options are required")
+  assert(
+    validProcessId(options.expectedBrowserProcessId),
+    "native bridge expectedBrowserProcessId is invalid"
+  )
   assert(
     options.operation == "filter" or options.operation == "newPage",
     "native bridge operation must be filter or newPage"
@@ -111,6 +123,11 @@ local function startRequest(client, payload, callback)
     end
 
     client.connected = true
+    if response.status == "accepted" and not validProcessId(response.browserProcessId) then
+      client.connected = false
+      callback(false, "The native bridge returned an invalid configured Chrome process identity")
+      return
+    end
     callback(response.status == "accepted", response.reason, response)
   end, { "--request", encoded })
 
@@ -155,6 +172,7 @@ function M.new(config)
       type = "create-window",
       requestId = requestId,
       expiresAtMs = timestampMs + math.floor(options.timeoutSeconds * 1000),
+      expectedBrowserProcessId = options.expectedBrowserProcessId,
       operation = options.operation,
       targetBounds = options.targetBounds,
     }, function(accepted, requestError, response)
@@ -172,7 +190,11 @@ function M.new(config)
         callback(false, "The native bridge returned an invalid created browser window identity")
         return
       end
-      callback(true, nil, browserWindowId, requestId)
+      callback(true, nil, {
+        browserProcessId = response.browserProcessId,
+        browserWindowId = browserWindowId,
+        creationToken = requestId,
+      })
     end)
   end
 
@@ -215,7 +237,10 @@ function M.new(config)
         seen[windowId] = true
         table.insert(validated, windowId)
       end
-      callback(validated)
+      callback({
+        browserProcessId = response.browserProcessId,
+        windowIds = validated,
+      })
     end)
   end
 

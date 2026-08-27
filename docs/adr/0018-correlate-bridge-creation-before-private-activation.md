@@ -75,3 +75,28 @@ instead of risking another profile or Space. The bridge protocol advances to
 version 3 so an older extension rejects the new request before creating a
 window; independently reloaded peers cannot mutate and only afterward discover
 that the created-window identity field is unavailable.
+
+## Amendment: Placement Protocol V4 And Process Authority
+
+On 2026-08-26, [ADR 0022](0022-target-chrome-through-native-host-process-authority.md)
+advanced placement to v4. The Chrome-launched native host now stamps its parent
+PID onto the local response, Hammerspoon derives the creation token only from
+its own validated request ID, and browser/native/token correlation runs through
+the PID-targeted native helper. The extension no longer echoes a compatibility
+token, and mixed versions Safe Abort before a compatibility mutation path.
+
+## Amendment: Placement Protocol V5 And Expected-Process Creation
+
+Later on 2026-08-26, placement advanced to v5. Every local create request now
+carries the PID from the immediately preceding configured-profile inventory.
+The Chrome-launched host compares that expected PID with its validated parent
+PID and rejects a stale request before forwarding it to the extension. The
+expected PID remains local to the host boundary and is stripped from the native
+message sent into Chrome.
+
+Created new-page finalization also freezes the single bootstrap tab's browser ID
+and revalidates its ID, active status, count, and token URL immediately before
+setting that exact tab by ID. Failed-route cleanup applies the same single-tab
+and exact active-tab checks before closing. A concurrent tab switch or added tab
+therefore Safe Aborts without overwriting the new active tab or closing a window
+that the user has begun using.

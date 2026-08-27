@@ -26,11 +26,14 @@ local taskPath
 
 local function response(status, overrides)
   local value = {
-    version = 3,
+    version = 5,
     type = "response",
     requestId = encodedPayload and encodedPayload.requestId or "missing-request",
     status = status,
   }
+  if status == "accepted" then
+    value.browserProcessId = 43250
+  end
   for key, field in pairs(overrides or {}) do
     value[key] = field
   end
@@ -52,7 +55,7 @@ local fakeHs = {
         error("invalid JSON")
       end
       if value == "wrong-version" then
-        return response("accepted", { version = 2 })
+        return response("accepted", { version = 3 })
       end
       if value == "wrong-request-id" then
         return response("accepted", { requestId = "another-request" })
@@ -68,6 +71,14 @@ local fakeHs = {
       end
       if value == "invalid-created-window" then
         return response("accepted", { browserWindowId = 91.5 })
+      end
+      if value == "missing-process" then
+        local result = response("accepted", { browserWindowId = 91 })
+        result.browserProcessId = nil
+        return result
+      end
+      if value == "invalid-process" then
+        return response("accepted", { browserProcessId = 1, browserWindowId = 91 })
       end
       return response("accepted", { browserWindowId = 91 })
     end,
@@ -103,6 +114,7 @@ local bridge = bridgeModule.new({ hostPath = "/tmp/tab-out-native-bridge" })
 
 local function createOptions(overrides)
   local options = {
+    expectedBrowserProcessId = 43250,
     operation = "filter",
     targetBounds = {
       height = 900,
@@ -124,18 +136,15 @@ assertEqual(initialStatus.connected, false, "native bridge status should not cla
 
 local callbackAccepted
 local callbackError
-local callbackBrowserWindowId
-local callbackCreationToken
+local callbackIdentity
 local started, startError = bridge:createWindow(createOptions(), function(
   accepted,
   requestError,
-  browserWindowId,
-  creationToken
+  identity
 )
   callbackAccepted = accepted
   callbackError = requestError
-  callbackBrowserWindowId = browserWindowId
-  callbackCreationToken = creationToken
+  callbackIdentity = identity
 end)
 
 assertEqual(started, true, "installed native bridge should start its client")
@@ -143,31 +152,38 @@ assertEqual(startError, nil, "successful native bridge start should not return a
 assertEqual(taskPath, "/tmp/tab-out-native-bridge", "native bridge should launch the configured host")
 assertEqual(taskArguments[1], "--request", "native bridge should use client request mode")
 assertEqual(taskArguments[2], "encoded-request", "native bridge should pass the encoded request as one argument")
-assertEqual(encodedPayload.version, 3, "native bridge should own the protocol version")
+assertEqual(encodedPayload.version, 5, "native bridge should own the protocol version")
 assertEqual(encodedPayload.type, "create-window", "native bridge should own the wire request type")
 assertEqual(encodedPayload.requestId, "hs-1800000000000-1", "native bridge should generate the request ID")
 assertEqual(encodedPayload.expiresAtMs, 1800000012000, "native bridge should derive the wire deadline")
+assertEqual(
+  encodedPayload.expectedBrowserProcessId,
+  43250,
+  "native bridge should bind creation to the already-authorized Chrome process"
+)
 assertEqual(encodedPayload.operation, "filter", "native bridge should encode the placement operation")
 assertEqual(encodedPayload.targetBounds.left, 1440, "native bridge should encode the target display bounds")
 assertEqual(callbackAccepted, true, "accepted native bridge response should report semantic success")
 assertEqual(callbackError, nil, "accepted native bridge response should not return an error")
-assertEqual(callbackBrowserWindowId, 91, "accepted native bridge response should return its browser window ID")
-assertEqual(callbackCreationToken, "hs-1800000000000-1", "accepted response should return its exact request token")
+assertEqual(callbackIdentity.browserProcessId, 43250, "accepted response should return configured Chrome authority")
+assertEqual(callbackIdentity.browserWindowId, 91, "accepted native bridge response should return its browser window ID")
+assertEqual(callbackIdentity.creationToken, "hs-1800000000000-1", "accepted response should return its exact request token")
 assertEqual(bridge:status().connected, true, "accepted native bridge response should prove connectivity")
 
 nextStandardOutput = "profile-windows"
-local profileWindowIds
+local profileInventory
 local profileWindowError
-local inventoryStarted, inventoryStartError = bridge:listProfileWindows({ timeoutSeconds = 3 }, function(windowIds, requestError)
-  profileWindowIds = windowIds
+local inventoryStarted, inventoryStartError = bridge:listProfileWindows({ timeoutSeconds = 3 }, function(inventory, requestError)
+  profileInventory = inventory
   profileWindowError = requestError
 end)
 assertEqual(inventoryStarted, true, "profile-window discovery should start its native bridge client")
 assertEqual(inventoryStartError, nil, "profile-window discovery should not return a start error")
 assertEqual(encodedPayload.type, "list-profile-windows", "profile-window discovery should own its wire request type")
 assertEqual(encodedPayload.expiresAtMs, 1800000003000, "profile-window discovery should derive its wire deadline")
-assertEqual(profileWindowIds[1], 71, "profile-window discovery should preserve the first browser window ID")
-assertEqual(profileWindowIds[2], 72, "profile-window discovery should preserve the second browser window ID")
+assertEqual(profileInventory.browserProcessId, 43250, "profile-window discovery should return configured Chrome authority")
+assertEqual(profileInventory.windowIds[1], 71, "profile-window discovery should preserve the first browser window ID")
+assertEqual(profileInventory.windowIds[2], 72, "profile-window discovery should preserve the second browser window ID")
 assertEqual(profileWindowError, nil, "accepted profile-window discovery should not return an error")
 
 nextStandardOutput = "rejected"
@@ -184,15 +200,15 @@ assertEqual(bridge:status().connected, true, "structured extension rejection sho
 nextStandardOutput = "missing-created-window"
 callbackAccepted = nil
 callbackError = nil
-callbackBrowserWindowId = nil
-bridge:createWindow(createOptions(), function(accepted, requestError, browserWindowId)
+callbackIdentity = nil
+bridge:createWindow(createOptions(), function(accepted, requestError, identity)
   callbackAccepted = accepted
   callbackError = requestError
-  callbackBrowserWindowId = browserWindowId
+  callbackIdentity = identity
 end)
 assertEqual(callbackAccepted, false, "missing created-window identity should reject the bridge response")
 assertMatch(callbackError, "created browser window identity", "missing identity should explain the protocol failure")
-assertEqual(callbackBrowserWindowId, nil, "missing created-window identity should not leak a candidate")
+assertEqual(callbackIdentity, nil, "missing created-window identity should not leak a candidate")
 assertEqual(bridge:status().connected, false, "missing created-window identity should clear connectivity")
 
 nextStandardOutput = "invalid-created-window"
@@ -241,6 +257,27 @@ end)
 assertEqual(callbackAccepted, false, "another request's response should report semantic rejection")
 assertMatch(callbackError, "another request", "another request's response should explain the protocol failure")
 assertEqual(bridge:status().connected, false, "another request's response should clear connectivity")
+
+nextStandardOutput = "missing-process"
+callbackAccepted = nil
+callbackError = nil
+bridge:createWindow(createOptions(), function(accepted, requestError)
+  callbackAccepted = accepted
+  callbackError = requestError
+end)
+assertEqual(callbackAccepted, false, "missing configured Chrome authority should reject the response")
+assertMatch(callbackError, "configured Chrome process identity", "missing process authority should explain the mismatch")
+assertEqual(bridge:status().connected, false, "missing process authority should clear connectivity")
+
+nextStandardOutput = "invalid-process"
+callbackAccepted = nil
+callbackError = nil
+bridge:createWindow(createOptions(), function(accepted, requestError)
+  callbackAccepted = accepted
+  callbackError = requestError
+end)
+assertEqual(callbackAccepted, false, "invalid configured Chrome authority should reject the response")
+assertMatch(callbackError, "configured Chrome process identity", "invalid process authority should explain the mismatch")
 
 filePresent = false
 local missingStarted, missingError = bridge:createWindow(createOptions(), function() end)

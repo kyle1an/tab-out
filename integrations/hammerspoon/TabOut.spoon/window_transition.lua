@@ -27,10 +27,6 @@ local function containsValue(values, expected)
   return false
 end
 
-local function roundedCoordinate(value)
-  return math.floor(value + 0.5)
-end
-
 function M.new(options)
   assert(type(options) == "table", "Window transition options must be a table")
   assert(type(options.catalog) == "table", "catalog is required")
@@ -116,32 +112,53 @@ function M.new(options)
   end
 
 
-  local function isDestinationControl(kind, element, role)
+  local function prepareAccessibilityElement(element, deadline)
+    if not element then
+      return false
+    end
+    if not deadline then
+      return true
+    end
+    local remaining = deadline - hs.timer.secondsSinceEpoch()
+    return remaining > 0 and element:setTimeout(remaining) ~= nil
+  end
+
+  local function readAccessibilityAttribute(element, attribute, deadline)
+    if not prepareAccessibilityElement(element, deadline) then
+      return nil
+    end
+    local value = element:attributeValue(attribute)
+    if deadline then
+      element:setTimeout(0)
+      if hs.timer.secondsSinceEpoch() >= deadline then
+        return nil
+      end
+    end
+    return value
+  end
+
+  local function isDestinationControl(kind, element, role, deadline)
     if type(element) ~= "userdata" then
       return false
     end
-    role = role or element:attributeValue("AXRole")
+    role = role or readAccessibilityAttribute(element, "AXRole", deadline)
     if role ~= "AXTextField" then
       return false
     end
 
-    local description = element:attributeValue("AXDescription")
+    local description = readAccessibilityAttribute(element, "AXDescription", deadline)
     if kind == "filter" then
       return type(description) == "string" and description:match("^Filter ") ~= nil
     end
     return description == "Address and search bar"
   end
 
-  local function focusedDestinationControl(kind, root)
-    local systemWideElement = hs.axuielement.systemWideElement
-      and hs.axuielement.systemWideElement()
-      or nil
-    local control = systemWideElement
-      and systemWideElement:attributeValue("AXFocusedUIElement")
-      or nil
-    if not isDestinationControl(kind, control)
-      or control:attributeValue("AXFocused") ~= true
-      or control:attributeValue("AXWindow") ~= root
+  local function focusedDestinationControl(kind, root, application, deadline)
+    local applicationElement = hs.axuielement.applicationElement(application)
+    local control = readAccessibilityAttribute(applicationElement, "AXFocusedUIElement", deadline)
+    if not isDestinationControl(kind, control, nil, deadline)
+      or readAccessibilityAttribute(control, "AXFocused", deadline) ~= true
+      or readAccessibilityAttribute(control, "AXWindow", deadline) ~= root
     then
       return nil
     end
@@ -149,15 +166,19 @@ function M.new(options)
     return control
   end
 
-  local function walkAccessibility(root, maxDepth, skipWebAreas, visit)
+  local function walkAccessibility(root, maxDepth, skipWebAreas, visit, deadline)
     local visited = {}
     local function walk(element, depth)
-      if type(element) ~= "userdata" or visited[element] or depth > maxDepth then
+      if type(element) ~= "userdata"
+        or visited[element]
+        or depth > maxDepth
+        or (deadline and hs.timer.secondsSinceEpoch() >= deadline)
+      then
         return nil
       end
 
       visited[element] = true
-      local role = element:attributeValue("AXRole")
+      local role = readAccessibilityAttribute(element, "AXRole", deadline)
       if skipWebAreas and role == "AXWebArea" then
         return nil
       end
@@ -166,7 +187,7 @@ function M.new(options)
         return result
       end
       if not skipChildren then
-        for _, child in ipairs(element:attributeValue("AXChildren") or {}) do
+        for _, child in ipairs(readAccessibilityAttribute(element, "AXChildren", deadline) or {}) do
           local found = walk(child, depth + 1)
           if found then
             return found
@@ -178,27 +199,27 @@ function M.new(options)
     return root and walk(root, 0) or nil
   end
 
-  local function findDestinationControl(kind, root)
+  local function findDestinationControl(kind, root, deadline)
     return walkAccessibility(root, kind == "filter" and 30 or 20, kind ~= "filter", function(element, role)
-      if isDestinationControl(kind, element, role) then
+      if isDestinationControl(kind, element, role, deadline) then
         return element
       end
       return nil
-    end)
+    end, deadline)
   end
 
-  local function destinationControl(kind, window)
+  local function destinationControl(kind, window, deadline)
     local root = window and hs.axuielement.windowElement(window) or nil
     if not root then
       return nil
     end
 
-    local focusedControl = focusedDestinationControl(kind, root)
+    local focusedControl = focusedDestinationControl(kind, root, window:application(), deadline)
     if focusedControl then
       return focusedControl
     end
 
-    return findDestinationControl(kind, root)
+    return findDestinationControl(kind, root, deadline)
   end
 
   local function topStandardWindowOnScreen(screen, excludedWindowId)
@@ -425,7 +446,13 @@ function M.new(options)
   end
 
 
-  local function openTabOutTabInFrontWindow(kind, window)
+  local function openTabOutTabInExactWindow(
+    kind,
+    window,
+    browserProcessId,
+    browserWindowId,
+    authorityToken
+  )
     local url = NEW_TAB_URL
     local urlError
     if kind == "filter" then
@@ -435,48 +462,39 @@ function M.new(options)
       return false, urlError
     end
 
-    local frame = window and window:frame() or nil
-    if not frame then
-      return false, "The Chrome window frame is unavailable"
+    local nativeWindowId = window and window:id() or nil
+    if not nativeWindowId then
+      return false, "The exact Chrome window identity is unavailable"
     end
-
-    local left = roundedCoordinate(frame.x)
-    local top = roundedCoordinate(frame.y)
-    local right = roundedCoordinate(frame.x + frame.w)
-    local bottom = roundedCoordinate(frame.y + frame.h)
-    local tabAction = string.format([[
-      make new tab at end of tabs with properties {URL:"%s"}
-      set active tab index to count of tabs
-  ]], url)
-
-    local windowSelection = [[
-    set candidateWindow to front window
-    if (bounds of candidateWindow) is not targetBounds then error "The privately focused Chrome window changed before navigation"
-  ]]
-
-    local script = string.format([[
-  tell application "Google Chrome"
-    set targetBounds to {%d, %d, %d, %d}
-  %s  tell candidateWindow
-  %s  end tell
-  end tell
-  ]], left, top, right, bottom, windowSelection, tabAction)
-
-    local succeeded, _, descriptor = hs.osascript.applescript(script)
-    if succeeded then
-      return true
+    local called, opened, navigationError = pcall(
+      privateFocus.navigate,
+      browserProcessId,
+      nativeWindowId,
+      browserWindowId,
+      authorityToken,
+      "open-tab",
+      url
+    )
+    if not called then
+      return false, opened
     end
-
-    local errorNumber = type(descriptor) == "table" and descriptor.OSAScriptErrorNumberKey or nil
-    if errorNumber then
-      return false, "Chrome AppleScript error " .. tostring(errorNumber)
-    end
-
-    return false, "Chrome did not accept the target-window request"
+    return opened == true, navigationError
   end
 
-  local function pollUntil(timeout, timeoutMessage, probe, onReady, onFailure, attempt)
-    local ready, value, errorMessage = probe()
+  local function pollUntil(timeout, timeoutMessage, probe, onReady, onFailure, deadline)
+    deadline = deadline or (hs.timer.secondsSinceEpoch() + timeout)
+    local remaining = deadline - hs.timer.secondsSinceEpoch()
+    if remaining <= 0 then
+      onFailure(timeoutMessage)
+      return
+    end
+
+    local ready, value, errorMessage = probe(deadline)
+    remaining = deadline - hs.timer.secondsSinceEpoch()
+    if remaining <= 0 then
+      onFailure(timeoutMessage)
+      return
+    end
     if ready then
       onReady(value)
       return
@@ -485,19 +503,15 @@ function M.new(options)
       onFailure(errorMessage)
       return
     end
-    attempt = attempt or 0
-    if attempt * WINDOW_FOCUS_RETRY_INTERVAL_SECONDS >= timeout then
-      onFailure(timeoutMessage)
-      return
-    end
-    later(WINDOW_FOCUS_RETRY_INTERVAL_SECONDS, function()
-      pollUntil(timeout, timeoutMessage, probe, onReady, onFailure, attempt + 1)
+    later(math.min(WINDOW_FOCUS_RETRY_INTERVAL_SECONDS, remaining), function()
+      pollUntil(timeout, timeoutMessage, probe, onReady, onFailure, deadline)
     end, true)
   end
 
   local function activeTargetWindowError(window, expectedWindowId)
     local windowId = window and window:id() or nil
     local application = window and window:application() or nil
+    local processId = application and application:pid() or nil
     if not windowId
       or windowId ~= expectedWindowId
       or not application
@@ -512,11 +526,14 @@ function M.new(options)
     local frontmostApplication = hs.application.frontmostApplication()
     local focusedWindow = hs.window.focusedWindow()
     if not request
+      or type(request.browserProcessId) ~= "number"
+      or processId ~= request.browserProcessId
       or not window:isStandard()
       or window:isMinimized()
       or application:isHidden()
       or not frontmostApplication
       or frontmostApplication:bundleID() ~= chromeBundleId
+      or frontmostApplication:pid() ~= request.browserProcessId
       or not focusedWindow
       or focusedWindow:id() ~= expectedWindowId
       or screenUuid(windowScreen) ~= request.screenUuid
@@ -530,61 +547,112 @@ function M.new(options)
     return nil
   end
 
-  local function waitForDestinationControl(kind, window, onReady, onFailure)
-    local expectedWindowId = window and window:id() or nil
-    pollUntil(DESTINATION_CONTROL_TIMEOUT_SECONDS, "Timed out waiting for the Tab Out destination control", function()
-      local targetError = activeTargetWindowError(window, expectedWindowId)
-      if targetError then
-        return false, nil, targetError
-      end
-      local control = destinationControl(kind, window)
-      if kind == "newPage"
-        and control
-        and control:attributeValue("AXValue") ~= ""
-      then
-        return false
-      end
-      return control ~= nil, control
-    end, onReady, onFailure)
-  end
-
-  local function waitForTargetWindowFocus(window, onFocused, onFailure)
+  local function waitForTargetWindowFocus(window, browserProcessId, onFocused, onFailure)
     local expectedWindowId = window and window:id() or nil
     pollUntil(TARGET_FOCUS_TIMEOUT_SECONDS, "Timed out waiting for Chrome to activate the requested window", function()
       local application = hs.application.frontmostApplication()
       local focusedWindow = hs.window.focusedWindow()
       return application
         and application:bundleID() == chromeBundleId
+        and application:pid() == browserProcessId
         and focusedWindow
         and focusedWindow:id() == expectedWindowId
+        and focusedWindow:application()
+        and focusedWindow:application():pid() == browserProcessId
     end, onFocused, onFailure)
   end
 
-  local function focusDestinationControl(kind, window, control)
+  local function focusDestinationControl(
+    kind,
+    window,
+    browserProcessId,
+    browserWindowId,
+    authorityToken,
+    deadline
+  )
     local expectedWindowId = window and window:id() or nil
     local targetError = activeTargetWindowError(window, expectedWindowId)
     if targetError then
-      return false, targetError
+      return false, nil, targetError
     end
 
-    control = control or destinationControl(kind, window)
+    local control = destinationControl(kind, window, deadline)
     if not control then
-      return false, "Chrome's destination control is unavailable"
+      return false
+    end
+    if kind == "newPage" and readAccessibilityAttribute(control, "AXValue", deadline) ~= "" then
+      return false
     end
 
+    local remainingSeconds = deadline - hs.timer.secondsSinceEpoch()
+    if remainingSeconds <= 0 then
+      return false
+    end
+    local called, valid = pcall(
+      privateFocus.validate,
+      browserProcessId,
+      expectedWindowId,
+      browserWindowId,
+      authorityToken,
+      remainingSeconds
+    )
+    if not called then
+      return false, nil, tostring(valid)
+    end
+    if valid ~= true or hs.timer.secondsSinceEpoch() >= deadline then
+      return false
+    end
+
+    if not prepareAccessibilityElement(control, deadline) then
+      return false
+    end
     local focused = control:setAttributeValue("AXFocused", true)
-    if not focused or control:attributeValue("AXFocused") ~= true then
-      return false, "Chrome's destination control could not be focused"
+    control:setTimeout(0)
+    if not focused or readAccessibilityAttribute(control, "AXFocused", deadline) ~= true then
+      return false
     end
-    if kind == "newPage" and control:attributeValue("AXValue") ~= "" then
-      return false, "Chrome's address bar is not empty"
+    if kind == "newPage" and readAccessibilityAttribute(control, "AXValue", deadline) ~= "" then
+      return false, nil, "Chrome's address bar is not empty"
     end
 
-    return true
+    return true, control
+  end
+
+  local function waitForDestinationControlFocus(
+    kind,
+    window,
+    browserProcessId,
+    browserWindowId,
+    authorityToken
+  )
+    pollUntil(
+      DESTINATION_CONTROL_TIMEOUT_SECONDS,
+      "Timed out waiting for the Tab Out destination control to accept keyboard focus",
+      function(deadline)
+        return focusDestinationControl(
+          kind,
+          window,
+          browserProcessId,
+          browserWindowId,
+          authorityToken,
+          deadline
+        )
+      end,
+      function()
+        log.df("Privately focused exact Chrome window %d", window:id())
+        finish()
+      end,
+      function(controlError)
+        fail("The Tab Out destination did not become ready", controlError)
+      end
+    )
   end
 
   local function focusWindowPrivately(
     window,
+    browserProcessId,
+    browserWindowId,
+    authorityToken,
     allowCreatedWindowWithoutOnScreenMetadata
   )
     local windowId = window and window:id() or nil
@@ -599,12 +667,15 @@ function M.new(options)
       or application:bundleID() ~= chromeBundleId
       or application:isHidden()
       or type(processId) ~= "number"
+      or processId ~= browserProcessId
+      or type(browserWindowId) ~= "number"
     then
       return false, "The exact Chrome window identity is unavailable"
     end
 
     local windowSpaces = hs.spaces.windowSpaces(window)
     if not request
+      or request.browserProcessId ~= browserProcessId
       or screenUuid(windowScreen) ~= request.screenUuid
       or hs.spaces.activeSpaceOnScreen(windowScreen) ~= request.targetSpaceId
       or not windowSpaces
@@ -618,53 +689,73 @@ function M.new(options)
       return false, privateFocusError or "The private focus helper is unavailable"
     end
 
-    local called, focused, focusError = pcall(
+    local called, focused, focusError, focusDetails = pcall(
       privateFocus.focus,
-      processId,
+      browserProcessId,
       windowId,
+      browserWindowId,
+      authorityToken,
       allowCreatedWindowWithoutOnScreenMetadata == true
     )
     if not called then
-      return false, focused
+      return false, focused, nil
     end
     if not focused then
-      return false, focusError or "The private focus helper rejected the target window"
+      return false,
+        focusError or "The private focus helper rejected the target window",
+        focusDetails
     end
 
     return true
   end
 
-  local function finishDestinationControlFocus(kind, window, control)
-    local controlFocused, controlError = focusDestinationControl(kind, window, control)
-    if not controlFocused then
-      fail("The Tab Out destination could not receive keyboard focus", controlError)
-      return
-    end
-
-    log.df("Privately focused exact Chrome window %d", window:id())
-    finish()
-  end
-
   local function privatelyActivateWindow(
     window,
+    browserProcessId,
+    browserWindowId,
+    authorityToken,
     onActivated,
-    allowCreatedWindowWithoutOnScreenMetadata
+    allowCreatedWindowWithoutOnScreenMetadata,
+    onPreMutationAuthorityChanged
   )
-    local focused, focusError = focusWindowPrivately(
+    local focused, focusError, focusDetails = focusWindowPrivately(
       window,
+      browserProcessId,
+      browserWindowId,
+      authorityToken,
       allowCreatedWindowWithoutOnScreenMetadata
     )
     if not focused then
+      if type(focusDetails) == "table"
+        and focusDetails.authorityChanged == true
+        and focusDetails.mutationStarted == false
+        and type(onPreMutationAuthorityChanged) == "function"
+      then
+        onPreMutationAuthorityChanged(focusError, focusDetails)
+        return false
+      end
       fail("The Tab Out window could not be focused privately", focusError)
-      return
+      return false
     end
 
-    waitForTargetWindowFocus(window, onActivated, function(activationError)
+    local request = currentRequest()
+    if request then
+      request.mutationStarted = true
+    end
+
+    waitForTargetWindowFocus(window, browserProcessId, onActivated, function(activationError)
       fail("The Tab Out window did not become keyboard-active", activationError)
     end)
+    return true
   end
 
-  local function replaceCreatedNewPageBootstrap(browserWindowId, creationToken)
+  local function replaceCreatedNewPageBootstrap(
+    window,
+    browserProcessId,
+    browserWindowId,
+    authorityToken,
+    creationToken
+  )
     if type(browserWindowId) ~= "number"
       or browserWindowId <= 0
       or browserWindowId % 1 ~= 0
@@ -677,51 +768,53 @@ function M.new(options)
       return false, "The created window token is unavailable"
     end
 
-    local extensionId, extensionError = catalog:extensionId()
-    if not extensionId then
-      return false, extensionError
-    end
-    local expectedBootstrapUrl = "chrome-extension://"
-      .. extensionId
-      .. "/index.html?tabOutPlacement="
-      .. creationToken
-
-    local script = string.format([[
-tell application "Google Chrome"
-  set candidateWindow to window id %d
-  if (id of front window as text) is not "%d" then error "The privately focused Chrome window changed before new-page finalization"
-  set bootstrapTab to active tab of candidateWindow
-  if (URL of bootstrapTab) is not "%s" then error "The created new-page bootstrap tab changed before finalization"
-  set URL of bootstrapTab to "%s"
-end tell
-]], browserWindowId, browserWindowId, expectedBootstrapUrl, NEW_TAB_URL)
-
-    local succeeded, _, descriptor = hs.osascript.applescript(script)
-    if succeeded then
-      return true
+    local expectedBootstrapUrl, bootstrapError = catalog:createdBootstrapUrl(
+      creationToken,
+      false
+    )
+    if not expectedBootstrapUrl then
+      return false, bootstrapError
     end
 
-    local errorNumber = type(descriptor) == "table" and descriptor.OSAScriptErrorNumberKey or nil
-    if errorNumber then
-      return false, "Chrome AppleScript error " .. tostring(errorNumber)
+    local nativeWindowId = window and window:id() or nil
+    if not nativeWindowId then
+      return false, "The created native window identity is unavailable"
     end
-    return false, "Chrome did not accept the created new-page finalization"
+    local called, replaced, navigationError = pcall(
+      privateFocus.navigate,
+      browserProcessId,
+      nativeWindowId,
+      browserWindowId,
+      authorityToken,
+      "replace-active-tab",
+      NEW_TAB_URL,
+      expectedBootstrapUrl
+    )
+    if not called then
+      return false, replaced
+    end
+    return replaced == true, navigationError
   end
 
   -- Native Placement Bridge windows already contain their destination and are
   -- created inactive at final target bounds. The target-work-area snapshot stays
   -- above the inactive window until private activation and destination focus
   -- complete, so the created window is first exposed in its final frontmost state.
-  local function finishExtensionWindowActivation(
+  function transition:activateCreated(
     kind,
     window,
+    browserProcessId,
     browserWindowId,
+    authorityToken,
     creationToken
   )
-    privatelyActivateWindow(window, function()
+    privatelyActivateWindow(window, browserProcessId, browserWindowId, authorityToken, function()
       if kind == "newPage" then
         local replaced, replaceError = replaceCreatedNewPageBootstrap(
+          window,
+          browserProcessId,
           browserWindowId,
+          authorityToken,
           creationToken
         )
         if not replaced then
@@ -729,29 +822,46 @@ end tell
           return
         end
       end
-      waitForDestinationControl(kind, window, function(control)
-        finishDestinationControlFocus(kind, window, control)
-      end, function(controlError)
-        fail("The Tab Out destination did not become ready", controlError)
-      end)
+      waitForDestinationControlFocus(
+        kind,
+        window,
+        browserProcessId,
+        browserWindowId,
+        authorityToken
+      )
     end, true)
   end
 
-  local function activateExistingWindow(kind, window)
-    privatelyActivateWindow(window, function()
-      local opened, openError = openTabOutTabInFrontWindow(kind, window)
+  function transition:activateExisting(
+    kind,
+    window,
+    browserProcessId,
+    browserWindowId,
+    authorityToken,
+    onPreMutationAuthorityChanged
+  )
+    return privatelyActivateWindow(window, browserProcessId, browserWindowId, authorityToken, function()
+      local opened, openError = openTabOutTabInExactWindow(
+        kind,
+        window,
+        browserProcessId,
+        browserWindowId,
+        authorityToken
+      )
       if not opened then
         fail("Chrome could not open the Tab Out page", openError)
         return
       end
 
       log.df("Opened the %s destination in the privately selected Chrome window", kind)
-      waitForDestinationControl(kind, window, function(control)
-        finishDestinationControlFocus(kind, window, control)
-      end, function(controlError)
-        fail("The Tab Out destination did not become ready", controlError)
-      end)
-    end)
+      waitForDestinationControlFocus(
+        kind,
+        window,
+        browserProcessId,
+        browserWindowId,
+        authorityToken
+      )
+    end, false, onPreMutationAuthorityChanged)
   end
 
   local function clearCreatedWindowCloseRecovery(windowId, expectedRecovery)
@@ -849,10 +959,6 @@ end tell
 
   function transition:captureShield(screen) return captureTransitionShield(screen) end
   function transition:releaseShield() releaseTransitionShield() end
-  function transition:activateCreated(kind, window, browserWindowId, creationToken)
-    finishExtensionWindowActivation(kind, window, browserWindowId, creationToken)
-  end
-  function transition:activateExisting(kind, window) activateExistingWindow(kind, window) end
   function transition:registerCreatedWindow(request, window) registerCreatedWindowCloseRecovery(request, window) end
 
   function transition:handleWindowDestroyed(window)

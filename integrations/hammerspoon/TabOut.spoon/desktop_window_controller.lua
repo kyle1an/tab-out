@@ -1,6 +1,7 @@
 local M = {}
 
-local CONTROL_VERSION = 5
+local CONTROL_VERSION = 6
+local MAXIMUM_PROCESS_ID = 2147483647
 local MERGE_DESKTOP_CAPABILITY = "merge-desktop"
 local MAXIMUM_WINDOW_IDS = 512
 local RECONNECT_DELAYS_SECONDS = { 0.25, 1, 5, 30 }
@@ -130,13 +131,14 @@ function M.new(options)
     return screen and screen:getUUID() or nil
   end
 
-  local function isChromeWindow(window)
+  local function isChromeWindow(window, browserProcessId)
     if not window or not window:id() or not window:isStandard() or window:isMinimized() then
       return false
     end
     local application = window:application()
     return application
       and application:bundleID() == chromeBundleId
+      and application:pid() == browserProcessId
       and not application:isHidden()
   end
 
@@ -154,7 +156,14 @@ function M.new(options)
     return profileWindows
   end
 
-  local function resolveDesktopWindows(destinationWindowId, profileWindowIds)
+  local function resolveDesktopWindows(
+    browserProcessId,
+    destinationWindowId,
+    profileWindowIds
+  )
+    if not positiveInteger(browserProcessId) or browserProcessId > MAXIMUM_PROCESS_ID then
+      return nil, "The configured Chrome instance identity is invalid"
+    end
     if not positiveInteger(destinationWindowId) then
       return nil, "The destination browser window is invalid"
     end
@@ -170,7 +179,7 @@ function M.new(options)
     local trackedById = {}
     for _, window in ipairs(chromeWindows() or {}) do
       local id = window and window:id() or nil
-      if isChromeWindow(window) and id and not trackedById[id] then
+      if isChromeWindow(window, browserProcessId) and id and not trackedById[id] then
         trackedById[id] = window
         table.insert(tracked, window)
       end
@@ -179,7 +188,7 @@ function M.new(options)
     local orderedTrackedIds = {}
     for _, window in ipairs(hs.window.orderedWindows()) do
       local id = window and window:id() or nil
-      if isChromeWindow(window) and id and not trackedById[id] then
+      if isChromeWindow(window, browserProcessId) and id and not trackedById[id] then
         trackedById[id] = window
         table.insert(tracked, window)
       end
@@ -193,8 +202,8 @@ function M.new(options)
     end
 
     local browserIdByNativeId, mappingError = catalog:browserWindowIdsFor(
-      tracked,
-      orderedTracked
+      browserProcessId,
+      tracked
     )
     if not browserIdByNativeId then
       return nil, mappingError
@@ -233,7 +242,9 @@ function M.new(options)
     local orderedWindowIds = {}
     local orderedWindowIdSet = {}
     for _, window in ipairs(orderedTracked) do
-      if isChromeWindow(window) and screenUuid(window:screen()) == destinationScreenUuid then
+      if isChromeWindow(window, browserProcessId)
+        and screenUuid(window:screen()) == destinationScreenUuid
+      then
         local spaces = hs.spaces.windowSpaces(window)
         if type(spaces) == "table"
           and #spaces == 1
@@ -258,6 +269,7 @@ function M.new(options)
       return nil, "The destination browser window is not visible on its Desktop"
     end
     return {
+      browserProcessId = browserProcessId,
       destinationWindowId = destinationWindowId,
       screenUuid = destinationScreenUuid,
       spaceId = destinationSpaceId,
@@ -292,6 +304,7 @@ function M.new(options)
       type = true,
       requestId = true,
       expiresAtMs = true,
+      browserProcessId = true,
       destinationWindowId = true,
       profileWindowIds = true,
     }
@@ -319,6 +332,7 @@ function M.new(options)
     local atMs = nowMs()
     pruneSelections(atMs)
     local selection, selectionError = resolveDesktopWindows(
+      request.browserProcessId,
       request.destinationWindowId,
       request.profileWindowIds
     )
@@ -328,6 +342,7 @@ function M.new(options)
 
     if request.type == "resolve-desktop-windows" then
       selections[request.requestId] = {
+        browserProcessId = selection.browserProcessId,
         createdAtMs = atMs,
         destinationWindowId = selection.destinationWindowId,
         screenUuid = selection.screenUuid,
@@ -344,7 +359,8 @@ function M.new(options)
     if not previous then
       return response(request.requestId, "rejected", "The desktop selection expired or was replaced")
     end
-    if previous.destinationWindowId ~= selection.destinationWindowId
+    if previous.browserProcessId ~= selection.browserProcessId
+      or previous.destinationWindowId ~= selection.destinationWindowId
       or previous.screenUuid ~= selection.screenUuid
       or previous.spaceId ~= selection.spaceId
       or not sameArray(previous.windowIds, selection.windowIds)

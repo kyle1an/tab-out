@@ -2007,7 +2007,7 @@ test('native placement bridge directly places a requested window without focusin
   assert.equal(typeof onNativeMessage, 'function')
 
   onNativeMessage({
-    version: 3,
+    version: 5,
     type: 'create-window',
     requestId: 'hs-bridge-test-1',
     expiresAtMs: Date.now() + 12_000,
@@ -2035,12 +2035,11 @@ test('native placement bridge directly places a requested window without focusin
   assert.equal(mock.state.windowsById[2].state, 'normal')
   assert.deepEqual(mock.calls.nativeHostNames, ['com.tabout.native_bridge'])
   assert.deepEqual(mock.calls.nativeMessages, [{
-    version: 3,
+    version: 5,
     type: 'response',
     requestId: 'hs-bridge-test-1',
     status: 'accepted',
     browserWindowId: 2,
-    creationToken: 'hs-bridge-test-1',
   }])
 })
 

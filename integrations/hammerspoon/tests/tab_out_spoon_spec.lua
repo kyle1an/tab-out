@@ -17,16 +17,26 @@ local catalogOptions = {
   chromeUserDataDirectory = "/tmp/chrome-catalog-test",
   configuredProfileDirectory = "Profile 3",
   hs = {},
-  later = function() end,
-  stopTimer = function() end,
+  privateChrome = {
+    configuredProcess = function() return 43250 end,
+    inventory = function() return {}, "authority" end,
+    matchCreated = function() return nil end,
+    release = function() return true end,
+  },
 }
 assertEqual(type(ChromeCatalog.new(catalogOptions)), "table", "catalog accepts a fake hs adapter")
 
 local platformOnlyAccepted, platformOnlyError = pcall(ChromeCatalog.new, {
+  chromeBundleId = "com.google.Chrome",
+  chromeUserDataDirectory = "/tmp/chrome-catalog-test",
   configuredProfileDirectory = "Profile 3",
-  later = function() end,
   platform = {},
-  stopTimer = function() end,
+  privateChrome = {
+    configuredProcess = function() return 43250 end,
+    inventory = function() return {}, "authority" end,
+    matchCreated = function() return nil end,
+    release = function() return true end,
+  },
 })
 assertEqual(platformOnlyAccepted, false, "catalog rejects the removed platform injection seam")
 assert(
@@ -43,8 +53,29 @@ local scenarios = {
     "reuse target profile for filter", "filter", nil,
     { createdWindow = false, extensionFocusRequested = false, failed = false,
       filterInputFocused = true, navigationAfterPrivateFocus = true, openedFilter = true,
+      fullCorrelationCount = 1,
       missingOnScreenMetadataAllowed = false, otherChromeRaised = false,
       privateFocusUsed = true, targetAppActive = true, targetFocused = true },
+  },
+  {
+    "retry a transient configured destination focus refusal", "filter",
+    { destinationFocusRejectedAttempts = 1 },
+    { destinationFocusAttemptCount = 2, failed = false, filterInputFocused = true,
+      openedFilter = true, privateFocusUsed = true, targetFocused = true },
+  },
+  {
+    "wait through transient post-navigation identity mismatch", "filter",
+    { destinationIdentityMismatchReads = 1 },
+    { destinationIdentityRevalidationReadCount = 2, failed = false,
+      filterInputFocused = true, openedFilter = true, privateFocusUsed = true,
+      targetFocused = true },
+  },
+  {
+    "safe-abort a persistent post-navigation identity mismatch", "filter",
+    { destinationIdentityMismatchReads = 999 },
+    { destinationFocusAttemptCount = 0, failed = true,
+      filterInputFocused = false, openedFilter = true, privateFocusUsed = true,
+      targetFocused = true },
   },
   {
     "reuse target profile for new page", "newPage", nil,
@@ -54,12 +85,98 @@ local scenarios = {
       otherChromeRaised = false, privateFocusUsed = true, targetFocused = true },
   },
   {
+    "route filter away from a same-bundle isolated Chrome process", "filter",
+    { isolatedChromeWindow = true, sourceWindowIsIsolatedChrome = true },
+    { createdWindow = false, failed = false, filterInputFocused = true,
+      isolatedPrivateOperationAttempted = false, isolatedWindowMutated = false,
+      openedFilter = true, privateFocusUsed = true, targetAppActive = true,
+      targetFocused = true },
+  },
+  {
+    "route new page away from a same-bundle isolated Chrome process", "newPage",
+    { isolatedChromeWindow = true, sourceWindowIsIsolatedChrome = true },
+    { addressBarFocused = true, createdWindow = false, failed = false,
+      isolatedPrivateOperationAttempted = false, isolatedWindowMutated = false,
+      openedNewPage = true, privateFocusUsed = true, targetAppActive = true,
+      targetFocused = true },
+  },
+  {
+    "retry one stale configured-instance authority before mutation", "filter",
+    { firstProfileInventoryProcessUnavailable = true },
+    { createdWindow = false, failed = false, filterInputFocused = true,
+      openedFilter = true, privateFocusAttemptCount = 1,
+      profileInventoryRequestCount = 2, targetFocused = true },
+  },
+  {
+    "retry stale exact-window authority rejected before private mutation", "filter",
+    { firstPrivateFocusAuthorityChangedBeforeMutation = true },
+    { failed = false, filterInputFocused = true, openedFilter = true,
+      privateFocusAttemptCount = 2, profileInventoryRequestCount = 2,
+      targetFocused = true },
+  },
+  {
+    "do not retry a generic configured-process inventory failure", "filter",
+    { privateInventoryError = "Hammerspoon does not have Automation permission" },
+    { browserInventoryReadCount = 1, failed = true, privateFocusAttemptCount = 0,
+      profileInventoryRequestCount = 1 },
+  },
+  {
+    "reject a native host from another Chrome user-data process", "filter",
+    { isolatedChromeWindow = true, nativeBridgeBrowserProcessId = 54321,
+      sourceWindowIsIsolatedChrome = true },
+    { failed = true, isolatedPrivateOperationAttempted = false,
+      profileInventoryRequestCount = 2, privateFocusAttemptCount = 0 },
+  },
+  {
+    "reject Tab Out loaded in another profile of the configured process", "filter",
+    { duplicateProfileExtension = true },
+    { browserInventoryReadCount = 0, failed = true,
+      profileInventoryRequestCount = 1, privateFocusAttemptCount = 0 },
+  },
+  {
+    "bound destination identity retries by wall-clock time", "filter",
+    { destinationIdentityMismatchReads = 999,
+      destinationIdentityRevalidationDelaySeconds = 2 },
+    { completionWithinDestinationDeadline = true, failed = true,
+      filterInputFocused = false, openedFilter = true },
+  },
+  {
+    "reject successful destination validation at its deadline", "filter",
+    { destinationIdentityMismatchReads = 2,
+      destinationIdentityRevalidationDelaySeconds = 2 },
+    { failed = true, filterInputFocused = false, openedFilter = true },
+  },
+  {
+    "reject successful new-page validation at its deadline", "newPage",
+    { destinationIdentityMismatchReads = 2,
+      destinationIdentityRevalidationDelaySeconds = 2 },
+    { failed = true, addressBarFocused = false, openedNewPage = true },
+  },
+  {
+    "bound destination Accessibility traversal by the shared deadline", "filter",
+    { destinationAccessibilityReadDelaySeconds = 2 },
+    { completionWithinDestinationDeadline = true, failed = true,
+      filterInputFocused = false, openedFilter = true },
+  },
+  {
     "create filter window on empty target", "filter", { targetHasChromeWindow = false },
     { bridgeUsed = true, createdWindow = true, createdWindowMoved = false,
+      createExpectedBrowserProcessId = 43250,
       extensionFocusRequested = false, failed = false, filterInputFocused = true,
       nativeBridgeReady = true, openedFilter = true, otherChromeReceivedFocus = false,
       otherChromeRaised = false, privateFocusUsed = true, shieldUsed = true,
       shieldVisibleAtPrivateFocus = true, targetBoundsLeft = 1440, targetFocused = true },
+  },
+  {
+    "abort filter creation when exclusive profile ownership changes", "filter",
+    { duplicateProfileExtensionDuringCreation = true, targetHasChromeWindow = false },
+    { failed = true, filterInputFocused = false, privateFocusUsed = false },
+  },
+  {
+    "abort new-page creation when exclusive profile ownership changes", "newPage",
+    { duplicateProfileExtensionDuringCreation = true, targetHasChromeWindow = false },
+    { failed = true, addressBarFocused = false, createdBootstrapReplaced = false,
+      privateFocusUsed = false },
   },
   {
     "shield only the usable target frame during creation", "filter",
@@ -94,6 +211,13 @@ local scenarios = {
     { createdWindowAxDocumentUnavailable = true, targetHasChromeWindow = false },
     { createdWindow = true, failed = true, privateFocusAttemptCount = 0,
       privateFocusUsed = false, targetFocused = false },
+  },
+  {
+    "bound created-window correlation by one wall-clock deadline", "filter",
+    { createdMatchDelaySeconds = 5, createdWindowNeverMatches = true,
+      targetHasChromeWindow = false },
+    { completionWithinCreatedDeadline = true, createdMatchCallCount = 4,
+      failed = true, privateFocusAttemptCount = 0 },
   },
   {
     "wait through cross-snapshot race for exact created token", "filter",
@@ -131,9 +255,15 @@ local scenarios = {
     { createdWindow = true, failed = true, privateFocusUsed = false, targetFocused = false },
   },
   {
-    "safe-abort duplicate native matches for the created browser identity", "filter",
+    "leave a created window untouched when process authority changes", "filter",
+    { returnWrongCreatedBrowserProcessId = true, targetHasChromeWindow = false },
+    { createdWindow = true, createdWindowClosed = false, failed = true,
+      privateFocusUsed = false, targetFocused = false },
+  },
+  {
+    "ignore duplicate-looking native metadata outside the exact created identity", "filter",
     { emitMatchingNativeOnlyWindowAfterBridge = true, targetHasChromeWindow = false },
-    { createdWindow = true, failed = true, privateFocusUsed = false, targetFocused = false },
+    { createdWindow = true, failed = false, privateFocusUsed = true, targetFocused = true },
   },
   {
     "safe-abort bridge-created window after Chrome hides", "filter",
@@ -143,7 +273,7 @@ local scenarios = {
   {
     "safe-abort without inventory when Chrome quits during correlation", "filter",
     { quitChromeAfterCreatedWindow = true, targetHasChromeWindow = false },
-    { browserInventoryReadCount = 0, createdWindow = true, failed = true,
+    { browserInventoryReadCount = 1, createdWindow = true, failed = true,
       privateFocusUsed = false, targetFocused = false },
   },
   {
@@ -159,8 +289,8 @@ local scenarios = {
   {
     "safe-abort bridge-created window reported offscreen", "filter",
     { createdWindowReportsOffscreen = true, targetHasChromeWindow = false },
-    { createdWindow = true, failed = true, missingOnScreenMetadataAllowed = true,
-      privateFocusUsed = true, targetFocused = false },
+    { createdWindow = false, createdWindowClosed = true, failed = true,
+      missingOnScreenMetadataAllowed = true, privateFocusUsed = true, targetFocused = false },
   },
   {
     "create new-page window on empty target", "newPage", { targetHasChromeWindow = false },
@@ -192,8 +322,8 @@ local scenarios = {
     { createdFinalizationBrowserIdentityMismatch = true, targetHasChromeWindow = false },
     { addressBarFocused = false, createdBootstrapReplaced = false,
       createdBrowserIdentityCheckedBeforeFinalization = true,
-      failed = true,
-      failureLog = "The Tab Out new page could not be prepared: Chrome AppleScript error -2700",
+      createdWindow = false, createdWindowClosed = true, failed = true,
+      failureLog = "The Tab Out new page could not be prepared: The exact Chrome window identity changed",
       privateFocusUsed = true },
   },
   {
@@ -201,7 +331,15 @@ local scenarios = {
     { createdFinalizationTabChanged = true, targetHasChromeWindow = false },
     { addressBarFocused = false, createdBootstrapReplaced = false,
       createdBootstrapTokenCheckedBeforeFinalization = true,
-      failed = true, nonBootstrapTabOverwritten = false, privateFocusUsed = true },
+      createdWindow = true, createdWindowClosed = false, failed = true,
+      nonBootstrapTabOverwritten = false, privateFocusUsed = true },
+  },
+  {
+    "never overwrite a tab switched in during new-page finalization", "newPage",
+    { createdFinalizationActiveTabSwitchRace = true, targetHasChromeWindow = false },
+    { addressBarFocused = false, createdBootstrapReplaced = false,
+      createdWindow = true, createdWindowClosed = false, failed = true,
+      nonBootstrapTabOverwritten = false, privateFocusUsed = true },
   },
   {
     "safe-abort when focus changes during created new-page navigation", "newPage",
@@ -226,10 +364,24 @@ local scenarios = {
     { createdWindow = true, failed = false, targetBoundsLeft = 0 },
   },
   {
-    "cold-launch Chrome", "newPage",
-    { chromeIsRunning = false, otherHasChromeWindow = false, targetHasChromeWindow = false },
-    { bridgeUsed = true, chromeLaunched = true, createdWindow = true, failed = false,
+    "cold-launch configured Chrome beside an isolated process for new page", "newPage",
+    { chromeIsRunning = false, isolatedChromeWindow = true,
+      otherHasChromeWindow = false, sourceWindowIsIsolatedChrome = true,
+      targetHasChromeWindow = false },
+    { bridgeUsed = true, chromeLaunched = true,
+      chromeLaunchUsedConfiguredProfile = true, createdWindow = true, failed = false,
+      isolatedPrivateOperationAttempted = false, isolatedWindowMutated = false,
       openedNewPage = true, targetFocused = true },
+  },
+  {
+    "cold-launch configured Chrome beside an isolated process for filter", "filter",
+    { chromeIsRunning = false, isolatedChromeWindow = true,
+      otherHasChromeWindow = false, sourceWindowIsIsolatedChrome = true,
+      targetHasChromeWindow = false },
+    { bridgeUsed = true, chromeLaunched = true,
+      chromeLaunchUsedConfiguredProfile = true, createdWindow = true, failed = false,
+      isolatedPrivateOperationAttempted = false, isolatedWindowMutated = false,
+      openedFilter = true, targetFocused = true },
   },
   {
     "discover uncached target profile for filter", "filter", { cacheTargetProfile = false },
@@ -242,9 +394,10 @@ local scenarios = {
       otherChromeReceivedFocus = false, targetFocused = true },
   },
   {
-    "create when profile identity is ambiguous", "filter",
+    "reuse exact configured identity despite ambiguous window metadata", "filter",
     { ambiguousProfileWindowIdentity = true, cacheTargetProfile = false },
-    { bridgeUsed = true, createdWindow = true, failed = false, openedFilter = true, targetFocused = true },
+    { bridgeUsed = false, createdWindow = false, failed = false,
+      openedFilter = true, targetFocused = true },
   },
   {
     "create beside another profile", "filter", { targetProfileDirectory = "Profile 8" },
@@ -272,6 +425,18 @@ local scenarios = {
       nativeBridgeInstalled = false, nativeBridgeReady = false },
   },
   {
+    "safe-abort mixed macOS integration versions", "filter",
+    { profileWindowInventoryVersionMismatch = true },
+    { chromeLaunched = false, createdWindow = false, failed = true,
+      privateFocusUsed = false, profileInventoryRequestCount = 1 },
+  },
+  {
+    "do not cold-launch after a connected inventory rejection", "filter",
+    { profileWindowInventoryUnavailable = true },
+    { chromeLaunched = false, createdWindow = false, failed = true,
+      privateFocusUsed = false, profileInventoryRequestCount = 1 },
+  },
+  {
     "continue without transition shield", "filter",
     { screenRecordingAvailable = false, targetHasChromeWindow = false },
     { createdWindow = true, failed = false, filterInputFocused = true, shieldUsed = false },
@@ -279,7 +444,12 @@ local scenarios = {
   {
     "report failed exact focus", "filter",
     { privateFocusSucceeds = false, targetHasChromeWindow = false },
-    { failed = true, targetFocused = false },
+    { createdWindow = false, createdWindowClosed = true, failed = true, targetFocused = false },
+  },
+  {
+    "leave a multi-tab created window untouched during failed-route cleanup", "filter",
+    { createdTabCount = 2, privateFocusSucceeds = false, targetHasChromeWindow = false },
+    { createdWindow = true, createdWindowClosed = false, failed = true },
   },
   {
     "reject a destination owned by another window", "filter",
@@ -322,7 +492,7 @@ local scenarios = {
   {
     "restore same-display source after close", "filter",
     { cacheTargetProfile = false, closeCreatedWindowAfterShortcut = "windowShortcut",
-      profileWindowInventoryUnavailable = true },
+      targetProfileDirectory = "Profile 8" },
     { closeGestureConsumed = true, createdWindowClosed = true,
       originalWindowFocused = true, otherChromeReceivedFocus = false },
   },

@@ -23,6 +23,9 @@ import * as ChildProcessSpawner from 'effect/unstable/process/ChildProcessSpawne
 
 import { omitUndefined } from '../../src/lib/omit-undefined.ts'
 
+const PLACEMENT_BRIDGE_VERSION = 5
+const CONTROL_BRIDGE_VERSION = 6
+
 class NativeHostTestError extends Schema.TaggedError<NativeHostTestError>()(
   'NativeHostTestError',
   {
@@ -42,17 +45,35 @@ class NativeSocketPending extends Schema.TaggedError<NativeSocketPending>()(
 ) {}
 
 const NativeRequest = Schema.Struct({
-  version: Schema.Literal(3),
+  version: Schema.Literal(PLACEMENT_BRIDGE_VERSION),
   type: Schema.Literal('status'),
   requestId: Schema.String,
   expiresAtMs: Schema.Number,
 })
 
 const AcceptedResponse = Schema.Struct({
-  version: Schema.Literal(3),
+  version: Schema.Literal(PLACEMENT_BRIDGE_VERSION),
   type: Schema.Literal('response'),
   requestId: Schema.Literal('integration-round-trip'),
   status: Schema.Literal('accepted'),
+  browserProcessId: Schema.Int.check(Schema.isGreaterThan(1)),
+})
+
+const RejectedProcessResponse = Schema.Struct({
+  version: Schema.Literal(PLACEMENT_BRIDGE_VERSION),
+  type: Schema.Literal('response'),
+  requestId: Schema.Literal('process-authority-mismatch'),
+  status: Schema.Literal('rejected'),
+  reason: Schema.String,
+})
+
+const AcceptedProcessResponse = Schema.Struct({
+  version: Schema.Literal(PLACEMENT_BRIDGE_VERSION),
+  type: Schema.Literal('response'),
+  requestId: Schema.Literal('process-authority-match'),
+  status: Schema.Literal('accepted'),
+  browserProcessId: Schema.Int.check(Schema.isGreaterThan(1)),
+  browserWindowId: Schema.Literal(303),
 })
 
 type RunningNativeHost = {
@@ -64,7 +85,7 @@ type RunningNativeHost = {
   readonly nativeMessages: Queue.Queue<unknown> | null
 }
 
-type NativeOutputMode = 'capture' | 'ignore' | 'respond-v3'
+type NativeOutputMode = 'capture' | 'ignore' | 'respond-placement'
 
 function nativeHostTestError(operation: string, cause: unknown): NativeHostTestError {
   return NativeHostTestError.make({ operation, cause })
@@ -144,7 +165,7 @@ function makeNativeRequestResponder(input: Queue.Queue<Uint8Array, Cause.Done<vo
       Effect.mapError((cause) => nativeHostTestError('decode native messaging request', cause)),
     )
     const response = yield* encodeNativeMessage({
-      version: 3,
+      version: PLACEMENT_BRIDGE_VERSION,
       type: 'response',
       requestId: request.requestId,
       status: 'accepted',
@@ -192,7 +213,7 @@ const startNativeHost = Effect.fn('nativeHostTest.startNativeHost')(function* (
     Effect.mapError((cause) => nativeHostTestError('start native host', cause)),
   )
 
-  const stdoutFiber = yield* (outputMode === 'respond-v3'
+  const stdoutFiber = yield* (outputMode === 'respond-placement'
     ? handle.stdout.pipe(
         Stream.mapError((cause) => nativeHostTestError('read native host stdout', cause)),
         Stream.runForEach(makeNativeRequestResponder(input)),
@@ -418,12 +439,12 @@ const testRoundTrip = Effect.fn('nativeHostTest.roundTrip')(function* (hostPath:
     Effect.mapError((cause) => nativeHostTestError('create round-trip directory', cause)),
   )
   const socketPath = join(temporaryDirectory, 'bridge.sock')
-  const host = yield* startNativeHost(hostPath, socketPath, 'respond-v3')
+  const host = yield* startNativeHost(hostPath, socketPath, 'respond-placement')
   yield* waitForSocket(host, socketPath)
 
   const currentTime = yield* Clock.currentTimeMillis
   const request = JSON.stringify({
-    version: 3,
+    version: PLACEMENT_BRIDGE_VERSION,
     type: 'status',
     requestId: 'integration-round-trip',
     expiresAtMs: currentTime + 5_000,
@@ -448,6 +469,118 @@ const testRoundTrip = Effect.fn('nativeHostTest.roundTrip')(function* (hostPath:
     `native host exited with code ${result.exitCode}`,
   )
   yield* check(result.stderr === '', 'inspect round-trip native host', result.stderr)
+})
+
+const testCreateProcessAuthority = Effect.fn(
+  'nativeHostTest.createProcessAuthority',
+)(function* (hostPath: string) {
+  const fileSystem = yield* FileSystem.FileSystem
+  const temporaryDirectory = yield* fileSystem.makeTempDirectoryScoped({
+    prefix: 'tab-out-native-process-authority-',
+  }).pipe(
+    Effect.mapError((cause) => nativeHostTestError('create process-authority directory', cause)),
+  )
+  const socketPath = join(temporaryDirectory, 'bridge.sock')
+  const host = yield* startNativeHost(hostPath, socketPath, 'capture')
+  yield* waitForSocket(host, socketPath)
+  const nativeMessages = host.nativeMessages
+  if (!nativeMessages) {
+    return yield* Effect.fail(nativeHostTestError(
+      'capture process-authority output',
+      new Error('native output queue is unavailable'),
+    ))
+  }
+
+  const currentTime = yield* Clock.currentTimeMillis
+  const client = yield* runClient(hostPath, JSON.stringify({
+    version: PLACEMENT_BRIDGE_VERSION,
+    type: 'create-window',
+    requestId: 'process-authority-mismatch',
+    expiresAtMs: currentTime + 500,
+    expectedBrowserProcessId: 2_147_483_647,
+    operation: 'filter',
+    targetBounds: { left: 0, top: 0, width: 1_440, height: 900 },
+  }), socketPath)
+  yield* check(
+    client.exitCode === ChildProcessSpawner.ExitCode(0),
+    'run mismatched process-authority client',
+    client.stderr || `client exited with code ${client.exitCode}`,
+  )
+  const rejection = yield* Schema.decodeUnknownEffect(
+    Schema.fromJsonString(RejectedProcessResponse),
+    { onExcessProperty: 'error' },
+  )(client.stdout).pipe(
+    Effect.mapError((cause) => nativeHostTestError('validate process-authority rejection', cause)),
+  )
+  yield* check(
+    rejection.reason.includes('browser process does not match'),
+    'reject mismatched process authority before forwarding',
+    rejection.reason,
+  )
+  const forwardedCount = yield* Queue.size(nativeMessages)
+  yield* check(
+    forwardedCount === 0,
+    'keep mismatched process authority out of Chrome',
+    `forwarded ${forwardedCount} native messages`,
+  )
+
+  const matchingRequestId = 'process-authority-match'
+  const matchingClientFiber = yield* runClient(hostPath, JSON.stringify({
+    version: PLACEMENT_BRIDGE_VERSION,
+    type: 'create-window',
+    requestId: matchingRequestId,
+    expiresAtMs: currentTime + 5_000,
+    expectedBrowserProcessId: process.pid,
+    operation: 'filter',
+    targetBounds: { left: 0, top: 0, width: 1_440, height: 900 },
+  }), socketPath).pipe(Effect.forkScoped)
+  const forwarded = objectMessage(yield* takeMessage(
+    nativeMessages,
+    'capture matching process-authority request',
+  ))
+  yield* check(
+    forwarded.requestId === matchingRequestId,
+    'forward matching process authority to Chrome',
+    JSON.stringify(forwarded),
+  )
+  yield* check(
+    !('expectedBrowserProcessId' in forwarded),
+    'strip local process authority before forwarding',
+    JSON.stringify(forwarded),
+  )
+  const nativeResponse = yield* encodeNativeMessage({
+    version: PLACEMENT_BRIDGE_VERSION,
+    type: 'response',
+    requestId: matchingRequestId,
+    status: 'accepted',
+    browserWindowId: 303,
+  })
+  yield* Queue.offer(host.input, nativeResponse)
+  const matchingClient = yield* Fiber.join(matchingClientFiber)
+  yield* check(
+    matchingClient.exitCode === ChildProcessSpawner.ExitCode(0),
+    'run matching process-authority client',
+    matchingClient.stderr || `client exited with code ${matchingClient.exitCode}`,
+  )
+  const matchingResponse = yield* Schema.decodeUnknownEffect(
+    Schema.fromJsonString(AcceptedProcessResponse),
+    { onExcessProperty: 'error' },
+  )(matchingClient.stdout).pipe(
+    Effect.mapError((cause) => nativeHostTestError('validate matching process response', cause)),
+  )
+  yield* check(
+    matchingResponse.status === 'accepted' && matchingResponse.browserProcessId === process.pid,
+    'stamp matching process authority on the local response',
+    matchingClient.stdout,
+  )
+
+  const result = yield* finishNativeHost(host)
+  yield* check(
+    result.exitCode === ChildProcessSpawner.ExitCode(0),
+    'stop process-authority native host',
+    `native host exited with code ${result.exitCode}`,
+  )
+  yield* check(result.stderr === '', 'inspect process-authority native host', result.stderr)
 })
 
 const testSocketHandoff = Effect.fn('nativeHostTest.socketHandoff')(function* (hostPath: string) {
@@ -482,7 +615,7 @@ const testSocketHandoff = Effect.fn('nativeHostTest.socketHandoff')(function* (h
 
 const testDeadlineOverflow = Effect.fn('nativeHostTest.deadlineOverflow')(function* (hostPath: string) {
   const result = yield* runClient(hostPath, JSON.stringify({
-    version: 3,
+    version: PLACEMENT_BRIDGE_VERSION,
     type: 'status',
     requestId: 'deadline-overflow',
     expiresAtMs: 1e100,
@@ -523,7 +656,7 @@ const testDesktopControllerRoundTrip = Effect.fn(
   const controller = yield* connectController(socketPath)
   const currentTime = yield* Clock.currentTimeMillis
   yield* writeControllerMessage(controller, {
-    version: 5,
+    version: CONTROL_BRIDGE_VERSION,
     type: 'controller-register',
     requestId: 'controller-round-trip',
     expiresAtMs: currentTime + 5_000,
@@ -534,7 +667,7 @@ const testDesktopControllerRoundTrip = Effect.fn(
     'read controller registration response',
   ))
   yield* check(
-    registration.version === 5 &&
+    registration.version === CONTROL_BRIDGE_VERSION &&
     registration.requestId === 'controller-round-trip' &&
     registration.status === 'accepted',
     'validate controller registration',
@@ -546,7 +679,7 @@ const testDesktopControllerRoundTrip = Effect.fn(
     'read native controller status',
   ))
   yield* check(
-    status.version === 5 &&
+    status.version === CONTROL_BRIDGE_VERSION &&
     status.type === 'controller-status' &&
     status.connected === true,
     'validate native controller status',
@@ -554,7 +687,7 @@ const testDesktopControllerRoundTrip = Effect.fn(
   )
 
   const controlRequest = {
-    version: 5,
+    version: CONTROL_BRIDGE_VERSION,
     type: 'resolve-desktop-windows',
     requestId: 'merge-round-trip',
     expiresAtMs: currentTime + 5_000,
@@ -569,13 +702,15 @@ const testDesktopControllerRoundTrip = Effect.fn(
   yield* check(
     forwarded.requestId === 'merge-round-trip' &&
     forwarded.type === 'resolve-desktop-windows' &&
+    typeof forwarded.browserProcessId === 'number' &&
+    forwarded.browserProcessId > 1 &&
     JSON.stringify(forwarded.profileWindowIds) === '[71,72]',
     'validate forwarded native control request',
     JSON.stringify(forwarded),
   )
 
   yield* writeControllerMessage(controller, {
-    version: 5,
+    version: CONTROL_BRIDGE_VERSION,
     type: 'response',
     requestId: 'merge-round-trip',
     status: 'accepted',
@@ -590,6 +725,24 @@ const testDesktopControllerRoundTrip = Effect.fn(
     JSON.stringify(response.windowIds) === '[72,71]',
     'validate native control response',
     JSON.stringify(response),
+  )
+
+  yield* Queue.offer(host.input, yield* encodeNativeMessage({
+    ...controlRequest,
+    version: CONTROL_BRIDGE_VERSION - 1,
+    requestId: 'stale-control-version-round-trip',
+  }))
+  const rejectedStaleControlVersion = objectMessage(yield* takeMessage(
+    nativeMessages,
+    'read rejected stale-version control request',
+  ))
+  yield* check(
+    rejectedStaleControlVersion.version === CONTROL_BRIDGE_VERSION - 1 &&
+    rejectedStaleControlVersion.status === 'rejected' &&
+    rejectedStaleControlVersion.requestId === 'stale-control-version-round-trip' &&
+    /protocol version/.test(String(rejectedStaleControlVersion.reason)),
+    'reject stale control protocol versions without a timeout',
+    JSON.stringify(rejectedStaleControlVersion),
   )
 
   yield* Queue.offer(host.input, yield* encodeNativeMessage({
@@ -662,7 +815,7 @@ const testDesktopControllerRoundTrip = Effect.fn(
     JSON.stringify(forwardedPrivateResponseRequest),
   )
   yield* writeControllerMessage(controller, {
-    version: 5,
+    version: CONTROL_BRIDGE_VERSION,
     type: 'response',
     requestId: 'controller-private-field-round-trip',
     status: 'accepted',
@@ -711,6 +864,7 @@ const runNativeHostTests = Effect.fn('nativeHostTest.run')(function* () {
   const hostPath = resolve(hostArgument)
 
   yield* testRoundTrip(hostPath)
+  yield* testCreateProcessAuthority(hostPath)
   yield* testDesktopControllerRoundTrip(hostPath)
   yield* testSocketHandoff(hostPath)
   yield* testDeadlineOverflow(hostPath)

@@ -90,19 +90,11 @@ local function enqueue(kind)
   state.windowRouter:enqueue(kind)
 end
 
-local function learnFocusedChromeProfile(window)
-  state.chromeCatalog:learnFocused(window, function()
-    return routingIsBusy()
-  end)
-end
-
 local function configureChromeWindowCache()
   state.chromeWindowFilter = hs.window.filter.new(function(window)
     local application = window and window:application() or nil
     return application and application:bundleID() == state.config.chromeBundleId
   end, "tab-out-profile-cache", "warning")
-
-  state.chromeWindowFilter:subscribe(hs.window.filter.windowFocused, learnFocusedChromeProfile, true)
 
   state.chromeWindowFilter:subscribe(hs.window.filter.windowCreated, function(window)
     state.windowRouter:handleChromeWindowCreated(window)
@@ -149,8 +141,17 @@ local function configurePrivateFocus(config)
     privateFocus = moduleOrError
   end
 
-  if type(privateFocus) ~= "table" or type(privateFocus.focus) ~= "function" then
-    state.privateFocusError = "The native module does not expose exact-window focus"
+  if type(privateFocus) ~= "table"
+    or type(privateFocus.closeCreated) ~= "function"
+    or type(privateFocus.configuredProcess) ~= "function"
+    or type(privateFocus.focus) ~= "function"
+    or type(privateFocus.inventory) ~= "function"
+    or type(privateFocus.matchCreated) ~= "function"
+    or type(privateFocus.navigate) ~= "function"
+    or type(privateFocus.release) ~= "function"
+    or type(privateFocus.validate) ~= "function"
+  then
+    state.privateFocusError = "The native module does not expose exact-process Chrome control"
     return
   end
 
@@ -191,8 +192,11 @@ local function configureNativeBridge(config)
     nativeBridge = bridgeOrError
   end
 
-  if type(nativeBridge) ~= "table" or type(nativeBridge.createWindow) ~= "function" then
-    state.nativeBridgeError = "The native bridge client does not expose window creation"
+  if type(nativeBridge) ~= "table"
+    or type(nativeBridge.createWindow) ~= "function"
+    or type(nativeBridge.listProfileWindows) ~= "function"
+  then
+    state.nativeBridgeError = "The native bridge client does not expose configured-instance authority"
     return
   end
 
@@ -208,20 +212,25 @@ local function configureNativeBridge(config)
 end
 
 local function configureChromeCatalog(config)
+  local privateChrome = state.privateFocus or {
+    configuredProcess = function()
+      return nil, state.privateFocusError or "The exact-process Chrome helper is unavailable"
+    end,
+    inventory = function()
+      return nil, state.privateFocusError or "The exact-process Chrome helper is unavailable"
+    end,
+    matchCreated = function()
+      return nil, state.privateFocusError or "The exact-process Chrome helper is unavailable"
+    end,
+    release = function() return true end,
+  }
   state.chromeCatalog = ChromeCatalog.new({
-    bridge = state.nativeBridge,
     chromeBundleId = config.chromeBundleId,
     chromeUserDataDirectory = config.chromeUserDataDirectory,
     configuredProfileDirectory = config.chromeProfileDirectory,
     hs = hs,
-    later = later,
     log = log,
-    onAsyncError = function(err)
-      if routingIsBusy() then
-        state.windowRouter:fail("Automation failed", err)
-      end
-    end,
-    stopTimer = stopTimer,
+    privateChrome = privateChrome,
   })
 end
 

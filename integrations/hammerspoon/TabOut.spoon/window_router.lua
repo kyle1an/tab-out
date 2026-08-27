@@ -234,33 +234,36 @@ function M.new(options)
     waitForSpace(request, screen, targetSpace, 0)
   end
 
-  local function chromeApplication()
-    return hs.application.get(config.chromeBundleId)
+  local function chromeApplication(browserProcessId)
+    if type(browserProcessId) ~= "number" then
+      return nil
+    end
+    return hs.application.applicationForPID(browserProcessId)
   end
 
   local function trackedChromeWindows()
     local tracked = chromeWindows()
-    if tracked then
-      return tracked
-    end
-
-    local application = chromeApplication()
-    return application and application:allWindows() or {}
+    return tracked or {}
   end
 
-  local function isChromeWindow(window)
+  local function isChromeWindow(window, browserProcessId)
     if not window or not window:id() or not window:isStandard() or window:isMinimized() then
       return false
     end
 
     local application = window:application()
-    return application and application:bundleID() == config.chromeBundleId and not application:isHidden()
+    return application
+      and application:bundleID() == config.chromeBundleId
+      and (browserProcessId == nil or application:pid() == browserProcessId)
+      and not application:isHidden()
   end
 
-  local function screenHasChromeWindowOnSpace(screen, spaceId)
+  local function screenHasChromeWindowOnSpace(screen, spaceId, browserProcessId)
     local targetScreenUuid = screenUuid(screen)
     for _, window in ipairs(trackedChromeWindows()) do
-      if isChromeWindow(window) and screenUuid(window:screen()) == targetScreenUuid then
+      if isChromeWindow(window, browserProcessId)
+        and screenUuid(window:screen()) == targetScreenUuid
+      then
         local spaces = hs.spaces.windowSpaces(window)
         if spaces and containsValue(spaces, spaceId) then
           return true
@@ -270,16 +273,18 @@ function M.new(options)
     return false
   end
 
-  local function eligibleChromeWindows(screen, spaceId)
+  local function eligibleChromeWindows(screen, spaceId, browserProcessId)
     local candidates = {}
-    if not screenHasChromeWindowOnSpace(screen, spaceId) then
+    if not screenHasChromeWindowOnSpace(screen, spaceId, browserProcessId) then
       return candidates
     end
 
     local targetScreenUuid = screenUuid(screen)
 
     for _, window in ipairs(hs.window.orderedWindows()) do
-      if isChromeWindow(window) and screenUuid(window:screen()) == targetScreenUuid then
+      if isChromeWindow(window, browserProcessId)
+        and screenUuid(window:screen()) == targetScreenUuid
+      then
         local spaces = hs.spaces.windowSpaces(window)
         if spaces and containsValue(spaces, spaceId) then
           table.insert(candidates, window)
@@ -307,13 +312,36 @@ function M.new(options)
     end
 
     local request = pending.request
+    request.authorityToken = pending.authorityToken
+    request.createdIdentity = {
+      browserProcessId = pending.browserProcessId,
+      browserWindowId = pending.browserWindowId,
+      creationToken = pending.creationToken,
+      nativeWindowId = window:id(),
+    }
     transition():registerCreatedWindow(request, window)
     log.df("Tab Out created the %s window directly on the target Desktop", request.kind)
     transition():activateCreated(
       request.kind,
       window,
+      pending.browserProcessId,
       pending.browserWindowId,
+      pending.authorityToken,
       pending.creationToken
+    )
+  end
+
+  local function failNativePlacementTimeout(pending)
+    if pendingNativePlacement ~= pending or pending.windowFound then
+      return
+    end
+
+    pendingNativePlacement = nil
+    stopTimer(pending.timeout)
+    stopTimer(pending.poll)
+    fail(
+      "Timed out waiting for Tab Out's directly placed Chrome window",
+      pending.identityError or "Check the native bridge status and reload the Tab Out extension"
     )
   end
 
@@ -341,16 +369,19 @@ function M.new(options)
   local function expectNativePlacementWindow(request)
     local pending = {
       baselineWindowIds = {},
+      authorityToken = nil,
+      browserProcessId = request.browserProcessId,
       browserWindowId = nil,
       bridgeAccepted = false,
       creationToken = nil,
+      deadline = hs.timer.secondsSinceEpoch() + NEW_WINDOW_TIMEOUT_SECONDS,
       identityError = nil,
       poll = nil,
       request = request,
       timeout = nil,
       windowFound = false,
     }
-    local application = chromeApplication()
+    local application = chromeApplication(request.browserProcessId)
     for _, window in ipairs(application and application:allWindows() or {}) do
       local windowId = window:id()
       if windowId then
@@ -359,15 +390,7 @@ function M.new(options)
     end
     pendingNativePlacement = pending
     pending.timeout = later(NEW_WINDOW_TIMEOUT_SECONDS, function()
-      if pendingNativePlacement ~= pending or pending.windowFound then
-        return
-      end
-
-      pendingNativePlacement = nil
-      fail(
-        "Timed out waiting for Tab Out's directly placed Chrome window",
-        pending.identityError or "Check the native bridge status and reload the Tab Out extension"
-      )
+      failNativePlacementTimeout(pending)
     end, true)
     return pending
   end
@@ -382,12 +405,12 @@ function M.new(options)
     end
 
     local candidates = {}
-    local application = chromeApplication()
+    local application = chromeApplication(pending.browserProcessId)
     for _, window in ipairs(application and application:allWindows() or {}) do
       local windowId = window and window:id() or nil
       if windowId
         and not pending.baselineWindowIds[windowId]
-        and isChromeWindow(window)
+        and isChromeWindow(window, pending.browserProcessId)
         and screenUuid(window:screen()) == request.screenUuid
       then
         local windowSpaces = hs.spaces.windowSpaces(window)
@@ -409,22 +432,39 @@ function M.new(options)
       return
     end
 
-    if not chromeApplication() then
-      fail("Tab Out could not verify its created Chrome window", "Google Chrome is no longer running")
+    if not chromeApplication(pending.browserProcessId) then
+      fail(
+        "Tab Out could not verify its created Chrome window",
+        "The configured Chrome instance is no longer running"
+      )
       return
     end
 
-    local window, identityError, fatal = catalog:matchCreatedBrowserWindow(
+    local remainingSeconds = pending.deadline - hs.timer.secondsSinceEpoch()
+    if remainingSeconds <= 0 then
+      failNativePlacementTimeout(pending)
+      return
+    end
+
+    local window, identityError, fatal, authorityToken = catalog:matchCreatedBrowserWindow(
+      pending.browserProcessId,
       pending.browserWindowId,
       pending.creationToken,
-      pendingNativePlacementCandidates(pending)
+      pendingNativePlacementCandidates(pending),
+      remainingSeconds
     )
     pending.identityError = identityError
+    if hs.timer.secondsSinceEpoch() >= pending.deadline then
+      catalog:releaseAuthority(authorityToken)
+      failNativePlacementTimeout(pending)
+      return
+    end
     if fatal then
       fail("Tab Out could not verify its created Chrome window", identityError)
       return
     end
     if window then
+      pending.authorityToken = authorityToken
       acceptNativePlacementWindow(pending, window)
     end
   end
@@ -481,11 +521,13 @@ function M.new(options)
 
     local pending = expectNativePlacementWindow(request)
     startNativePlacementPoll(pending)
+    request.mutationStarted = true
     local started, startError = nativeBridge:createWindow({
+      expectedBrowserProcessId = request.browserProcessId,
       operation = request.kind,
       targetBounds = targetBounds,
       timeoutSeconds = NEW_WINDOW_TIMEOUT_SECONDS,
-    }, function(accepted, bridgeError, browserWindowId, creationToken)
+    }, function(accepted, bridgeError, identity)
       local ok, callbackError = xpcall(function()
         if pendingNativePlacement ~= pending or pending.windowFound then
           return
@@ -499,8 +541,20 @@ function M.new(options)
           )
           return
         end
-        pending.browserWindowId = browserWindowId
-        pending.creationToken = creationToken
+        if type(identity) ~= "table"
+          or identity.browserProcessId ~= request.browserProcessId
+        then
+          pendingNativePlacement = nil
+          stopTimer(pending.timeout)
+          fail(
+            "Tab Out's configured Chrome identity changed during window creation",
+            "The created window was left untouched because its process authority could not be revalidated"
+          )
+          return
+        end
+        pending.browserProcessId = identity.browserProcessId
+        pending.browserWindowId = identity.browserWindowId
+        pending.creationToken = identity.creationToken
         pending.bridgeAccepted = true
         tryMatchNativePlacementWindow(pending)
       end, debug.traceback)
@@ -518,6 +572,22 @@ function M.new(options)
     end
   end
 
+  local continueWithConfiguredInventory
+  local requestConfiguredInventory
+
+  local function isIntegrationMismatch(errorMessage)
+    local normalized = type(errorMessage) == "string" and errorMessage:lower() or ""
+    return normalized:find("protocol", 1, true) ~= nil
+      or normalized:find("version", 1, true) ~= nil
+  end
+
+  local function isConfiguredInstanceUnavailable(errorMessage)
+    local normalized = type(errorMessage) == "string" and errorMessage:lower() or ""
+    return normalized:find("native bridge is not connected", 1, true) ~= nil
+      or normalized:find("chrome disconnected from the native bridge", 1, true) ~= nil
+      or normalized:find("chrome is no longer connected", 1, true) ~= nil
+  end
+
   local function waitForColdChromeBridge(request, targetScreen, startedAt)
     if not isCurrent(request) then
       return
@@ -525,17 +595,8 @@ function M.new(options)
 
     if hs.timer.secondsSinceEpoch() - startedAt >= CHROME_LAUNCH_TIMEOUT_SECONDS then
       fail(
-        "Google Chrome did not become ready for Tab Out",
-        "The background launch did not establish the Native Placement Bridge"
-      )
-      return
-    end
-
-    local bridge = nativeBridge
-    if not bridge or type(bridge.listProfileWindows) ~= "function" then
-      fail(
-        "Tab Out's Native Placement Bridge is unavailable",
-        "The native bridge client cannot verify a cold Chrome launch"
+        "The configured Chrome instance did not become ready",
+        "The background launch did not establish fresh Native Placement Bridge authority"
       )
       return
     end
@@ -546,23 +607,45 @@ function M.new(options)
         return
       end
       completed = true
+      if isIntegrationMismatch(inventoryError) then
+        fail(
+          "Tab Out's macOS integration versions do not match",
+          "Reinstall the integration, reload the extension, and reload Hammerspoon"
+        )
+        return
+      end
       if inventoryError then
-        log.df("Waiting for cold Chrome bridge readiness: %s", inventoryError)
+        log.df("Waiting for configured Chrome authority: %s", inventoryError)
       end
       later(CHROME_LAUNCH_RETRY_INTERVAL_SECONDS, function()
         waitForColdChromeBridge(request, targetScreen, startedAt)
       end, true)
     end
 
-    local started, startError = bridge:listProfileWindows({
+    local expectedProcessId, processError = catalog:configuredProcessId()
+    if not expectedProcessId then
+      retry(processError)
+      return
+    end
+
+    local started, startError = nativeBridge:listProfileWindows({
       timeoutSeconds = PROFILE_WINDOW_INVENTORY_TIMEOUT_SECONDS,
-    }, function(profileWindowIds, inventoryError)
+    }, function(inventory, inventoryError)
       if not isCurrent(request) then
         return
       end
-      if profileWindowIds then
+      if inventory then
+        if inventory.browserProcessId ~= expectedProcessId then
+          retry("The native bridge belongs to a different Chrome user-data process")
+          return
+        end
         completed = true
-        requestInactiveTargetProfileWindow(request, targetScreen)
+        continueWithConfiguredInventory(
+          request,
+          targetScreen,
+          inventory,
+          expectedProcessId
+        )
         return
       end
       retry(inventoryError)
@@ -589,10 +672,12 @@ function M.new(options)
 
     local startedAt = hs.timer.secondsSinceEpoch()
     local arguments = {
+      "-n",
       "-g",
       "-b",
       config.chromeBundleId,
       "--args",
+      "--user-data-dir=" .. config.chromeUserDataDirectory,
       "--profile-directory=" .. config.chromeProfileDirectory,
       "--no-startup-window",
     }
@@ -625,66 +710,215 @@ function M.new(options)
     end
   end
 
-  local function createTargetProfileWindow(request, targetScreen)
-    if not chromeApplication() then
-      launchChromeForNativePlacement(request, targetScreen)
-      return
+  local function releaseRequestAuthority(request)
+    if request and request.authorityToken then
+      catalog:releaseAuthority(request.authorityToken)
+      request.authorityToken = nil
     end
-
-    requestInactiveTargetProfileWindow(request, targetScreen)
   end
 
-  local function tryCandidate(request, targetScreen, candidates, index)
-    local window = candidates[index]
-    if not window then
+  local function retryConfiguredAuthority(
+    request,
+    targetScreen,
+    authorityError,
+    authorityDetails
+  )
+    if type(authorityDetails) ~= "table"
+      or authorityDetails.authorityChanged ~= true
+      or authorityDetails.mutationStarted ~= false
+    then
+      return false
+    end
+    request.authorityRetryCount = (request.authorityRetryCount or 0) + 1
+    if request.authorityRetryCount > 1
+      or request.mutationStarted
+      or not isCurrent(request)
+    then
+      return false
+    end
+
+    releaseRequestAuthority(request)
+    log.df("Retrying configured Chrome authority before mutation: %s", authorityError or "identity changed")
+    later(0, function()
+      requestConfiguredInventory(request, targetScreen, false)
+    end, true)
+    return true
+  end
+
+  local function tryCandidate(request, targetScreen, resolvedWindows, index)
+    local resolved = resolvedWindows[index]
+    if not resolved then
+      releaseRequestAuthority(request)
       if request.routeOnRegularSpace then
         local routeOnRegularSpace = request.routeOnRegularSpace
         request.routeOnRegularSpace = nil
         routeOnRegularSpace()
         return
       end
-      createTargetProfileWindow(request, targetScreen)
+      requestInactiveTargetProfileWindow(request, targetScreen)
       return
     end
 
-    local windowId = window:id()
-    local cachedProfile = catalog:profileFor(windowId)
-    if cachedProfile == config.chromeProfileDirectory then
-      transition():activateExisting(request.kind, window)
+    transition():activateExisting(
+      request.kind,
+      resolved.window,
+      request.browserProcessId,
+      resolved.browserWindowId,
+      request.authorityToken,
+      function(authorityError, authorityDetails)
+        if not retryConfiguredAuthority(
+          request,
+          targetScreen,
+          authorityError,
+          authorityDetails
+        ) then
+          fail("Tab Out's configured Chrome identity changed", authorityError)
+        end
+      end
+    )
+  end
+
+  requestConfiguredInventory = function(request, targetScreen, mayLaunch)
+    if not nativeBridge or type(nativeBridge.listProfileWindows) ~= "function" then
+      fail(
+        "Tab Out's Native Placement Bridge is unavailable",
+        nativeBridgeError or "The native bridge client cannot establish configured-instance authority"
+      )
+      return
+    end
+    local expectedProcessId, processError = catalog:configuredProcessId()
+    if not expectedProcessId then
+      if mayLaunch then
+        launchChromeForNativePlacement(request, targetScreen)
+      else
+        fail("The configured Chrome instance is unavailable", processError)
+      end
       return
     end
 
-    if cachedProfile then
-      tryCandidate(request, targetScreen, candidates, index + 1)
-      return
-    end
-
-    local focusedWindow = hs.window.focusedWindow()
-    if focusedWindow and focusedWindow:id() == windowId then
-      catalog:probeFocused(window, function(profileDirectory, profileError)
-        if profileDirectory == config.chromeProfileDirectory then
-          transition():activateExisting(request.kind, window)
+    local completed = false
+    local started, startError = nativeBridge:listProfileWindows({
+      timeoutSeconds = PROFILE_WINDOW_INVENTORY_TIMEOUT_SECONDS,
+    }, function(inventory, inventoryError)
+      if completed or not isCurrent(request) then
+        return
+      end
+      completed = true
+      if inventory then
+        if inventory.browserProcessId ~= expectedProcessId then
+          local authorityDetails = {
+            authorityChanged = true,
+            mutationStarted = false,
+          }
+          local authorityError = "The native bridge belongs to a different Chrome user-data process"
+          if retryConfiguredAuthority(
+            request,
+            targetScreen,
+            authorityError,
+            authorityDetails
+          ) then
+            return
+          end
+          fail("Tab Out's configured Chrome identity changed", authorityError)
           return
         end
+        continueWithConfiguredInventory(
+          request,
+          targetScreen,
+          inventory,
+          expectedProcessId
+        )
+        return
+      end
+      if isIntegrationMismatch(inventoryError) then
+        fail(
+          "Tab Out's macOS integration versions do not match",
+          "Reinstall the integration, reload the extension, and reload Hammerspoon"
+        )
+        return
+      end
+      if mayLaunch and isConfiguredInstanceUnavailable(inventoryError) then
+        launchChromeForNativePlacement(request, targetScreen)
+        return
+      end
+      fail(
+        "The configured Chrome instance is unavailable",
+        inventoryError or "Fresh process authority could not be established"
+      )
+    end)
 
-        if not profileDirectory then
-          log.wf("Skipped an unverified Chrome window: %s", profileError or "unknown profile")
-        end
+    if not started then
+      if isIntegrationMismatch(startError) then
+        fail(
+          "Tab Out's macOS integration versions do not match",
+          "Reinstall the integration, reload the extension, and reload Hammerspoon"
+        )
+      else
+        fail("Tab Out's Native Placement Bridge could not start", startError)
+      end
+    end
+  end
 
-        tryCandidate(request, targetScreen, candidates, index + 1)
-      end)
+  continueWithConfiguredInventory = function(
+    request,
+    targetScreen,
+    inventory,
+    expectedProcessId
+  )
+    if type(inventory) ~= "table"
+      or type(inventory.browserProcessId) ~= "number"
+      or type(inventory.windowIds) ~= "table"
+      or inventory.browserProcessId ~= expectedProcessId
+    then
+      fail(
+        "Tab Out could not establish configured Chrome authority",
+        "The Native Placement Bridge returned an invalid configured-instance inventory"
+      )
       return
     end
 
-    log.df("Skipped Chrome window %d because its profile has not been learned", windowId)
-    tryCandidate(request, targetScreen, candidates, index + 1)
+    request.browserProcessId = inventory.browserProcessId
+    request.profileWindowIds = inventory.windowIds
+    local application = chromeApplication(request.browserProcessId)
+    local resolvedWindows
+    local resolutionError
+    local resolutionDetails
+    local authorityToken
+    if application and application:bundleID() == config.chromeBundleId then
+      local candidates = eligibleChromeWindows(
+        targetScreen,
+        request.targetSpaceId,
+        request.browserProcessId
+      )
+      resolvedWindows, resolutionError, authorityToken, resolutionDetails = catalog:resolveProfileWindows(
+        request.browserProcessId,
+        request.profileWindowIds,
+        candidates,
+        PROFILE_WINDOW_INVENTORY_TIMEOUT_SECONDS
+      )
+    else
+      resolutionError = "The authorized Chrome process is no longer running"
+    end
+
+    if not resolvedWindows then
+      if retryConfiguredAuthority(
+        request,
+        targetScreen,
+        resolutionError,
+        resolutionDetails
+      ) then
+        return
+      end
+      fail("Tab Out's configured Chrome identity changed", resolutionError)
+      return
+    end
+    releaseRequestAuthority(request)
+    request.authorityToken = authorityToken
+    tryCandidate(request, targetScreen, resolvedWindows, 1)
   end
 
   local function routeOnTargetSpace(request, targetScreen)
-    local candidates = eligibleChromeWindows(targetScreen, request.targetSpaceId)
-    catalog:discover(candidates, function()
-      tryCandidate(request, targetScreen, candidates, 1)
-    end)
+    requestConfiguredInventory(request, targetScreen, true)
   end
 
   local function processRequest(request)
@@ -725,12 +959,43 @@ function M.new(options)
   end
 
 
+  local function cleanupCreatedWindow(request)
+    local identity = request and request.createdIdentity or nil
+    if not identity or not privateFocus or type(privateFocus.closeCreated) ~= "function" then
+      return
+    end
+    local extensionId, extensionError = catalog:extensionId()
+    if not extensionId then
+      log.wf("Could not verify created-window cleanup: %s", extensionError or "extension identity unavailable")
+      return
+    end
+
+    local called, closed, closeError = pcall(
+      privateFocus.closeCreated,
+      identity.browserProcessId,
+      identity.nativeWindowId,
+      identity.browserWindowId,
+      extensionId,
+      identity.creationToken
+    )
+    if called and closed then
+      request.createdIdentity = nil
+      log.df("Closed the still-tokenized Tab Out window after a failed route")
+      return
+    end
+    log.wf(
+      "Left the created Chrome window untouched after Safe Abort: %s",
+      called and (closeError or "exact cleanup identity was unavailable") or tostring(closed)
+    )
+  end
+
   local function cleanup()
     if pendingNativePlacement then
       stopTimer(pendingNativePlacement.timeout)
       stopTimer(pendingNativePlacement.poll)
     end
     transition():releaseShield()
+    releaseRequestAuthority(currentRequest)
     pendingNativePlacement = nil
   end
 
@@ -754,6 +1019,7 @@ function M.new(options)
       return false
     end
 
+    cleanupCreatedWindow(currentRequest)
     transition():releaseShield()
     options.reportFailure(message, detail, screenForUuid(currentRequest.screenUuid))
     router:finish()
