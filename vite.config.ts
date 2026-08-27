@@ -32,7 +32,7 @@ const buildInputs: Record<string, string> =
       }
     : buildEntry === 'popup'
       ? {
-          popup: resolve(repoRoot, 'src/popup.tsx'),
+          popup: resolve(repoRoot, 'src/popup.ts'),
         }
       : buildEntry === 'background'
         ? {
@@ -43,7 +43,7 @@ const buildInputs: Record<string, string> =
           }
         : {
             app: resolve(repoRoot, 'src/app.tsx'),
-            popup: resolve(repoRoot, 'src/popup.tsx'),
+            popup: resolve(repoRoot, 'src/popup.ts'),
             background: workingSetBackgroundEntryPath(
               repoRoot,
               workingSetBuildSelection,
