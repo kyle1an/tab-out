@@ -15,8 +15,7 @@
     "alarms",
     "favicon",
     "system.display",
-    "nativeMessaging",
-    "contextMenus"
+    "nativeMessaging"
   ],
   "chrome_url_overrides": {
     "newtab": "index.html"

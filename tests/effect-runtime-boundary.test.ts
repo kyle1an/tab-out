@@ -88,11 +88,6 @@ test('worker listeners enter the shared background runtime', () => {
     {
       name: 'command',
       start: 'chromeApi.commands.onCommand.addListener',
-      end: 'chromeApi.contextMenus.onClicked.addListener',
-    },
-    {
-      name: 'action context-menu click',
-      start: 'chromeApi.contextMenus.onClicked.addListener',
       end: 'chromeApi.runtime.onMessage.addListener',
     },
     {
@@ -118,7 +113,7 @@ test('worker listeners enter the shared background runtime', () => {
 
 test('toolbar tab actions mutate windows only through the Browser Tabs Gateway', () => {
   const source = readProductionSource(
-    'src/extension/background/action-context-menu.ts',
+    'src/extension/move-current-tab-action.ts',
   )
 
   assert.match(source, /\byield\* BrowserTabs\b/)

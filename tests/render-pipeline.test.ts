@@ -3390,7 +3390,6 @@ test('manifest keeps only the permissions used by the extension', () => {
     'favicon',
     'system.display',
     'nativeMessaging',
-    'contextMenus',
   ])
   assert.equal(manifest.incognito, 'not_allowed')
   assert.equal(manifest.commands['switch-to-last-tab'].description, 'Switch to the previous tab in global activation history')

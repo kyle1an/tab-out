@@ -7,6 +7,7 @@ import {
 } from '../extension/desktop-window-merge-contract.js'
 import { getDesktopWindowMergeStatus } from '../extension/desktop-window-merge-client.js'
 import { desktopWindowMergeFailureMessage } from '../extension/desktop-window-merge-strings.js'
+import { moveActiveTabToNewWindow } from '../extension/move-current-tab-action.js'
 import { buildOpenTabDedupePlan, type OpenTabDedupePlan } from '../extension/open-tab-dedupe-plan.js'
 import {
   closeAllSuspendedTabs,
@@ -191,6 +192,21 @@ export function TabActionsPopup() {
         <span className="min-w-0 flex-1">Close all suspended tabs and dedupe</span>
       </button>
       <div role="separator" aria-orientation="horizontal" className="pointer-events-none mx-1 my-1 h-px bg-border" />
+      <button
+        type="button"
+        data-tabout-part="move-current-tab-button"
+        className={popupItemClassName}
+        disabled={otherActionsDisabled}
+        onClick={() => void runPopupTabAction(async () => {
+          const moved = await moveActiveTabToNewWindow()
+          // The new window takes focus in real Chrome, which closes the
+          // popup; closing deliberately keeps that deterministic.
+          if (moved) window.close()
+        })}
+      >
+        <span className="icon-[lucide--app-window] size-3.5" aria-hidden="true" />
+        <span className="min-w-0 flex-1">Move current tab to new window</span>
+      </button>
       <button
         type="button"
         data-tabout-part="merge-desktop-windows-button"

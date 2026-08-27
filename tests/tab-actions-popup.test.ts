@@ -14,6 +14,7 @@ test('TabActionsPopup renders the Tab Actions Menu with browser-state-dependent 
     'dedupe-button',
     'close-suspended-button',
     'close-suspended-and-dedupe-button',
+    'move-current-tab-button',
     'merge-desktop-windows-button',
   ]
   const itemIndexes = itemOrder.map((part) => html.indexOf(`data-tabout-part="${part}"`))
@@ -29,6 +30,7 @@ test('TabActionsPopup renders the Tab Actions Menu with browser-state-dependent 
   assert.match(html, />Dedupe duplicate tabs</)
   assert.match(html, />Close all suspended tabs</)
   assert.match(html, />Close all suspended tabs and dedupe</)
+  assert.match(html, />Move current tab to new window</)
   assert.match(html, />Merge windows on this desktop…</)
 
   function itemOpeningTag(part: string): string {
@@ -44,6 +46,7 @@ test('TabActionsPopup renders the Tab Actions Menu with browser-state-dependent 
   assert.match(itemOpeningTag('dedupe-button'), / disabled(?:=|>| )/)
   assert.doesNotMatch(itemOpeningTag('close-suspended-button'), / disabled(?:=|>| )/)
   assert.doesNotMatch(itemOpeningTag('close-suspended-and-dedupe-button'), / disabled(?:=|>| )/)
+  assert.doesNotMatch(itemOpeningTag('move-current-tab-button'), / disabled(?:=|>| )/)
   assert.match(itemOpeningTag('merge-desktop-windows-button'), / disabled(?:=|>| )/)
   assert.match(html, /Checking macOS integration…/)
 })

@@ -21,11 +21,6 @@ import { Effect, Exit } from 'effect'
 import { refreshBadge as refreshBadgeEffect } from './background/badge.js'
 import { createAdjacentCloseBatcher } from './background/adjacent-close-batcher.js'
 import { createAdjacentOpenSurfaceBatcher } from './background/adjacent-open-surface-batcher.js'
-import {
-  MOVE_CURRENT_TAB_TO_NEW_WINDOW_MENU_ID,
-  moveCurrentTabToNewWindowEffect,
-  registerActionContextMenu,
-} from './background/action-context-menu.js'
 import { OPEN_FILTER_TAB_COMMAND, openFilterTabEffect } from './background/filter-command.js'
 import {
   createInitialOpenSurfaceReconciliationCoordinator,
@@ -235,7 +230,6 @@ async function captureOpenSurfaceCheckpointByTabId(tabId: number) {
 
 // Update badge when the extension is first installed
 chromeApi.runtime.onInstalled.addListener((details) => {
-  registerActionContextMenu(chromeApi)
   refreshBadge()
   const reconciliationMode = details.reason === 'install'
     ? 'first-install'
@@ -448,13 +442,6 @@ chromeApi.commands.onCommand.addListener((command) => {
     )
   }
   return undefined
-})
-
-chromeApi.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId !== MOVE_CURRENT_TAB_TO_NEW_WINDOW_MENU_ID) return undefined
-  return backgroundRuntime.runPromise(
-    settleBackgroundEffect(moveCurrentTabToNewWindowEffect(tab)),
-  )
 })
 
 chromeApi.runtime.onMessage.addListener((message, sender, sendResponse) => {

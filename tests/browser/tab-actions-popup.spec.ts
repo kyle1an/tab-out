@@ -5,6 +5,7 @@ const POPUP_FIXTURE = '/tests/fixtures/tab-actions-popup.html'
 const DEDUPE_ITEM = '[data-tabout="tab-actions"] [data-tabout-part="dedupe-button"]'
 const CLOSE_SUSPENDED_ITEM = '[data-tabout="tab-actions"] [data-tabout-part="close-suspended-button"]'
 const COMBINED_ITEM = '[data-tabout="tab-actions"] [data-tabout-part="close-suspended-and-dedupe-button"]'
+const MOVE_CURRENT_TAB_ITEM = '[data-tabout="tab-actions"] [data-tabout-part="move-current-tab-button"]'
 const MERGE_ITEM = '[data-tabout="tab-actions"] [data-tabout-part="merge-desktop-windows-button"]'
 
 async function enableMergeAvailability(page: Page) {
@@ -38,6 +39,9 @@ test('popup renders the Tab Actions Menu and dedupes all windows from a live cou
   await expect(closeItem).toBeEnabled()
   await expect(combinedItem).toHaveText('Close all suspended tabs and dedupe')
   await expect(combinedItem).toBeEnabled()
+  const moveItem = page.locator(MOVE_CURRENT_TAB_ITEM)
+  await expect(moveItem).toHaveText('Move current tab to new window')
+  await expect(moveItem).toBeEnabled()
   await expect(mergeItem).toContainText('Merge windows on this desktop…')
   await expect(mergeItem).toBeDisabled()
   await expect(mergeItem).toContainText('Window merge coordination is unavailable in this Chrome session')
@@ -187,6 +191,30 @@ test('popup combines suspended close and dedupe into one Undo', async ({ page })
   })
   await expect(page.getByText('Closed 2 tabs', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Undo' })).toBeVisible()
+})
+
+test('popup moves the invoking window\'s exact active tab into a focused new window', async ({ page }) => {
+  await page.goto(POPUP_FIXTURE)
+
+  await page.evaluate(async () => {
+    await window.chrome.tabs.create({ active: false, url: 'https://bystander.example.test/', windowId: 1 })
+    const windowsApi = window.chrome.windows
+    const createWindow = windowsApi.create.bind(windowsApi)
+    const created: chrome.windows.CreateData[] = []
+    Reflect.set(window, '__tabOutWindowCreates', created)
+    Reflect.set(windowsApi, 'create', async (...args: unknown[]) => {
+      created.push(args[0] as chrome.windows.CreateData)
+      return Reflect.apply(createWindow, windowsApi, args)
+    })
+  })
+
+  await page.locator(MOVE_CURRENT_TAB_ITEM).click()
+
+  // The fixture's active tab in window 1 is tab id 1; the move must target
+  // exactly that physical tab with no URL-opening fallback.
+  await expect.poll(() => page.evaluate(() => (
+    Reflect.get(window, '__tabOutWindowCreates')
+  ))).toEqual([{ tabId: 1, focused: true, type: 'normal' }])
 })
 
 test('popup merge item hands the preview off to the invoking window', async ({ page }) => {
