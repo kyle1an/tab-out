@@ -490,7 +490,7 @@ test('dashboard repacks across viewport sizes', async ({ page }) => {
   expect(pageErrors).toEqual([])
 })
 
-test('window merge preview handoff confirms, stays modal during progress, and reports exact counts', async ({ page }) => {
+test('window merge confirm handoff re-confirms revalidation changes and stays modal during progress', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
 
@@ -498,22 +498,27 @@ test('window merge preview handoff confirms, stays modal during progress, and re
     const runtime = window.chrome.runtime
     const originalSendMessage = runtime.sendMessage.bind(runtime)
     const completion = Promise.withResolvers<unknown>()
+    const confirmRequests: unknown[] = []
     Reflect.set(window, '__tabOutMergeCompletion', completion)
+    Reflect.set(window, '__tabOutMergeConfirmRequests', confirmRequests)
     Reflect.set(runtime, 'sendMessage', async (...args: unknown[]) => {
       const message = args[0] as { type?: string } | undefined
       if (message?.type === 'tab-out:get-desktop-window-merge-status') {
         return { ok: true, availability: { available: true }, session: null }
       }
-      if (message?.type === 'tab-out:preview-desktop-window-merge') {
-        return {
-          ok: true,
-          status: 'ready',
-          previewId: 'preview-fixture',
-          sourceWindowCount: 2,
-          movingTabCount: 4,
-        }
-      }
       if (message?.type === 'tab-out:confirm-desktop-window-merge') {
+        confirmRequests.push(message)
+        // The menu-approved preview drifted: revalidation demands one full
+        // re-confirmation on this page with fresh counts.
+        if (confirmRequests.length === 1) {
+          return {
+            ok: true,
+            status: 'changed',
+            previewId: 'preview-revalidated',
+            sourceWindowCount: 2,
+            movingTabCount: 4,
+          }
+        }
         return completion.promise
       }
       if (message?.type === 'tab-out:acknowledge-desktop-window-merge') {
@@ -528,14 +533,15 @@ test('window merge preview handoff confirms, stays modal during progress, and re
   })
 
   // The toolbar popup's handoff delivers this runtime message after focusing
-  // the page; the dashboard merge host acknowledges it and starts the preview.
-  const startPreviewAcknowledged = await page.evaluate(() => {
+  // the page; the dashboard merge host acknowledges it and submits the
+  // menu-approved confirmation.
+  const startConfirmAcknowledged = await page.evaluate(() => {
     const onMessage = Reflect.get(window.chrome.runtime, 'onMessage') as unknown as {
       dispatch: (...args: unknown[]) => void
     }
     let acknowledged: unknown = null
     onMessage.dispatch(
-      { type: 'tab-out:start-desktop-window-merge-preview' },
+      { type: 'tab-out:start-desktop-window-merge-confirm', previewId: 'preview-fixture' },
       {},
       (response: unknown) => {
         acknowledged = response
@@ -543,12 +549,15 @@ test('window merge preview handoff confirms, stays modal during progress, and re
     )
     return acknowledged
   })
-  expect(startPreviewAcknowledged).toEqual({ ok: true })
+  expect(startConfirmAcknowledged).toEqual({ ok: true })
 
   const dialog = page.locator('[data-tabout="desktop-window-merge-dialog"]')
   await expect(dialog).toContainText('Merge windows on this desktop?')
   await expect(dialog).toContainText(
     'Move 4 tabs from 2 other windows into this window. The other windows will close.',
+  )
+  await expect(dialog).toContainText(
+    'The windows or tabs changed. Review the updated counts before merging.',
   )
   const cancel = dialog.locator('[data-tabout-part="cancel-button"]')
   await expect(cancel).toBeFocused()
@@ -586,6 +595,10 @@ test('window merge preview handoff confirms, stays modal during progress, and re
   await expect(page.getByText('Merged 4 tabs from 2 other windows.', { exact: true }))
     .toBeVisible()
   await expect(dialog).not.toBeAttached()
+  expect(await page.evaluate(() => Reflect.get(window, '__tabOutMergeConfirmRequests'))).toEqual([
+    { type: 'tab-out:confirm-desktop-window-merge', previewId: 'preview-fixture' },
+    { type: 'tab-out:confirm-desktop-window-merge', previewId: 'preview-revalidated' },
+  ])
 })
 
 test('window merge clears restored progress when status reports success', async ({ page }) => {

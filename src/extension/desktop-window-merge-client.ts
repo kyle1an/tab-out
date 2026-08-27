@@ -28,11 +28,12 @@ export async function getDesktopWindowMergeStatus(): Promise<
   }))
 }
 
-export async function previewDesktopWindowMerge(): Promise<
-  DesktopWindowMergePreviewResponse | null
-> {
+export async function previewDesktopWindowMerge(
+  windowId?: number,
+): Promise<DesktopWindowMergePreviewResponse | null> {
   return parseDesktopWindowMergePreviewResponse(await sendMessage({
     type: DESKTOP_WINDOW_MERGE_PREVIEW_MESSAGE,
+    ...(windowId === undefined ? {} : { windowId }),
   }))
 }
 

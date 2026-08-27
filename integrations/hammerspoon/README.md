@@ -174,8 +174,8 @@ After it succeeds:
 
 1. Reload Tab Out in `chrome://extensions` so its service worker reconnects.
 2. Open Hammerspoon, or reload it from its menu if it was already running.
-3. Open a Tab Out page and confirm the final Tab actions option no longer shows
-   an integration setup or update reason.
+3. Click the Tab Out toolbar icon and confirm the final Tab Actions Menu
+   option no longer shows an integration setup or update reason.
 
 ### 6. Complete macOS permissions
 
@@ -223,16 +223,18 @@ Confirm destination focus and the absence of remote focus, ordering, or window
 flash regressions. Repeat create and reuse acceptance after macOS updates or
 changes to Private Exact-Window Activation.
 
-Then exercise **Merge windows on this desktop…** from a Tab Out page:
+Then exercise **Merge windows on this desktop…** from the Tab Out toolbar
+menu:
 
 - keep two or more normal configured-profile Chrome windows on the same active
   regular Desktop, including pinned tabs and a titled, colored tab group;
 - keep another configured-profile window on a different Desktop or display,
   and, when available, a minimized, app, popup, fullscreen, sticky, Incognito,
   or other-profile window;
-- confirm the preview counts only the eligible same-Desktop source windows and
-  tabs, gives Cancel initial focus, and becomes the same non-dismissible
-  `Merging windows…` modal after confirmation; and
+- confirm the in-menu preview counts only the eligible same-Desktop source
+  windows and tabs and gives Cancel initial focus, and that confirming focuses
+  a Tab Out page in the invoking window showing the same non-dismissible
+  `Merging windows…` modal; and
 - confirm the invoking window keeps focus and its active tab, destination tabs
   stay first, source windows follow native front-to-back order, pins and whole
   groups retain their state, eligible emptied windows close, and excluded

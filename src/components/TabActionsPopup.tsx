@@ -5,8 +5,14 @@ import {
   type DesktopWindowMergeAvailability,
   type DesktopWindowMergeJournal,
 } from '../extension/desktop-window-merge-contract.js'
-import { getDesktopWindowMergeStatus } from '../extension/desktop-window-merge-client.js'
-import { desktopWindowMergeFailureMessage } from '../extension/desktop-window-merge-strings.js'
+import {
+  getDesktopWindowMergeStatus,
+  previewDesktopWindowMerge,
+} from '../extension/desktop-window-merge-client.js'
+import {
+  desktopWindowMergeConfirmMessage,
+  desktopWindowMergeFailureMessage,
+} from '../extension/desktop-window-merge-strings.js'
 import { moveActiveTabToNewWindow } from '../extension/move-current-tab-action.js'
 import { buildOpenTabDedupePlan, type OpenTabDedupePlan } from '../extension/open-tab-dedupe-plan.js'
 import {
@@ -21,12 +27,53 @@ const DEDUPE_PLAN_REFRESH_DELAY_MS = 150
 const popupItemClassName =
   'relative flex w-full min-h-6 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2 py-1.5 text-left text-sm leading-tight text-foreground outline-none select-none [corner-shape:squircle] hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground disabled:pointer-events-none disabled:opacity-50'
 
+const popupSecondaryButtonClassName =
+  'inline-flex h-7 cursor-pointer items-center justify-center rounded-lg border border-border bg-transparent px-2.5 text-sm text-foreground outline-none [corner-shape:squircle] hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)'
+const popupPrimaryButtonClassName =
+  'inline-flex h-7 cursor-pointer items-center justify-center rounded-lg border border-foreground bg-foreground px-2.5 text-sm text-background outline-none [corner-shape:squircle] hover:opacity-[0.88] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)'
+
+type PopupMergePreview = {
+  previewId: string
+  movingTabCount: number
+  sourceWindowCount: number
+}
+
 function dedupeItemLabel(plan: OpenTabDedupePlan | null): string {
   if (!plan || plan.closableCount === 0) return 'Dedupe duplicate tabs'
   return `Dedupe ${plan.closableCount} duplicate tab${plan.closableCount === 1 ? '' : 's'}`
 }
 
-async function requestDesktopWindowMergeHandoff(): Promise<void> {
+async function requestMergePreviewForCurrentWindow(): Promise<PopupMergePreview | null> {
+  const currentWindow = await chrome.windows.getCurrent().catch(() => null)
+  if (typeof currentWindow?.id !== 'number') {
+    showToast('Could not identify this Chrome window')
+    return null
+  }
+  const response = await previewDesktopWindowMerge(currentWindow.id)
+  if (!response) {
+    showToast('Could not check windows on this desktop')
+    return null
+  }
+  if (!response.ok) {
+    showToast(desktopWindowMergeFailureMessage(response.reason))
+    return null
+  }
+  if (response.status === 'ready') {
+    return {
+      previewId: response.previewId,
+      movingTabCount: response.movingTabCount,
+      sourceWindowCount: response.sourceWindowCount,
+    }
+  }
+  if (response.status === 'already-merged') {
+    showToast('All windows on this desktop are already merged.')
+    return null
+  }
+  showToast('Another window merge is already in progress')
+  return null
+}
+
+async function requestMergeConfirmHandoff(previewId: string): Promise<void> {
   const currentWindow = await chrome.windows.getCurrent().catch(() => null)
   if (typeof currentWindow?.id !== 'number') {
     showToast('Could not identify this Chrome window')
@@ -35,28 +82,32 @@ async function requestDesktopWindowMergeHandoff(): Promise<void> {
   void chrome.runtime.sendMessage({
     type: DESKTOP_WINDOW_MERGE_OPEN_MESSAGE,
     windowId: currentWindow.id,
+    previewId,
   }).catch(() => undefined)
-  // The background worker owns the rest of the handoff; focusing the target
-  // page would close the popup anyway, so close it deliberately.
+  // The handed-off Tab Out page submits the confirmation and takes focus,
+  // which closes the popup anyway; close it deliberately.
   window.close()
 }
 
 /**
  * The Tab Actions Menu rendered by popup.html behind the toolbar action.
  * Cleanup items run in this popup page so their result toast and one-shot
- * Undo render inline; the merge item hands off to a Tab Out page in the
- * invoking window, which owns the preview/confirm dialogs.
+ * Undo render inline. The merge item previews here and swaps the menu for a
+ * compact confirmation; confirming hands off to a Tab Out page in the
+ * invoking window, which submits the confirmation and owns the progress,
+ * result, and revalidation surfaces.
  */
 export function TabActionsPopup() {
   const tabActionPendingRef = useRef(false)
-  const mergeOpenPendingRef = useRef(false)
+  const mergePendingRef = useRef(false)
   const [dedupePlan, setDedupePlan] = useState<OpenTabDedupePlan | null>(null)
   const [availability, setAvailability] =
     useState<DesktopWindowMergeAvailability | null>(null)
   const [mergeSession, setMergeSession] =
     useState<DesktopWindowMergeJournal | null>(null)
+  const [mergeConfirm, setMergeConfirm] = useState<PopupMergePreview | null>(null)
   const [tabActionPending, setTabActionPending] = useState(false)
-  const [mergeOpenPending, setMergeOpenPending] = useState(false)
+  const [mergePending, setMergePending] = useState(false)
 
   // react-doctor-disable-next-line react-doctor/effect-needs-cleanup -- the returned cleanup clears refreshTimer; the id is reassigned per debounce, which the rule cannot track.
   useEffect(() => {
@@ -92,6 +143,9 @@ export function TabActionsPopup() {
       }
       setAvailability(response.availability)
       setMergeSession(response.session?.journal ?? null)
+      // A session appearing means another surface already merged; the counts
+      // in a pending confirmation would be stale, so withdraw it.
+      if (response.session?.journal) setMergeConfirm(null)
     }
 
     refreshDedupePlan()
@@ -127,13 +181,28 @@ export function TabActionsPopup() {
       })
   }
 
-  function openMergeOnDashboard() {
-    if (tabActionPendingRef.current || mergeOpenPendingRef.current) return
-    mergeOpenPendingRef.current = true
-    setMergeOpenPending(true)
-    void requestDesktopWindowMergeHandoff().finally(() => {
-      mergeOpenPendingRef.current = false
-      setMergeOpenPending(false)
+  function requestMergeConfirmation() {
+    if (tabActionPendingRef.current || mergePendingRef.current) return
+    mergePendingRef.current = true
+    setMergePending(true)
+    void requestMergePreviewForCurrentWindow()
+      .then((preview) => {
+        if (preview) setMergeConfirm(preview)
+      })
+      .finally(() => {
+        mergePendingRef.current = false
+        setMergePending(false)
+      })
+  }
+
+  function confirmMergeHandoff() {
+    const preview = mergeConfirm
+    if (!preview || mergePendingRef.current) return
+    mergePendingRef.current = true
+    setMergePending(true)
+    void requestMergeConfirmHandoff(preview.previewId).finally(() => {
+      mergePendingRef.current = false
+      setMergePending(false)
     })
   }
 
@@ -147,12 +216,46 @@ export function TabActionsPopup() {
             ? 'A window merge is already in progress'
             : mergeSession
               ? 'Finish the current window merge result'
-              : mergeOpenPending
-                ? 'Opening Tab Out…'
+              : mergePending
+                ? 'Checking windows…'
                 : null
   const otherActionsDisabled = tabActionPending || mergeSession?.status === 'running'
   const dedupeDisabled =
     otherActionsDisabled || !dedupePlan || dedupePlan.closableCount === 0
+
+  if (mergeConfirm) {
+    return (
+      <div data-tabout="tab-actions" className="flex w-full flex-col">
+        <div data-tabout-part="merge-confirm" className="flex flex-col gap-2.5 p-2">
+          <p className="m-0 text-sm leading-5 text-foreground">
+            {desktopWindowMergeConfirmMessage(
+              mergeConfirm.movingTabCount,
+              mergeConfirm.sourceWindowCount,
+            )}
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              data-tabout-part="cancel-button"
+              autoFocus
+              className={popupSecondaryButtonClassName}
+              onClick={() => setMergeConfirm(null)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              data-tabout-part="confirm-button"
+              className={popupPrimaryButtonClassName}
+              onClick={confirmMergeHandoff}
+            >
+              Merge windows
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div data-tabout="tab-actions" className="flex w-full flex-col">
@@ -213,7 +316,7 @@ export function TabActionsPopup() {
         className={`${popupItemClassName} items-start`}
         aria-label="Merge windows on this desktop"
         disabled={mergeUnavailableReason !== null}
-        onClick={openMergeOnDashboard}
+        onClick={requestMergeConfirmation}
       >
         <span className="icon-[lucide--panels-top-left] mt-px size-3.5" aria-hidden="true" />
         <span className="min-w-0 flex-1">

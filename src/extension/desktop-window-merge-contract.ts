@@ -12,8 +12,8 @@ export const DESKTOP_WINDOW_MERGE_STATUS_CHANGED_MESSAGE =
   'tab-out:desktop-window-merge-status-changed'
 export const DESKTOP_WINDOW_MERGE_OPEN_MESSAGE =
   'tab-out:open-desktop-window-merge'
-export const DESKTOP_WINDOW_MERGE_START_PREVIEW_MESSAGE =
-  'tab-out:start-desktop-window-merge-preview'
+export const DESKTOP_WINDOW_MERGE_START_CONFIRM_MESSAGE =
+  'tab-out:start-desktop-window-merge-confirm'
 
 export const DESKTOP_WINDOW_MERGE_SESSION_STORAGE_KEY =
   'desktopWindowMergeSessionV1'
@@ -164,6 +164,9 @@ const desktopWindowMergeStatusGetMessageSchema = Schema.Struct({
 })
 const desktopWindowMergePreviewMessageSchema = Schema.Struct({
   type: Schema.Literals([DESKTOP_WINDOW_MERGE_PREVIEW_MESSAGE]),
+  // Tab senders imply their own window; the tabless Tab Actions Menu popup
+  // names the invoking window explicitly.
+  windowId: Schema.optionalKey(positiveIntegerSchema),
 })
 const desktopWindowMergeConfirmMessageSchema = Schema.Struct({
   type: Schema.Literals([DESKTOP_WINDOW_MERGE_CONFIRM_MESSAGE]),
@@ -179,11 +182,13 @@ const desktopWindowMergeStatusChangedMessageSchema = Schema.Struct({
 const desktopWindowMergeOpenMessageSchema = Schema.Struct({
   type: Schema.Literals([DESKTOP_WINDOW_MERGE_OPEN_MESSAGE]),
   windowId: positiveIntegerSchema,
+  previewId: opaqueIdSchema,
 })
-const desktopWindowMergeStartPreviewMessageSchema = Schema.Struct({
-  type: Schema.Literals([DESKTOP_WINDOW_MERGE_START_PREVIEW_MESSAGE]),
+const desktopWindowMergeStartConfirmMessageSchema = Schema.Struct({
+  type: Schema.Literals([DESKTOP_WINDOW_MERGE_START_CONFIRM_MESSAGE]),
+  previewId: opaqueIdSchema,
 })
-const desktopWindowMergeStartPreviewAcknowledgementSchema = Schema.Struct({
+const desktopWindowMergeStartConfirmAcknowledgementSchema = Schema.Struct({
   ok: Schema.Literals([true]),
 })
 
@@ -200,8 +205,8 @@ const isConfirmMessage = Schema.is(desktopWindowMergeConfirmMessageSchema)
 const isAcknowledgeMessage = Schema.is(desktopWindowMergeAcknowledgeMessageSchema)
 const isStatusChangedMessage = Schema.is(desktopWindowMergeStatusChangedMessageSchema)
 const isOpenMessage = Schema.is(desktopWindowMergeOpenMessageSchema)
-const isStartPreviewMessage = Schema.is(desktopWindowMergeStartPreviewMessageSchema)
-const isStartPreviewAcknowledgement = Schema.is(desktopWindowMergeStartPreviewAcknowledgementSchema)
+const isStartConfirmMessage = Schema.is(desktopWindowMergeStartConfirmMessageSchema)
+const isStartConfirmAcknowledgement = Schema.is(desktopWindowMergeStartConfirmAcknowledgementSchema)
 const isStatusResponse = Schema.is(desktopWindowMergeStatusResponseSchema)
 const isPreviewResponse = Schema.is(desktopWindowMergePreviewResponseSchema)
 const isConfirmResponse = Schema.is(desktopWindowMergeConfirmResponseSchema)
@@ -212,8 +217,10 @@ export function isDesktopWindowMergeStatusGetMessage(value: unknown): boolean {
   return isStatusGetMessage(value)
 }
 
-export function isDesktopWindowMergePreviewMessage(value: unknown): boolean {
-  return isPreviewMessage(value)
+export function parseDesktopWindowMergePreviewMessage(
+  value: unknown,
+): typeof desktopWindowMergePreviewMessageSchema.Type | null {
+  return isPreviewMessage(value) ? value : null
 }
 
 export function parseDesktopWindowMergeConfirmMessage(
@@ -238,12 +245,14 @@ export function parseDesktopWindowMergeOpenMessage(
   return isOpenMessage(value) ? value : null
 }
 
-export function isDesktopWindowMergeStartPreviewMessage(value: unknown): boolean {
-  return isStartPreviewMessage(value)
+export function parseDesktopWindowMergeStartConfirmMessage(
+  value: unknown,
+): typeof desktopWindowMergeStartConfirmMessageSchema.Type | null {
+  return isStartConfirmMessage(value) ? value : null
 }
 
-export function isDesktopWindowMergeStartPreviewAcknowledgement(value: unknown): boolean {
-  return isStartPreviewAcknowledgement(value)
+export function isDesktopWindowMergeStartConfirmAcknowledgement(value: unknown): boolean {
+  return isStartConfirmAcknowledgement(value)
 }
 
 export function parseDesktopWindowMergeStatusResponse(

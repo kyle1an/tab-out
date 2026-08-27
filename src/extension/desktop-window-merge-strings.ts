@@ -31,6 +31,13 @@ function countLabel(count: number, singular: string): string {
   return `${count} ${count === 1 ? singular : `${singular}s`}`
 }
 
+export function desktopWindowMergeConfirmMessage(
+  movingTabCount: number,
+  sourceWindowCount: number,
+): string {
+  return `Move ${countLabel(movingTabCount, 'tab')} from ${countLabel(sourceWindowCount, 'other window')} into this window.`
+}
+
 export function desktopWindowMergeSuccessMessage(journal: DesktopWindowMergeJournal): string {
   return `Merged ${countLabel(journal.movedTabCount, 'tab')} from ${countLabel(journal.sourceWindowCount, 'other window')}.`
 }

@@ -9,6 +9,7 @@ import {
   type DesktopWindowMergeJournal,
 } from '../../src/extension/desktop-window-merge-contract.js'
 import {
+  DESKTOP_WINDOW_MERGE_MENU_REQUESTER_TAB_ID,
   DesktopWindowMerge,
   type DesktopWindowMergeLayerOptions,
 } from '../../src/extension/background/desktop-window-merge-service.js'
@@ -292,6 +293,111 @@ it.effect('desktop merge moves pins and whole groups in deterministic order', ()
   assert.doesNotMatch(JSON.stringify(storedJournal), /(?:https?:|url|title)/i)
   assert.equal(yield* service.acknowledge(1, 'session-test'), true)
   assert.equal(harness.stored[DESKTOP_WINDOW_MERGE_SESSION_STORAGE_KEY], undefined)
+  yield* Scope.close(scope, Exit.void)
+}))
+
+it.effect('a menu-owned preview tolerates toolbar focus before the Tab Out page adopts it', () => Effect.gen(function* () {
+  const harness = createMergeHarness()
+  const destination = harness.windows.find((window) => window.id === 10)
+  assert.ok(destination)
+  destination.focused = false
+  const initialTabs = structuredClone(harness.tabs)
+  setChromeTabsApi(harness.browserApi)
+  yield* Effect.addFinalizer(() => Effect.sync(() => setChromeTabsApi(null)))
+  const scope = yield* Scope.make()
+  const context = yield* Layer.buildWithScope(buildService(harness), scope)
+  const service = Context.get(context, DesktopWindowMerge)
+
+  const preview = yield* service.preview(DESKTOP_WINDOW_MERGE_MENU_REQUESTER_TAB_ID, 10)
+  assert.deepEqual(preview, {
+    ok: true,
+    status: 'ready',
+    previewId: 'preview-test',
+    sourceWindowCount: 2,
+    movingTabCount: 4,
+  })
+  assert.deepEqual(harness.tabs, initialTabs)
+  assert.equal(Object.hasOwn(harness.stored, DESKTOP_WINDOW_MERGE_SESSION_STORAGE_KEY), false)
+
+  destination.focused = true
+  const completed = yield* service.confirm(1, 10, 'preview-test')
+  assert.equal(completed.ok && completed.status, 'succeeded')
+  const storedJournal = harness.stored[
+    DESKTOP_WINDOW_MERGE_SESSION_STORAGE_KEY
+  ] as DesktopWindowMergeJournal
+  assert.equal(storedJournal.ownerTabId, 1)
+  assert.equal(yield* service.acknowledge(1, 'session-test'), true)
+  yield* Scope.close(scope, Exit.void)
+}))
+
+it.effect('menu previews do not relax focus checks for page previews or confirmation', () => Effect.gen(function* () {
+  const harness = createMergeHarness()
+  const destination = harness.windows.find((window) => window.id === 10)
+  assert.ok(destination)
+  destination.focused = false
+  const initialTabs = structuredClone(harness.tabs)
+  setChromeTabsApi(harness.browserApi)
+  yield* Effect.addFinalizer(() => Effect.sync(() => setChromeTabsApi(null)))
+  const context = yield* Layer.build(buildService(harness))
+  const service = Context.get(context, DesktopWindowMerge)
+
+  const preview = yield* service.preview(DESKTOP_WINDOW_MERGE_MENU_REQUESTER_TAB_ID, 10)
+  assert.equal(preview.ok && preview.status, 'ready')
+  assert.deepEqual(yield* service.preview(1, 10), {
+    ok: false,
+    reason: 'desktop-selection-unavailable',
+  })
+  assert.deepEqual(yield* service.confirm(1, 10, 'preview-test'), {
+    ok: false,
+    reason: 'desktop-selection-unavailable',
+  })
+  assert.deepEqual(harness.tabs, initialTabs)
+  assert.equal(harness.groupMoveCount(), 0)
+  assert.equal(harness.stored[DESKTOP_WINDOW_MERGE_SESSION_STORAGE_KEY], undefined)
+}))
+
+it.effect.each([
+  { label: 'private', changes: { incognito: true } },
+  { label: 'popup', changes: { type: 'popup' } },
+  { label: 'app', changes: { type: 'app' } },
+  { label: 'minimized', changes: { state: 'minimized' } },
+  { label: 'fullscreen', changes: { state: 'fullscreen' } },
+] satisfies Array<{ label: string, changes: Partial<chrome.windows.Window> }>)(
+  'menu previews still exclude $label destinations while the toolbar owns focus',
+  ({ changes }) => Effect.gen(function* () {
+    const harness = createMergeHarness()
+    const destination = harness.windows.find((window) => window.id === 10)
+    assert.ok(destination)
+    Object.assign(destination, { focused: false }, changes)
+    const initialTabs = structuredClone(harness.tabs)
+    setChromeTabsApi(harness.browserApi)
+    yield* Effect.addFinalizer(() => Effect.sync(() => setChromeTabsApi(null)))
+    const context = yield* Layer.build(buildService(harness))
+    const service = Context.get(context, DesktopWindowMerge)
+
+    assert.deepEqual(yield* service.preview(DESKTOP_WINDOW_MERGE_MENU_REQUESTER_TAB_ID, 10), {
+      ok: false,
+      reason: 'desktop-selection-unavailable',
+    })
+    assert.deepEqual(harness.tabs, initialTabs)
+    assert.equal(harness.stored[DESKTOP_WINDOW_MERGE_SESSION_STORAGE_KEY], undefined)
+  }),
+)
+
+it.effect('a tab-owned preview still rejects other tab confirmers with a fresh confirmation', () => Effect.gen(function* () {
+  const harness = createMergeHarness()
+  setChromeTabsApi(harness.browserApi)
+  yield* Effect.addFinalizer(() => Effect.sync(() => setChromeTabsApi(null)))
+  const scope = yield* Scope.make()
+  const context = yield* Layer.buildWithScope(buildService(harness), scope)
+  const service = Context.get(context, DesktopWindowMerge)
+
+  const preview = yield* service.preview(2, 10)
+  assert.equal(preview.ok && preview.status, 'ready')
+  const changed = yield* service.confirm(1, 10, 'preview-test')
+  assert.equal(changed.ok && changed.status, 'changed')
+  const completed = yield* service.confirm(1, 10, 'preview-test')
+  assert.equal(completed.ok && completed.status, 'succeeded')
   yield* Scope.close(scope, Exit.void)
 }))
 

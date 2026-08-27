@@ -57,6 +57,7 @@ export type DesktopWindowMergePlanResult =
 export interface DesktopWindowMergePlanInput {
   readonly destinationWindowId: number
   readonly groups: readonly chrome.tabGroups.TabGroup[]
+  readonly requireDestinationFocus?: boolean
   readonly tabs: readonly chrome.tabs.Tab[]
   readonly windowIds: readonly number[]
   readonly windows: readonly chrome.windows.Window[]
@@ -142,7 +143,11 @@ export function buildDesktopWindowMergePlan(
       window.type !== 'normal' ||
       (window.state !== 'normal' && window.state !== 'maximized') ||
       window.incognito === true ||
-      (windowId === input.destinationWindowId && window.focused !== true)
+      (
+        input.requireDestinationFocus !== false &&
+        windowId === input.destinationWindowId &&
+        window.focused !== true
+      )
     ) return { ok: false, reason: 'window-inventory-changed' }
   }
 

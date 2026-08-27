@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 
 import type { DesktopWindowMergeJournal } from '../extension/desktop-window-merge-contract.js'
+import { desktopWindowMergeConfirmMessage } from '../extension/desktop-window-merge-strings.js'
 import {
   Dialog,
   DialogClose,
@@ -71,8 +72,7 @@ export function DesktopWindowMergeDialog({
             <>
               <DialogTitle>Merge windows on this desktop?</DialogTitle>
               <DialogDescription>
-                Move {countLabel(state.movingTabCount, 'tab')} from{' '}
-                {countLabel(state.sourceWindowCount, 'other window')} into this window.
+                {desktopWindowMergeConfirmMessage(state.movingTabCount, state.sourceWindowCount)}{' '}
                 The other windows will close. Pinned tabs and tab groups will be
                 preserved. The original window layout cannot be restored automatically.
               </DialogDescription>

@@ -1,8 +1,8 @@
 import { Effect } from 'effect'
 
 import {
-  DESKTOP_WINDOW_MERGE_START_PREVIEW_MESSAGE,
-  isDesktopWindowMergeStartPreviewAcknowledgement,
+  DESKTOP_WINDOW_MERGE_START_CONFIRM_MESSAGE,
+  isDesktopWindowMergeStartConfirmAcknowledgement,
 } from '../desktop-window-merge-contract.js'
 import { isTabOutPageUrl, tabOutDashboardCanonicalUrl } from '../tab-out-url.js'
 import type { ChromeApi } from './chrome-api.js'
@@ -55,18 +55,20 @@ const focusOrCreateDashboardTab = Effect.fn(
 })
 
 /**
- * Toolbar handoff for `Merge windows on this desktop…`: focus (or create) a
- * Tab Out page in the invoking window, then deliver the start-preview intent
- * until the page's merge host acknowledges it. The page must initiate the
- * preview itself so it owns the previewId, the confirm dialog, and the
- * destination-window contract; a freshly created or discarded page needs the
- * bounded retry window to finish hydrating its message listener.
+ * Toolbar handoff for a menu-confirmed `Merge windows on this desktop…`:
+ * focus (or create) a Tab Out page in the invoking window, then deliver the
+ * start-confirm intent until the page's merge host acknowledges it. That
+ * page submits the confirmation so it becomes the journal owner and hosts
+ * the progress, result, and revalidation surfaces; a freshly created or
+ * discarded page needs the bounded retry window to finish hydrating its
+ * message listener.
  */
 export const handoffDesktopWindowMergeToWindowEffect = Effect.fn(
   'desktopWindowMergeHandoff.toWindow',
 )(function* (
   chromeApi: ChromeApi,
   windowId: number,
+  previewId: string,
   options: DesktopWindowMergeHandoffOptions = {},
 ) {
   const {
@@ -80,10 +82,11 @@ export const handoffDesktopWindowMergeToWindowEffect = Effect.fn(
     if (attempt > 0) yield* Effect.sleep(retryDelayMillis)
     const response = yield* Effect.tryPromise(
       () => chromeApi.tabs.sendMessage(dashboardTabId, {
-        type: DESKTOP_WINDOW_MERGE_START_PREVIEW_MESSAGE,
+        type: DESKTOP_WINDOW_MERGE_START_CONFIRM_MESSAGE,
+        previewId,
       }),
     ).pipe(Effect.catch(() => Effect.succeed(null)))
-    if (isDesktopWindowMergeStartPreviewAcknowledgement(response)) return true
+    if (isDesktopWindowMergeStartConfirmAcknowledgement(response)) return true
   }
   return false
 })

@@ -7,7 +7,7 @@ import type { ChromeApi } from '../../src/extension/background/chrome-api.js'
 import { handoffDesktopWindowMergeToWindowEffect } from '../../src/extension/background/desktop-window-merge-handoff.js'
 
 const DASHBOARD_URL = 'chrome-extension://tab-out/index.html'
-const START_PREVIEW_MESSAGE = { type: 'tab-out:start-desktop-window-merge-preview' }
+const START_CONFIRM_MESSAGE = { type: 'tab-out:start-desktop-window-merge-confirm', previewId: 'preview-test' }
 
 type HandoffApiCalls = {
   tabCreate: chrome.tabs.CreateProperties[]
@@ -71,7 +71,7 @@ function dashboardTab(overrides: Partial<chrome.tabs.Tab>): chrome.tabs.Tab {
   } as chrome.tabs.Tab
 }
 
-it.effect('handoff focuses the active dashboard tab and delivers the start-preview intent', () => Effect.gen(function* () {
+it.effect('handoff focuses the active dashboard tab and delivers the start-confirm intent', () => Effect.gen(function* () {
   const { calls, chromeApi } = createHandoffApi({
     tabs: [
       dashboardTab({ id: 11, pinned: true }),
@@ -80,12 +80,12 @@ it.effect('handoff focuses the active dashboard tab and delivers the start-previ
     ],
   })
 
-  const delivered = yield* handoffDesktopWindowMergeToWindowEffect(chromeApi, 7)
+  const delivered = yield* handoffDesktopWindowMergeToWindowEffect(chromeApi, 7, 'preview-test')
 
   assert.equal(delivered, true)
   assert.deepEqual(calls.tabUpdate, [{ tabId: 12, updateProperties: { active: true } }])
   assert.deepEqual(calls.tabCreate, [])
-  assert.deepEqual(calls.sentMessages, [{ tabId: 12, message: START_PREVIEW_MESSAGE }])
+  assert.deepEqual(calls.sentMessages, [{ tabId: 12, message: START_CONFIRM_MESSAGE }])
 }))
 
 it.effect('handoff prefers a pinned dashboard tab when none is active', () => Effect.gen(function* () {
@@ -96,7 +96,7 @@ it.effect('handoff prefers a pinned dashboard tab when none is active', () => Ef
     ],
   })
 
-  const delivered = yield* handoffDesktopWindowMergeToWindowEffect(chromeApi, 7)
+  const delivered = yield* handoffDesktopWindowMergeToWindowEffect(chromeApi, 7, 'preview-test')
 
   assert.equal(delivered, true)
   assert.deepEqual(calls.tabUpdate, [{ tabId: 22, updateProperties: { active: true } }])
@@ -112,7 +112,7 @@ it.effect('handoff creates a dashboard tab and retries delivery until the page l
   })
 
   const fiber = yield* Effect.forkChild(
-    handoffDesktopWindowMergeToWindowEffect(chromeApi, 7, { retryDelayMillis: 250 }),
+    handoffDesktopWindowMergeToWindowEffect(chromeApi, 7, 'preview-test', { retryDelayMillis: 250 }),
   )
   yield* TestClock.adjust(500)
   const delivered = yield* Fiber.join(fiber)
@@ -130,11 +130,11 @@ it.effect('handoff falls back to a windowless create when the invoking window is
     createdTabId: 41,
   })
 
-  const delivered = yield* handoffDesktopWindowMergeToWindowEffect(chromeApi, 7)
+  const delivered = yield* handoffDesktopWindowMergeToWindowEffect(chromeApi, 7, 'preview-test')
 
   assert.equal(delivered, true)
   assert.deepEqual(calls.tabCreate, [{ url: DASHBOARD_URL, active: true }])
-  assert.deepEqual(calls.sentMessages, [{ tabId: 41, message: START_PREVIEW_MESSAGE }])
+  assert.deepEqual(calls.sentMessages, [{ tabId: 41, message: START_CONFIRM_MESSAGE }])
 }))
 
 it.effect('handoff reports failure after the bounded delivery window closes', () => Effect.gen(function* () {
@@ -143,7 +143,7 @@ it.effect('handoff reports failure after the bounded delivery window closes', ()
     acknowledgeFromAttempt: Number.POSITIVE_INFINITY,
   })
 
-  const fiber = yield* Effect.forkChild(handoffDesktopWindowMergeToWindowEffect(chromeApi, 7, {
+  const fiber = yield* Effect.forkChild(handoffDesktopWindowMergeToWindowEffect(chromeApi, 7, 'preview-test', {
     deliveryAttempts: 3,
     retryDelayMillis: 250,
   }))

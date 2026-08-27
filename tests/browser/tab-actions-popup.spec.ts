@@ -217,14 +217,56 @@ test('popup moves the invoking window\'s exact active tab into a focused new win
   ))).toEqual([{ tabId: 1, focused: true, type: 'normal' }])
 })
 
-test('popup merge item hands the preview off to the invoking window', async ({ page }) => {
+test('popup previews the merge, confirms inline, and hands the confirmation off', async ({ page }) => {
   await page.goto(POPUP_FIXTURE)
-  await enableMergeAvailability(page)
+  await page.evaluate(() => {
+    Reflect.set(window, '__tabOutPopupMessageHandler', (message: { type?: string } | undefined) => {
+      if (message?.type === 'tab-out:get-desktop-window-merge-status') {
+        return { ok: true, availability: { available: true }, session: null }
+      }
+      if (message?.type === 'tab-out:preview-desktop-window-merge') {
+        return {
+          ok: true,
+          status: 'ready',
+          previewId: 'preview-fixture',
+          sourceWindowCount: 1,
+          movingTabCount: 2,
+        }
+      }
+      return undefined
+    })
+    const onMessage = Reflect.get(window.chrome.runtime, 'onMessage') as unknown as {
+      dispatch: (message: unknown) => void
+    }
+    onMessage.dispatch({ type: 'tab-out:desktop-window-merge-status-changed' })
+  })
+  const mergeItem = page.locator(MERGE_ITEM)
+  await expect(mergeItem).not.toHaveAttribute('disabled', '')
 
-  await page.locator(MERGE_ITEM).click()
+  await mergeItem.click()
+  const confirmView = page.locator('[data-tabout="tab-actions"] [data-tabout-part="merge-confirm"]')
+  await expect(confirmView).toBeVisible()
+  await expect(confirmView.locator('p')).toHaveText('Move 2 tabs from 1 other window into this window.')
+  await expect(confirmView.locator('[data-tabout-part="cancel-button"]')).toBeFocused()
+  expect(await page.evaluate(() => (
+    (Reflect.get(window, '__tabOutPopupSentMessages') as Array<{ type?: string, windowId?: number }>)
+      .filter((message) => message?.type === 'tab-out:preview-desktop-window-merge')
+  ))).toEqual([{ type: 'tab-out:preview-desktop-window-merge', windowId: 1 }])
+
+  await confirmView.locator('[data-tabout-part="cancel-button"]').click()
+  await expect(confirmView).not.toBeAttached()
+  await expect(mergeItem).toBeVisible()
+
+  await mergeItem.click()
+  await expect(confirmView).toBeVisible()
+  await confirmView.locator('[data-tabout-part="confirm-button"]').click()
 
   await expect.poll(() => page.evaluate(() => (
-    (Reflect.get(window, '__tabOutPopupSentMessages') as Array<{ type?: string, windowId?: number }>)
+    (Reflect.get(window, '__tabOutPopupSentMessages') as Array<{ type?: string }>)
       .filter((message) => message?.type === 'tab-out:open-desktop-window-merge')
-  ))).toEqual([{ type: 'tab-out:open-desktop-window-merge', windowId: 1 }])
+  ))).toEqual([{
+    type: 'tab-out:open-desktop-window-merge',
+    windowId: 1,
+    previewId: 'preview-fixture',
+  }])
 })

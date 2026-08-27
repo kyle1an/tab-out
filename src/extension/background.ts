@@ -30,11 +30,11 @@ import { OPEN_NEW_TAB_COMMAND, openNewTabEffect } from './background/new-tab-com
 import { handoffDesktopWindowMergeToWindowEffect } from './background/desktop-window-merge-handoff.js'
 import { groupColorChanged } from './groups.js'
 import {
-  isDesktopWindowMergePreviewMessage,
   isDesktopWindowMergeStatusGetMessage,
   parseDesktopWindowMergeAcknowledgeMessage,
   parseDesktopWindowMergeConfirmMessage,
   parseDesktopWindowMergeOpenMessage,
+  parseDesktopWindowMergePreviewMessage,
 } from './desktop-window-merge-contract.js'
 import {
   captureCurrentOpenSurfaceObservations,
@@ -42,7 +42,10 @@ import {
   captureOpenSurfaceObservation,
 } from './background/open-surface-capture.js'
 import { recoverRetainedPageSnapshot } from './background/retained-page-recovery.js'
-import { DesktopWindowMerge } from './background/desktop-window-merge-service.js'
+import {
+  DESKTOP_WINDOW_MERGE_MENU_REQUESTER_TAB_ID,
+  DesktopWindowMerge,
+} from './background/desktop-window-merge-service.js'
 import {
   RetainedPages,
   type CaptureClosedSurfacesResult,
@@ -449,11 +452,15 @@ chromeApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const senderWindowId = sender.tab?.windowId
   if (isDesktopWindowMergeStatusGetMessage(message)) {
     // A tabless sender is the toolbar Tab Actions Menu popup. It can never
-    // own a merge session, so a sentinel requester id keeps it a pure
+    // own a merge session, so the sentinel requester id keeps it a pure
     // observer: no journal adoption, isOwner always false.
     const requester = typeof senderTabId === 'number' && typeof senderWindowId === 'number'
       ? { tabId: senderTabId, windowId: senderWindowId, active: sender.tab?.active === true }
-      : { tabId: -1, windowId: -1, active: false }
+      : {
+          tabId: DESKTOP_WINDOW_MERGE_MENU_REQUESTER_TAB_ID,
+          windowId: DESKTOP_WINDOW_MERGE_MENU_REQUESTER_TAB_ID,
+          active: false,
+        }
     void backgroundRuntime.runPromise(settleBackgroundEffect(sendEffectResponse(
       desktopWindowMergeService.getStatus(
         requester.tabId,
@@ -473,6 +480,7 @@ chromeApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
       handoffDesktopWindowMergeToWindowEffect(
         chromeApi,
         desktopWindowMergeOpenRequest.windowId,
+        desktopWindowMergeOpenRequest.previewId,
       ),
       sendResponse,
       (delivered) => ({ ok: delivered }),
@@ -481,13 +489,25 @@ chromeApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true
   }
 
-  if (
-    isDesktopWindowMergePreviewMessage(message) &&
-    typeof senderTabId === 'number' &&
-    typeof senderWindowId === 'number'
-  ) {
+  const desktopWindowMergePreviewRequest = parseDesktopWindowMergePreviewMessage(message)
+  if (desktopWindowMergePreviewRequest) {
+    // Tab senders preview for their own window; the tabless popup previews
+    // for its named invoking window with the menu sentinel as owner, and the
+    // handed-off page adopts that preview when it confirms.
+    const requester = typeof senderTabId === 'number' && typeof senderWindowId === 'number'
+      ? { tabId: senderTabId, windowId: senderWindowId }
+      : typeof desktopWindowMergePreviewRequest.windowId === 'number'
+        ? {
+            tabId: DESKTOP_WINDOW_MERGE_MENU_REQUESTER_TAB_ID,
+            windowId: desktopWindowMergePreviewRequest.windowId,
+          }
+        : null
+    if (!requester) {
+      sendResponse({ ok: false })
+      return true
+    }
     void backgroundRuntime.runPromise(settleBackgroundEffect(sendEffectResponse(
-      desktopWindowMergeService.preview(senderTabId, senderWindowId),
+      desktopWindowMergeService.preview(requester.tabId, requester.windowId),
       sendResponse,
       (preview) => preview,
       () => ({ ok: false }),

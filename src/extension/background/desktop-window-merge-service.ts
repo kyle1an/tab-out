@@ -40,6 +40,13 @@ import {
 
 const DESKTOP_WINDOW_MERGE_LOCK_NAME = 'tab-out:desktop-window-merge'
 const DESKTOP_WINDOW_MERGE_PREVIEW_LIFETIME_MS = 10 * 60 * 1_000
+
+/**
+ * Sentinel requester id for the tabless Tab Actions Menu popup. A preview it
+ * owns can never match a journal owner (owner tab ids are positive), and at
+ * confirmation the handed-off Tab Out page adopts the preview as its owner.
+ */
+export const DESKTOP_WINDOW_MERGE_MENU_REQUESTER_TAB_ID = -1
 const DESKTOP_WINDOW_MERGE_RETRY_DELAYS_MS = [0, 100, 250, 650] as const
 const DESKTOP_WINDOW_MERGE_ACTIVITY_RECEIPT_LIFETIME_MS = 2_000
 const DESKTOP_WINDOW_MERGE_MAX_ACTIVITY_RECEIPTS = 512
@@ -311,6 +318,7 @@ function makeDesktopWindowMergeLayer(
     const capturePlan = Effect.fn('DesktopWindowMerge.capturePlan')(function* (
       destinationWindowId: number,
       windowIds: readonly number[],
+      requireDestinationFocus = true,
     ) {
       const [windows, tabs, groups] = yield* Effect.all([
         browserTabs.getAllWindowsResult(),
@@ -326,6 +334,7 @@ function makeDesktopWindowMergeLayer(
         windows: windows.value,
         tabs: tabs.value,
         groups: groups.value,
+        requireDestinationFocus,
       })
       if (!result.ok) {
         return yield* Effect.fail(serviceError(
@@ -376,9 +385,14 @@ function makeDesktopWindowMergeLayer(
       if (Result.isFailure(selected)) {
         return { ok: false, reason: 'desktop-selection-unavailable' }
       }
+      // Chrome can report the invoking window unfocused while its toolbar
+      // popup owns focus. Only that read-only preview skips the focus check;
+      // page-owned previews and confirmation keep capturePlan's strict default.
+      const requireDestinationFocus = ownerTabId !== DESKTOP_WINDOW_MERGE_MENU_REQUESTER_TAB_ID
       const plan = yield* Effect.result(capturePlan(
         destinationWindowId,
         selected.success.windowIds,
+        requireDestinationFocus,
       ))
       if (Result.isFailure(plan)) return { ok: false, reason: plan.failure.reason }
       if (plan.success.sourceWindowCount === 0) {
@@ -990,16 +1004,27 @@ function makeDesktopWindowMergeLayer(
       previewId: string,
     ) {
       const candidate = (yield* Ref.get(previews)).get(previewId)
+      const ownerMatches = candidate !== undefined && (
+        candidate.ownerTabId === requesterTabId ||
+        candidate.ownerTabId === DESKTOP_WINDOW_MERGE_MENU_REQUESTER_TAB_ID
+      )
       if (
         !candidate ||
-        candidate.ownerTabId !== requesterTabId ||
+        !ownerMatches ||
         candidate.destinationWindowId !== destinationWindowId ||
         now() - candidate.createdAtMs > DESKTOP_WINDOW_MERGE_PREVIEW_LIFETIME_MS
       ) return yield* changedPreview(requesterTabId, destinationWindowId)
 
+      // A menu-owned preview is confirmed by the handed-off Tab Out page,
+      // which becomes the owner for the journal, result surfaces, and
+      // acknowledgement; the frozen plan itself is untouched.
+      const confirmedCandidate = candidate.ownerTabId === DESKTOP_WINDOW_MERGE_MENU_REQUESTER_TAB_ID
+        ? { ...candidate, ownerTabId: requesterTabId }
+        : candidate
+
       const locked = yield* Effect.result(runPromiseExclusiveEffect(
         runExclusive,
-        runConfirmedMerge(candidate),
+        runConfirmedMerge(confirmedCandidate),
         (cause) => new DesktopWindowMergeLockError({
           busy: cause instanceof DesktopWindowMergeLockBusy,
         }),

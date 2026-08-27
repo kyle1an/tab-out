@@ -1,14 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  isDesktopWindowMergeStartPreviewMessage,
   isDesktopWindowMergeStatusChangedMessage,
+  parseDesktopWindowMergeStartConfirmMessage,
   type DesktopWindowMergeJournal,
 } from '../extension/desktop-window-merge-contract.js'
 import {
   acknowledgeDesktopWindowMerge,
   confirmDesktopWindowMerge,
   getDesktopWindowMergeStatus,
-  previewDesktopWindowMerge,
 } from '../extension/desktop-window-merge-client.js'
 import {
   desktopWindowMergeFailureMessage,
@@ -21,18 +20,20 @@ import {
 } from './DesktopWindowMergeDialog'
 
 /**
- * Dashboard-page host for Desktop Window Merge: owns the confirm, progress,
- * and result dialogs plus the journal status listener that were previously
- * embedded in the header Tab actions menu. The merge is triggered from the
- * toolbar Tab Actions Menu popup, whose handoff focuses this page and sends
- * the start-preview message; the invoking page still initiates the preview so
- * the destination window remains the one containing it.
+ * Dashboard-page host for Desktop Window Merge: owns the progress, result,
+ * and revalidation dialogs plus the journal status listener. The user
+ * previews and confirms in the toolbar Tab Actions Menu popup; its handoff
+ * focuses this page and delivers the start-confirm intent, and this page
+ * submits the confirmation so it becomes the journal owner. When
+ * confirmation-time revalidation reports changes, this page asks again with
+ * fresh counts through the full dialog.
  */
 export function DesktopWindowMergeHost() {
   const mergeResultAcknowledgementPendingRef = useRef(false)
   const handledSessionIdsRef = useRef(new Set<string>())
   const mergePendingRef = useRef(false)
   const mergeSessionRef = useRef<DesktopWindowMergeJournal | null>(null)
+  const confirmMergeRef = useRef<((previewId: string) => Promise<void>) | null>(null)
   const [dialogState, setDialogState] =
     useState<DesktopWindowMergeDialogState | null>(null)
 
@@ -68,40 +69,6 @@ export function DesktopWindowMergeHost() {
       setDialogState({ kind: 'result', journal })
     }
 
-    const requestMergePreview = async () => {
-      if (mergePendingRef.current || mergeSessionRef.current) return
-      mergePendingRef.current = true
-      const response = await previewDesktopWindowMerge().finally(() => {
-        mergePendingRef.current = false
-      })
-      if (disposed) return
-      if (!response) {
-        showToast('Could not check windows on this desktop')
-        return
-      }
-      if (!response.ok) {
-        showToast(desktopWindowMergeFailureMessage(response.reason))
-        return
-      }
-      if (response.status === 'ready') {
-        setDialogState({
-          kind: 'confirm',
-          movingTabCount: response.movingTabCount,
-          previewId: response.previewId,
-          sourceWindowCount: response.sourceWindowCount,
-        })
-        return
-      }
-      if (response.status === 'already-merged') {
-        showToast('All windows on this desktop are already merged.')
-        return
-      }
-      if (response.status === 'busy') {
-        showToast('Another window merge is already in progress')
-        return
-      }
-    }
-
     void applyStatus()
     const onRuntimeMessage = (
       message: unknown,
@@ -112,9 +79,10 @@ export function DesktopWindowMergeHost() {
         void applyStatus()
         return undefined
       }
-      if (isDesktopWindowMergeStartPreviewMessage(message)) {
+      const startConfirmRequest = parseDesktopWindowMergeStartConfirmMessage(message)
+      if (startConfirmRequest) {
         sendResponse({ ok: true })
-        void requestMergePreview()
+        void confirmMergeRef.current?.(startConfirmRequest.previewId)
         return undefined
       }
       return undefined
@@ -136,6 +104,9 @@ export function DesktopWindowMergeHost() {
   }, [])
 
   async function confirmMerge(previewId: string) {
+    // The handoff retries delivery until acknowledged; a lost acknowledgement
+    // must not submit the same confirmation twice.
+    if (mergePendingRef.current) return
     setDialogState({ kind: 'progress' })
     mergePendingRef.current = true
     const response = await confirmDesktopWindowMerge(previewId).finally(() => {
@@ -217,6 +188,11 @@ export function DesktopWindowMergeHost() {
       setDialogState(null)
     }
   }
+
+  // Keep the mount-once message listener pointed at the current confirmMerge.
+  useEffect(() => {
+    confirmMergeRef.current = confirmMerge
+  })
 
   return (
     <DesktopWindowMergeDialog
