@@ -322,7 +322,7 @@ export function TabActionsPopup() {
         <span className="min-w-0 flex-1">
           <span className="block">Merge windows on this desktop…</span>
           {mergeUnavailableReason && (
-            <span className="mt-0.5 block text-[11px] leading-4 text-muted-foreground">
+            <span className="mt-0.5 block text-[13px] leading-4 text-muted-foreground">
               {mergeUnavailableReason}
             </span>
           )}

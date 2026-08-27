@@ -45,6 +45,8 @@ test('popup renders the Tab Actions Menu and dedupes all windows from a live cou
   await expect(mergeItem).toContainText('Merge windows on this desktop…')
   await expect(mergeItem).toBeDisabled()
   await expect(mergeItem).toContainText('Window merge coordination is unavailable in this Chrome session')
+  await expect(mergeItem.getByText('Merge windows on this desktop…', { exact: true })).toHaveCSS('font-size', '14px')
+  await expect(mergeItem.getByText('Window merge coordination is unavailable in this Chrome session', { exact: true })).toHaveCSS('font-size', '13px')
   const separator = page.locator('[data-tabout="tab-actions"] [role="separator"]')
   await expect(separator).toHaveCount(1)
 
