@@ -1,5 +1,5 @@
 import { Toast as BaseToast } from '@base-ui/react/toast'
-import type { ToastAction } from '../lib/toast-contract.js'
+import type { ToastAction, ToastOptions } from '../lib/toast-contract.js'
 
 const baseToastManager = BaseToast.createToastManager()
 const { promise: toastManagerReady, resolve: resolveToastManagerReady } = Promise.withResolvers<void>()
@@ -19,12 +19,14 @@ export const toastManager: typeof baseToastManager = {
 export async function showToastInMountedRoot(
   title: string,
   action: ToastAction | null,
+  options?: ToastOptions,
 ): Promise<void> {
   await toastManagerReady
   const toastId = toastManager.add({
     title,
     description: action?.description,
     type: 'success',
+    ...(options?.timeout === undefined ? {} : { timeout: options.timeout }),
     actionProps: action
       ? {
           children: action.label,

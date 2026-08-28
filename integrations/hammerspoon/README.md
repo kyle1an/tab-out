@@ -232,9 +232,9 @@ menu:
   and, when available, a minimized, app, popup, fullscreen, sticky, Incognito,
   or other-profile window;
 - confirm the in-menu preview counts only the eligible same-Desktop source
-  windows and tabs and gives Cancel initial focus, and that confirming focuses
-  a Tab Out page in the invoking window showing the same non-dismissible
-  `Merging windows…` modal; and
+  windows and tabs and gives Cancel initial focus, and that confirming merges
+  directly without moving focus — the non-dismissible `Merging windows…`
+  modal runs on a background Tab Out page in the invoking window; and
 - confirm the invoking window keeps focus and its active tab, destination tabs
   stay first, source windows follow native front-to-back order, pins and whole
   groups retain their state, eligible emptied windows close, and excluded

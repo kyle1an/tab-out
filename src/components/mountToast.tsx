@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import type { ToastAction } from '../lib/toast-contract.js'
+import type { ToastAction, ToastOptions } from '../lib/toast-contract.js'
 import { Toast } from './Toast'
 import { showToastInMountedRoot } from './toast-runtime'
 
@@ -17,7 +17,8 @@ function mountToast() {
 export async function showMountedToast(
   title: string,
   action: ToastAction | null,
+  options?: ToastOptions,
 ): Promise<void> {
   if (!mountToast()) return
-  await showToastInMountedRoot(title, action)
+  await showToastInMountedRoot(title, action, options)
 }

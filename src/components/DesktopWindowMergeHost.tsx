@@ -8,6 +8,7 @@ import {
   acknowledgeDesktopWindowMerge,
   confirmDesktopWindowMerge,
   getDesktopWindowMergeStatus,
+  previewDesktopWindowMerge,
 } from '../extension/desktop-window-merge-client.js'
 import {
   desktopWindowMergeFailureMessage,
@@ -20,11 +21,33 @@ import {
 } from './DesktopWindowMergeDialog'
 
 /**
+ * A menu-confirmed merge runs on this page while it stays in the background,
+ * so the user's focus never moves on the happy path. When a dialog genuinely
+ * needs them — a revalidation re-confirmation or a non-success result — the
+ * page surfaces itself.
+ */
+async function bringThisPageForward(): Promise<void> {
+  const tab = await chrome.tabs.getCurrent().catch(() => undefined)
+  if (typeof tab?.id !== 'number') return
+  await chrome.tabs.update(tab.id, { active: true }).catch(() => undefined)
+  if (typeof tab.windowId === 'number') {
+    await chrome.windows.update(tab.windowId, { focused: true }).catch(() => undefined)
+  }
+}
+
+function showDesktopWindowMergeBackgroundReport(title: string): void {
+  const options = document.visibilityState === 'visible'
+    ? undefined
+    : { timeout: 0 }
+  showToast(title, null, options)
+}
+
+/**
  * Dashboard-page host for Desktop Window Merge: owns the progress, result,
  * and revalidation dialogs plus the journal status listener. The user
  * previews and confirms in the toolbar Tab Actions Menu popup; its handoff
- * focuses this page and delivers the start-confirm intent, and this page
- * submits the confirmation so it becomes the journal owner. When
+ * delivers the start-confirm intent to this page in the background, and this
+ * page submits the confirmation so it becomes the journal owner. When
  * confirmation-time revalidation reports changes, this page asks again with
  * fresh counts through the full dialog.
  */
@@ -60,13 +83,14 @@ export function DesktopWindowMergeHost() {
       handledSessionIdsRef.current.add(journal.sessionId)
       if (journal.status === 'succeeded') {
         setDialogState(null)
-        showToast(desktopWindowMergeSuccessMessage(journal))
+        showDesktopWindowMergeBackgroundReport(desktopWindowMergeSuccessMessage(journal))
         const acknowledged = await acknowledgeDesktopWindowMerge(journal.sessionId)
         if (!acknowledged) handledSessionIdsRef.current.delete(journal.sessionId)
         else if (!disposed) mergeSessionRef.current = null
         return
       }
       setDialogState({ kind: 'result', journal })
+      void bringThisPageForward()
     }
 
     void applyStatus()
@@ -109,9 +133,13 @@ export function DesktopWindowMergeHost() {
     if (mergePendingRef.current) return
     setDialogState({ kind: 'progress' })
     mergePendingRef.current = true
-    const response = await confirmDesktopWindowMerge(previewId).finally(() => {
+    await runMergeConfirmation(previewId).finally(() => {
       mergePendingRef.current = false
     })
+  }
+
+  async function runMergeConfirmation(previewId: string) {
+    const response = await confirmDesktopWindowMerge(previewId)
     if (!response) {
       setDialogState(null)
       showToast('Could not read the window merge result')
@@ -123,18 +151,42 @@ export function DesktopWindowMergeHost() {
       return
     }
     if (response.status === 'changed') {
+      // The replacement preview returned by confirmation was captured while
+      // this owner was still inactive. Surface it first, then capture the
+      // snapshot that the user will actually approve.
+      await bringThisPageForward()
+      const refreshed = await previewDesktopWindowMerge()
+      if (!refreshed) {
+        setDialogState(null)
+        showToast('Could not read the window merge preview')
+        return
+      }
+      if (!refreshed.ok) {
+        setDialogState(null)
+        showToast(desktopWindowMergeFailureMessage(refreshed.reason))
+        return
+      }
+      if (refreshed.status !== 'ready') {
+        setDialogState(null)
+        showToast(refreshed.status === 'already-merged'
+          ? 'All windows on this desktop are already merged.'
+          : 'Another window merge is already in progress')
+        return
+      }
       setDialogState({
         kind: 'confirm',
-        movingTabCount: response.movingTabCount,
+        movingTabCount: refreshed.movingTabCount,
         notice: 'The windows or tabs changed. Review the updated counts before merging.',
-        previewId: response.previewId,
-        sourceWindowCount: response.sourceWindowCount,
+        previewId: refreshed.previewId,
+        sourceWindowCount: refreshed.sourceWindowCount,
       })
       return
     }
     if (response.status === 'already-merged') {
       setDialogState(null)
-      showToast('All windows on this desktop are already merged.')
+      showDesktopWindowMergeBackgroundReport(
+        'All windows on this desktop are already merged.',
+      )
       return
     }
     if (response.status === 'busy') {
@@ -152,7 +204,9 @@ export function DesktopWindowMergeHost() {
     mergeSessionRef.current = response.journal
     if (response.status === 'succeeded') {
       setDialogState(null)
-      showToast(desktopWindowMergeSuccessMessage(response.journal))
+      showDesktopWindowMergeBackgroundReport(
+        desktopWindowMergeSuccessMessage(response.journal),
+      )
       const acknowledged = await acknowledgeDesktopWindowMerge(response.journal.sessionId)
       if (!acknowledged) {
         handledSessionIdsRef.current.delete(response.journal.sessionId)
@@ -162,6 +216,7 @@ export function DesktopWindowMergeHost() {
       return
     }
     setDialogState({ kind: 'result', journal: response.journal })
+    void bringThisPageForward()
   }
 
   async function closeMergeResult(journal: DesktopWindowMergeJournal) {

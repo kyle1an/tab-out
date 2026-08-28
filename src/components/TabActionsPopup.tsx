@@ -84,8 +84,9 @@ async function requestMergeConfirmHandoff(previewId: string): Promise<void> {
     windowId: currentWindow.id,
     previewId,
   }).catch(() => undefined)
-  // The handed-off Tab Out page submits the confirmation and takes focus,
-  // which closes the popup anyway; close it deliberately.
+  // The handed-off Tab Out page submits the confirmation in the background —
+  // the user's focus stays put while the merge runs — so the menu dismisses
+  // itself here.
   window.close()
 }
 

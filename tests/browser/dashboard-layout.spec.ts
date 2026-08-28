@@ -60,6 +60,26 @@ type DirectPointerEntry = FirstPointerEntry & {
 const HISTORY_REORDER_INITIAL_KEYS = ['stack:1:9103', 'stack:1:9102', 'stack:1:9101']
 const HISTORY_REORDER_NEXT_KEYS = ['stack:1:9101', 'stack:1:9103', 'stack:1:9102']
 
+async function installMergeSurfaceRecorder(
+  page: Page,
+): Promise<void> {
+  await page.evaluate(() => {
+    const requests: unknown[] = []
+    const originalTabUpdate = window.chrome.tabs.update.bind(window.chrome.tabs)
+    const originalWindowUpdate = window.chrome.windows.update.bind(window.chrome.windows)
+    Reflect.set(window, '__tabOutMergeSurfaceRequests', requests)
+    Reflect.set(window.chrome.tabs, 'getCurrent', async () => ({ id: 1, windowId: 1 }))
+    Reflect.set(window.chrome.tabs, 'update', async (...args: unknown[]) => {
+      requests.push({ kind: 'tab', args })
+      return Reflect.apply(originalTabUpdate, window.chrome.tabs, args)
+    })
+    Reflect.set(window.chrome.windows, 'update', async (...args: unknown[]) => {
+      requests.push({ kind: 'window', args })
+      return Reflect.apply(originalWindowUpdate, window.chrome.windows, args)
+    })
+  })
+}
+
 async function dashboardServiceStateRequestCount(page: Page): Promise<number> {
   return page.evaluate(() => {
     const readCount = Reflect.get(window, '__tabOutSmokeDashboardServiceStateRequestCount')
@@ -493,14 +513,17 @@ test('dashboard repacks across viewport sizes', async ({ page }) => {
 test('window merge confirm handoff re-confirms revalidation changes and stays modal during progress', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  await installMergeSurfaceRecorder(page)
 
   await page.evaluate(() => {
     const runtime = window.chrome.runtime
     const originalSendMessage = runtime.sendMessage.bind(runtime)
     const completion = Promise.withResolvers<unknown>()
     const confirmRequests: unknown[] = []
+    const previewRequests: unknown[] = []
     Reflect.set(window, '__tabOutMergeCompletion', completion)
     Reflect.set(window, '__tabOutMergeConfirmRequests', confirmRequests)
+    Reflect.set(window, '__tabOutMergePreviewRequests', previewRequests)
     Reflect.set(runtime, 'sendMessage', async (...args: unknown[]) => {
       const message = args[0] as { type?: string } | undefined
       if (message?.type === 'tab-out:get-desktop-window-merge-status') {
@@ -521,6 +544,16 @@ test('window merge confirm handoff re-confirms revalidation changes and stays mo
         }
         return completion.promise
       }
+      if (message?.type === 'tab-out:preview-desktop-window-merge') {
+        previewRequests.push(message)
+        return {
+          ok: true,
+          status: 'ready',
+          previewId: 'preview-refreshed-after-focus',
+          sourceWindowCount: 2,
+          movingTabCount: 4,
+        }
+      }
       if (message?.type === 'tab-out:acknowledge-desktop-window-merge') {
         return { ok: true }
       }
@@ -532,9 +565,9 @@ test('window merge confirm handoff re-confirms revalidation changes and stays mo
     onMessage.dispatch({ type: 'tab-out:desktop-window-merge-status-changed' })
   })
 
-  // The toolbar popup's handoff delivers this runtime message after focusing
-  // the page; the dashboard merge host acknowledges it and submits the
-  // menu-approved confirmation.
+  // The toolbar popup's handoff delivers this runtime message to the inactive
+  // page; the dashboard merge host acknowledges it and submits the
+  // menu-approved confirmation in the background.
   const startConfirmAcknowledged = await page.evaluate(() => {
     const onMessage = Reflect.get(window.chrome.runtime, 'onMessage') as unknown as {
       dispatch: (...args: unknown[]) => void
@@ -559,6 +592,13 @@ test('window merge confirm handoff re-confirms revalidation changes and stays mo
   await expect(dialog).toContainText(
     'The windows or tabs changed. Review the updated counts before merging.',
   )
+  expect(await page.evaluate(() => Reflect.get(window, '__tabOutMergeSurfaceRequests'))).toEqual([
+    { kind: 'tab', args: [1, { active: true }] },
+    { kind: 'window', args: [1, { focused: true }] },
+  ])
+  expect(await page.evaluate(() => Reflect.get(window, '__tabOutMergePreviewRequests'))).toEqual([
+    { type: 'tab-out:preview-desktop-window-merge' },
+  ])
   const cancel = dialog.locator('[data-tabout-part="cancel-button"]')
   await expect(cancel).toBeFocused()
   await dialog.evaluate((element) => element.setAttribute('data-fixture-dialog', 'same'))
@@ -597,11 +637,11 @@ test('window merge confirm handoff re-confirms revalidation changes and stays mo
   await expect(dialog).not.toBeAttached()
   expect(await page.evaluate(() => Reflect.get(window, '__tabOutMergeConfirmRequests'))).toEqual([
     { type: 'tab-out:confirm-desktop-window-merge', previewId: 'preview-fixture' },
-    { type: 'tab-out:confirm-desktop-window-merge', previewId: 'preview-revalidated' },
+    { type: 'tab-out:confirm-desktop-window-merge', previewId: 'preview-refreshed-after-focus' },
   ])
 })
 
-test('window merge clears restored progress when status reports success', async ({ page }) => {
+test('window merge preserves hidden success and already-merged reports', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
 
@@ -631,6 +671,9 @@ test('window merge clears restored progress when status reports success', async 
       if (message?.type === 'tab-out:get-desktop-window-merge-status') {
         return Reflect.get(window, '__tabOutMergeStatus')
       }
+      if (message?.type === 'tab-out:confirm-desktop-window-merge') {
+        return { ok: true, status: 'already-merged' }
+      }
       if (message?.type === 'tab-out:acknowledge-desktop-window-merge') {
         return { ok: true }
       }
@@ -647,6 +690,10 @@ test('window merge clears restored progress when status reports success', async 
 
   await page.evaluate(() => {
     const current = Reflect.get(window, '__tabOutMergeStatus')
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'hidden',
+    })
     Reflect.set(window, '__tabOutMergeStatus', {
       ...current,
       session: {
@@ -669,11 +716,36 @@ test('window merge clears restored progress when status reports success', async 
   await expect(page.getByText('Merged 4 tabs from 2 other windows.', { exact: true }))
     .toBeVisible()
   await expect(dialog).not.toBeAttached()
+  await page.waitForTimeout(6_000)
+  await expect(page.getByText('Merged 4 tabs from 2 other windows.', { exact: true }))
+    .toBeVisible()
+
+  await page.evaluate(() => {
+    const onMessage = Reflect.get(window.chrome.runtime, 'onMessage') as unknown as {
+      dispatch: (...args: unknown[]) => void
+    }
+    onMessage.dispatch(
+      { type: 'tab-out:start-desktop-window-merge-confirm', previewId: 'preview-settled' },
+      {},
+      () => undefined,
+    )
+  })
+
+  await expect(page.getByText(
+    'All windows on this desktop are already merged.',
+    { exact: true },
+  )).toBeVisible()
+  await page.waitForTimeout(6_000)
+  await expect(page.getByText(
+    'All windows on this desktop are already merged.',
+    { exact: true },
+  )).toBeVisible()
 })
 
 test('window merge keeps a partial result open until acknowledgement succeeds', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  await installMergeSurfaceRecorder(page)
 
   await page.evaluate(() => {
     const runtime = window.chrome.runtime
@@ -725,6 +797,10 @@ test('window merge keeps a partial result open until acknowledgement succeeds', 
 
   const dialog = page.locator('[data-tabout="desktop-window-merge-dialog"]')
   await expect(dialog).toContainText('Some windows couldn’t be merged')
+  expect(await page.evaluate(() => Reflect.get(window, '__tabOutMergeSurfaceRequests'))).toEqual([
+    { kind: 'tab', args: [1, { active: true }] },
+    { kind: 'window', args: [1, { focused: true }] },
+  ])
   await dialog.locator('[data-tabout-part="close-button"]').evaluate((button) => {
     if (!(button instanceof HTMLButtonElement)) throw new Error('Close button missing')
     button.click()

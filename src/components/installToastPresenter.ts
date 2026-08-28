@@ -13,7 +13,7 @@ function loadToastRuntime(): Promise<ToastRuntime> {
   return toastRuntimePromise
 }
 
-const presentPageToast: ToastPresenter = (title, action) => {
+const presentPageToast: ToastPresenter = (title, action, options) => {
   // Toasts are a page-only enhancement. Keep the React mount out of worker-like
   // contexts and out of the initial dashboard chunk until the first notice.
   if (
@@ -22,7 +22,7 @@ const presentPageToast: ToastPresenter = (title, action) => {
     !document.body
   ) return
   void loadToastRuntime()
-    .then(({ showMountedToast }) => showMountedToast(title, action))
+    .then(({ showMountedToast }) => showMountedToast(title, action, options))
     .catch((error: unknown) => {
       console.error('Could not load toast UI', error)
     })

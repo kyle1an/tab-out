@@ -51,14 +51,14 @@ test('showToast is a quiet no-op with a partial worker-style document shim', asy
 })
 
 test('showToast dispatches through the installed page presenter until it is removed', () => {
-  const presented: string[] = []
-  const uninstall = installToastPresenter((title) => {
-    presented.push(title)
+  const presented: Array<{ title: string, timeout: number | undefined }> = []
+  const uninstall = installToastPresenter((title, _action, options) => {
+    presented.push({ title, timeout: options?.timeout })
   })
 
-  showToast('First notice')
+  showToast('First notice', null, { timeout: 0 })
   uninstall()
   showToast('Ignored after uninstall')
 
-  assert.deepEqual(presented, ['First notice'])
+  assert.deepEqual(presented, [{ title: 'First notice', timeout: 0 }])
 })

@@ -27,7 +27,10 @@ import {
   initialOpenSurfaceReconciliationEffect,
 } from './background/initial-open-surface-reconciliation.js'
 import { OPEN_NEW_TAB_COMMAND, openNewTabEffect } from './background/new-tab-command.js'
-import { handoffDesktopWindowMergeToWindowEffect } from './background/desktop-window-merge-handoff.js'
+import {
+  ensureDashboardTabInWindowEffect,
+  handoffDesktopWindowMergeToWindowEffect,
+} from './background/desktop-window-merge-handoff.js'
 import { groupColorChanged } from './groups.js'
 import {
   isDesktopWindowMergeStatusGetMessage,
@@ -506,8 +509,22 @@ chromeApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ ok: false })
       return true
     }
+    // A menu preview freezes the browser snapshot, so the Tab Out page that
+    // will later submit the confirmation must already exist (inactive) when
+    // the plan is captured — otherwise its own creation would invalidate the
+    // preview at confirmation time.
+    const previewEffect = requester.tabId === DESKTOP_WINDOW_MERGE_MENU_REQUESTER_TAB_ID
+      ? ensureDashboardTabInWindowEffect(chromeApi, requester.windowId).pipe(
+          Effect.flatMap((dashboardTabId) => dashboardTabId === null
+            ? Effect.succeed({
+                ok: false as const,
+                reason: 'coordination-unavailable' as const,
+              })
+            : desktopWindowMergeService.preview(requester.tabId, requester.windowId)),
+        )
+      : desktopWindowMergeService.preview(requester.tabId, requester.windowId)
     void backgroundRuntime.runPromise(settleBackgroundEffect(sendEffectResponse(
-      desktopWindowMergeService.preview(requester.tabId, requester.windowId),
+      previewEffect,
       sendResponse,
       (preview) => preview,
       () => ({ ok: false }),

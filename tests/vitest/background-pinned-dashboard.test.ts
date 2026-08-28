@@ -7,6 +7,7 @@ import { STARTUP_SNAPSHOT_DEBOUNCE_MS } from '../../src/extension/background/sta
 import { WORKING_SET_ACTIVITY_AUTHORITY_KEY } from '../../src/extension/background/working-set-activity-authority.js'
 import { RETAINED_PAGES_EXPIRY_ALARM } from '../../src/extension/background/retained-pages-expiry-alarm.js'
 import { CLOSED_TAB_RESTORE_STATE_MESSAGE } from '../../src/extension/closed-tabs.js'
+import { DESKTOP_WINDOW_MERGE_PREVIEW_MESSAGE } from '../../src/extension/desktop-window-merge-contract.js'
 import {
   decodeDashboardRetainedPagesWire,
   type DashboardRetainedPagesWire,
@@ -838,6 +839,35 @@ async function loadBackgroundWithPendingLinkTabs() {
   await flushBackgroundWork()
   return mock
 }
+
+test('menu window-merge preview fails when its owner page cannot be created', async () => {
+  const mock = await loadBackground([{
+    id: 91,
+    windowId: 1,
+    url: 'https://example.test/',
+    title: 'Example',
+    active: true,
+    pinned: false,
+    groupId: -1,
+    index: 0,
+  }])
+  let createAttempts = 0
+  mock.chrome.tabs.create = async () => {
+    createAttempts += 1
+    throw new Error('Tab creation failed')
+  }
+
+  const response = await sendRawRuntimeMessage(mock, {
+    type: DESKTOP_WINDOW_MERGE_PREVIEW_MESSAGE,
+    windowId: 1,
+  })
+
+  assert.equal(createAttempts, 2)
+  assert.deepEqual(response, {
+    ok: false,
+    reason: 'coordination-unavailable',
+  })
+})
 
 test('retention storage is restricted to trusted extension contexts before use', async () => {
   const mock = await loadBackground([{
