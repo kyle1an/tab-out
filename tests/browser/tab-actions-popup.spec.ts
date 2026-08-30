@@ -6,6 +6,7 @@ const DEDUPE_ITEM = '[data-tabout="tab-actions"] [data-tabout-part="dedupe-butto
 const CLOSE_SUSPENDED_ITEM = '[data-tabout="tab-actions"] [data-tabout-part="close-suspended-button"]'
 const COMBINED_ITEM = '[data-tabout="tab-actions"] [data-tabout-part="close-suspended-and-dedupe-button"]'
 const MOVE_CURRENT_TAB_ITEM = '[data-tabout="tab-actions"] [data-tabout-part="move-current-tab-button"]'
+const SELECT_NATIVE_PROFILE_ITEM = '[data-tabout="tab-actions"] [data-tabout-part="select-native-profile-button"]'
 const MERGE_ITEM = '[data-tabout="tab-actions"] [data-tabout-part="merge-desktop-windows-button"]'
 
 async function enableMergeAvailability(page: Page) {
@@ -165,6 +166,192 @@ test('popup close-suspended runs single-flight and reports zero feedback inline'
   await expect(closeItem).toBeEnabled()
   await closeItem.click()
   await expect(page.getByText('Nothing suspended to close', { exact: true })).toBeVisible()
+})
+
+test('popup profile pairing shares the tab-action single-flight guard', async ({ page }) => {
+  await page.goto(POPUP_FIXTURE)
+  await page.evaluate(() => {
+    Reflect.set(window, '__tabOutPopupMessageHandler', (message: { type?: string } | undefined) => {
+      if (message?.type === 'tab-out:select-native-integration-profile') {
+        return { ok: true }
+      }
+      if (message?.type === 'tab-out:get-desktop-window-merge-status') {
+        return {
+          ok: true,
+          availability: { available: false, reason: 'profile-selection-required' },
+          session: null,
+        }
+      }
+      return undefined
+    })
+    const onMessage = Reflect.get(window.chrome.runtime, 'onMessage') as unknown as {
+      dispatch: (message: unknown) => void
+    }
+    onMessage.dispatch({ type: 'tab-out:desktop-window-merge-status-changed' })
+  })
+
+  const selectionItem = page.locator(SELECT_NATIVE_PROFILE_ITEM)
+  const closeItem = page.locator(CLOSE_SUSPENDED_ITEM)
+  await expect(selectionItem).toBeEnabled()
+
+  await page.evaluate(() => {
+    const tabsApi = window.chrome.tabs
+    const queryTabs = tabsApi.query.bind(tabsApi)
+    const blocked = Promise.withResolvers<void>()
+    const gate = {
+      profileStarted: false,
+      queryCount: 0,
+      queryCountBeforeProfile: 0,
+      releaseProfile: () => {},
+      releaseTabAction: blocked.resolve,
+      selectionReentered: false,
+    }
+    Reflect.set(window, '__tabOutProfileSingleFlightGate', gate)
+    Reflect.set(tabsApi, 'query', async (...args: unknown[]) => {
+      gate.queryCount += 1
+      if (gate.queryCount === 1) {
+        const profileItem = document.querySelector<HTMLElement>(
+          '[data-tabout-part="select-native-profile-button"]',
+        )
+        if (!profileItem) throw new Error('Profile selection item is unavailable for reentry')
+        profileItem.click()
+        gate.selectionReentered = true
+      }
+      await blocked.promise
+      return Reflect.apply(queryTabs, tabsApi, args)
+    })
+    const actionItem = document.querySelector<HTMLElement>(
+      '[data-tabout-part="close-suspended-button"]',
+    )
+    if (!actionItem) throw new Error('Close-suspended item is unavailable')
+    actionItem.click()
+  })
+
+  await expect.poll(() => page.evaluate(() => (
+    Reflect.get(window, '__tabOutProfileSingleFlightGate')?.selectionReentered === true
+  ))).toBe(true)
+  await expect(selectionItem).toBeDisabled()
+  expect(await page.evaluate(() => (
+    (Reflect.get(window, '__tabOutPopupSentMessages') as Array<{ type?: string }>)
+      .filter((message) => message?.type === 'tab-out:select-native-integration-profile')
+  ))).toEqual([])
+
+  await page.evaluate(() => {
+    const release = Reflect.get(window, '__tabOutProfileSingleFlightGate')?.releaseTabAction
+    if (typeof release !== 'function') throw new Error('Tab action gate is unavailable')
+    Reflect.apply(release, window, [])
+  })
+  await expect(page.getByText('Nothing suspended to close', { exact: true })).toBeVisible()
+  await expect(selectionItem).toBeEnabled()
+
+  await page.evaluate(() => {
+    const gate = Reflect.get(window, '__tabOutProfileSingleFlightGate') as {
+      profileStarted: boolean
+      queryCount: number
+      queryCountBeforeProfile: number
+      releaseProfile: () => void
+    }
+    const blocked = Promise.withResolvers<{ ok: true }>()
+    let selected = false
+    gate.queryCountBeforeProfile = gate.queryCount
+    gate.releaseProfile = () => {
+      selected = true
+      blocked.resolve({ ok: true })
+    }
+    Reflect.set(window, '__tabOutPopupMessageHandler', (message: { type?: string } | undefined) => {
+      if (message?.type === 'tab-out:select-native-integration-profile') {
+        gate.profileStarted = true
+        const actionItem = document.querySelector<HTMLElement>(
+          '[data-tabout-part="close-suspended-button"]',
+        )
+        if (!actionItem) throw new Error('Close-suspended item is unavailable for reentry')
+        actionItem.click()
+        return blocked.promise
+      }
+      if (message?.type === 'tab-out:get-desktop-window-merge-status') {
+        return selected
+          ? { ok: true, availability: { available: true }, session: null }
+          : {
+              ok: true,
+              availability: { available: false, reason: 'profile-selection-required' },
+              session: null,
+            }
+      }
+      return undefined
+    })
+  })
+
+  await selectionItem.click()
+  await expect.poll(() => page.evaluate(() => (
+    Reflect.get(window, '__tabOutProfileSingleFlightGate')?.profileStarted === true
+  ))).toBe(true)
+  await expect(selectionItem).toBeDisabled()
+  await expect(closeItem).toBeDisabled()
+  expect(await page.evaluate(() => {
+    const gate = Reflect.get(window, '__tabOutProfileSingleFlightGate')
+    return gate?.queryCount === gate?.queryCountBeforeProfile
+  })).toBe(true)
+
+  await page.evaluate(() => {
+    const release = Reflect.get(window, '__tabOutProfileSingleFlightGate')?.releaseProfile
+    if (typeof release !== 'function') throw new Error('Profile selection gate is unavailable')
+    Reflect.apply(release, window, [])
+  })
+  await expect(selectionItem).not.toBeAttached()
+  await expect(page.getByText(
+    'This Chrome profile now owns the macOS integration',
+    { exact: true },
+  )).toBeVisible()
+  expect(await page.evaluate(() => (
+    (Reflect.get(window, '__tabOutPopupSentMessages') as Array<{ type?: string }>)
+      .filter((message) => message?.type === 'tab-out:select-native-integration-profile')
+  ))).toEqual([{ type: 'tab-out:select-native-integration-profile' }])
+})
+
+test('popup explicitly pairs the current Chrome profile for the macOS integration', async ({ page }) => {
+  await page.goto(POPUP_FIXTURE)
+  await page.evaluate(() => {
+    let selected = false
+    Reflect.set(window, '__tabOutPopupMessageHandler', (message: { type?: string } | undefined) => {
+      if (message?.type === 'tab-out:select-native-integration-profile') {
+        selected = true
+        return { ok: true }
+      }
+      if (message?.type === 'tab-out:get-desktop-window-merge-status') {
+        return selected
+          ? { ok: true, availability: { available: true }, session: null }
+          : {
+              ok: true,
+              availability: { available: false, reason: 'profile-selection-required' },
+              session: null,
+            }
+      }
+      return undefined
+    })
+    const onMessage = Reflect.get(window.chrome.runtime, 'onMessage') as unknown as {
+      dispatch: (message: unknown) => void
+    }
+    onMessage.dispatch({ type: 'tab-out:desktop-window-merge-status-changed' })
+  })
+
+  const selectionItem = page.locator(SELECT_NATIVE_PROFILE_ITEM)
+  await expect(selectionItem).toHaveText('Use this Chrome profile for macOS integration')
+  await expect(selectionItem).toBeEnabled()
+  await expect(page.locator(MERGE_ITEM)).toContainText(
+    'Choose this Chrome profile for the macOS integration',
+  )
+
+  await selectionItem.click()
+
+  await expect(selectionItem).not.toBeAttached()
+  await expect(page.getByText(
+    'This Chrome profile now owns the macOS integration',
+    { exact: true },
+  )).toBeVisible()
+  expect(await page.evaluate(() => (
+    (Reflect.get(window, '__tabOutPopupSentMessages') as Array<{ type?: string }>)
+      .filter((message) => message?.type === 'tab-out:select-native-integration-profile')
+  ))).toEqual([{ type: 'tab-out:select-native-integration-profile' }])
 })
 
 test('popup combines suspended close and dedupe into one Undo', async ({ page }) => {

@@ -128,10 +128,11 @@ local scenarios = {
       profileInventoryRequestCount = 2, privateFocusAttemptCount = 0 },
   },
   {
-    "reject Tab Out loaded in another profile of the configured process", "filter",
+    "keep the paired profile when Tab Out loads in another profile", "filter",
     { duplicateProfileExtension = true },
-    { browserInventoryReadCount = 0, failed = true,
-      profileInventoryRequestCount = 1, privateFocusAttemptCount = 0 },
+    { createdWindow = false, failed = false, filterInputFocused = true,
+      openedFilter = true, privateFocusAttemptCount = 1,
+      profileInventoryRequestCount = 1, targetFocused = true },
   },
   {
     "bound destination identity retries by wall-clock time", "filter",
@@ -168,15 +169,16 @@ local scenarios = {
       shieldVisibleAtPrivateFocus = true, targetBoundsLeft = 1440, targetFocused = true },
   },
   {
-    "abort filter creation when exclusive profile ownership changes", "filter",
+    "finish filter creation when another profile loads Tab Out", "filter",
     { duplicateProfileExtensionDuringCreation = true, targetHasChromeWindow = false },
-    { failed = true, filterInputFocused = false, privateFocusUsed = false },
+    { createdWindow = true, failed = false, filterInputFocused = true,
+      privateFocusUsed = true },
   },
   {
-    "abort new-page creation when exclusive profile ownership changes", "newPage",
+    "finish new-page creation when another profile loads Tab Out", "newPage",
     { duplicateProfileExtensionDuringCreation = true, targetHasChromeWindow = false },
-    { failed = true, addressBarFocused = false, createdBootstrapReplaced = false,
-      privateFocusUsed = false },
+    { addressBarFocused = true, createdBootstrapReplaced = true,
+      createdWindow = true, failed = false, privateFocusUsed = true },
   },
   {
     "shield only the usable target frame during creation", "filter",

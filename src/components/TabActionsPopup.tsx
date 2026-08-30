@@ -8,6 +8,7 @@ import {
 import {
   getDesktopWindowMergeStatus,
   previewDesktopWindowMerge,
+  selectCurrentNativeIntegrationProfile,
 } from '../extension/desktop-window-merge-client.js'
 import {
   desktopWindowMergeConfirmMessage,
@@ -90,6 +91,8 @@ async function requestMergeConfirmHandoff(previewId: string): Promise<void> {
   window.close()
 }
 
+type PendingAction = 'merge' | 'profile-selection' | 'tab-action'
+
 /**
  * The Tab Actions Menu rendered by popup.html behind the toolbar action.
  * Cleanup items run in this popup page so their result toast and one-shot
@@ -99,16 +102,14 @@ async function requestMergeConfirmHandoff(previewId: string): Promise<void> {
  * result, and revalidation surfaces.
  */
 export function TabActionsPopup() {
-  const tabActionPendingRef = useRef(false)
-  const mergePendingRef = useRef(false)
+  const pendingActionRef = useRef<PendingAction | null>(null)
   const [dedupePlan, setDedupePlan] = useState<OpenTabDedupePlan | null>(null)
   const [availability, setAvailability] =
     useState<DesktopWindowMergeAvailability | null>(null)
   const [mergeSession, setMergeSession] =
     useState<DesktopWindowMergeJournal | null>(null)
   const [mergeConfirm, setMergeConfirm] = useState<PopupMergePreview | null>(null)
-  const [tabActionPending, setTabActionPending] = useState(false)
-  const [mergePending, setMergePending] = useState(false)
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
 
   // react-doctor-disable-next-line react-doctor/effect-needs-cleanup -- the returned cleanup clears refreshTimer; the id is reassigned per debounce, which the rule cannot track.
   useEffect(() => {
@@ -171,56 +172,87 @@ export function TabActionsPopup() {
   }, [])
 
   function runPopupTabAction(action: () => Promise<unknown>) {
-    if (tabActionPendingRef.current || mergeSession?.status === 'running') return
-    tabActionPendingRef.current = true
-    setTabActionPending(true)
+    if (
+      pendingActionRef.current ||
+      mergeSession?.status === 'running'
+    ) return
+    pendingActionRef.current = 'tab-action'
+    setPendingAction('tab-action')
     return action()
       .then(() => undefined)
       .finally(() => {
-        tabActionPendingRef.current = false
-        setTabActionPending(false)
+        pendingActionRef.current = null
+        setPendingAction(null)
       })
   }
 
   function requestMergeConfirmation() {
-    if (tabActionPendingRef.current || mergePendingRef.current) return
-    mergePendingRef.current = true
-    setMergePending(true)
+    if (pendingActionRef.current) return
+    pendingActionRef.current = 'merge'
+    setPendingAction('merge')
     void requestMergePreviewForCurrentWindow()
       .then((preview) => {
         if (preview) setMergeConfirm(preview)
       })
       .finally(() => {
-        mergePendingRef.current = false
-        setMergePending(false)
+        pendingActionRef.current = null
+        setPendingAction(null)
       })
   }
 
   function confirmMergeHandoff() {
     const preview = mergeConfirm
-    if (!preview || mergePendingRef.current) return
-    mergePendingRef.current = true
-    setMergePending(true)
+    if (!preview || pendingActionRef.current) return
+    pendingActionRef.current = 'merge'
+    setPendingAction('merge')
     void requestMergeConfirmHandoff(preview.previewId).finally(() => {
-      mergePendingRef.current = false
-      setMergePending(false)
+      pendingActionRef.current = null
+      setPendingAction(null)
     })
+  }
+
+  function selectNativeIntegrationProfile() {
+    if (
+      pendingActionRef.current ||
+      mergeSession?.status === 'running'
+    ) return
+    pendingActionRef.current = 'profile-selection'
+    setPendingAction('profile-selection')
+    void selectCurrentNativeIntegrationProfile()
+      .then(async (selected) => {
+        showToast(selected
+          ? 'This Chrome profile now owns the macOS integration'
+          : 'Could not select this Chrome profile')
+        const response = await getDesktopWindowMergeStatus()
+        if (response) {
+          setAvailability(response.availability)
+          setMergeSession(response.session?.journal ?? null)
+        }
+      })
+      .finally(() => {
+        pendingActionRef.current = null
+        setPendingAction(null)
+      })
   }
 
   const mergeUnavailableReason = availability == null
     ? 'Checking macOS integration…'
-    : !availability.available
-        ? desktopWindowMergeFailureMessage(availability.reason)
-        : tabActionPending
-          ? 'Another tab action is in progress'
-          : mergeSession?.status === 'running'
-            ? 'A window merge is already in progress'
-            : mergeSession
-              ? 'Finish the current window merge result'
-              : mergePending
-                ? 'Checking windows…'
-                : null
-  const otherActionsDisabled = tabActionPending || mergeSession?.status === 'running'
+    : pendingAction === 'profile-selection'
+      ? 'Selecting Chrome profile…'
+      : !availability.available
+          ? desktopWindowMergeFailureMessage(availability.reason)
+          : pendingAction === 'tab-action'
+            ? 'Another tab action is in progress'
+            : mergeSession?.status === 'running'
+              ? 'A window merge is already in progress'
+              : mergeSession
+                ? 'Finish the current window merge result'
+                : pendingAction === 'merge'
+                  ? 'Checking windows…'
+                  : null
+  const profileSelectionRequired = availability?.available === false &&
+    availability.reason === 'profile-selection-required'
+  const otherActionsDisabled = pendingAction !== null || mergeSession?.status === 'running'
   const dedupeDisabled =
     otherActionsDisabled || !dedupePlan || dedupePlan.closableCount === 0
 
@@ -296,6 +328,22 @@ export function TabActionsPopup() {
         <span className="min-w-0 flex-1">Close all suspended tabs and dedupe</span>
       </button>
       <div role="separator" aria-orientation="horizontal" className="pointer-events-none mx-1 my-1 h-px bg-border" />
+      {profileSelectionRequired && (
+        <button
+          type="button"
+          data-tabout-part="select-native-profile-button"
+          className={popupItemClassName}
+          disabled={otherActionsDisabled}
+          onClick={selectNativeIntegrationProfile}
+        >
+          <span className="icon-[lucide--circle-check-big] size-3.5" aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            {pendingAction === 'profile-selection'
+              ? 'Selecting this Chrome profile…'
+              : 'Use this Chrome profile for macOS integration'}
+          </span>
+        </button>
+      )}
       <button
         type="button"
         data-tabout-part="move-current-tab-button"

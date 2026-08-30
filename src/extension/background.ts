@@ -34,11 +34,13 @@ import {
 import { groupColorChanged } from './groups.js'
 import {
   isDesktopWindowMergeStatusGetMessage,
+  isNativeIntegrationProfileSelectRequest,
   parseDesktopWindowMergeAcknowledgeMessage,
   parseDesktopWindowMergeConfirmMessage,
   parseDesktopWindowMergeOpenMessage,
   parseDesktopWindowMergePreviewMessage,
 } from './desktop-window-merge-contract.js'
+import { NativePlacementBridge } from './background/native-placement-bridge.js'
 import {
   captureCurrentOpenSurfaceObservations,
   captureOpenSurfaceCheckpoint,
@@ -88,6 +90,7 @@ const tabHistoryService = backgroundRuntime.runSync(TabHistory.TabHistory)
 const startupSnapshotService = backgroundRuntime.runSync(StartupSnapshot)
 const retainedPagesService = backgroundRuntime.runSync(RetainedPages)
 const desktopWindowMergeService = backgroundRuntime.runSync(DesktopWindowMerge)
+const nativePlacementBridgeService = backgroundRuntime.runSync(NativePlacementBridge)
 
 function settleBackgroundEffect<Success, Failure, Requirements>(
   effect: Effect.Effect<Success, Failure, Requirements>,
@@ -453,6 +456,15 @@ chromeApi.commands.onCommand.addListener((command) => {
 chromeApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const senderTabId = sender.tab?.id
   const senderWindowId = sender.tab?.windowId
+  if (isNativeIntegrationProfileSelectRequest(message) && senderTabId === undefined) {
+    void backgroundRuntime.runPromise(settleBackgroundEffect(sendEffectResponse(
+      nativePlacementBridgeService.selectCurrentProfile(),
+      sendResponse,
+      () => ({ ok: true }),
+      () => ({ ok: false }),
+    )))
+    return true
+  }
   if (isDesktopWindowMergeStatusGetMessage(message)) {
     // A tabless sender is the toolbar Tab Actions Menu popup. It can never
     // own a merge session, so the sentinel requester id keeps it a pure

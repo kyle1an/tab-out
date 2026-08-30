@@ -14,6 +14,8 @@ export const DESKTOP_WINDOW_MERGE_OPEN_MESSAGE =
   'tab-out:open-desktop-window-merge'
 export const DESKTOP_WINDOW_MERGE_START_CONFIRM_MESSAGE =
   'tab-out:start-desktop-window-merge-confirm'
+export const NATIVE_INTEGRATION_PROFILE_SELECT_MESSAGE =
+  'tab-out:select-native-integration-profile'
 
 export const DESKTOP_WINDOW_MERGE_SESSION_STORAGE_KEY =
   'desktopWindowMergeSessionV1'
@@ -27,18 +29,22 @@ const opaqueIdSchema = Schema.String.check(
 )
 
 const desktopWindowMergeAvailabilityReasonSchema = Schema.Literals([
+  'another-profile-selected',
   'controller-update-required',
   'coordination-unavailable',
   'native-integration-required',
+  'profile-selection-required',
   'session-storage-unavailable',
 ])
 
 export const desktopWindowMergeRequestFailureReasonSchema = Schema.Literals([
+  'another-profile-selected',
   'browser-read-failed',
   'controller-update-required',
   'coordination-unavailable',
   'desktop-selection-unavailable',
   'native-integration-required',
+  'profile-selection-required',
   'session-storage-unavailable',
 ])
 
@@ -191,6 +197,12 @@ const desktopWindowMergeStartConfirmMessageSchema = Schema.Struct({
 const desktopWindowMergeStartConfirmAcknowledgementSchema = Schema.Struct({
   ok: Schema.Literals([true]),
 })
+const nativeIntegrationProfileSelectMessageSchema = Schema.Struct({
+  type: Schema.Literals([NATIVE_INTEGRATION_PROFILE_SELECT_MESSAGE]),
+})
+const nativeIntegrationProfileSelectResponseSchema = Schema.Struct({
+  ok: Schema.Boolean,
+})
 
 export type DesktopWindowMergeStatusResponse =
   typeof desktopWindowMergeStatusResponseSchema.Type
@@ -207,6 +219,12 @@ const isStatusChangedMessage = Schema.is(desktopWindowMergeStatusChangedMessageS
 const isOpenMessage = Schema.is(desktopWindowMergeOpenMessageSchema)
 const isStartConfirmMessage = Schema.is(desktopWindowMergeStartConfirmMessageSchema)
 const isStartConfirmAcknowledgement = Schema.is(desktopWindowMergeStartConfirmAcknowledgementSchema)
+const isNativeIntegrationProfileSelectMessage = Schema.is(
+  nativeIntegrationProfileSelectMessageSchema,
+)
+const isNativeIntegrationProfileSelectResponse = Schema.is(
+  nativeIntegrationProfileSelectResponseSchema,
+)
 const isStatusResponse = Schema.is(desktopWindowMergeStatusResponseSchema)
 const isPreviewResponse = Schema.is(desktopWindowMergePreviewResponseSchema)
 const isConfirmResponse = Schema.is(desktopWindowMergeConfirmResponseSchema)
@@ -253,6 +271,16 @@ export function parseDesktopWindowMergeStartConfirmMessage(
 
 export function isDesktopWindowMergeStartConfirmAcknowledgement(value: unknown): boolean {
   return isStartConfirmAcknowledgement(value)
+}
+
+export function isNativeIntegrationProfileSelectRequest(value: unknown): boolean {
+  return isNativeIntegrationProfileSelectMessage(value)
+}
+
+export function parseNativeIntegrationProfileSelectResponse(
+  value: unknown,
+): typeof nativeIntegrationProfileSelectResponseSchema.Type | null {
+  return isNativeIntegrationProfileSelectResponse(value) ? value : null
 }
 
 export function parseDesktopWindowMergeStatusResponse(

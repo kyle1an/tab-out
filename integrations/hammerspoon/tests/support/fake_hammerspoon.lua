@@ -1393,7 +1393,7 @@ local function runShortcut(kind, options)
       return {
         connected = nativeBridgeRequest ~= nil and options.nativeBridgeStarts ~= false,
         hostInstalled = options.nativeBridgeStarts ~= false,
-        version = 5,
+        version = 6,
       }
     end,
   }

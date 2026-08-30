@@ -145,38 +145,6 @@ function M.new(options)
     return settings
   end
 
-  local function validateExclusiveProfileOwner(expectedExtensionId)
-    local localState = hs.json.read(chromeUserDataDirectory .. "/Local State")
-    local profiles = localState and localState.profile and localState.profile.info_cache or nil
-    if type(profiles) ~= "table" then
-      return nil, "Chrome's profile inventory could not be read"
-    end
-
-    for profileDirectory in pairs(profiles) do
-      if profileDirectory ~= configuredProfileDirectory then
-        local settings, settingsError = extensionSettings(profileDirectory)
-        if not settings then
-          return nil, settingsError
-        end
-        local otherExtensionId, discoveryError = tabOutExtensionId(settings)
-        if discoveryError then
-          return nil, discoveryError
-        end
-        if otherExtensionId then
-          local relationship = otherExtensionId == expectedExtensionId
-              and "the same extension"
-            or "another Tab Out installation"
-          return nil, string.format(
-            "The Configured Profile cannot be proven because %s is also loaded in %s",
-            relationship,
-            profileDirectory
-          )
-        end
-      end
-    end
-    return true
-  end
-
   local function validateConfiguredProfileOwner()
     local settings, settingsError = extensionSettings(configuredProfileDirectory)
     if not settings then
@@ -191,10 +159,6 @@ function M.new(options)
     end
     if extensionId and discoveredId ~= extensionId then
       return nil, "The Configured Profile's Tab Out extension identity changed"
-    end
-    local exclusive, exclusiveError = validateExclusiveProfileOwner(discoveredId)
-    if not exclusive then
-      return nil, exclusiveError
     end
     extensionId = discoveredId
     return discoveredId

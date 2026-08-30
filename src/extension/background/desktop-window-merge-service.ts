@@ -280,15 +280,21 @@ function makeDesktopWindowMergeLayer(
     })
 
     const availability = Effect.fn('DesktopWindowMerge.availability')(function* () {
+      const nativeStatus = yield* nativeBridge.getStatus()
+      if (nativeStatus.profileSelection === 'another-profile') {
+        return { available: false, reason: 'another-profile-selected' }
+      }
+      if (!nativeStatus.hostConnected) {
+        return { available: false, reason: 'native-integration-required' }
+      }
+      if (nativeStatus.profileSelection === 'required') {
+        return { available: false, reason: 'profile-selection-required' }
+      }
       if (!chromeApi.storage?.session) {
         return { available: false, reason: 'session-storage-unavailable' }
       }
       if (!options.runExclusive && !globalThis.navigator?.locks) {
         return { available: false, reason: 'coordination-unavailable' }
-      }
-      const nativeStatus = yield* nativeBridge.getStatus()
-      if (!nativeStatus.hostConnected) {
-        return { available: false, reason: 'native-integration-required' }
       }
       if (
         !nativeStatus.controllerConnected ||

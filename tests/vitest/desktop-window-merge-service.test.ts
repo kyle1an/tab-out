@@ -15,6 +15,7 @@ import {
 } from '../../src/extension/background/desktop-window-merge-service.js'
 import {
   NATIVE_MERGE_DESKTOP_CAPABILITY,
+  type NativeDesktopControllerStatus,
   NativePlacementBridge,
 } from '../../src/extension/background/native-placement-bridge.js'
 import type { ChromeApi } from '../../src/extension/background/chrome-api.js'
@@ -49,7 +50,12 @@ function makeWindow(id: number): chrome.windows.Window {
   }
 }
 
-function createMergeHarness() {
+function createMergeHarness(nativeStatus: NativeDesktopControllerStatus = {
+  capabilities: [NATIVE_MERGE_DESKTOP_CAPABILITY],
+  controllerConnected: true,
+  hostConnected: true,
+  profileSelection: 'selected',
+}) {
   const tabs = [
     makeTab(1, 10, 0, { active: true, pinned: true }),
     makeTab(2, 10, 1, { active: false }),
@@ -203,11 +209,8 @@ function createMergeHarness() {
     },
   } as unknown as ChromeApi
   const nativeLayer = Layer.succeed(NativePlacementBridge, NativePlacementBridge.of({
-    getStatus: () => Effect.succeed({
-      capabilities: [NATIVE_MERGE_DESKTOP_CAPABILITY],
-      controllerConnected: true,
-      hostConnected: true,
-    }),
+    getStatus: () => Effect.succeed(nativeStatus),
+    selectCurrentProfile: () => Effect.void,
     resolveDesktopWindows: () => Effect.sync(() => {
       resolveCount += 1
       return {
@@ -245,6 +248,92 @@ function buildService(
     ...options,
   }).pipe(Layer.provide(dependencies))
 }
+
+it.effect('desktop merge offers profile selection only while the native host is connected', () => Effect.gen(function* () {
+  const cases = [
+    {
+      hostConnected: true,
+      profileSelection: 'required' as const,
+      reason: 'profile-selection-required',
+    },
+    {
+      hostConnected: false,
+      profileSelection: 'required' as const,
+      reason: 'native-integration-required',
+    },
+    {
+      hostConnected: false,
+      profileSelection: 'another-profile' as const,
+      reason: 'another-profile-selected',
+    },
+  ]
+
+  for (const entry of cases) {
+    const harness = createMergeHarness({
+      capabilities: [],
+      controllerConnected: false,
+      hostConnected: entry.hostConnected,
+      profileSelection: entry.profileSelection,
+    })
+    const scope = yield* Scope.make()
+    const context = yield* Layer.buildWithScope(buildService(harness), scope)
+    const service = Context.get(context, DesktopWindowMerge)
+
+    const status = yield* service.getStatus(1, 10, true)
+    assert.deepEqual(status.availability, {
+      available: false,
+      reason: entry.reason,
+    })
+    yield* Scope.close(scope, Exit.void)
+  }
+}))
+
+it.effect('desktop merge offers profile selection without session storage', () => Effect.gen(function* () {
+  const harness = createMergeHarness({
+    capabilities: [],
+    controllerConnected: false,
+    hostConnected: true,
+    profileSelection: 'required',
+  })
+  Reflect.deleteProperty(harness.chromeApi.storage, 'session')
+  const context = yield* Layer.build(buildService(harness))
+  const service = Context.get(context, DesktopWindowMerge)
+
+  const status = yield* service.getStatus(1, 10, true)
+  assert.deepEqual(status.availability, {
+    available: false,
+    reason: 'profile-selection-required',
+  })
+}))
+
+it.effect('desktop merge offers profile selection without merge coordination', () => Effect.gen(function* () {
+  const locksDescriptor = Object.getOwnPropertyDescriptor(globalThis.navigator, 'locks')
+  Object.defineProperty(globalThis.navigator, 'locks', {
+    configurable: true,
+    value: undefined,
+  })
+  yield* Effect.addFinalizer(() => Effect.sync(() => {
+    if (locksDescriptor) {
+      Object.defineProperty(globalThis.navigator, 'locks', locksDescriptor)
+    } else {
+      Reflect.deleteProperty(globalThis.navigator, 'locks')
+    }
+  }))
+  const harness = createMergeHarness({
+    capabilities: [],
+    controllerConnected: false,
+    hostConnected: true,
+    profileSelection: 'required',
+  })
+  const context = yield* Layer.build(buildService(harness, { runExclusive: undefined }))
+  const service = Context.get(context, DesktopWindowMerge)
+
+  const status = yield* service.getStatus(1, 10, true)
+  assert.deepEqual(status.availability, {
+    available: false,
+    reason: 'profile-selection-required',
+  })
+}))
 
 it.effect('desktop merge moves pins and whole groups in deterministic order', () => Effect.gen(function* () {
   const harness = createMergeHarness()

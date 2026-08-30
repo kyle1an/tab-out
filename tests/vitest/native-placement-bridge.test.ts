@@ -19,11 +19,86 @@ afterEach(() => {
 })
 
 const nowMs = 1_800_000_000_000
+const testProfileId = '11111111-1111-4111-8111-111111111111'
+
+function nativeProfileStorage(profileId = testProfileId) {
+  const stored: Record<string, unknown> = {
+    nativeIntegrationProfileIdV1: profileId,
+  }
+  return {
+    local: {
+      async get(key: string) {
+        return { [key]: stored[key] }
+      },
+      async set(values: Record<string, unknown>) {
+        Object.assign(stored, values)
+      },
+    },
+  }
+}
+
+function createNativeBridgeHarness(options: {
+  readonly getAllWindows?: () => Promise<chrome.windows.Window[]>
+} = {}) {
+  const messageListeners: Array<(message: unknown) => void> = []
+  const postedMessages: unknown[] = []
+  const runtimeMessages: unknown[] = []
+  const counts = { connections: 0, disconnects: 0 }
+  const noOp = () => {}
+  const chromeApi = {
+    runtime: {
+      async sendMessage(message: unknown) {
+        runtimeMessages.push(message)
+      },
+      connectNative() {
+        counts.connections += 1
+        return {
+          disconnect() {
+            counts.disconnects += 1
+          },
+          onMessage: {
+            addListener(listener: (message: unknown) => void) {
+              messageListeners.push(listener)
+            },
+            removeListener: noOp,
+          },
+          onDisconnect: { addListener: noOp, removeListener: noOp },
+          postMessage(message: unknown) {
+            postedMessages.push(message)
+          },
+        }
+      },
+    },
+    storage: nativeProfileStorage(),
+    ...(options.getAllWindows ? { windows: { getAll: options.getAllWindows } } : {}),
+  } as unknown as ChromeApi
+
+  return { chromeApi, counts, messageListeners, postedMessages, runtimeMessages }
+}
 
 function valueAt<T>(values: readonly T[], index: number): T {
   const value = values[index]
   assert.ok(value !== undefined, `expected value at index ${index}`)
   return value
+}
+
+function waitForCondition(condition: () => boolean): Effect.Effect<void> {
+  return Effect.promise(() => new Promise<void>((resolve, reject) => {
+    let attempts = 0
+    const inspect = () => {
+      if (condition()) {
+        resolve()
+        return
+      }
+      attempts += 1
+      if (attempts >= 100) {
+        reject(new Error('timed out waiting for native bridge test condition'))
+        return
+      }
+      setImmediate(inspect)
+    }
+    inspect()
+  }))
 }
 
 function handleNativePlacementBridgeMessage(
@@ -50,6 +125,7 @@ function createChromeApi(windows: chrome.windows.Window[] = []) {
   const createCalls: chrome.windows.CreateData[] = []
   const chromeApi = {
     runtime: { id: 'tab-out' },
+    storage: nativeProfileStorage(),
     system: {
       display: {
         async getInfo() {
@@ -283,11 +359,16 @@ it.effect('native placement bridge schema preserves envelope rejection reasons',
   assert.deepEqual(createCalls, [])
 }))
 
-it.effect('native bridge negotiates the desktop controller and correlates selections', () => Effect.gen(function* () {
+it.effect('native bridge correlates desktop control while placement work is pending', () => Effect.gen(function* () {
   const messageListeners: Array<(message: unknown) => void> = []
   const postedMessages: unknown[] = []
   const runtimeMessages: unknown[] = []
   const postedMessage = Deferred.makeUnsafe<unknown>()
+  const profileHello = Deferred.makeUnsafe<unknown>()
+  const displayInfo = Promise.withResolvers<chrome.system.display.DisplayUnitInfo[]>()
+  let placementStarted = false
+  let selectionCompleted = false
+  const stored: Record<string, unknown> = {}
   const noOp = () => {}
   const chromeApi = {
     runtime: {
@@ -306,19 +387,76 @@ it.effect('native bridge negotiates the desktop controller and correlates select
           onDisconnect: { addListener: noOp, removeListener: noOp },
           postMessage(message: unknown) {
             postedMessages.push(message)
-            Deferred.doneUnsafe(postedMessage, Effect.succeed(message))
+            if ((message as Record<string, unknown>).type === 'profile-hello') {
+              Deferred.doneUnsafe(profileHello, Effect.succeed(message))
+            } else {
+              Deferred.doneUnsafe(postedMessage, Effect.succeed(message))
+            }
           },
         }
+      },
+    },
+    storage: {
+      local: {
+        async get(key: string) {
+          return { [key]: stored[key] }
+        },
+        async set(values: Record<string, unknown>) {
+          Object.assign(stored, values)
+        },
+      },
+    },
+    system: {
+      display: {
+        getInfo() {
+          placementStarted = true
+          return displayInfo.promise
+        },
       },
     },
     windows: {
       async getAll() {
         return [
-          { id: 71, type: 'normal', state: 'normal' },
-          { id: 72, type: 'normal', state: 'maximized' },
-          { id: 73, type: 'normal', state: 'minimized' },
-          { id: 74, type: 'popup', state: 'normal' },
+          {
+            id: 71,
+            type: 'normal',
+            state: 'normal',
+            left: 1_500,
+            top: 25,
+            width: 1_200,
+            height: 900,
+          },
+          {
+            id: 72,
+            type: 'normal',
+            state: 'maximized',
+            left: 1_500,
+            top: 25,
+            width: 1_200,
+            height: 900,
+          },
+          {
+            id: 73,
+            type: 'normal',
+            state: 'minimized',
+            left: 1_500,
+            top: 25,
+            width: 1_200,
+            height: 900,
+          },
+          {
+            id: 74,
+            type: 'popup',
+            state: 'normal',
+            left: 1_500,
+            top: 25,
+            width: 1_200,
+            height: 900,
+          },
         ]
+      },
+      async create() {
+        return { id: 91, type: 'normal', state: 'normal' }
       },
     },
   } as unknown as ChromeApi
@@ -326,27 +464,48 @@ it.effect('native bridge negotiates the desktop controller and correlates select
   const scope = yield* Scope.make()
   const context = yield* Layer.buildWithScope(makeNativePlacementBridgeLayer(chromeApi), scope)
   const bridge = Context.get(context, NativePlacementBridge)
+  yield* Deferred.await(profileHello)
+  assert.deepEqual(postedMessages, [{
+    version: 1,
+    type: 'profile-hello',
+    profileId: stored.nativeIntegrationProfileIdV1,
+  }])
+  valueAt(messageListeners, 0)({
+    version: 1,
+    type: 'profile-selection-status',
+    selection: 'selected',
+  })
   valueAt(messageListeners, 0)({
     version: NATIVE_CONTROL_BRIDGE_VERSION,
     type: 'controller-status',
     connected: true,
     capabilities: [NATIVE_MERGE_DESKTOP_CAPABILITY],
   })
-  yield* Effect.yieldNow
+  yield* waitForCondition(() => runtimeMessages.length === 3)
 
   assert.deepEqual(yield* bridge.getStatus(), {
     capabilities: [NATIVE_MERGE_DESKTOP_CAPABILITY],
     controllerConnected: true,
     hostConnected: true,
+    profileSelection: 'selected',
   })
   assert.deepEqual(runtimeMessages, [
     { type: 'tab-out:desktop-window-merge-status-changed' },
     { type: 'tab-out:desktop-window-merge-status-changed' },
+    { type: 'tab-out:desktop-window-merge-status-changed' },
   ])
 
-  const selectionFiber = yield* Effect.forkChild(bridge.resolveDesktopWindows(71))
+  valueAt(messageListeners, 0)(createRequest())
+  yield* waitForCondition(() => placementStarted)
+
+  const selectionFiber = yield* bridge.resolveDesktopWindows(71).pipe(
+    Effect.tap(() => Effect.sync(() => {
+      selectionCompleted = true
+    })),
+    Effect.forkChild({ startImmediately: true }),
+  )
   const request = (yield* Deferred.await(postedMessage)) as Record<string, unknown>
-  assert.equal(postedMessages.length, 1)
+  assert.equal(postedMessages.length, 2)
   assert.equal(request.version, NATIVE_CONTROL_BRIDGE_VERSION)
   assert.equal(request.type, 'resolve-desktop-windows')
   assert.equal(request.destinationWindowId, 71)
@@ -361,50 +520,100 @@ it.effect('native bridge negotiates the desktop controller and correlates select
     status: 'accepted',
     windowIds: [72, 71],
   })
+  yield* waitForCondition(() => selectionCompleted)
   assert.deepEqual(yield* Fiber.join(selectionFiber), {
     selectionToken: requestId,
     windowIds: [72, 71],
+  })
+  displayInfo.resolve([targetDisplay])
+  yield* waitForCondition(() => postedMessages.length === 3)
+  assert.deepEqual(postedMessages[2], {
+    version: NATIVE_PLACEMENT_BRIDGE_VERSION,
+    type: 'response',
+    requestId: 'hs-1800000000000-1',
+    status: 'accepted',
+    browserWindowId: 91,
+  })
+  yield* Scope.close(scope, Exit.void)
+}))
+
+it.effect('native bridge explicitly selects the current Chrome profile', () => Effect.gen(function* () {
+  const { chromeApi, messageListeners, postedMessages, runtimeMessages } =
+    createNativeBridgeHarness()
+
+  const scope = yield* Scope.make()
+  const context = yield* Layer.buildWithScope(makeNativePlacementBridgeLayer(chromeApi), scope)
+  const bridge = Context.get(context, NativePlacementBridge)
+  yield* waitForCondition(() => postedMessages.length === 1)
+  valueAt(messageListeners, 0)({
+    version: 1,
+    type: 'profile-selection-status',
+    selection: 'required',
+  })
+  yield* waitForCondition(() => runtimeMessages.length === 2)
+  assert.equal((yield* bridge.getStatus()).profileSelection, 'required')
+
+  const selectionFiber = yield* Effect.forkChild(bridge.selectCurrentProfile())
+  yield* waitForCondition(() => postedMessages.length === 2)
+  assert.deepEqual(postedMessages[1], {
+    version: 1,
+    type: 'select-profile',
+    profileId: testProfileId,
+  })
+  valueAt(messageListeners, 0)({
+    version: 1,
+    type: 'profile-selection-status',
+    selection: 'selected',
+  })
+  yield* Fiber.join(selectionFiber)
+  assert.equal((yield* bridge.getStatus()).profileSelection, 'selected')
+  yield* Scope.close(scope, Exit.void)
+}))
+
+it.effect('native bridge does not reconnect a later unselected Chrome profile', () => Effect.gen(function* () {
+  const { chromeApi, counts, messageListeners, runtimeMessages } = createNativeBridgeHarness()
+
+  const scope = yield* Scope.make()
+  const context = yield* Layer.buildWithScope(makeNativePlacementBridgeLayer(chromeApi), scope)
+  const bridge = Context.get(context, NativePlacementBridge)
+  yield* waitForCondition(() => messageListeners.length === 1)
+  valueAt(messageListeners, 0)({
+    version: 1,
+    type: 'profile-selection-status',
+    selection: 'another-profile',
+  })
+  yield* waitForCondition(() => runtimeMessages.length === 3)
+  yield* TestClock.adjust(60_000)
+
+  assert.equal(counts.connections, 1)
+  assert.equal(counts.disconnects, 1)
+  assert.deepEqual(yield* bridge.getStatus(), {
+    capabilities: [],
+    controllerConnected: false,
+    hostConnected: false,
+    profileSelection: 'another-profile',
   })
   yield* Scope.close(scope, Exit.void)
 }))
 
 it.effect('native bridge rejects an oversized profile window inventory before transport', () => Effect.gen(function* () {
-  const messageListeners: Array<(message: unknown) => void> = []
-  const postedMessages: unknown[] = []
-  const noOp = () => {}
-  const chromeApi = {
-    runtime: {
-      async sendMessage() {},
-      connectNative() {
-        return {
-          disconnect() {},
-          onMessage: {
-            addListener(listener: (message: unknown) => void) {
-              messageListeners.push(listener)
-            },
-            removeListener: noOp,
-          },
-          onDisconnect: { addListener: noOp, removeListener: noOp },
-          postMessage(message: unknown) {
-            postedMessages.push(message)
-          },
-        }
-      },
-    },
-    windows: {
-      async getAll() {
-        return Array.from({ length: 513 }, (_, index) => ({
-          id: index + 1,
-          type: 'normal',
-          state: 'normal',
-        }))
-      },
-    },
-  } as unknown as ChromeApi
+  const { chromeApi, messageListeners, postedMessages } = createNativeBridgeHarness({
+    getAllWindows: async () => Array.from({ length: 513 }, (_, index) => ({
+      id: index + 1,
+      type: 'normal',
+      state: 'normal',
+    } as chrome.windows.Window)),
+  })
 
   const scope = yield* Scope.make()
   const context = yield* Layer.buildWithScope(makeNativePlacementBridgeLayer(chromeApi), scope)
   const bridge = Context.get(context, NativePlacementBridge)
+  yield* waitForCondition(() => messageListeners.length === 1)
+  valueAt(messageListeners, 0)({
+    version: 1,
+    type: 'profile-selection-status',
+    selection: 'selected',
+  })
   valueAt(messageListeners, 0)({
     version: NATIVE_CONTROL_BRIDGE_VERSION,
     type: 'controller-status',
@@ -415,7 +624,11 @@ it.effect('native bridge rejects an oversized profile window inventory before tr
 
   const result = yield* Effect.exit(bridge.resolveDesktopWindows(71))
   assert.equal(Exit.isFailure(result), true)
-  assert.deepEqual(postedMessages, [])
+  assert.deepEqual(
+    postedMessages.filter((message) =>
+      (message as Record<string, unknown>).type !== 'profile-hello'),
+    [],
+  )
   yield* Scope.close(scope, Exit.void)
 }))
 
@@ -443,9 +656,11 @@ it.effect('native placement bridge reconnects after the host port disconnects', 
         }
       },
     },
+    storage: nativeProfileStorage(),
   } as unknown as ChromeApi
 
   yield* Layer.build(makeNativePlacementBridgeLayer(chromeApi))
+  yield* waitForCondition(() => connectionCount === 1)
   assert.equal(connectionCount, 1)
 
   valueAt(disconnectListeners, 0)()
@@ -470,9 +685,11 @@ it.effect('native placement bridge escalates delays across connection failures',
         }
       },
     },
+    storage: nativeProfileStorage(),
   } as unknown as ChromeApi
 
   yield* Layer.build(makeNativePlacementBridgeLayer(chromeApi))
+  yield* waitForCondition(() => connectionCount === 1)
   assert.equal(connectionCount, 1)
 
   yield* TestClock.adjust(249)
@@ -496,6 +713,7 @@ it.effect('native placement bridge backs off beyond the MV3 idle window when the
   }
 
   yield* Layer.build(makeNativePlacementBridgeLayer(chromeApi))
+  yield* waitForCondition(() => connectionCount === 1)
   assert.equal(connectionCount, 1)
 
   yield* TestClock.adjust(250)
@@ -536,9 +754,11 @@ it.effect('native placement bridge resets backoff after a native message', () =>
         }
       },
     },
+    storage: nativeProfileStorage(),
   } as unknown as ChromeApi
 
   yield* Layer.build(makeNativePlacementBridgeLayer(chromeApi))
+  yield* waitForCondition(() => disconnectListeners.length === 1)
   valueAt(disconnectListeners, 0)()
   yield* TestClock.adjust(250)
   assert.equal(connectionCount, 2)
@@ -572,10 +792,12 @@ it.effect('disposing the native placement bridge cancels reconnect sleep', () =>
         }
       },
     },
+    storage: nativeProfileStorage(),
   } as unknown as ChromeApi
 
   const scope = yield* Scope.make()
   yield* Layer.buildWithScope(makeNativePlacementBridgeLayer(chromeApi), scope)
+  yield* waitForCondition(() => disconnectListeners.length === 1)
   valueAt(disconnectListeners, 0)()
   yield* Scope.close(scope, Exit.void)
 

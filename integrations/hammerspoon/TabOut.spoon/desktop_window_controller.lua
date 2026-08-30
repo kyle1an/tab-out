@@ -1,6 +1,6 @@
 local M = {}
 
-local CONTROL_VERSION = 6
+local CONTROL_VERSION = 7
 local MAXIMUM_PROCESS_ID = 2147483647
 local MERGE_DESKTOP_CAPABILITY = "merge-desktop"
 local MAXIMUM_WINDOW_IDS = 512

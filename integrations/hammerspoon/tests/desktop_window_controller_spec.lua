@@ -126,11 +126,11 @@ local controller = DesktopWindowController.new({
 
 controller:start()
 assertEqual(writes[1].type, "controller-register", "controller registers")
-assertEqual(writes[1].version, 6, "controller protocol version")
+assertEqual(writes[1].version, 7, "controller protocol version")
 assertArray(writes[1].capabilities, { "merge-desktop" }, "controller capabilities")
 
 socketCallback(hs.json.encode({
-  version = 6,
+  version = 7,
   type = "response",
   requestId = writes[1].requestId,
   status = "accepted",
@@ -139,7 +139,7 @@ socketCallback(hs.json.encode({
 assertEqual(controller:status().connected, true, "controller accepts registration")
 
 socketCallback(hs.json.encode({
-  version = 6,
+  version = 7,
   type = "resolve-desktop-windows",
   requestId = "selection-alpha",
   expiresAtMs = 1800000005000,
@@ -162,7 +162,7 @@ assert(not encodedSelection:find("url", 1, true), "controller response must not 
 assert(not encodedSelection:find("title", 1, true), "controller response must not contain titles")
 
 socketCallback(hs.json.encode({
-  version = 6,
+  version = 7,
   type = "revalidate-desktop-windows",
   requestId = "revalidate-alpha",
   expiresAtMs = 1800000005000,
@@ -175,7 +175,7 @@ assertEqual(writes[3].status, "accepted", "unchanged desktop selection revalidat
 assertArray(writes[3].windowIds, { 102, 101 }, "revalidated window order")
 
 socketCallback(hs.json.encode({
-  version = 6,
+  version = 7,
   type = "resolve-desktop-windows",
   requestId = "selection-beta",
   expiresAtMs = 1800000005000,
@@ -185,7 +185,7 @@ socketCallback(hs.json.encode({
 }) .. "\n")
 orderedWindows = { destinationWindow, sourceWindow }
 socketCallback(hs.json.encode({
-  version = 6,
+  version = 7,
   type = "revalidate-desktop-windows",
   requestId = "revalidate-beta",
   expiresAtMs = 1800000005000,
@@ -202,7 +202,7 @@ assert(
 
 orderedWindows = { destinationWindow }
 socketCallback(hs.json.encode({
-  version = 6,
+  version = 7,
   type = "resolve-desktop-windows",
   requestId = "selection-gamma",
   expiresAtMs = 1800000005000,
@@ -214,7 +214,7 @@ assertEqual(writes[6].status, "accepted", "off-screen source windows are exclude
 assertArray(writes[6].windowIds, { 101 }, "only on-screen profile windows are selected")
 
 socketCallback(hs.json.encode({
-  version = 6,
+  version = 7,
   type = "resolve-desktop-windows",
   requestId = "selection-private-field",
   expiresAtMs = 1800000005000,
@@ -238,7 +238,7 @@ for index = 1, 513 do
   table.insert(oversizedWindowIds, index)
 end
 socketCallback(hs.json.encode({
-  version = 6,
+  version = 7,
   type = "resolve-desktop-windows",
   requestId = "selection-oversized",
   expiresAtMs = 1800000005000,
@@ -253,7 +253,7 @@ assert(
 )
 
 socketCallback(hs.json.encode({
-  version = 6,
+  version = 7,
   type = "resolve-desktop-windows",
   requestId = "selection-missing-process",
   expiresAtMs = 1800000005000,
@@ -263,7 +263,7 @@ socketCallback(hs.json.encode({
 assertEqual(writes[9].status, "rejected", "missing process authority is rejected")
 
 socketCallback(hs.json.encode({
-  version = 6,
+  version = 7,
   type = "resolve-desktop-windows",
   requestId = "selection-isolated-process",
   expiresAtMs = 1800000005000,
@@ -327,7 +327,7 @@ local capabilityController = DesktopWindowController.new({
 
 capabilityController:start()
 capabilityCallbacks[1](hs.json.encode({
-  version = 6,
+  version = 7,
   type = "response",
   requestId = capabilityWrites[1].requestId,
   status = "accepted",
@@ -349,7 +349,7 @@ assertEqual(
   "a stale socket callback cannot disconnect the replacement socket"
 )
 capabilityCallbacks[2](hs.json.encode({
-  version = 6,
+  version = 7,
   type = "response",
   requestId = capabilityWrites[2].requestId,
   status = "accepted",

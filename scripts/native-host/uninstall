@@ -5,7 +5,38 @@ set -euo pipefail
 installed_host="$HOME/Library/Application Support/Tab Out/bin/tab-out-native-bridge"
 manifest_path="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.tabout.native_bridge.json"
 socket_path="$HOME/Library/Application Support/Tab Out/run/native-bridge-v1.sock"
+profile_selection_path=${TAB_OUT_NATIVE_BRIDGE_PROFILE_SELECTION_PATH:-"$HOME/Library/Application Support/Tab Out/configured-profile-v1.json"}
+profile_selection_lock_path="$profile_selection_path.lock"
 
-rm -f "$manifest_path" "$installed_host" "$socket_path"
+selection_requires_reset=false
+if [[ -e $profile_selection_path || -L $profile_selection_path ]]; then
+  selection_requires_reset=true
+fi
 
-echo "Uninstalled the Tab Out native bridge. No login item or LaunchAgent was installed."
+if [[ -x $installed_host ]]; then
+  if reset_output=$("$installed_host" --reset-profile 2>&1); then
+    if [[ -n $reset_output ]]; then
+      printf '%s\n' "$reset_output"
+    fi
+  else
+    reset_status=$?
+    if (( reset_status != 64 )) || [[ $selection_requires_reset == true ]]; then
+      printf '%s\n' \
+        "Could not revoke the selected Chrome profile before uninstalling: ${reset_output%%$'\n'*}" >&2
+      exit 1
+    fi
+  fi
+elif [[ $selection_requires_reset == true ]]; then
+  printf '%s\n' \
+    "Could not revoke the selected Chrome profile because the installed native host is unavailable. Run pnpm setup:local, then retry uninstalling." >&2
+  exit 1
+fi
+
+rm -f -- \
+  "$manifest_path" \
+  "$installed_host" \
+  "$socket_path" \
+  "$profile_selection_path" \
+  "$profile_selection_lock_path"
+
+echo "Uninstalled the Tab Out native bridge and cleared its selected Chrome profile. No login item or LaunchAgent was installed."

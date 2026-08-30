@@ -23,8 +23,11 @@ import * as ChildProcessSpawner from 'effect/unstable/process/ChildProcessSpawne
 
 import { omitUndefined } from '../../src/lib/omit-undefined.ts'
 
-const PLACEMENT_BRIDGE_VERSION = 5
-const CONTROL_BRIDGE_VERSION = 6
+const PLACEMENT_BRIDGE_VERSION = 6
+const CONTROL_BRIDGE_VERSION = 7
+const PROFILE_SELECTION_VERSION = 1
+const CONFIGURED_PROFILE_ID = '11111111-1111-4111-8111-111111111111'
+const ALTERNATE_PROFILE_ID = '22222222-2222-4222-8222-222222222222'
 
 class NativeHostTestError extends Schema.TaggedError<NativeHostTestError>()(
   'NativeHostTestError',
@@ -82,10 +85,16 @@ type RunningNativeHost = {
   readonly stdoutFiber: Fiber.Fiber<void, NativeHostTestError>
   readonly stderrFiber: Fiber.Fiber<void, NativeHostTestError>
   readonly stderr: Ref.Ref<string>
-  readonly nativeMessages: Queue.Queue<unknown> | null
+  readonly nativeMessages: Queue.Queue<unknown>
 }
 
-type NativeOutputMode = 'capture' | 'ignore' | 'respond-placement'
+type NativeOutputMode = 'capture' | 'capture-all' | 'ignore' | 'respond-placement'
+
+type NativeHostStartOptions = {
+  readonly helloProfileId?: string | null
+  readonly profileSelectionPath?: string
+  readonly selectedProfileId?: string | null
+}
 
 function nativeHostTestError(operation: string, cause: unknown): NativeHostTestError {
   return NativeHostTestError.make({ operation, cause })
@@ -161,6 +170,11 @@ function makeNativeRequestResponder(input: Queue.Queue<Uint8Array, Cause.Done<vo
   const respond = Effect.fn('nativeHostTest.respondToNativeRequest')(function* (
     message: unknown,
   ) {
+    if (
+      typeof message === 'object' &&
+      message !== null &&
+      (message as Record<string, unknown>).type === 'profile-selection-status'
+    ) return
     const request = yield* decodeRequest(message).pipe(
       Effect.mapError((cause) => nativeHostTestError('decode native messaging request', cause)),
     )
@@ -179,10 +193,18 @@ function makeNativeRequestResponder(input: Queue.Queue<Uint8Array, Cause.Done<vo
   )
 }
 
-function makeNativeMessageCollector(output: Queue.Queue<unknown>) {
+function makeNativeMessageCollector(
+  output: Queue.Queue<unknown>,
+  includeProfileSelection: boolean,
+) {
   return makeNativeMessageDecoder(
     'decode native messaging output',
-    (message) => Queue.offer(output, message),
+    (message) => (
+      !includeProfileSelection &&
+      typeof message === 'object' &&
+      message !== null &&
+      (message as Record<string, unknown>).type === 'profile-selection-status'
+    ) ? Effect.void : Queue.offer(output, message),
   )
 }
 
@@ -190,17 +212,32 @@ const startNativeHost = Effect.fn('nativeHostTest.startNativeHost')(function* (
   hostPath: string,
   socketPath: string,
   outputMode: NativeOutputMode,
+  options: NativeHostStartOptions = {},
 ) {
+  const fileSystem = yield* FileSystem.FileSystem
+  const profileSelectionPath = options.profileSelectionPath ?? `${socketPath}.profile.json`
+  const selectedProfileId = options.selectedProfileId === undefined
+    ? CONFIGURED_PROFILE_ID
+    : options.selectedProfileId
+  if (selectedProfileId !== null) {
+    yield* fileSystem.writeFileString(profileSelectionPath, JSON.stringify({
+      version: PROFILE_SELECTION_VERSION,
+      profileId: selectedProfileId,
+    })).pipe(
+      Effect.mapError((cause) => nativeHostTestError('seed native profile selection', cause)),
+    )
+  }
   const input = yield* Queue.unbounded<Uint8Array, Cause.Done<void>>()
-  const nativeMessages = outputMode === 'capture'
-    ? yield* Queue.unbounded<unknown>()
-    : null
+  const nativeMessages = yield* Queue.unbounded<unknown>()
   const stderr = yield* Ref.make('')
   const handle = yield* ChildProcess.make(
     hostPath,
     ['chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/'],
     {
-      env: { TAB_OUT_NATIVE_BRIDGE_SOCKET_PATH: socketPath },
+      env: omitUndefined({
+        TAB_OUT_NATIVE_BRIDGE_PROFILE_SELECTION_PATH: profileSelectionPath,
+        TAB_OUT_NATIVE_BRIDGE_SOCKET_PATH: socketPath,
+      }),
       extendEnv: true,
       stdin: {
         stream: Stream.fromQueue(input),
@@ -218,10 +255,13 @@ const startNativeHost = Effect.fn('nativeHostTest.startNativeHost')(function* (
         Stream.mapError((cause) => nativeHostTestError('read native host stdout', cause)),
         Stream.runForEach(makeNativeRequestResponder(input)),
       )
-    : outputMode === 'capture' && nativeMessages
+    : outputMode === 'capture' || outputMode === 'capture-all'
       ? handle.stdout.pipe(
           Stream.mapError((cause) => nativeHostTestError('read native host stdout', cause)),
-          Stream.runForEach(makeNativeMessageCollector(nativeMessages)),
+          Stream.runForEach(makeNativeMessageCollector(
+            nativeMessages,
+            outputMode === 'capture-all',
+          )),
         )
       : Effect.void
   ).pipe(Effect.forkScoped)
@@ -242,6 +282,17 @@ const startNativeHost = Effect.fn('nativeHostTest.startNativeHost')(function* (
     Effect.ignoreCause,
   ))
 
+  const helloProfileId = options.helloProfileId === undefined
+    ? CONFIGURED_PROFILE_ID
+    : options.helloProfileId
+  if (helloProfileId !== null) {
+    yield* Queue.offer(input, yield* encodeNativeMessage({
+      version: PROFILE_SELECTION_VERSION,
+      type: 'profile-hello',
+      profileId: helloProfileId,
+    }))
+  }
+
   return {
     handle,
     input,
@@ -250,6 +301,242 @@ const startNativeHost = Effect.fn('nativeHostTest.startNativeHost')(function* (
     stderr,
     nativeMessages,
   } satisfies RunningNativeHost
+})
+
+const testProfileSelectionAuthority = Effect.fn(
+  'nativeHostTest.profileSelectionAuthority',
+)(function* (hostPath: string) {
+  const fileSystem = yield* FileSystem.FileSystem
+  const temporaryDirectory = yield* fileSystem.makeTempDirectoryScoped({
+    prefix: 'tab-out-native-profile-selection-',
+  }).pipe(
+    Effect.mapError((cause) => nativeHostTestError('create profile-selection directory', cause)),
+  )
+  const socketPath = join(temporaryDirectory, 'bridge.sock')
+  const selectionPath = join(temporaryDirectory, 'configured-profile.json')
+  const host = yield* startNativeHost(hostPath, socketPath, 'capture-all', {
+    helloProfileId: null,
+    profileSelectionPath: selectionPath,
+    selectedProfileId: null,
+  })
+  const nativeMessages = host.nativeMessages
+
+  yield* Effect.sleep('100 millis')
+  const socketExistsBeforeHandshake = yield* fileSystem.access(socketPath).pipe(
+    Effect.as(true),
+    Effect.catch(() => Effect.succeed(false)),
+  )
+  yield* check(
+    !socketExistsBeforeHandshake,
+    'require profile selection before socket ownership',
+    'native host created the shared socket before a selected-profile handshake',
+  )
+
+  yield* Queue.offer(host.input, yield* encodeNativeMessage({
+    version: PROFILE_SELECTION_VERSION,
+    type: 'profile-hello',
+    profileId: CONFIGURED_PROFILE_ID,
+  }))
+  const unselectedStatus = objectMessage(yield* takeMessage(
+    nativeMessages,
+    'read unselected profile status',
+  ))
+  yield* check(
+    unselectedStatus.version === PROFILE_SELECTION_VERSION &&
+    unselectedStatus.type === 'profile-selection-status' &&
+    unselectedStatus.selection === 'required',
+    'report that explicit profile selection is required',
+    JSON.stringify(unselectedStatus),
+  )
+
+  yield* Queue.offer(host.input, yield* encodeNativeMessage({
+    version: PROFILE_SELECTION_VERSION,
+    type: 'select-profile',
+    profileId: CONFIGURED_PROFILE_ID,
+  }))
+  const selectedStatus = objectMessage(yield* takeMessage(
+    nativeMessages,
+    'read selected profile status',
+  ))
+  yield* check(
+    selectedStatus.version === PROFILE_SELECTION_VERSION &&
+    selectedStatus.type === 'profile-selection-status' &&
+    selectedStatus.selection === 'selected',
+    'persist explicit profile selection',
+    JSON.stringify(selectedStatus),
+  )
+  yield* waitForSocket(host, socketPath)
+
+  const alternateHost = yield* startNativeHost(hostPath, socketPath, 'capture-all', {
+    helloProfileId: ALTERNATE_PROFILE_ID,
+    profileSelectionPath: selectionPath,
+    selectedProfileId: null,
+  })
+  const alternateMessages = alternateHost.nativeMessages
+  const alternateStatus = objectMessage(yield* takeMessage(
+    alternateMessages,
+    'read alternate profile status',
+  ))
+  yield* check(
+    alternateStatus.type === 'profile-selection-status' &&
+    alternateStatus.selection === 'another-profile',
+    'keep a later-loaded profile from replacing the selected profile',
+    JSON.stringify(alternateStatus),
+  )
+  const alternateResult = yield* finishNativeHost(alternateHost)
+  yield* check(
+    alternateResult.exitCode === ChildProcessSpawner.ExitCode(0),
+    'stop alternate-profile native host',
+    `native host exited with code ${alternateResult.exitCode}`,
+  )
+  yield* check(
+    alternateResult.stderr === '',
+    'inspect alternate-profile native host',
+    alternateResult.stderr,
+  )
+  yield* fileSystem.access(socketPath).pipe(
+    Effect.mapError((cause) => nativeHostTestError(
+      'preserve selected-profile socket ownership',
+      cause,
+    )),
+  )
+
+  const result = yield* finishNativeHost(host)
+  yield* check(
+    result.exitCode === ChildProcessSpawner.ExitCode(0),
+    'stop profile-selection native host',
+    `native host exited with code ${result.exitCode}`,
+  )
+  yield* check(result.stderr === '', 'inspect profile-selection native host', result.stderr)
+})
+
+const testLiveProfileReset = Effect.fn(
+  'nativeHostTest.liveProfileReset',
+)(function* (hostPath: string) {
+  const fileSystem = yield* FileSystem.FileSystem
+  const temporaryDirectory = yield* fileSystem.makeTempDirectoryScoped({
+    prefix: 'tab-out-native-profile-reset-',
+  }).pipe(
+    Effect.mapError((cause) => nativeHostTestError('create profile-reset directory', cause)),
+  )
+  const socketPath = join(temporaryDirectory, 'bridge.sock')
+  const selectionPath = join(temporaryDirectory, 'configured-profile.json')
+  const selectedHost = yield* startNativeHost(hostPath, socketPath, 'ignore', {
+    profileSelectionPath: selectionPath,
+  })
+  yield* waitForSocket(selectedHost, socketPath)
+
+  const reset = yield* runProfileReset(hostPath, socketPath, selectionPath)
+  yield* check(
+    reset.exitCode === ChildProcessSpawner.ExitCode(0),
+    'reset live profile owner',
+    reset.stderr || `profile reset exited with code ${reset.exitCode}`,
+  )
+  yield* check(reset.stderr === '', 'inspect profile reset', reset.stderr)
+  const selectedHostIsRunning = yield* selectedHost.handle.isRunning.pipe(
+    Effect.mapError((cause) => nativeHostTestError('inspect reset profile owner', cause)),
+  )
+  yield* check(
+    !selectedHostIsRunning,
+    'stop reset profile owner',
+    'the selected native host was still running after profile reset returned',
+  )
+  const selectionStillExists = yield* fileSystem.access(selectionPath).pipe(
+    Effect.as(true),
+    Effect.catch(() => Effect.succeed(false)),
+  )
+  yield* check(
+    !selectionStillExists,
+    'clear reset profile selection',
+    'the configured profile selection still exists after reset',
+  )
+
+  const replacementHost = yield* startNativeHost(hostPath, socketPath, 'capture-all', {
+    helloProfileId: ALTERNATE_PROFILE_ID,
+    profileSelectionPath: selectionPath,
+    selectedProfileId: null,
+  })
+  const replacementMessages = replacementHost.nativeMessages
+  const replacementRequired = objectMessage(yield* takeMessage(
+    replacementMessages,
+    'read replacement profile status',
+  ))
+  yield* check(
+    replacementRequired.type === 'profile-selection-status' &&
+    replacementRequired.selection === 'required',
+    'require replacement profile selection',
+    JSON.stringify(replacementRequired),
+  )
+  yield* Queue.offer(replacementHost.input, yield* encodeNativeMessage({
+    version: PROFILE_SELECTION_VERSION,
+    type: 'select-profile',
+    profileId: ALTERNATE_PROFILE_ID,
+  }))
+  const replacementSelected = objectMessage(yield* takeMessage(
+    replacementMessages,
+    'read selected replacement profile status',
+  ))
+  yield* check(
+    replacementSelected.type === 'profile-selection-status' &&
+    replacementSelected.selection === 'selected',
+    'select replacement profile owner',
+    JSON.stringify(replacementSelected),
+  )
+  yield* waitForSocket(replacementHost, socketPath)
+  const currentTime = yield* Clock.currentTimeMillis
+  const replacementClientFiber = yield* runClient(hostPath, JSON.stringify({
+    version: PLACEMENT_BRIDGE_VERSION,
+    type: 'status',
+    requestId: 'integration-round-trip',
+    expiresAtMs: currentTime + 5_000,
+  }), socketPath).pipe(Effect.forkScoped)
+  const replacementRequest = objectMessage(yield* takeMessage(
+    replacementMessages,
+    'read replacement profile owner request',
+  ))
+  yield* check(
+    replacementRequest.type === 'status' &&
+    replacementRequest.requestId === 'integration-round-trip',
+    'forward through replacement profile owner',
+    JSON.stringify(replacementRequest),
+  )
+  yield* Queue.offer(replacementHost.input, yield* encodeNativeMessage({
+    version: PLACEMENT_BRIDGE_VERSION,
+    type: 'response',
+    requestId: 'integration-round-trip',
+    status: 'accepted',
+  }))
+  const replacementClient = yield* Fiber.join(replacementClientFiber)
+  yield* check(
+    replacementClient.exitCode === ChildProcessSpawner.ExitCode(0),
+    'use replacement profile owner',
+    replacementClient.stderr || `replacement client exited with code ${replacementClient.exitCode}`,
+  )
+  yield* Schema.decodeUnknownEffect(
+    Schema.fromJsonString(AcceptedResponse),
+    { onExcessProperty: 'error' },
+  )(replacementClient.stdout).pipe(
+    Effect.mapError((cause) => nativeHostTestError('validate replacement profile owner', cause)),
+  )
+
+  const selectedResult = yield* finishNativeHost(selectedHost)
+  yield* check(
+    selectedResult.exitCode === ChildProcessSpawner.ExitCode(0),
+    'finish reset profile owner',
+    `native host exited with code ${selectedResult.exitCode}`,
+  )
+  yield* check(selectedResult.stderr === '', 'inspect reset profile owner', selectedResult.stderr)
+  const replacementResult = yield* finishNativeHost(replacementHost)
+  yield* check(
+    replacementResult.exitCode === ChildProcessSpawner.ExitCode(0),
+    'stop replacement profile owner',
+    `native host exited with code ${replacementResult.exitCode}`,
+  )
+  yield* check(
+    replacementResult.stderr === '',
+    'inspect replacement profile owner',
+    replacementResult.stderr,
+  )
 })
 
 const finishNativeHost = Effect.fn('nativeHostTest.finishNativeHost')(function* (
@@ -332,6 +619,35 @@ const runClient = Effect.fn('nativeHostTest.runClient')(function* (
     handle.exitCode,
   ] as const, { concurrency: 'unbounded' }).pipe(
     Effect.mapError((cause) => nativeHostTestError('run native host client', cause)),
+  )
+
+  return { stdout, stderr, exitCode }
+})
+
+const runProfileReset = Effect.fn('nativeHostTest.runProfileReset')(function* (
+  hostPath: string,
+  socketPath: string,
+  profileSelectionPath: string,
+) {
+  const handle = yield* ChildProcess.make(hostPath, ['--reset-profile'], {
+    env: {
+      TAB_OUT_NATIVE_BRIDGE_PROFILE_SELECTION_PATH: profileSelectionPath,
+      TAB_OUT_NATIVE_BRIDGE_SOCKET_PATH: socketPath,
+    },
+    extendEnv: true,
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+  }).pipe(
+    Effect.mapError((cause) => nativeHostTestError('start native profile reset', cause)),
+  )
+
+  const [stdout, stderr, exitCode] = yield* Effect.all([
+    collectText(handle.stdout),
+    collectText(handle.stderr),
+    handle.exitCode,
+  ] as const, { concurrency: 'unbounded' }).pipe(
+    Effect.mapError((cause) => nativeHostTestError('run native profile reset', cause)),
   )
 
   return { stdout, stderr, exitCode }
@@ -484,12 +800,6 @@ const testCreateProcessAuthority = Effect.fn(
   const host = yield* startNativeHost(hostPath, socketPath, 'capture')
   yield* waitForSocket(host, socketPath)
   const nativeMessages = host.nativeMessages
-  if (!nativeMessages) {
-    return yield* Effect.fail(nativeHostTestError(
-      'capture process-authority output',
-      new Error('native output queue is unavailable'),
-    ))
-  }
 
   const currentTime = yield* Clock.currentTimeMillis
   const client = yield* runClient(hostPath, JSON.stringify({
@@ -646,12 +956,6 @@ const testDesktopControllerRoundTrip = Effect.fn(
   const host = yield* startNativeHost(hostPath, socketPath, 'capture')
   yield* waitForSocket(host, socketPath)
   const nativeMessages = host.nativeMessages
-  if (!nativeMessages) {
-    return yield* Effect.fail(nativeHostTestError(
-      'capture native controller output',
-      new Error('native output queue is unavailable'),
-    ))
-  }
 
   const controller = yield* connectController(socketPath)
   const currentTime = yield* Clock.currentTimeMillis
@@ -863,6 +1167,8 @@ const runNativeHostTests = Effect.fn('nativeHostTest.run')(function* () {
   }
   const hostPath = resolve(hostArgument)
 
+  yield* testProfileSelectionAuthority(hostPath)
+  yield* testLiveProfileReset(hostPath)
   yield* testRoundTrip(hostPath)
   yield* testCreateProcessAuthority(hostPath)
   yield* testDesktopControllerRoundTrip(hostPath)

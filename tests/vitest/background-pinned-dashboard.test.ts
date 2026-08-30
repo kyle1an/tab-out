@@ -2015,8 +2015,20 @@ test('native placement bridge directly places a requested window without focusin
   const onNativeMessage = mock.listeners.nativePortOnMessage[0]
   assert.equal(typeof onNativeMessage, 'function')
 
+  await flushBackgroundWork()
+  const profileHello = mock.calls.nativeMessages[0] as Record<string, unknown>
+  assert.equal(profileHello.version, 1)
+  assert.equal(profileHello.type, 'profile-hello')
+  assert.match(String(profileHello.profileId), /^[0-9a-f-]{36}$/)
   onNativeMessage({
-    version: 5,
+    version: 1,
+    type: 'profile-selection-status',
+    selection: 'selected',
+  })
+  await flushBackgroundWork()
+
+  onNativeMessage({
+    version: 6,
     type: 'create-window',
     requestId: 'hs-bridge-test-1',
     expiresAtMs: Date.now() + 12_000,
@@ -2043,8 +2055,8 @@ test('native placement bridge directly places a requested window without focusin
   assert.equal(mock.state.windowsById[2].focused, false)
   assert.equal(mock.state.windowsById[2].state, 'normal')
   assert.deepEqual(mock.calls.nativeHostNames, ['com.tabout.native_bridge'])
-  assert.deepEqual(mock.calls.nativeMessages, [{
-    version: 5,
+  assert.deepEqual(mock.calls.nativeMessages.slice(1), [{
+    version: 6,
     type: 'response',
     requestId: 'hs-bridge-test-1',
     status: 'accepted',

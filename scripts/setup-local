@@ -1,0 +1,132 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+usage() {
+  printf '%s\n' \
+    "Usage: scripts/setup-local [--reset-profile] [32-character-extension-id] [hammerspoon-config-directory]"
+  printf '%s\n' \
+    "Reuses TAB_OUT_EXTENSION_ID or the installed native-host manifest when the ID is omitted."
+  printf '%s\n' \
+    "The config directory defaults to TAB_OUT_HAMMERSPOON_CONFIG_DIR or ~/.hammerspoon."
+}
+
+toolchain_error() {
+  printf '%s\n' "$1" >&2
+  printf '%s\n' \
+    "Run 'mise install' in this checkout, activate Mise, and retry; use 'mise exec -- pnpm setup:local' when shell activation is unavailable." >&2
+  exit 1
+}
+
+if (( $# == 1 )) && [[ $1 == "-h" || $1 == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+reset_profile=false
+if (( $# > 0 )) && [[ $1 == "--reset-profile" ]]; then
+  reset_profile=true
+  shift
+fi
+
+if (( $# > 2 )); then
+  usage >&2
+  exit 64
+fi
+
+script_directory=${0:A:h}
+repository_root=${script_directory:h:A}
+config_directory=${2:-${TAB_OUT_HAMMERSPOON_CONFIG_DIR:-"$HOME/.hammerspoon"}}
+extension_id=${1:-${TAB_OUT_EXTENSION_ID:-}}
+
+if [[ -z $extension_id ]]; then
+  native_manifest="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.tabout.native_bridge.json"
+  if [[ -f $native_manifest ]]; then
+    manifest_contents=$(<"$native_manifest")
+    extension_origin_pattern='chrome-extension://([a-p]{32})/'
+    if [[ $manifest_contents =~ $extension_origin_pattern ]]; then
+      extension_id=$match[1]
+    fi
+  fi
+fi
+
+if [[ ! $extension_id =~ '^[a-p]{32}$' ]]; then
+  usage >&2
+  printf '%s\n' \
+    "Load this checkout's extension in the intended Chrome profile, then pass its extension ID once." >&2
+  exit 64
+fi
+
+if [[ $(uname -s) != "Darwin" ]]; then
+  printf '%s\n' "Tab Out's local integration setup is supported only on macOS." >&2
+  exit 1
+fi
+
+cd "$repository_root"
+
+if [[ ! -r .node-version ]]; then
+  toolchain_error "Tab Out's pinned Node version is unavailable: $repository_root/.node-version"
+fi
+expected_node_version=$(tr -d '[:space:]' < .node-version)
+if [[ -z $expected_node_version ]]; then
+  toolchain_error "Tab Out's pinned Node version is empty: $repository_root/.node-version"
+fi
+if ! actual_node_version=$(node --version 2>/dev/null); then
+  toolchain_error "Tab Out requires Node $expected_node_version, but Node is unavailable."
+fi
+actual_node_version=${actual_node_version#v}
+if [[ $actual_node_version != "$expected_node_version" ]]; then
+  toolchain_error \
+    "Tab Out requires Node $expected_node_version; found $actual_node_version."
+fi
+
+if [[ ! -r package.json ]]; then
+  toolchain_error "Tab Out's package-manager pin is unavailable: $repository_root/package.json"
+fi
+package_contents=$(<package.json)
+package_manager_pattern='"packageManager"[[:space:]]*:[[:space:]]*"pnpm@([^"]+)"'
+if [[ ! $package_contents =~ $package_manager_pattern ]]; then
+  toolchain_error "Tab Out's packageManager field must pin an exact pnpm version."
+fi
+expected_pnpm_version=$match[1]
+if ! actual_pnpm_version=$(pnpm --version 2>/dev/null); then
+  toolchain_error "Tab Out requires pnpm $expected_pnpm_version, but pnpm is unavailable."
+fi
+if [[ $actual_pnpm_version != "$expected_pnpm_version" ]]; then
+  toolchain_error \
+    "Tab Out requires pnpm $expected_pnpm_version; found $actual_pnpm_version."
+fi
+
+printf '%s\n' "Updating repository dependencies, hooks, and generated extension output..."
+CI=true pnpm install --frozen-lockfile
+pnpm exec playwright install chromium
+pnpm setup:hooks
+pnpm build
+
+printf '%s\n' "Refreshing the local Hammerspoon and native-messaging integration..."
+"$script_directory/install-macos-integration" "$extension_id" "$config_directory"
+if [[ $reset_profile == true ]]; then
+  "$script_directory/native-host/reset-profile"
+fi
+
+if command -v hs >/dev/null 2>&1; then
+  if ! hs -c 'hs.reload()' >/dev/null 2>&1; then
+    printf '%s\n' \
+      "Hammerspoon reload was requested; its IPC connection closed before acknowledging it."
+  fi
+else
+  printf '%s\n' "Open Hammerspoon so it can load the refreshed Tab Out Spoon."
+fi
+
+printf '%s\n' \
+  "Reload Tab Out in chrome://extensions. On first setup, open its toolbar menu in the intended profile and choose 'Use this Chrome profile for macOS integration'."
+printf '\n'
+
+if "$script_directory/doctor-macos-integration" "$config_directory"; then
+  printf '%s\n' "Local Tab Out setup is current."
+  exit 0
+fi
+
+printf '%s\n' \
+  "Local files are current, but setup still needs the ACTION items above. Complete them and rerun pnpm setup:local." >&2
+exit 1

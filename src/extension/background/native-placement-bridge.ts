@@ -17,9 +17,12 @@ import {
   type TargetDisplayBounds,
 } from './native-window-placement.js'
 
-export const NATIVE_PLACEMENT_BRIDGE_VERSION = 5
-export const NATIVE_CONTROL_BRIDGE_VERSION = 6
+const NATIVE_PROFILE_SELECTION_VERSION = 1
+export const NATIVE_PLACEMENT_BRIDGE_VERSION = 6
+export const NATIVE_CONTROL_BRIDGE_VERSION = 7
 export const NATIVE_MERGE_DESKTOP_CAPABILITY = 'merge-desktop'
+const NATIVE_INTEGRATION_PROFILE_ID_STORAGE_KEY =
+  'nativeIntegrationProfileIdV1'
 const NATIVE_CONTROL_MAXIMUM_WINDOW_IDS = 512
 // The final delay deliberately exceeds Chrome's normal 30-second MV3 idle
 // window. A missing optional host can therefore let an otherwise idle worker
@@ -69,12 +72,26 @@ const nativeControllerStatusMessageSchema = Schema.Struct({
   connected: Schema.Boolean,
   capabilities: nativeControlCapabilitiesSchema,
 })
+const nativeProfileIdSchema = Schema.String.check(
+  Schema.isPattern(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
+)
+const nativeProfileSelectionStatusMessageSchema = Schema.Struct({
+  version: Schema.Literals([NATIVE_PROFILE_SELECTION_VERSION]),
+  type: Schema.Literals(['profile-selection-status']),
+  selection: Schema.Literals(['another-profile', 'required', 'selected']),
+})
 
 type NativeControlResponse = typeof nativeControlResponseSchema.Type
 type NativeControllerStatusMessage = typeof nativeControllerStatusMessageSchema.Type
+type NativeProfileSelectionStatusMessage =
+  typeof nativeProfileSelectionStatusMessageSchema.Type
 
 const isNativeControlResponse = Schema.is(nativeControlResponseSchema)
 const isNativeControllerStatusMessage = Schema.is(nativeControllerStatusMessageSchema)
+const isNativeProfileId = Schema.is(nativeProfileIdSchema)
+const isNativeProfileSelectionStatusMessage = Schema.is(
+  nativeProfileSelectionStatusMessageSchema,
+)
 
 export interface NativeDesktopWindowSelection {
   readonly selectionToken: string
@@ -85,6 +102,7 @@ export interface NativeDesktopControllerStatus {
   readonly capabilities: readonly string[]
   readonly controllerConnected: boolean
   readonly hostConnected: boolean
+  readonly profileSelection: 'another-profile' | 'required' | 'selected' | 'unknown'
 }
 
 export class NativeDesktopControlError extends Schema.TaggedError<NativeDesktopControlError>()(
@@ -94,6 +112,7 @@ export class NativeDesktopControlError extends Schema.TaggedError<NativeDesktopC
 
 export class NativePlacementBridge extends Context.Service<NativePlacementBridge, {
   readonly getStatus: () => Effect.Effect<NativeDesktopControllerStatus>
+  readonly selectCurrentProfile: () => Effect.Effect<void, NativeDesktopControlError>
   readonly resolveDesktopWindows: (
     destinationWindowId: number,
   ) => Effect.Effect<NativeDesktopWindowSelection, NativeDesktopControlError>
@@ -112,6 +131,18 @@ class NativePlacementConnectionError extends Schema.TaggedError<NativePlacementC
   'NativePlacementConnectionError',
   { cause: Schema.Defect() },
 ) {}
+
+async function readOrCreateNativeProfileId(chromeApi: ChromeApi): Promise<string> {
+  const storage = chromeApi.storage?.local
+  if (!storage) throw new Error('Local extension storage is unavailable')
+  const stored = await storage.get(NATIVE_INTEGRATION_PROFILE_ID_STORAGE_KEY)
+  const existing = stored[NATIVE_INTEGRATION_PROFILE_ID_STORAGE_KEY]
+  if (isNativeProfileId(existing)) return existing
+
+  const profileId = crypto.randomUUID()
+  await storage.set({ [NATIVE_INTEGRATION_PROFILE_ID_STORAGE_KEY]: profileId })
+  return profileId
+}
 
 const nativePlacementRequestRecordSchema = Schema.Record(Schema.String, Schema.Unknown)
 const nativePlacementRequestIdSchema = Schema.String.check(
@@ -234,17 +265,24 @@ export function makeNativePlacementBridgeLayer(
       capabilities: [],
       controllerConnected: false,
       hostConnected: false,
+      profileSelection: 'unknown',
     })
     const activePort = yield* Ref.make<chrome.runtime.Port | null>(null)
+    const pendingProfileSelection = yield* Ref.make<Deferred.Deferred<
+      boolean,
+      NativeDesktopControlError
+    > | null>(null)
     const pendingControlRequests = yield* Ref.make<ReadonlyMap<
       string,
       Deferred.Deferred<NativeControlResponse, NativeDesktopControlError>
     >>(new Map())
     const incomingMessages = yield* Queue.unbounded<{
+      readonly disconnect: () => void
       readonly message: unknown
       readonly port: chrome.runtime.Port
     }>()
     let reconnectAttempt = 0
+    let cachedProfileId: string | null = null
 
     const controlError = (reason: string) => new NativeDesktopControlError({ reason })
 
@@ -267,6 +305,7 @@ export function makeNativePlacementBridgeLayer(
       if (
         previous.hostConnected === next.hostConnected &&
         previous.controllerConnected === next.controllerConnected &&
+        previous.profileSelection === next.profileSelection &&
         previous.capabilities.length === next.capabilities.length &&
         previous.capabilities.every((capability, index) =>
           next.capabilities[index] === capability)
@@ -288,22 +327,56 @@ export function makeNativePlacementBridgeLayer(
       )
     })
 
+    const failPendingProfileSelection = Effect.fn(
+      'NativePlacementBridge.failPendingProfileSelection',
+    )(function* (reason: string) {
+      const completion = yield* Ref.getAndSet(pendingProfileSelection, null)
+      if (completion) yield* Deferred.fail(completion, controlError(reason))
+    })
+
     const updateControllerStatus = Effect.fn(
       'NativePlacementBridge.updateControllerStatus',
     )(function* (message: NativeControllerStatusMessage) {
       const current = yield* Ref.get(status)
+      if (current.profileSelection !== 'selected') return
       yield* setControllerStatus({
         capabilities: message.capabilities,
         controllerConnected: message.connected,
         hostConnected: current.hostConnected,
+        profileSelection: current.profileSelection,
       })
+    })
+
+    const updateProfileSelectionStatus = Effect.fn(
+      'NativePlacementBridge.updateProfileSelectionStatus',
+    )(function* (message: NativeProfileSelectionStatusMessage) {
+      const current = yield* Ref.get(status)
+      const profileSelection = message.selection
+      yield* setControllerStatus({
+        capabilities: profileSelection === 'selected' ? current.capabilities : [],
+        controllerConnected: profileSelection === 'selected'
+          ? current.controllerConnected
+          : false,
+        hostConnected: current.hostConnected,
+        profileSelection,
+      })
+      const completion = yield* Ref.getAndSet(pendingProfileSelection, null)
+      if (completion) yield* Deferred.succeed(completion, profileSelection === 'selected')
     })
 
     const replyToNativeMessage = Effect.fn('NativePlacementBridge.reply')(function* (
       port: chrome.runtime.Port,
       message: unknown,
+      disconnect: () => void,
     ) {
       if ((yield* Ref.get(activePort)) !== port) return
+      if (isNativeProfileSelectionStatusMessage(message)) {
+        yield* updateProfileSelectionStatus(message)
+        if (message.selection === 'another-profile') {
+          yield* Effect.sync(disconnect)
+        }
+        return
+      }
       if (isNativeControllerStatusMessage(message)) {
         yield* updateControllerStatus(message)
         return
@@ -329,9 +402,18 @@ export function makeNativePlacementBridgeLayer(
     })
 
     yield* Queue.take(incomingMessages).pipe(
-      Effect.flatMap(({ port, message }) => replyToNativeMessage(port, message).pipe(
-        Effect.forkChild({ startImmediately: true }),
-      )),
+      Effect.flatMap(({ disconnect, message, port }) => {
+        const reply = replyToNativeMessage(port, message, disconnect)
+        if (
+          isNativeProfileSelectionStatusMessage(message) ||
+          isNativeControllerStatusMessage(message) ||
+          isNativeControlResponse(message)
+        ) return reply
+        return reply.pipe(
+          Effect.forkIn(scope, { startImmediately: true }),
+          Effect.asVoid,
+        )
+      }),
       Effect.forever,
       Effect.forkIn(scope, { startImmediately: true }),
     )
@@ -342,6 +424,11 @@ export function makeNativePlacementBridgeLayer(
           cause: new Error('Native messaging is unavailable'),
         }))
       }
+      const profileId = cachedProfileId ?? (yield* Effect.tryPromise({
+        try: () => readOrCreateNativeProfileId(chromeApi),
+        catch: (cause) => NativePlacementConnectionError.make({ cause }),
+      }))
+      cachedProfileId = profileId
       const port = yield* Effect.try({
         try: () => runtimeApi.connectNative(NATIVE_PLACEMENT_HOST_NAME),
         catch: (cause) => NativePlacementConnectionError.make({ cause }),
@@ -351,35 +438,63 @@ export function makeNativePlacementBridgeLayer(
         capabilities: [],
         controllerConnected: false,
         hostConnected: true,
+        profileSelection: 'unknown',
       })
 
       yield* Effect.callback<void>((resume) => {
         let disconnected = false
 
-        const onMessage = (message: unknown) => {
-          reconnectAttempt = 0
-          Queue.offerUnsafe(incomingMessages, { port, message })
-        }
         const removeListeners = () => {
           port.onMessage.removeListener(onMessage)
           port.onDisconnect.removeListener(onDisconnect)
         }
-        const onDisconnect = () => {
+        const finishDisconnect = () => {
           if (disconnected) return
           disconnected = true
           removeListeners()
+          resume(Effect.void)
+        }
+        const disconnect = () => {
+          if (disconnected) return
+          finishDisconnect()
+          try {
+            port.disconnect()
+          } catch {}
+        }
+        const onMessage = (message: unknown) => {
+          reconnectAttempt = 0
+          Queue.offerUnsafe(incomingMessages, { disconnect, message, port })
+        }
+        const onDisconnect = () => {
           const disconnectError = runtimeApi.lastError
+          if (disconnected) return
+          finishDisconnect()
           if (disconnectError?.message) {
             console.info(
               'Tab Out native placement bridge disconnected:',
               disconnectError.message,
             )
           }
-          resume(Effect.void)
         }
 
         port.onMessage.addListener(onMessage)
         port.onDisconnect.addListener(onDisconnect)
+
+        try {
+          port.postMessage({
+            version: NATIVE_PROFILE_SELECTION_VERSION,
+            type: 'profile-hello',
+            profileId,
+          })
+        } catch (cause) {
+          disconnected = true
+          removeListeners()
+          console.info(
+            'Tab Out native placement bridge disconnected:',
+            errorMessage(cause),
+          )
+          resume(Effect.void)
+        }
 
         return Effect.sync(() => {
           if (disconnected) return
@@ -391,11 +506,14 @@ export function makeNativePlacementBridgeLayer(
         })
       })
       yield* Ref.update(activePort, (current) => current === port ? null : current)
+      const currentStatus = yield* Ref.get(status)
       yield* setControllerStatus({
         capabilities: [],
         controllerConnected: false,
         hostConnected: false,
+        profileSelection: currentStatus.profileSelection,
       })
+      yield* failPendingProfileSelection('The native bridge disconnected')
       yield* failPendingControlRequests('The native bridge disconnected')
     })
 
@@ -408,6 +526,10 @@ export function makeNativePlacementBridgeLayer(
             errorMessage(connection.failure.cause),
           )
         })
+      }
+
+      if ((yield* Ref.get(status)).profileSelection === 'another-profile') {
+        return yield* Effect.never
       }
 
       const delayIndex = Math.min(
@@ -447,6 +569,62 @@ export function makeNativePlacementBridgeLayer(
         ))
       }
       return windowIds
+    })
+
+    const selectCurrentProfile = Effect.fn(
+      'NativePlacementBridge.selectCurrentProfile',
+    )(function* () {
+      const currentStatus = yield* Ref.get(status)
+      if (currentStatus.profileSelection === 'selected') return
+      if (currentStatus.profileSelection === 'another-profile') {
+        return yield* Effect.fail(controlError(
+          'Another Chrome profile is already selected for the macOS integration',
+        ))
+      }
+      if (currentStatus.profileSelection !== 'required') {
+        return yield* Effect.fail(controlError(
+          'The native bridge profile-selection status is unavailable',
+        ))
+      }
+
+      const port = yield* Ref.get(activePort)
+      const profileId = cachedProfileId
+      if (!port || !profileId) {
+        return yield* Effect.fail(controlError('The native bridge is not connected'))
+      }
+      const completion = yield* Deferred.make<boolean, NativeDesktopControlError>()
+      const installed = yield* Ref.modify(pendingProfileSelection, (current) => (
+        current ? [false, current] : [true, completion]
+      ))
+      if (!installed) {
+        return yield* Effect.fail(controlError(
+          'Native bridge profile selection is already in progress',
+        ))
+      }
+      const removePending = Ref.update(pendingProfileSelection, (current) =>
+        current === completion ? null : current)
+      const selected = yield* Effect.try({
+        try: () => port.postMessage({
+          version: NATIVE_PROFILE_SELECTION_VERSION,
+          type: 'select-profile',
+          profileId,
+        }),
+        catch: (cause) => controlError(errorMessage(cause)),
+      }).pipe(
+        Effect.andThen(Deferred.await(completion)),
+        Effect.timeoutOrElse({
+          duration: '6 seconds',
+          orElse: () => Effect.fail(controlError(
+            'The native bridge profile-selection request timed out',
+          )),
+        }),
+        Effect.ensuring(removePending),
+      )
+      if (!selected) {
+        return yield* Effect.fail(controlError(
+          'Another Chrome profile was selected first for the macOS integration',
+        ))
+      }
     })
 
     const requestControl = Effect.fn('NativePlacementBridge.requestControl')(function* (
@@ -532,6 +710,7 @@ export function makeNativePlacementBridgeLayer(
 
     return NativePlacementBridge.of({
       getStatus: () => Ref.get(status),
+      selectCurrentProfile,
       resolveDesktopWindows: (destinationWindowId) => requestControl(
         'resolve-desktop-windows',
         destinationWindowId,

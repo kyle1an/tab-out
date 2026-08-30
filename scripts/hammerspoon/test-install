@@ -6,10 +6,20 @@ script_directory=${0:A:h}
 repository_root=${script_directory:h:h}
 integration_install="$repository_root/scripts/install-macos-integration"
 integration_uninstall="$repository_root/scripts/uninstall-macos-integration"
+local_setup="$repository_root/scripts/setup-local"
+native_host_uninstall="$repository_root/scripts/native-host/uninstall"
 spoon_install="$script_directory/install"
 spoon_uninstall="$script_directory/uninstall"
 temporary_root=$(mktemp -d)
 trap 'rm -rf "$temporary_root"' EXIT
+
+expected_node_version=$(tr -d '[:space:]' < "$repository_root/.node-version")
+package_contents=$(<"$repository_root/package.json")
+package_manager_pattern='"packageManager"[[:space:]]*:[[:space:]]*"pnpm@([^"]+)"'
+[[ $package_contents =~ $package_manager_pattern ]]
+expected_pnpm_version=$match[1]
+export TAB_OUT_TEST_NODE_VERSION=$expected_node_version
+export TAB_OUT_TEST_PNPM_VERSION=$expected_pnpm_version
 
 expect_help() {
   local command=$1
@@ -52,11 +62,13 @@ expect_refusal() {
 
 integration_install_usage="Usage: scripts/install-macos-integration <32-character-extension-id> [hammerspoon-config-directory]"
 integration_uninstall_usage="Usage: scripts/uninstall-macos-integration [hammerspoon-config-directory]"
+local_setup_usage="Usage: scripts/setup-local [--reset-profile] [32-character-extension-id] [hammerspoon-config-directory]"
 spoon_install_usage="Usage: scripts/hammerspoon/install [hammerspoon-config-directory]"
 spoon_uninstall_usage="Usage: scripts/hammerspoon/uninstall [hammerspoon-config-directory]"
 
 expect_help "$integration_install" "$integration_install_usage"
 expect_help "$integration_uninstall" "$integration_uninstall_usage"
+expect_help "$local_setup" "$local_setup_usage"
 expect_help "$spoon_install" "$spoon_install_usage"
 expect_help "$spoon_uninstall" "$spoon_uninstall_usage"
 
@@ -64,6 +76,9 @@ expect_usage_error "$integration_install_usage" "$integration_install"
 expect_usage_error "$integration_install_usage" "$integration_install" invalid-extension-id
 expect_usage_error "$integration_install_usage" \
   "$integration_install" aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa first second
+expect_usage_error "$local_setup_usage" "$local_setup" invalid-extension-id
+expect_usage_error "$local_setup_usage" \
+  "$local_setup" aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa first second
 expect_usage_error "$integration_uninstall_usage" "$integration_uninstall" first second
 expect_usage_error "$spoon_install_usage" "$spoon_install" first second
 expect_usage_error "$spoon_uninstall_usage" "$spoon_uninstall" first second
@@ -76,28 +91,45 @@ mkdir -p "$temporary_home" "$fallback_config" "$integration_config"
 fixture_checkout="$temporary_root/fixture-checkout"
 fixture_install="$fixture_checkout/scripts/install-macos-integration"
 fixture_uninstall="$fixture_checkout/scripts/uninstall-macos-integration"
+fixture_setup="$fixture_checkout/scripts/setup-local"
 fake_child="$fixture_checkout/fake-child"
 command_log="$temporary_root/commands.log"
 mkdir -p "$fixture_checkout/scripts/hammerspoon" "$fixture_checkout/scripts/native-host"
 cp "$integration_install" "$fixture_install"
 cp "$integration_uninstall" "$fixture_uninstall"
+cp "$local_setup" "$fixture_setup"
+cp "$repository_root/.node-version" "$repository_root/package.json" "$fixture_checkout/"
 
 {
   printf '%s\n' '#!/bin/zsh'
   printf '%s\n' 'set -euo pipefail'
+  printf '%s\n' 'if [[ ${0:t} == "node" && ${1:-} == "--version" ]]; then'
+  printf '%s\n' '  printf "v%s\n" "$TAB_OUT_TEST_NODE_VERSION"'
+  printf '%s\n' '  exit 0'
+  printf '%s\n' 'fi'
+  printf '%s\n' 'if [[ ${0:t} == "pnpm" && ${1:-} == "--version" ]]; then'
+  printf '%s\n' '  printf "%s\n" "$TAB_OUT_TEST_PNPM_VERSION"'
+  printf '%s\n' '  exit 0'
+  printf '%s\n' 'fi'
   printf '%s\n' 'printf "%s" "${0:h:t}/${0:t}" >> "$TAB_OUT_TEST_COMMAND_LOG"'
   printf '%s\n' 'for argument in "$@"; do'
   printf '%s\n' '  printf "\\t%s" "$argument" >> "$TAB_OUT_TEST_COMMAND_LOG"'
   printf '%s\n' 'done'
   printf '%s\n' 'printf "\\n" >> "$TAB_OUT_TEST_COMMAND_LOG"'
+  printf '%s\n' 'if [[ ${0:t} == "reset-profile" ]] \'
+  printf '%s\n' '  || [[ ${0:t} == "tab-out-native-bridge" && ${1:-} == "--reset-profile" ]]'
+  printf '%s\n' 'then'
+  printf '%s\n' '  rm -f -- "$TAB_OUT_NATIVE_BRIDGE_PROFILE_SELECTION_PATH"'
+  printf '%s\n' 'fi'
 } > "$fake_child"
 chmod 755 "$fixture_install" "$fixture_uninstall" "$fake_child"
 
 for child in hammerspoon/build hammerspoon/install hammerspoon/uninstall \
-  native-host/install native-host/uninstall
+  native-host/install native-host/reset-profile native-host/uninstall
 do
   ln -s "../../fake-child" "$fixture_checkout/scripts/$child"
 done
+ln -s ../fake-child "$fixture_checkout/scripts/doctor-macos-integration"
 
 extension_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 : > "$command_log"
@@ -116,6 +148,72 @@ HOME="$temporary_home" \
   "$fixture_install" "$extension_id" >/dev/null
 
 expected_commands=$'hammerspoon/build\nhammerspoon/install\t'"$fallback_config"$'\nnative-host/install\t'"$extension_id"
+[[ $(<"$command_log") == "$expected_commands" ]]
+
+fake_bin="$temporary_root/bin"
+mkdir -p "$fake_bin"
+ln -s "$fake_child" "$fake_bin/node"
+ln -s "$fake_child" "$fake_bin/pnpm"
+ln -s "$fake_child" "$fake_bin/hs"
+
+: > "$command_log"
+set +e
+wrong_node_output=$(
+  PATH="$fake_bin:$PATH" \
+    HOME="$temporary_home" \
+    TAB_OUT_TEST_NODE_VERSION=0.0.0 \
+    TAB_OUT_TEST_COMMAND_LOG="$command_log" \
+    "$fixture_setup" "$extension_id" 2>&1
+)
+wrong_node_status=$?
+set -e
+[[ $wrong_node_status -eq 1 ]]
+[[ $wrong_node_output == *"Tab Out requires Node $expected_node_version; found 0.0.0."* ]]
+[[ ! -s $command_log ]]
+
+: > "$command_log"
+set +e
+wrong_pnpm_output=$(
+  PATH="$fake_bin:$PATH" \
+    HOME="$temporary_home" \
+    TAB_OUT_TEST_PNPM_VERSION=0.0.0 \
+    TAB_OUT_TEST_COMMAND_LOG="$command_log" \
+    "$fixture_setup" "$extension_id" 2>&1
+)
+wrong_pnpm_status=$?
+set -e
+[[ $wrong_pnpm_status -eq 1 ]]
+[[ $wrong_pnpm_output == *"Tab Out requires pnpm $expected_pnpm_version; found 0.0.0."* ]]
+[[ ! -s $command_log ]]
+
+: > "$command_log"
+profile_selection="$temporary_root/configured-profile-v1.json"
+printf '%s\n' '{"version":1,"profileId":"11111111-1111-4111-8111-111111111111"}' \
+  > "$profile_selection"
+PATH="$fake_bin:$PATH" \
+  HOME="$temporary_home" \
+  TAB_OUT_HAMMERSPOON_CONFIG_DIR="$fallback_config" \
+  TAB_OUT_NATIVE_BRIDGE_PROFILE_SELECTION_PATH="$profile_selection" \
+  TAB_OUT_TEST_COMMAND_LOG="$command_log" \
+  "$fixture_setup" --reset-profile "$extension_id" >/dev/null
+
+expected_reset_commands=$'bin/pnpm\tinstall\t--frozen-lockfile\nbin/pnpm\texec\tplaywright\tinstall\tchromium\nbin/pnpm\tsetup:hooks\nbin/pnpm\tbuild\nhammerspoon/build\nhammerspoon/install\t'"$fallback_config"$'\nnative-host/install\t'"$extension_id"$'\nnative-host/reset-profile\nbin/hs\t-c\ths.reload()\nscripts/doctor-macos-integration\t'"$fallback_config"
+[[ $(<"$command_log") == "$expected_reset_commands" ]]
+[[ ! -e $profile_selection && ! -L $profile_selection ]]
+
+manifest_directory="$temporary_home/Library/Application Support/Google/Chrome/NativeMessagingHosts"
+mkdir -p "$manifest_directory"
+printf '%s\n' \
+  '{"allowed_origins":["chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"]}' \
+  > "$manifest_directory/com.tabout.native_bridge.json"
+: > "$command_log"
+PATH="$fake_bin:$PATH" \
+  HOME="$temporary_home" \
+  TAB_OUT_HAMMERSPOON_CONFIG_DIR="$fallback_config" \
+  TAB_OUT_TEST_COMMAND_LOG="$command_log" \
+  "$fixture_setup" >/dev/null
+
+expected_commands=$'bin/pnpm\tinstall\t--frozen-lockfile\nbin/pnpm\texec\tplaywright\tinstall\tchromium\nbin/pnpm\tsetup:hooks\nbin/pnpm\tbuild\nhammerspoon/build\nhammerspoon/install\t'"$fallback_config"$'\nnative-host/install\t'"$extension_id"$'\nbin/hs\t-c\ths.reload()\nscripts/doctor-macos-integration\t'"$fallback_config"
 [[ $(<"$command_log") == "$expected_commands" ]]
 
 : > "$command_log"
@@ -137,6 +235,40 @@ expected_commands=$'hammerspoon/uninstall\t'"$integration_config"$'\nnative-host
 
 expected_commands=$'hammerspoon/uninstall\t'"$temporary_home/.hammerspoon"$'\nnative-host/uninstall'
 [[ $(<"$command_log") == "$expected_commands" ]]
+
+native_uninstall_home="$temporary_root/native-uninstall-home"
+installed_host="$native_uninstall_home/Library/Application Support/Tab Out/bin/tab-out-native-bridge"
+native_manifest="$native_uninstall_home/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.tabout.native_bridge.json"
+native_socket="$native_uninstall_home/Library/Application Support/Tab Out/run/native-bridge-v1.sock"
+profile_selection="$native_uninstall_home/Library/Application Support/Tab Out/configured-profile-v1.json"
+profile_selection_lock="$profile_selection.lock"
+mkdir -p \
+  "${installed_host:h}" \
+  "${native_manifest:h}" \
+  "${native_socket:h}"
+ln -s "$fake_child" "$installed_host"
+: > "$native_manifest"
+: > "$native_socket"
+printf '%s\n' '{"version":1,"profileId":"11111111-1111-4111-8111-111111111111"}' \
+  > "$profile_selection"
+: > "$profile_selection_lock"
+: > "$command_log"
+
+HOME="$native_uninstall_home" \
+  TAB_OUT_NATIVE_BRIDGE_PROFILE_SELECTION_PATH="$profile_selection" \
+  TAB_OUT_TEST_COMMAND_LOG="$command_log" \
+  "$native_host_uninstall" >/dev/null
+
+[[ $(<"$command_log") == $'bin/tab-out-native-bridge\t--reset-profile' ]]
+for removed_artifact in \
+  "$installed_host" \
+  "$native_manifest" \
+  "$native_socket" \
+  "$profile_selection" \
+  "$profile_selection_lock"
+do
+  [[ ! -e $removed_artifact && ! -L $removed_artifact ]]
+done
 
 temporary_config="$temporary_root/config"
 mkdir -p "$temporary_config"

@@ -111,12 +111,11 @@ In the Chrome profile that should own Tab Out:
 
 This selected profile is the **Configured Profile**. At runtime Tab Out accepts
 only the **Configured Chrome Instance** whose Chrome-launched native host proves
-that profile's current process. Keep the unpacked Tab Out extension loaded in
-only this profile within the selected Chrome user-data directory; if it was
-loaded in another profile, remove that copy there. The Spoon fails closed when
-two profiles can host Tab Out because Chrome gives both profiles the same browser
-process. Another Chrome process is not eligible merely because
-`chrome://version` shows the same executable or application name.
+that profile's current process and whose opaque profile-local identity was
+explicitly paired. Tab Out may also be loaded in other profiles; those later
+profiles cannot replace or invalidate the paired owner. Another Chrome process
+is not eligible merely because `chrome://version` shows the same executable or
+application name.
 
 The companion `hammerspoon-config` repository keeps those values in ignored
 `tab-out.local.lua`. Create it only when absent, then replace the profile
@@ -155,15 +154,28 @@ Out extension ID.
 
 ### 5. Install the product integration
 
-Run the canonical installer with the copied extension ID. The explicit config
-directory also keeps installation correct when it is not the default path:
+Run the canonical local setup command with the copied extension ID. It installs
+locked dependencies and the pinned browser-test Chromium, configures this
+checkout's Git hooks, rebuilds generated extension output, refreshes the Spoon
+and native host, requests a Hammerspoon reload, and runs the integration doctor.
+Before changing local state, it verifies that the active Node and pnpm versions
+match this checkout's pins. If they do not, run `mise install` from the checkout
+and retry from a Mise-activated shell, or prefix the package command with
+`mise exec --`.
+
+The explicit config directory keeps installation correct when it is not the
+default path:
 
 ```zsh
 EXTENSION_ID=<32-character-extension-id>
-"$TAB_OUT_CHECKOUT/scripts/install-macos-integration" \
+pnpm --dir "$TAB_OUT_CHECKOUT" setup:local \
   "$EXTENSION_ID" \
   "$HAMMERSPOON_CONFIG_DIRECTORY"
 ```
+
+After the first installation, `pnpm --dir "$TAB_OUT_CHECKOUT" setup:local`
+reuses the extension ID recorded by the installed native-host manifest, so the
+same command refreshes local integration files after repository updates.
 
 The installer builds the private helper, links the checkout-owned
 `TabOut.spoon` into the selected configuration, and installs the user-level
@@ -174,8 +186,17 @@ After it succeeds:
 
 1. Reload Tab Out in `chrome://extensions` so its service worker reconnects.
 2. Open Hammerspoon, or reload it from its menu if it was already running.
-3. Click the Tab Out toolbar icon and confirm the final Tab Actions Menu
-   option no longer shows an integration setup or update reason.
+3. In the Configured Profile, click the Tab Out toolbar icon and choose **Use
+   this Chrome profile for macOS integration** when that first-setup action is
+   present.
+4. Confirm the final Tab Actions Menu option no longer shows an integration
+   setup, profile-selection, or update reason.
+
+If the wrong profile was paired or the Configured Profile intentionally changes,
+run `pnpm --dir "$TAB_OUT_CHECKOUT" setup:local --reset-profile`, reload Tab Out,
+and perform the selection once in the intended profile. Reset never chooses a
+replacement automatically, and it stops any live native bridge owner before it
+returns so the replacement can claim the local endpoint.
 
 ### 6. Complete macOS permissions
 
@@ -253,10 +274,10 @@ uses Hammerspoon's experimental macOS Spaces interface.
 ```
 
 It verifies product source and build prerequisites, the active Hammerspoon
-configuration, the checkout-owned Spoon link, native host, the loaded Spoon's
-public readiness interface, and an active versioned Native Placement Bridge
-status round trip. It does not create or focus a window, require a prior routed
-request, or inspect a particular local settings filename. Missing Screen
+configuration, the checkout-owned Spoon link, the mode-restricted and versioned
+profile selection, native host, the loaded Spoon's public readiness interface,
+and an active versioned Native Placement Bridge status round trip. It does not
+create or focus a window or require a prior routed request. Missing Screen
 Recording produces a warning rather than a setup action because only transition
 shielding depends on it.
 
@@ -283,14 +304,16 @@ Chrome-launched host's process ID. Its native helper targets ScriptingBridge and
 Accessibility through that exact PID, correlates browser and native window IDs
 internally, and revalidates all three identities before focus or navigation. The
 host PID must also match the configured user-data directory's live Chrome
-process lock, and no other profile in that directory may expose Tab Out's
-shortcut commands. It reuses only a verified Configured Profile window in that
-Configured Chrome Instance; otherwise the Native Placement Bridge creates the
-destination there without activating Chrome on another display. A route that
-needs an unavailable identity, Accessibility, bridge, or Private Exact-Window
-Activation capability Safe Aborts instead of using an unsafe focus or activation
-fallback. Screen Recording adds transition shielding but is not required for
-routing.
+process lock. Before the host can own the local endpoint, the extension's opaque
+profile-local identity must match the persisted Configured Profile selection. A
+later-loaded profile receives no controller authority and cannot replace the
+selected host. The Spoon reuses only a verified Configured Profile window in
+that Configured Chrome Instance; otherwise the Native Placement Bridge creates
+the destination there without activating Chrome on another display. A route
+that needs an unavailable identity, Accessibility, bridge, or Private
+Exact-Window Activation capability Safe Aborts instead of using an unsafe focus
+or activation fallback. Screen Recording adds transition shielding but is not
+required for routing.
 
 Active URLs from the Configured Chrome Instance may be read ephemerally inside
 the native helper solely to correlate browser and macOS windows. They never
@@ -324,7 +347,9 @@ and
 same-Desktop controller boundary is recorded in
 [ADR 0020](../../docs/adr/0020-use-hammerspoon-to-select-same-desktop-chrome-windows.md).
 [ADR 0022](../../docs/adr/0022-target-chrome-through-native-host-process-authority.md)
-records the configured-instance process-authority boundary. Subsequent
+records the configured-instance process-authority boundary, and
+[ADR 0023](../../docs/adr/0023-pair-the-native-bridge-to-one-chrome-profile.md)
+records explicit profile pairing and later-loaded profile behavior. Subsequent
 macOS-placement decisions remain under [`docs/adr/`](../../docs/adr/).
 
 ## Source layout
@@ -371,6 +396,7 @@ Chrome windows. They do not replace the live acceptance matrix.
 ```
 
 The Spoon is a link to this checkout, and the uninstall scripts remove only
-artifacts they own. They do not remove either checkout, Hammerspoon, Chrome,
-macOS permissions, or the top-level `~/.hammerspoon` configuration. Chrome
-starts the native host on demand.
+artifacts they own, including the persisted Configured Profile selection. They
+do not remove either checkout, Hammerspoon, Chrome, macOS permissions, or the
+top-level `~/.hammerspoon` configuration. Chrome starts the native host on
+demand.

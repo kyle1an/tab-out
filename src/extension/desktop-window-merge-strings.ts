@@ -12,6 +12,8 @@ export function desktopWindowMergeFailureMessage(
   reason: DesktopWindowMergeRequestFailureReason,
 ): string {
   switch (reason) {
+    case 'another-profile-selected':
+      return 'Another Chrome profile owns the macOS integration'
     case 'browser-read-failed':
       return 'Could not read the current Chrome windows'
     case 'controller-update-required':
@@ -22,6 +24,8 @@ export function desktopWindowMergeFailureMessage(
       return 'Could not safely identify the windows on this desktop'
     case 'native-integration-required':
       return 'Set up the Tab Out macOS integration to merge windows'
+    case 'profile-selection-required':
+      return 'Choose this Chrome profile for the macOS integration'
     case 'session-storage-unavailable':
       return 'Window merge status storage is unavailable'
   }

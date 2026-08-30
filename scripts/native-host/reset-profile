@@ -1,0 +1,16 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+if (( $# != 0 )); then
+  printf '%s\n' "Usage: scripts/native-host/reset-profile" >&2
+  exit 64
+fi
+
+installed_host="$HOME/Library/Application Support/Tab Out/bin/tab-out-native-bridge"
+if [[ ! -x $installed_host ]]; then
+  printf '%s\n' "Native host executable is not installed: $installed_host" >&2
+  exit 1
+fi
+
+exec "$installed_host" --reset-profile

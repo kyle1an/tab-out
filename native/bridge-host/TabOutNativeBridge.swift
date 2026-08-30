@@ -2,9 +2,10 @@ import Darwin
 import CoreFoundation
 import Foundation
 
-private let placementBridgeVersion = 5
-private let controlBridgeVersion = 6
-private let bridgeVersionString = "7.0.0"
+private let profileSelectionVersion = 1
+private let placementBridgeVersion = 6
+private let controlBridgeVersion = 7
+private let bridgeVersionString = "8.0.0"
 private let maximumMessageBytes = 64 * 1024
 private let maximumRequestLifetimeMs: Int64 = 60_000
 private let mergeDesktopCapability = "merge-desktop"
@@ -45,6 +46,19 @@ private func bridgeSocketURL() -> URL {
 
 private func bridgeDirectoryURL() -> URL {
   bridgeSocketURL().deletingLastPathComponent()
+}
+
+private func profileSelectionURL() -> URL {
+  if let override = ProcessInfo.processInfo.environment["TAB_OUT_NATIVE_BRIDGE_PROFILE_SELECTION_PATH"],
+     !override.isEmpty {
+    return URL(fileURLWithPath: override)
+  }
+  return FileManager.default.homeDirectoryForCurrentUser
+    .appendingPathComponent("Library/Application Support/Tab Out/configured-profile-v1.json")
+}
+
+private func profileSelectionDirectoryURL() -> URL {
+  profileSelectionURL().deletingLastPathComponent()
 }
 
 private func writeAll(_ fileDescriptor: Int32, data: Data) -> Bool {
@@ -181,6 +195,141 @@ private func validExtensionOrigin(_ value: String) -> Bool {
     of: "^chrome-extension://[a-p]{32}/$",
     options: .regularExpression
   ) != nil
+}
+
+private func validProfileId(_ value: Any?) -> String? {
+  guard let profileId = value as? String,
+        profileId.range(
+          of: "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          options: .regularExpression
+        ) != nil
+  else { return nil }
+  return profileId
+}
+
+private enum ProfileSelectionStatus: String {
+  case anotherProfile = "another-profile"
+  case required
+  case selected
+}
+
+private func profileSelectionStatusMessage(
+  _ status: ProfileSelectionStatus
+) -> [String: Any] {
+  [
+    "version": profileSelectionVersion,
+    "type": "profile-selection-status",
+    "selection": status.rawValue,
+  ]
+}
+
+private func secureProfileSelectionDirectory() throws {
+  let directory = profileSelectionDirectoryURL()
+  try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+  guard chmod(directory.path, S_IRWXU) == 0 else {
+    throw BridgeError.message("Could not secure the native bridge profile-selection directory")
+  }
+}
+
+private func withProfileSelectionLock<Result>(
+  _ operation: () throws -> Result
+) throws -> Result {
+  try secureProfileSelectionDirectory()
+  let lockPath = "\(profileSelectionURL().path).lock"
+  let lockDescriptor = Darwin.open(
+    lockPath,
+    O_CREAT | O_RDWR | O_NOFOLLOW,
+    S_IRUSR | S_IWUSR
+  )
+  guard lockDescriptor >= 0 else {
+    throw BridgeError.message("Could not open the native bridge profile-selection lock")
+  }
+  defer {
+    _ = flock(lockDescriptor, LOCK_UN)
+    Darwin.close(lockDescriptor)
+  }
+  guard flock(lockDescriptor, LOCK_EX) == 0 else {
+    throw BridgeError.message("Could not lock the native bridge profile selection")
+  }
+  return try operation()
+}
+
+private func readSelectedProfileId() throws -> String? {
+  let url = profileSelectionURL()
+  guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+  let data = try Data(contentsOf: url)
+  guard data.count <= 4_096 else {
+    throw BridgeError.message("The native bridge profile selection is invalid")
+  }
+  let object = try jsonObject(from: data)
+  guard hasOnlyKeys(object, ["version", "profileId"]),
+        finiteNumber(object["version"]) == Double(profileSelectionVersion),
+        let profileId = validProfileId(object["profileId"])
+  else {
+    throw BridgeError.message("The native bridge profile selection is invalid")
+  }
+  return profileId
+}
+
+private func writeSelectedProfileId(_ profileId: String) throws {
+  let url = profileSelectionURL()
+  let data = try jsonData([
+    "version": profileSelectionVersion,
+    "profileId": profileId,
+  ])
+  let temporaryURL = url.deletingLastPathComponent()
+    .appendingPathComponent(".configured-profile-\(UUID().uuidString.lowercased())")
+  let temporaryDescriptor = Darwin.open(
+    temporaryURL.path,
+    O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW,
+    S_IRUSR | S_IWUSR
+  )
+  guard temporaryDescriptor >= 0 else {
+    throw BridgeError.message("Could not create the native bridge profile selection")
+  }
+  var installed = false
+  defer {
+    Darwin.close(temporaryDescriptor)
+    if !installed { _ = unlink(temporaryURL.path) }
+  }
+  guard writeAll(temporaryDescriptor, data: data), fsync(temporaryDescriptor) == 0 else {
+    throw BridgeError.message("Could not write the native bridge profile selection")
+  }
+  guard rename(temporaryURL.path, url.path) == 0 else {
+    throw BridgeError.message("Could not install the native bridge profile selection")
+  }
+  installed = true
+}
+
+private func profileSelectionStatus(for profileId: String) throws -> ProfileSelectionStatus {
+  try withProfileSelectionLock {
+    guard let selectedProfileId = try readSelectedProfileId() else {
+      return .required
+    }
+    return selectedProfileId == profileId ? .selected : .anotherProfile
+  }
+}
+
+private func selectProfile(_ profileId: String) throws -> ProfileSelectionStatus {
+  try withProfileSelectionLock {
+    if let selectedProfileId = try readSelectedProfileId() {
+      return selectedProfileId == profileId ? .selected : .anotherProfile
+    }
+    try writeSelectedProfileId(profileId)
+    return .selected
+  }
+}
+
+@discardableResult
+private func clearSelectedProfile() throws -> Bool {
+  try withProfileSelectionLock {
+    let path = profileSelectionURL().path
+    if unlink(path) == 0 { return true }
+    if errno == ENOENT { return false }
+    throw BridgeError.message(
+      "Could not clear the native bridge profile selection: \(String(cString: strerror(errno)))"
+    )
+  }
 }
 
 private func finiteNumber(_ value: Any?) -> Double? {
@@ -587,6 +736,43 @@ private func readNativeMessage() -> [String: Any]? {
   return try? jsonObject(from: data)
 }
 
+private func negotiateProfileSelection(nativeOutput: NativeOutput) throws -> String? {
+  guard let hello = readNativeMessage() else { return nil }
+  guard hasOnlyKeys(hello, ["version", "type", "profileId"]),
+        finiteNumber(hello["version"]) == Double(profileSelectionVersion),
+        hello["type"] as? String == "profile-hello",
+        let profileId = validProfileId(hello["profileId"])
+  else {
+    throw BridgeError.message("The native bridge profile handshake is invalid")
+  }
+
+  var status = try profileSelectionStatus(for: profileId)
+  guard nativeOutput.send(profileSelectionStatusMessage(status)) else {
+    throw BridgeError.message("Chrome disconnected during native bridge profile selection")
+  }
+  if status == .selected { return profileId }
+  if status == .anotherProfile {
+    _ = readNativeMessage()
+    return nil
+  }
+
+  guard let selection = readNativeMessage() else { return nil }
+  guard hasOnlyKeys(selection, ["version", "type", "profileId"]),
+        finiteNumber(selection["version"]) == Double(profileSelectionVersion),
+        selection["type"] as? String == "select-profile",
+        validProfileId(selection["profileId"]) == profileId
+  else {
+    throw BridgeError.message("The native bridge profile-selection request is invalid")
+  }
+
+  status = try selectProfile(profileId)
+  guard nativeOutput.send(profileSelectionStatusMessage(status)) else {
+    throw BridgeError.message("Chrome disconnected during native bridge profile selection")
+  }
+  if status != .selected { _ = readNativeMessage() }
+  return status == .selected ? profileId : nil
+}
+
 private struct SocketIdentity {
   let device: dev_t
   let inode: ino_t
@@ -686,11 +872,162 @@ private func makeServerSocket(path: String) throws -> ServerSocket {
   }
 }
 
+private func makeSelectedProfileServerSocket(
+  path: String,
+  profileId: String
+) throws -> ServerSocket? {
+  try withProfileSelectionLock { () -> ServerSocket? in
+    guard try readSelectedProfileId() == profileId else { return nil }
+    return try makeServerSocket(path: path)
+  }
+}
+
+private func bridgeOwnershipIsHeld(path: String) throws -> Bool {
+  let lockPath = "\(path).lock"
+  let lockFileDescriptor = Darwin.open(lockPath, O_RDWR | O_NOFOLLOW)
+  if lockFileDescriptor < 0 {
+    if errno == ENOENT { return false }
+    throw BridgeError.message("Could not inspect the native bridge ownership lock")
+  }
+  defer { Darwin.close(lockFileDescriptor) }
+
+  if flock(lockFileDescriptor, LOCK_EX | LOCK_NB) == 0 {
+    _ = flock(lockFileDescriptor, LOCK_UN)
+    return false
+  }
+  if errno == EWOULDBLOCK || errno == EAGAIN { return true }
+  throw BridgeError.message("Could not inspect the native bridge ownership lock")
+}
+
+private func waitForBridgeOwnershipRelease(path: String) throws {
+  let deadline = Date().addingTimeInterval(3)
+  while try bridgeOwnershipIsHeld(path: path) {
+    guard Date() < deadline else {
+      throw BridgeError.message("The active native bridge did not stop after profile reset")
+    }
+    usleep(20_000)
+  }
+}
+
+private func peerProcessId(_ fileDescriptor: Int32) throws -> pid_t {
+  var peerUserId = uid_t.max
+  var peerGroupId = gid_t.max
+  guard getpeereid(fileDescriptor, &peerUserId, &peerGroupId) == 0,
+        peerUserId == getuid()
+  else {
+    throw BridgeError.message("The active native bridge is not owned by the current user")
+  }
+
+  var processId = pid_t()
+  var processIdSize = socklen_t(MemoryLayout<pid_t>.size)
+  guard getsockopt(
+    fileDescriptor,
+    SOL_LOCAL,
+    LOCAL_PEERPID,
+    &processId,
+    &processIdSize
+  ) == 0,
+  processId > 1 else {
+    throw BridgeError.message("Could not identify the active native bridge process")
+  }
+  return processId
+}
+
+private func processExecutablePath(_ processId: pid_t) -> String? {
+  var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN * 4))
+  guard proc_pidpath(processId, &buffer, UInt32(buffer.count)) > 0 else { return nil }
+  return String(cString: buffer)
+}
+
+private func canonicalPath(_ path: String) -> String {
+  URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
+}
+
+private func terminateLegacyProfileOwner(_ processId: pid_t) throws {
+  guard let runningPath = processExecutablePath(processId) else {
+    if kill(processId, 0) != 0, errno == ESRCH { return }
+    throw BridgeError.message("Could not verify the active native bridge executable")
+  }
+  let currentPath = canonicalPath(CommandLine.arguments[0])
+  guard canonicalPath(runningPath) == currentPath else {
+    throw BridgeError.message(
+      "Refusing to stop an unexpected process that owns the native bridge endpoint"
+    )
+  }
+  guard kill(processId, SIGTERM) == 0 || errno == ESRCH else {
+    throw BridgeError.message("Could not stop the active native bridge process")
+  }
+}
+
+private func requestRunningHostProfileReset() throws -> Bool {
+  let path = bridgeSocketURL().path
+  let socketIdentityBeforeReset = socketIdentity(path: path)
+  let fileDescriptor: Int32
+  do {
+    fileDescriptor = try connectSocket(path: path, timeoutSeconds: 3)
+  } catch {
+    if try bridgeOwnershipIsHeld(path: path) {
+      throw BridgeError.message(
+        "The active native bridge owns its endpoint but could not receive the profile reset"
+      )
+    }
+    if let socketIdentityBeforeReset {
+      unlinkSocket(path: path, ifOwnedBy: socketIdentityBeforeReset)
+    }
+    return false
+  }
+  defer { Darwin.close(fileDescriptor) }
+
+  let processId = try peerProcessId(fileDescriptor)
+  let requestId = "profile-reset-\(getpid())-\(currentTimeMs())"
+  var requestData = try jsonData([
+    "version": profileSelectionVersion,
+    "type": "reset-profile",
+    "requestId": requestId,
+  ])
+  requestData.append(0x0A)
+
+  var resetAccepted = false
+  if writeAll(fileDescriptor, data: requestData),
+     let responseData = try? readLine(fileDescriptor),
+     let resetResponse = try? jsonObject(from: responseData) {
+    resetAccepted = finiteNumber(resetResponse["version"]) == Double(profileSelectionVersion)
+      && resetResponse["type"] as? String == "response"
+      && resetResponse["requestId"] as? String == requestId
+      && resetResponse["status"] as? String == "accepted"
+  }
+
+  if !resetAccepted {
+    try terminateLegacyProfileOwner(processId)
+  }
+  try waitForBridgeOwnershipRelease(path: path)
+  if let socketIdentityBeforeReset {
+    unlinkSocket(path: path, ifOwnedBy: socketIdentityBeforeReset)
+  }
+  return true
+}
+
+private struct ProfileResetResult {
+  let selectionCleared: Bool
+  let runningHostStopped: Bool
+}
+
+private func resetProfileSelection() throws -> ProfileResetResult {
+  let selectionCleared = try clearSelectedProfile()
+  let runningHostStopped = try requestRunningHostProfileReset()
+  return ProfileResetResult(
+    selectionCleared: selectionCleared,
+    runningHostStopped: runningHostStopped
+  )
+}
+
 private func handleLocalClient(
   _ fileDescriptor: Int32,
   browserProcessId: Int,
   state: BridgeState,
-  nativeOutput: NativeOutput
+  nativeOutput: NativeOutput,
+  socketIdentity: SocketIdentity,
+  socketPath: String
 ) {
   var requestId = "invalid"
   var responseVersion = placementBridgeVersion
@@ -706,6 +1043,28 @@ private func handleLocalClient(
 
   do {
     let object = try jsonObject(from: readLine(fileDescriptor))
+    if object["type"] as? String == "reset-profile" {
+      responseVersion = positiveInteger(object["version"]) ?? profileSelectionVersion
+      requestId = validRequestId(object["requestId"]) ?? "invalid"
+      guard hasOnlyKeys(object, ["version", "type", "requestId"]),
+            finiteNumber(object["version"]) == Double(profileSelectionVersion),
+            requestId != "invalid"
+      else {
+        throw BridgeError.message("The native bridge profile-reset request is invalid")
+      }
+      let selectionCleared = try clearSelectedProfile()
+      guard writeLocalMessage(response(
+        version: profileSelectionVersion,
+        requestId: requestId,
+        status: "accepted",
+        fields: ["selectionCleared": selectionCleared]
+      ), to: fileDescriptor) else {
+        throw BridgeError.message("Could not acknowledge the native bridge profile reset")
+      }
+      Darwin.close(fileDescriptor)
+      unlinkSocket(path: socketPath, ifOwnedBy: socketIdentity)
+      Darwin.exit(0)
+    }
     if finiteNumber(object["version"]) == Double(controlBridgeVersion) {
       responseVersion = controlBridgeVersion
     }
@@ -838,11 +1197,15 @@ private func handleNativeControlRequest(
 private func runNativeHost() throws {
   signal(SIGPIPE, SIG_IGN)
   let browserProcessId = try validatedBrowserProcessId()
+  let nativeOutput = NativeOutput()
+  guard let profileId = try negotiateProfileSelection(nativeOutput: nativeOutput) else { return }
   let path = bridgeSocketURL().path
-  let serverSocket = try makeServerSocket(path: path)
+  guard let serverSocket = try makeSelectedProfileServerSocket(
+    path: path,
+    profileId: profileId
+  ) else { return }
   let serverDescriptor = serverSocket.fileDescriptor
   let state = BridgeState()
-  let nativeOutput = NativeOutput()
 
   DispatchQueue.global(qos: .userInitiated).async {
     while !state.isShuttingDown() {
@@ -856,7 +1219,9 @@ private func runNativeHost() throws {
           clientDescriptor,
           browserProcessId: browserProcessId,
           state: state,
-          nativeOutput: nativeOutput
+          nativeOutput: nativeOutput,
+          socketIdentity: serverSocket.identity,
+          socketPath: path
         )
       }
     }
@@ -962,6 +1327,17 @@ private func main() -> Int32 {
       try printJson(result)
       return result["status"] as? String == "accepted" ? 0 : 1
     }
+    if arguments.count == 2 && arguments[1] == "--reset-profile" {
+      let result = try resetProfileSelection()
+      if result.runningHostStopped {
+        print("Cleared the selected Chrome profile and stopped its active native bridge.")
+      } else if result.selectionCleared {
+        print("Cleared the selected Chrome profile for the macOS integration.")
+      } else {
+        print("No selected Chrome profile needed to be cleared.")
+      }
+      return 0
+    }
     if arguments.count == 3 && arguments[1] == "--request" {
       guard let requestData = arguments[2].data(using: .utf8) else {
         throw BridgeError.message("The local native bridge request is not UTF-8")
@@ -974,7 +1350,10 @@ private func main() -> Int32 {
       return 0
     }
 
-    fputs("Usage: tab-out-native-bridge --request '<json>' | --status | --version\n", stderr)
+    fputs(
+      "Usage: tab-out-native-bridge --request '<json>' | --reset-profile | --status | --version\n",
+      stderr
+    )
     return 64
   } catch {
     fputs("tab-out-native-bridge: \(String(describing: error))\n", stderr)

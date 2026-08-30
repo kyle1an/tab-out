@@ -158,13 +158,13 @@ assertEqual(
 )
 assertEqual(
   missingMetadataStatus.extensionReady,
-  false,
-  "a cached extension ID cannot prove ownership without current profile metadata"
+  true,
+  "the configured profile's extension identity remains independently verifiable"
 )
 localStateAvailable = true
 local restoredMetadataStatus = catalog:status()
 assertEqual(restoredMetadataStatus.profileMetadataReady, true, "restored profile metadata becomes ready")
-assertEqual(restoredMetadataStatus.extensionReady, true, "restored exclusive ownership becomes ready")
+assertEqual(restoredMetadataStatus.extensionReady, true, "restored configured-profile metadata becomes ready")
 
 inventory[301] = 103
 local mapped, mappingError = catalog:browserWindowIdsFor(
@@ -238,29 +238,24 @@ local duplicateCreatedWindow, duplicateCreationError, duplicateCreationTerminal 
   { createdWindow },
   0.75
 )
-assertEqual(duplicateCreatedWindow, nil, "creation cannot reuse ownership cached before a duplicate install")
-assertEqual(duplicateCreationTerminal, true, "ambiguous created-window ownership aborts immediately")
-assert(
-  duplicateCreationError:find("also loaded in Profile 8", 1, true),
-  "created-window rejection explains the changed profile ownership"
-)
+assertEqual(duplicateCreatedWindow, createdWindow, "the paired profile keeps created-window ownership")
+assertEqual(duplicateCreationError, nil, "another loaded profile does not invalidate paired ownership")
+assertEqual(duplicateCreationTerminal, nil, "paired created-window ownership remains usable")
 assertEqual(
   catalog:status().extensionReady,
-  false,
-  "readiness rejects a duplicate installation discovered after extension ID caching"
+  true,
+  "readiness keeps the paired profile ready when another profile loads the extension"
 )
 local duplicateWindows, duplicateError = catalog:resolveProfileWindows(
   CONFIGURED_PROCESS_ID,
   { 101 },
   { configuredFront }
 )
-assertEqual(duplicateWindows, nil, "another profile's Tab Out installation is rejected")
-assert(
-  duplicateError:find("also loaded in Profile 8", 1, true),
-  "duplicate profile ownership explains the conflicting profile"
-)
+assert(duplicateWindows, duplicateError)
+assertEqual(#duplicateWindows, 1, "the paired profile inventory remains authoritative")
+assertEqual(duplicateWindows[1].window, configuredFront, "the paired window still resolves")
 duplicateProfileInstall = false
-assertEqual(catalog:status().extensionReady, true, "readiness recovers when ownership is exclusive again")
+assertEqual(catalog:status().extensionReady, true, "readiness stays available with one loaded profile")
 
 inventory = { [201] = "invalid" }
 local invalidMapping, invalidError = catalog:browserWindowIdsFor(

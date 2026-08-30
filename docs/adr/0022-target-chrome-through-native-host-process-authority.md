@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-26
+- Superseded in part by: ADR 0023 (profile-install exclusivity only)
 
 ## Context
 

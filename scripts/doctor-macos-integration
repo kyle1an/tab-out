@@ -96,6 +96,69 @@ check_directory() {
   fi
 }
 
+validate_profile_selection() {
+  local selection_path=$1
+  local current_user_id
+  local profile_description
+  local profile_file_type
+  local profile_id
+  local profile_key_count
+  local profile_mode
+  local profile_owner
+  local profile_size
+  local profile_stat
+  local profile_version
+
+  REPLY=""
+  if [[ -L $selection_path || ! -f $selection_path ]]; then
+    REPLY="expected a current-user regular file with owner-only permissions"
+    return 1
+  fi
+  if ! profile_stat=$(stat -f '%u:%Lp:%z' -- "$selection_path" 2>/dev/null); then
+    REPLY="could not inspect the selection file"
+    return 1
+  fi
+  profile_owner=${profile_stat%%:*}
+  profile_stat=${profile_stat#*:}
+  profile_mode=${profile_stat%%:*}
+  profile_size=${profile_stat##*:}
+  current_user_id=$(id -u)
+  if [[ $profile_owner != "$current_user_id" ]] \
+    || [[ ! $profile_mode =~ '^[4-7]00$' ]]
+  then
+    REPLY="expected a current-user file with owner-only permissions"
+    return 1
+  fi
+  if (( profile_size > 4_096 )); then
+    REPLY="selection file exceeds the supported size"
+    return 1
+  fi
+  if ! profile_file_type=$(/usr/bin/file -b -- "$selection_path" 2>/dev/null) \
+    || [[ $profile_file_type != JSON* ]]
+  then
+    REPLY="expected version 1 and one opaque profile ID"
+    return 1
+  fi
+  if ! profile_description=$(/usr/bin/plutil -p -- "$selection_path" 2>/dev/null); then
+    REPLY="expected version 1 and one opaque profile ID"
+    return 1
+  fi
+  profile_key_count=$(printf '%s\n' "$profile_description" | /usr/bin/grep -c ' => ' || true)
+  if (( profile_key_count != 2 )) \
+    || ! profile_version=$(/usr/bin/plutil -extract version raw -o - -- "$selection_path" 2>/dev/null) \
+    || ! profile_id=$(/usr/bin/plutil -extract profileId raw -o - -- "$selection_path" 2>/dev/null)
+  then
+    REPLY="expected version 1 and one opaque profile ID"
+    return 1
+  fi
+  if [[ $profile_version != "1" && $profile_version != "1.0" ]] \
+    || [[ ! $profile_id =~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' ]]
+  then
+    REPLY="expected version 1 and one opaque profile ID"
+    return 1
+  fi
+}
+
 info "Tab Out checkout: $tab_out_checkout"
 info "Hammerspoon config directory: $config_directory"
 
@@ -193,6 +256,15 @@ else
 fi
 
 native_status_command="$tab_out_checkout/scripts/native-host/status"
+profile_selection_path=${TAB_OUT_NATIVE_BRIDGE_PROFILE_SELECTION_PATH:-"$HOME/Library/Application Support/Tab Out/configured-profile-v1.json"}
+if validate_profile_selection "$profile_selection_path"; then
+  pass "A Chrome profile is selected for the macOS integration"
+elif [[ -e $profile_selection_path || -L $profile_selection_path ]]; then
+  action "The persisted Chrome profile selection is invalid: $REPLY. Run pnpm setup:local --reset-profile."
+else
+  action "Open Tab Out's toolbar menu in the intended Chrome profile and choose 'Use this Chrome profile for macOS integration'"
+fi
+
 if [[ -x $native_status_command ]]; then
   if native_status_output=$("$native_status_command" 2>&1); then
     pass "Native Placement Bridge status round trip is ready"

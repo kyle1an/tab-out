@@ -3,10 +3,12 @@ import {
   DESKTOP_WINDOW_MERGE_CONFIRM_MESSAGE,
   DESKTOP_WINDOW_MERGE_PREVIEW_MESSAGE,
   DESKTOP_WINDOW_MERGE_STATUS_GET_MESSAGE,
+  NATIVE_INTEGRATION_PROFILE_SELECT_MESSAGE,
   parseDesktopWindowMergeAcknowledgeResponse,
   parseDesktopWindowMergeConfirmResponse,
   parseDesktopWindowMergePreviewResponse,
   parseDesktopWindowMergeStatusResponse,
+  parseNativeIntegrationProfileSelectResponse,
   type DesktopWindowMergeConfirmResponse,
   type DesktopWindowMergePreviewResponse,
   type DesktopWindowMergeStatusResponse,
@@ -26,6 +28,13 @@ export async function getDesktopWindowMergeStatus(): Promise<
   return parseDesktopWindowMergeStatusResponse(await sendMessage({
     type: DESKTOP_WINDOW_MERGE_STATUS_GET_MESSAGE,
   }))
+}
+
+export async function selectCurrentNativeIntegrationProfile(): Promise<boolean> {
+  const response = parseNativeIntegrationProfileSelectResponse(await sendMessage({
+    type: NATIVE_INTEGRATION_PROFILE_SELECT_MESSAGE,
+  }))
+  return response?.ok === true
 }
 
 export async function previewDesktopWindowMerge(

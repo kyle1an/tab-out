@@ -83,20 +83,28 @@ The companion Hammerspoon shortcuts can create Tab Out on the display under the
 pointer without assigning hidden Chrome shortcuts. The same local integration
 enables **Merge windows on this desktop…** in the toolbar Tab Actions menu. Copy
 Tab Out's 32-character ID from `chrome://extensions`, then install the Spoon and
-user-level native host:
+user-level native host, refresh dependencies and generated output, configure the
+Git hooks, and run the integration doctor with one command:
 
 ```bash
-pnpm macos-integration:install <extension-id>
+pnpm setup:local <extension-id>
 ```
 
-When the selected Hammerspoon configuration is not `~/.hammerspoon`, pass its
-directory as the installer's optional second argument.
+Later repository updates normally need only `pnpm setup:local`; it reuses the
+installed native-host manifest. When the selected Hammerspoon configuration is
+not `~/.hammerspoon`, pass its directory as the optional second argument or set
+`TAB_OUT_HAMMERSPOON_CONFIG_DIR`.
 
 Configure `spoon.TabOut:start(config)` through your Hammerspoon configuration;
 the companion `hammerspoon-config` repository keeps its profile and keybindings
-in ignored `tab-out.local.lua`. Then reload Tab Out from `chrome://extensions`
-and reload Hammerspoon. The complete configuration, diagnostic, permission,
-and live-acceptance guide is in
+in ignored `tab-out.local.lua`. Then reload Tab Out from `chrome://extensions`.
+On first setup, open its toolbar menu in that intended profile and choose **Use
+this Chrome profile for macOS integration**. Tab Out may be loaded in additional
+profiles later without transferring that selection. To intentionally choose a
+different owner, run `pnpm setup:local --reset-profile`; it revokes any live
+owner before returning. Then reload the extension and select again from the
+intended profile. The complete configuration,
+diagnostic, permission, and live-acceptance guide is in
 [`integrations/hammerspoon/README.md`](integrations/hammerspoon/README.md).
 
 Run the read-only integration doctor, inspect the lower-level host, or remove

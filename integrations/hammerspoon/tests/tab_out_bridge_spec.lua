@@ -26,7 +26,7 @@ local taskPath
 
 local function response(status, overrides)
   local value = {
-    version = 5,
+    version = 6,
     type = "response",
     requestId = encodedPayload and encodedPayload.requestId or "missing-request",
     status = status,
@@ -152,7 +152,7 @@ assertEqual(startError, nil, "successful native bridge start should not return a
 assertEqual(taskPath, "/tmp/tab-out-native-bridge", "native bridge should launch the configured host")
 assertEqual(taskArguments[1], "--request", "native bridge should use client request mode")
 assertEqual(taskArguments[2], "encoded-request", "native bridge should pass the encoded request as one argument")
-assertEqual(encodedPayload.version, 5, "native bridge should own the protocol version")
+assertEqual(encodedPayload.version, 6, "native bridge should own the protocol version")
 assertEqual(encodedPayload.type, "create-window", "native bridge should own the wire request type")
 assertEqual(encodedPayload.requestId, "hs-1800000000000-1", "native bridge should generate the request ID")
 assertEqual(encodedPayload.expiresAtMs, 1800000012000, "native bridge should derive the wire deadline")

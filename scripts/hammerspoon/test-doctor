@@ -101,6 +101,7 @@ set -e
 [[ $diagnostic_output == *"PASS    Tab Out's canonical macOS installer is available"* ]]
 [[ $diagnostic_output == *"PASS    Tab Out private helper source is available"* ]]
 [[ $diagnostic_output == *"ACTION  Run Tab Out's macOS integration installer to install the Spoon"* ]]
+[[ $diagnostic_output == *"ACTION  Open Tab Out's toolbar menu in the intended Chrome profile"* ]]
 [[ $diagnostic_output == *"ACTION  Native host is not ready:"* ]]
 [[ $diagnostic_output == *"RESULT  Setup incomplete:"* ]]
 [[ $diagnostic_output != *"tab-out.local.lua"* ]]
@@ -153,6 +154,11 @@ ln -s "$fixture_test_script" "$fixture_bin/uname"
 ln -s "$fixture_test_script" "$fixture_bin/xcrun"
 ln -s "$fixture_config" "$fixture_home/.hammerspoon"
 ln -s "$fixture_spoon_source" "$fixture_spoon_destination"
+fixture_profile_selection="$fixture_home/Library/Application Support/Tab Out/configured-profile-v1.json"
+mkdir -p "${fixture_profile_selection:h}"
+printf '%s\n' '{"version":1,"profileId":"11111111-1111-4111-8111-111111111111"}' \
+  > "$fixture_profile_selection"
+chmod 600 "$fixture_profile_selection"
 
 set +e
 ready_output=$(
@@ -166,11 +172,46 @@ ready_status=$?
 set -e
 
 [[ $ready_status -eq 0 ]]
+[[ $ready_output == *"PASS    A Chrome profile is selected for the macOS integration"* ]]
 [[ $ready_output == *"PASS    Native Placement Bridge status round trip is ready"* ]]
 [[ $ready_output == *"INFO    Native host version: fixture"* ]]
 [[ $ready_output == *"PASS    Hammerspoon IPC is available"* ]]
 [[ $ready_output == *"PASS    Loaded Hammerspoon and Tab Out runtime checks are ready"* ]]
 [[ $ready_output == *"RESULT  Automated setup checks passed with 0 warning(s)"* ]]
+
+printf '%s\n' '{"version":2,"profileId":"11111111-1111-4111-8111-111111111111"}' \
+  > "$fixture_profile_selection"
+set +e
+invalid_profile_output=$(
+  HOME="$fixture_home" \
+    PATH="$fixture_bin:$PATH" \
+    TAB_OUT_DOCTOR_TEST_FIXTURE=1 \
+    TAB_OUT_DOCTOR_TEST_APPLICATION_ROOT="$fixture_application_root" \
+    "$fixture_doctor" "$fixture_config" 2>&1
+)
+invalid_profile_status=$?
+set -e
+[[ $invalid_profile_status -eq 1 ]]
+[[ $invalid_profile_output == *"ACTION  The persisted Chrome profile selection is invalid: expected version 1 and one opaque profile ID"* ]]
+[[ $invalid_profile_output != *"PASS    A Chrome profile is selected for the macOS integration"* ]]
+
+printf '%s\n' '{"version":1,"profileId":"11111111-1111-4111-8111-111111111111"}' \
+  > "$fixture_profile_selection"
+chmod 644 "$fixture_profile_selection"
+set +e
+permissive_profile_output=$(
+  HOME="$fixture_home" \
+    PATH="$fixture_bin:$PATH" \
+    TAB_OUT_DOCTOR_TEST_FIXTURE=1 \
+    TAB_OUT_DOCTOR_TEST_APPLICATION_ROOT="$fixture_application_root" \
+    "$fixture_doctor" "$fixture_config" 2>&1
+)
+permissive_profile_status=$?
+set -e
+[[ $permissive_profile_status -eq 1 ]]
+[[ $permissive_profile_output == *"ACTION  The persisted Chrome profile selection is invalid: expected a current-user file with owner-only permissions"* ]]
+[[ $permissive_profile_output != *"PASS    A Chrome profile is selected for the macOS integration"* ]]
+chmod 600 "$fixture_profile_selection"
 
 set +e
 screen_recording_output=$(
