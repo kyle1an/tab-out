@@ -93,6 +93,52 @@ test('popup renders the Tab Actions Menu and dedupes all windows from a live cou
   expect(pageErrors).toEqual([])
 })
 
+test('fast toast-producing actions do not flash the hovered menu item', async ({ page }) => {
+  await page.setViewportSize({ width: 288, height: 220 })
+  await page.goto(POPUP_FIXTURE)
+  await page.evaluate(() => {
+    const tabsApi = window.chrome.tabs
+    const queryTabs = tabsApi.query.bind(tabsApi)
+    Reflect.set(tabsApi, 'query', async (...args: unknown[]) => {
+      await new Promise((resolve) => setTimeout(resolve, 40))
+      return Reflect.apply(queryTabs, tabsApi, args)
+    })
+  })
+
+  const closeItem = page.locator(CLOSE_SUSPENDED_ITEM)
+  const itemBounds = await closeItem.boundingBox()
+  if (!itemBounds) throw new Error('Close-suspended item geometry is unavailable')
+  await page.mouse.move(
+    itemBounds.x + itemBounds.width / 2,
+    itemBounds.y + itemBounds.height / 2,
+  )
+  await page.evaluate((selector) => {
+    const item = document.querySelector<HTMLElement>(selector)
+    if (!item) throw new Error('Close-suspended item is unavailable')
+    const frames: Array<{ itemHovered: boolean, itemOpacity: string }> = []
+    Reflect.set(window, '__tabOutPopupInteractionFrames', frames)
+    const sample = () => {
+      frames.push({
+        itemHovered: item.matches(':hover'),
+        itemOpacity: getComputedStyle(item).opacity,
+      })
+      requestAnimationFrame(sample)
+    }
+    requestAnimationFrame(sample)
+  }, CLOSE_SUSPENDED_ITEM)
+  await page.evaluate((selector) => {
+    document.querySelector<HTMLElement>(selector)?.click()
+  }, CLOSE_SUSPENDED_ITEM)
+  await expect(page.getByText('Nothing suspended to close', { exact: true })).toBeVisible()
+  await page.waitForTimeout(100)
+
+  const frames: Array<{ itemHovered: boolean, itemOpacity: string }> = await page.evaluate(() => (
+    Reflect.get(window, '__tabOutPopupInteractionFrames')
+  ))
+  expect(frames.every((frame) => frame.itemOpacity === '1')).toBe(true)
+  expect(frames.every((frame) => frame.itemHovered)).toBe(true)
+})
+
 test('popup close-suspended runs single-flight and reports zero feedback inline', async ({ page }) => {
   await page.goto(POPUP_FIXTURE)
   await enableMergeAvailability(page)

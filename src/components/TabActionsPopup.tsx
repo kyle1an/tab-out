@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useRetimer } from 'foxact/use-retimer'
 import {
   DESKTOP_WINDOW_MERGE_OPEN_MESSAGE,
   isDesktopWindowMergeStatusChangedMessage,
@@ -25,6 +26,7 @@ import {
 import { showToast } from '../extension/toast.js'
 
 const DEDUPE_PLAN_REFRESH_DELAY_MS = 150
+const TAB_ACTION_STATUS_DELAY_MS = 150
 const MACOS_INTEGRATION_SETUP_URL =
   'https://github.com/m7yang/tab-out#optional-macos-hammerspoon-integration'
 
@@ -106,6 +108,7 @@ type PendingAction = 'merge' | 'profile-selection' | 'profile-transfer' | 'tab-a
  */
 export function TabActionsPopup() {
   const pendingActionRef = useRef<PendingAction | null>(null)
+  const retimeTabActionStatus = useRetimer()
   const [dedupePlan, setDedupePlan] = useState<OpenTabDedupePlan | null>(null)
   const [availability, setAvailability] =
     useState<DesktopWindowMergeAvailability | null>(null)
@@ -175,13 +178,14 @@ export function TabActionsPopup() {
     return () => {
       disposed = true
       if (refreshTimer !== null) clearTimeout(refreshTimer)
+      retimeTabActionStatus()
       chrome.runtime.onMessage.removeListener(onRuntimeMessage)
       chrome.tabs.onCreated.removeListener(scheduleDedupePlanRefresh)
       chrome.tabs.onRemoved.removeListener(scheduleDedupePlanRefresh)
       chrome.tabs.onUpdated.removeListener(scheduleDedupePlanRefresh)
       chrome.tabs.onReplaced.removeListener(scheduleDedupePlanRefresh)
     }
-  }, [])
+  }, [retimeTabActionStatus])
 
   function runPopupTabAction(action: () => Promise<unknown>) {
     if (
@@ -189,10 +193,13 @@ export function TabActionsPopup() {
       mergeSession?.status === 'running'
     ) return
     pendingActionRef.current = 'tab-action'
-    setPendingAction('tab-action')
+    retimeTabActionStatus(window.setTimeout(() => {
+      setPendingAction('tab-action')
+    }, TAB_ACTION_STATUS_DELAY_MS))
     return action()
       .then(() => undefined)
       .finally(() => {
+        retimeTabActionStatus()
         pendingActionRef.current = null
         setPendingAction(null)
       })

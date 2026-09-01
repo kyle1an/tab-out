@@ -1,5 +1,6 @@
-import { cloneElement, useEffect, useRef, useState } from 'react'
+import { cloneElement, useEffect, useState } from 'react'
 import type { ReactElement } from 'react'
+import { useRetimer } from 'foxact/use-retimer'
 import { cn } from '@/lib/utils'
 import { ContextMenu, ContextMenuTrigger } from './ui/context-menu'
 import { PageChipContextMenuContent } from './PageChipContextMenuContent'
@@ -24,29 +25,20 @@ export function PageChipContextMenu({
   ...contentProps
 }: PageChipContextMenuProps) {
   const [visualOpen, setVisualOpen] = useState(false)
-  const visualCloseTimerRef = useRef<number | null>(null)
-
-  function clearVisualCloseTimer() {
-    if (visualCloseTimerRef.current === null) return
-    window.clearTimeout(visualCloseTimerRef.current)
-    visualCloseTimerRef.current = null
-  }
+  const retimeVisualClose = useRetimer()
 
   useEffect(() => () => {
-    if (visualCloseTimerRef.current !== null) {
-      window.clearTimeout(visualCloseTimerRef.current)
-    }
-  }, [])
+    retimeVisualClose()
+  }, [retimeVisualClose])
 
   function handleOpenChange(nextOpen: boolean, details: ContextMenuChangeEventDetails) {
-    clearVisualCloseTimer()
+    retimeVisualClose()
     if (nextOpen) {
       setVisualOpen(true)
     } else {
-      visualCloseTimerRef.current = window.setTimeout(() => {
-        visualCloseTimerRef.current = null
+      retimeVisualClose(window.setTimeout(() => {
         setVisualOpen(false)
-      }, PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS)
+      }, PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS))
     }
     onOpenChange?.(nextOpen, details)
   }

@@ -187,6 +187,33 @@ test('toast renderer stays off startup and loads for the first notification', as
     .dispatchEvent('click')
   await expect(page.getByText('Tab closed', { exact: true })).toBeVisible()
 
+  const toast = page.locator('[data-tabout="toast"]')
+  const toastClose = toast.locator('[data-tabout-part="close-button"]')
+  await expect(toastClose).toHaveCSS('opacity', '0')
+  await expect(toastClose).toHaveCSS('pointer-events', 'none')
+  const [toastBounds, closeBounds] = await Promise.all([
+    toast.boundingBox(),
+    toastClose.boundingBox(),
+  ])
+  if (!toastBounds || !closeBounds) {
+    throw new Error('Toast close-button geometry is unavailable')
+  }
+  expect(closeBounds).toMatchObject({ height: 20, width: 20 })
+  expect(closeBounds.x - toastBounds.x).toBeCloseTo(-6, 1)
+  expect(closeBounds.y - toastBounds.y).toBeCloseTo(-6, 1)
+
+  await toast.hover({ position: { x: 100, y: 24 } })
+  await expect(toastClose).toHaveCSS('opacity', '1')
+  await expect(toastClose).toHaveCSS('pointer-events', 'auto')
+  await expect(toastClose).toHaveAccessibleName('Close')
+
+  await page.mouse.move(900, 100)
+  await toastClose.focus()
+  await expect(toastClose).toHaveCSS('opacity', '1')
+  await expect(toastClose).toHaveCSS('pointer-events', 'auto')
+  await page.keyboard.press('Enter')
+  await expect(toast).not.toBeAttached()
+
   const interactionScripts = await page.evaluate(() =>
     performance
       .getEntriesByType('resource')

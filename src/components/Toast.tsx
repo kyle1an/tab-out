@@ -26,8 +26,9 @@ function ToastList() {
     <BaseToast.Root
       key={toast.id}
       toast={toast}
+      data-tabout="toast"
       className={cn(
-        'absolute bottom-0 left-0 right-auto box-border w-full cursor-default select-none rounded-3xl [corner-shape:squircle] border border-[oklch(12%_0.036_264deg/7%)] bg-clip-padding p-4! text-[oklch(12%_0.02_264deg/90%)] [background:oklch(98%_0.001_264deg)] [box-shadow:0_2px_10px_rgb(0_0_0/0.1)] [font-synthesis:none] origin-[bottom_center]',
+        'group/toast absolute bottom-0 left-0 right-auto box-border w-full cursor-default select-none rounded-3xl [corner-shape:squircle] border border-[oklch(12%_0.036_264deg/7%)] bg-clip-padding p-4! text-[oklch(12%_0.02_264deg/90%)] [background:oklch(98%_0.001_264deg)] [box-shadow:0_2px_10px_rgb(0_0_0/0.1)] [font-synthesis:none] origin-[bottom_center]',
         '[--gap:0.75rem] [--peek:0.75rem] [--scale:calc(max(0,1-(var(--toast-index)*0.1)))] [--shrink:calc(1-var(--scale))] [--height:var(--toast-frontmost-height,var(--toast-height))]',
         '[--offset-y:calc(var(--toast-offset-y)*-1+(var(--toast-index)*var(--gap)*-1)+var(--toast-swipe-movement-y))] z-[calc(1000-var(--toast-index))] h-(--height)',
         'transform-[translateX(var(--toast-swipe-movement-x))_translateY(calc(var(--toast-swipe-movement-y)-(var(--toast-index)*var(--peek))-(var(--shrink)*var(--height))))_scale(var(--scale))]',
@@ -46,13 +47,14 @@ function ToastList() {
         <BaseToast.Title className="m-0 text-[0.975rem] leading-5 font-bold" />
         <BaseToast.Description className="m-0 text-[0.925rem] leading-5" />
         <BaseToast.Action className="mt-2! inline-flex h-8 items-center justify-center rounded-xl [corner-shape:squircle] border-0 bg-[oklch(12%_0.02_264deg/90%)] px-3! text-[0.875rem] leading-5 font-normal text-[oklch(98%_0.001_264deg)] focus-visible:outline-2! focus-visible:-outline-offset-1! focus-visible:outline-[oklch(45%_0.2_264deg)]!" />
-        <BaseToast.Close
-          className="absolute top-2 right-2 flex size-5 items-center justify-center rounded-full border-0 bg-transparent p-0 text-[oklch(12%_0.02_264deg/90%)] hover:bg-[oklch(12%_0.038_264deg/5%)]"
-          aria-label="Close"
-        >
-          <XIcon className="size-3" />
-        </BaseToast.Close>
       </BaseToast.Content>
+      <BaseToast.Close
+        data-tabout-part="close-button"
+        className="pointer-events-none absolute top-0 left-0 z-1 flex size-5 translate-x-[-35%] translate-y-[-35%] items-center justify-center rounded-full border border-[oklch(12%_0.036_264deg/7%)] bg-[oklch(98%_0.001_264deg)] p-0 text-[oklch(12%_0.02_264deg/62%)] opacity-0 transition-[opacity,background-color,border-color,color] duration-100 group-hover/toast:pointer-events-auto group-hover/toast:opacity-100 group-focus-within/toast:pointer-events-auto group-focus-within/toast:opacity-100 hover:border-[oklch(12%_0.036_264deg/11%)] hover:bg-[oklch(96%_0.003_264deg)] hover:text-[oklch(12%_0.02_264deg/90%)] focus-visible:outline-2! focus-visible:-outline-offset-1! focus-visible:outline-[oklch(45%_0.2_264deg)]! [html[data-tabout-popup]_&]:-translate-x-1/4"
+        aria-label="Close"
+      >
+        <XIcon className="size-3" />
+      </BaseToast.Close>
     </BaseToast.Root>
   ))
 }

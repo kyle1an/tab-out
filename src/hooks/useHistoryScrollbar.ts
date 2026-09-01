@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
+import { useRetimer } from 'foxact/use-retimer'
 
 const HISTORY_ENTRY_SCROLLBAR_AXIS_PADDING_PX = 2
 const HISTORY_ENTRY_SCROLLBAR_MIN_THUMB_HEIGHT_PX = 33
@@ -118,24 +119,16 @@ export function useHistoryScrollbar(
   const [dragging, setDragging] = useState(false)
 
   // Imperative flags read inside timers/listeners (avoid stale-closure churn).
-  const hideTimerRef = useRef<number | null>(null)
   const hoveringRef = useRef(false)
   const draggingRef = useRef(false)
   const dragListenerCleanupRef = useRef<(() => void) | null>(null)
-
-  const clearHideTimer = useCallback(() => {
-    if (hideTimerRef.current === null) return
-    window.clearTimeout(hideTimerRef.current)
-    hideTimerRef.current = null
-  }, [])
+  const retimeHide = useRetimer()
 
   const scheduleHide = useCallback(() => {
-    clearHideTimer()
-    hideTimerRef.current = window.setTimeout(() => {
-      hideTimerRef.current = null
+    retimeHide(window.setTimeout(() => {
       if (!hoveringRef.current && !draggingRef.current) setActive(false)
-    }, HISTORY_ENTRY_SCROLLBAR_IDLE_HIDE_DELAY_MS)
-  }, [clearHideTimer])
+    }, HISTORY_ENTRY_SCROLLBAR_IDLE_HIDE_DELAY_MS))
+  }, [retimeHide])
 
   const reveal = useCallback(() => {
     setActive(true)
@@ -236,7 +229,7 @@ export function useHistoryScrollbar(
     draggingRef.current = true
     setDragging(true)
     setActive(true)
-    clearHideTimer()
+    retimeHide()
 
     const { maxThumbTop, maxScrollTop } = readTrackGeometry(listEl, trackEl)
     const startY = event.clientY
@@ -269,13 +262,13 @@ export function useHistoryScrollbar(
     window.addEventListener('pointerup', finishDrag)
     window.addEventListener('pointercancel', finishDrag)
     window.addEventListener('blur', finishDrag)
-  }, [listRef, clearHideTimer, scheduleHide])
+  }, [listRef, retimeHide, scheduleHide])
 
   const onPointerEnter = useCallback(() => {
     hoveringRef.current = true
     setActive(true)
-    clearHideTimer()
-  }, [clearHideTimer])
+    retimeHide()
+  }, [retimeHide])
 
   const onPointerLeave = useCallback(() => {
     hoveringRef.current = false
@@ -286,8 +279,8 @@ export function useHistoryScrollbar(
   useEffect(() => () => {
     draggingRef.current = false
     dragListenerCleanupRef.current?.()
-    clearHideTimer()
-  }, [clearHideTimer])
+    retimeHide()
+  }, [retimeHide])
 
   return {
     metrics,
