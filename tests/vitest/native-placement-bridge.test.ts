@@ -7,6 +7,8 @@ import {
   NATIVE_CONTROL_BRIDGE_VERSION,
   NATIVE_MERGE_DESKTOP_CAPABILITY,
   NATIVE_PLACEMENT_BRIDGE_VERSION,
+  NATIVE_PROFILE_SELECTION_VERSION,
+  NATIVE_PROFILE_TRANSFER_DRAIN_CAPABILITY,
   NativePlacementBridge,
   handleNativePlacementBridgeMessageEffect,
   makeNativePlacementBridgeLayer,
@@ -20,6 +22,7 @@ afterEach(() => {
 
 const nowMs = 1_800_000_000_000
 const testProfileId = '11111111-1111-4111-8111-111111111111'
+const testOwnerRevision = '22222222-2222-4222-8222-222222222222'
 
 function nativeProfileStorage(profileId = testProfileId) {
   const stored: Record<string, unknown> = {
@@ -38,8 +41,10 @@ function nativeProfileStorage(profileId = testProfileId) {
 }
 
 function createNativeBridgeHarness(options: {
+  readonly failConnectionAt?: number
   readonly getAllWindows?: () => Promise<chrome.windows.Window[]>
 } = {}) {
+  const disconnectListeners: Array<() => void> = []
   const messageListeners: Array<(message: unknown) => void> = []
   const postedMessages: unknown[] = []
   const runtimeMessages: unknown[] = []
@@ -52,6 +57,9 @@ function createNativeBridgeHarness(options: {
       },
       connectNative() {
         counts.connections += 1
+        if (counts.connections === options.failConnectionAt) {
+          throw new Error('Native host unavailable')
+        }
         return {
           disconnect() {
             counts.disconnects += 1
@@ -62,7 +70,12 @@ function createNativeBridgeHarness(options: {
             },
             removeListener: noOp,
           },
-          onDisconnect: { addListener: noOp, removeListener: noOp },
+          onDisconnect: {
+            addListener(listener: () => void) {
+              disconnectListeners.push(listener)
+            },
+            removeListener: noOp,
+          },
           postMessage(message: unknown) {
             postedMessages.push(message)
           },
@@ -73,7 +86,14 @@ function createNativeBridgeHarness(options: {
     ...(options.getAllWindows ? { windows: { getAll: options.getAllWindows } } : {}),
   } as unknown as ChromeApi
 
-  return { chromeApi, counts, messageListeners, postedMessages, runtimeMessages }
+  return {
+    chromeApi,
+    counts,
+    disconnectListeners,
+    messageListeners,
+    postedMessages,
+    runtimeMessages,
+  }
 }
 
 function valueAt<T>(values: readonly T[], index: number): T {
@@ -82,24 +102,26 @@ function valueAt<T>(values: readonly T[], index: number): T {
   return value
 }
 
-function waitForCondition(condition: () => boolean): Effect.Effect<void> {
-  return Effect.promise(() => new Promise<void>((resolve, reject) => {
-    let attempts = 0
-    const inspect = () => {
-      if (condition()) {
-        resolve()
-        return
+const waitForCondition = Effect.fn('nativePlacementBridgeTest.waitForCondition')(
+  function (condition: () => boolean): Effect.Effect<void> {
+    return Effect.promise(() => new Promise<void>((resolve, reject) => {
+      let attempts = 0
+      const inspect = () => {
+        if (condition()) {
+          resolve()
+          return
+        }
+        attempts += 1
+        if (attempts >= 100) {
+          reject(new Error('timed out waiting for native bridge test condition'))
+          return
+        }
+        setImmediate(inspect)
       }
-      attempts += 1
-      if (attempts >= 100) {
-        reject(new Error('timed out waiting for native bridge test condition'))
-        return
-      }
-      setImmediate(inspect)
-    }
-    inspect()
-  }))
-}
+      inspect()
+    }))
+  },
+)
 
 function handleNativePlacementBridgeMessage(
   message: unknown,
@@ -466,14 +488,16 @@ it.effect('native bridge correlates desktop control while placement work is pend
   const bridge = Context.get(context, NativePlacementBridge)
   yield* Deferred.await(profileHello)
   assert.deepEqual(postedMessages, [{
-    version: 1,
+    version: NATIVE_PROFILE_SELECTION_VERSION,
     type: 'profile-hello',
     profileId: stored.nativeIntegrationProfileIdV1,
   }])
   valueAt(messageListeners, 0)({
-    version: 1,
+    version: NATIVE_PROFILE_SELECTION_VERSION,
     type: 'profile-selection-status',
     selection: 'selected',
+    capabilities: ['profile-transfer'],
+    ownerRevision: testOwnerRevision,
   })
   valueAt(messageListeners, 0)({
     version: NATIVE_CONTROL_BRIDGE_VERSION,
@@ -487,7 +511,10 @@ it.effect('native bridge correlates desktop control while placement work is pend
     capabilities: [NATIVE_MERGE_DESKTOP_CAPABILITY],
     controllerConnected: true,
     hostConnected: true,
+    initialConnectionSettled: true,
+    ownerRevision: testOwnerRevision,
     profileSelection: 'selected',
+    profileTransferAvailable: false,
   })
   assert.deepEqual(runtimeMessages, [
     { type: 'tab-out:desktop-window-merge-status-changed' },
@@ -546,9 +573,10 @@ it.effect('native bridge explicitly selects the current Chrome profile', () => E
   const bridge = Context.get(context, NativePlacementBridge)
   yield* waitForCondition(() => postedMessages.length === 1)
   valueAt(messageListeners, 0)({
-    version: 1,
+    version: NATIVE_PROFILE_SELECTION_VERSION,
     type: 'profile-selection-status',
     selection: 'required',
+    capabilities: ['profile-transfer'],
   })
   yield* waitForCondition(() => runtimeMessages.length === 2)
   assert.equal((yield* bridge.getStatus()).profileSelection, 'required')
@@ -556,14 +584,16 @@ it.effect('native bridge explicitly selects the current Chrome profile', () => E
   const selectionFiber = yield* Effect.forkChild(bridge.selectCurrentProfile())
   yield* waitForCondition(() => postedMessages.length === 2)
   assert.deepEqual(postedMessages[1], {
-    version: 1,
+    version: NATIVE_PROFILE_SELECTION_VERSION,
     type: 'select-profile',
     profileId: testProfileId,
   })
   valueAt(messageListeners, 0)({
-    version: 1,
+    version: NATIVE_PROFILE_SELECTION_VERSION,
     type: 'profile-selection-status',
     selection: 'selected',
+    capabilities: ['profile-transfer'],
+    ownerRevision: testOwnerRevision,
   })
   yield* Fiber.join(selectionFiber)
   assert.equal((yield* bridge.getStatus()).profileSelection, 'selected')
@@ -578,9 +608,11 @@ it.effect('native bridge does not reconnect a later unselected Chrome profile', 
   const bridge = Context.get(context, NativePlacementBridge)
   yield* waitForCondition(() => messageListeners.length === 1)
   valueAt(messageListeners, 0)({
-    version: 1,
+    version: NATIVE_PROFILE_SELECTION_VERSION,
     type: 'profile-selection-status',
     selection: 'another-profile',
+    capabilities: ['profile-transfer'],
+    ownerRevision: testOwnerRevision,
   })
   yield* waitForCondition(() => runtimeMessages.length === 3)
   yield* TestClock.adjust(60_000)
@@ -591,8 +623,383 @@ it.effect('native bridge does not reconnect a later unselected Chrome profile', 
     capabilities: [],
     controllerConnected: false,
     hostConnected: false,
+    initialConnectionSettled: true,
+    ownerRevision: testOwnerRevision,
     profileSelection: 'another-profile',
+    profileTransferAvailable: true,
   })
+  yield* Scope.close(scope, Exit.void)
+}))
+
+it.effect('native bridge exposes setup guidance when a transfer reconnect is unavailable', () => Effect.gen(function* () {
+  const { chromeApi, counts, messageListeners, postedMessages } = createNativeBridgeHarness({
+    failConnectionAt: 2,
+  })
+
+  const scope = yield* Scope.make()
+  const context = yield* Layer.buildWithScope(makeNativePlacementBridgeLayer(chromeApi), scope)
+  const bridge = Context.get(context, NativePlacementBridge)
+  yield* waitForCondition(() => postedMessages.length === 1)
+  valueAt(messageListeners, 0)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-selection-status',
+    selection: 'another-profile',
+    capabilities: ['profile-transfer'],
+    ownerRevision: testOwnerRevision,
+  })
+  yield* waitForCondition(() => counts.disconnects === 1)
+
+  assert.deepEqual(yield* bridge.transferCurrentProfile(testOwnerRevision), {
+    ok: false,
+    reason: 'failed',
+  })
+  assert.deepEqual(yield* bridge.getStatus(), {
+    capabilities: [],
+    controllerConnected: false,
+    hostConnected: false,
+    initialConnectionSettled: true,
+    ownerRevision: null,
+    profileSelection: 'unknown',
+    profileTransferAvailable: false,
+  })
+  yield* Scope.close(scope, Exit.void)
+}))
+
+it.effect('native bridge transfers a confirmed profile through a one-shot reconnect', () => Effect.gen(function* () {
+  const { chromeApi, counts, messageListeners, postedMessages } = createNativeBridgeHarness()
+
+  const scope = yield* Scope.make()
+  const context = yield* Layer.buildWithScope(makeNativePlacementBridgeLayer(chromeApi), scope)
+  const bridge = Context.get(context, NativePlacementBridge)
+  yield* waitForCondition(() => postedMessages.length === 1)
+  valueAt(messageListeners, 0)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-selection-status',
+    selection: 'another-profile',
+    capabilities: ['profile-transfer'],
+    ownerRevision: testOwnerRevision,
+  })
+  yield* waitForCondition(() => counts.disconnects === 1)
+
+  const transferFiber = yield* Effect.forkChild(
+    bridge.transferCurrentProfile(testOwnerRevision),
+  )
+  yield* waitForCondition(() => counts.connections === 2 && postedMessages.length === 2)
+  assert.deepEqual(postedMessages[1], {
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-hello',
+    profileId: testProfileId,
+  })
+  valueAt(messageListeners, 1)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-selection-status',
+    selection: 'another-profile',
+    capabilities: ['profile-transfer'],
+    ownerRevision: testOwnerRevision,
+  })
+  yield* waitForCondition(() => postedMessages.length === 3)
+  assert.deepEqual(postedMessages[2], {
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'transfer-profile',
+    profileId: testProfileId,
+    expectedOwnerRevision: testOwnerRevision,
+  })
+
+  const replacementRevision = '33333333-3333-4333-8333-333333333333'
+  valueAt(messageListeners, 1)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-selection-status',
+    selection: 'selected',
+    capabilities: ['profile-transfer'],
+    ownerRevision: replacementRevision,
+  })
+  assert.deepEqual(yield* Fiber.join(transferFiber), { ok: true })
+  assert.deepEqual(yield* bridge.getStatus(), {
+    capabilities: [],
+    controllerConnected: false,
+    hostConnected: true,
+    initialConnectionSettled: true,
+    ownerRevision: replacementRevision,
+    profileSelection: 'selected',
+    profileTransferAvailable: false,
+  })
+  yield* Scope.close(scope, Exit.void)
+}))
+
+it.effect('native bridge reconciles a committed transfer after its acknowledgement is lost', () => Effect.gen(function* () {
+  const {
+    chromeApi,
+    counts,
+    disconnectListeners,
+    messageListeners,
+    postedMessages,
+  } = createNativeBridgeHarness()
+
+  const scope = yield* Scope.make()
+  const context = yield* Layer.buildWithScope(makeNativePlacementBridgeLayer(chromeApi), scope)
+  const bridge = Context.get(context, NativePlacementBridge)
+  yield* waitForCondition(() => postedMessages.length === 1)
+  valueAt(messageListeners, 0)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-selection-status',
+    selection: 'another-profile',
+    capabilities: ['profile-transfer'],
+    ownerRevision: testOwnerRevision,
+  })
+  yield* waitForCondition(() => counts.disconnects === 1)
+
+  const transfer = yield* Effect.forkChild(
+    bridge.transferCurrentProfile(testOwnerRevision),
+  )
+  yield* waitForCondition(() => counts.connections === 2 && postedMessages.length === 2)
+  valueAt(messageListeners, 1)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-selection-status',
+    selection: 'another-profile',
+    capabilities: ['profile-transfer'],
+    ownerRevision: testOwnerRevision,
+  })
+  yield* waitForCondition(() => postedMessages.length === 3)
+
+  valueAt(disconnectListeners, 1)()
+  yield* waitForCondition(() => counts.connections === 3 && postedMessages.length === 4)
+  const replacementRevision = '33333333-3333-4333-8333-333333333333'
+  valueAt(messageListeners, 2)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-selection-status',
+    selection: 'selected',
+    capabilities: [],
+    ownerRevision: replacementRevision,
+  })
+
+  assert.deepEqual(yield* Fiber.join(transfer), { ok: true })
+  assert.equal((yield* bridge.getStatus()).ownerRevision, replacementRevision)
+  assert.deepEqual(postedMessages.filter((message) =>
+    typeof message === 'object' &&
+    message !== null &&
+    Reflect.get(message, 'type') === 'transfer-profile').length, 1)
+  yield* Scope.close(scope, Exit.void)
+}))
+
+it.effect('native bridge reports indeterminate when acknowledgement reconciliation cannot reconnect', () => Effect.gen(function* () {
+  const {
+    chromeApi,
+    counts,
+    disconnectListeners,
+    messageListeners,
+    postedMessages,
+  } = createNativeBridgeHarness({ failConnectionAt: 3 })
+
+  const scope = yield* Scope.make()
+  const context = yield* Layer.buildWithScope(makeNativePlacementBridgeLayer(chromeApi), scope)
+  const bridge = Context.get(context, NativePlacementBridge)
+  yield* waitForCondition(() => postedMessages.length === 1)
+  valueAt(messageListeners, 0)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-selection-status',
+    selection: 'another-profile',
+    capabilities: ['profile-transfer'],
+    ownerRevision: testOwnerRevision,
+  })
+  yield* waitForCondition(() => counts.disconnects === 1)
+
+  const transfer = yield* Effect.forkChild(bridge.transferCurrentProfile(testOwnerRevision))
+  yield* waitForCondition(() => counts.connections === 2 && postedMessages.length === 2)
+  valueAt(messageListeners, 1)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-selection-status',
+    selection: 'another-profile',
+    capabilities: ['profile-transfer'],
+    ownerRevision: testOwnerRevision,
+  })
+  yield* waitForCondition(() => postedMessages.length === 3)
+
+  valueAt(disconnectListeners, 1)()
+  yield* waitForCondition(() => counts.connections === 3)
+  assert.deepEqual(yield* Fiber.join(transfer), {
+    ok: false,
+    reason: 'indeterminate',
+  })
+  yield* Scope.close(scope, Exit.void)
+}))
+
+it.effect('native bridge refreshes authority after a stale profile transfer', () => Effect.gen(function* () {
+  const { chromeApi, counts, messageListeners, postedMessages, runtimeMessages } =
+    createNativeBridgeHarness()
+
+  const scope = yield* Scope.make()
+  const context = yield* Layer.buildWithScope(makeNativePlacementBridgeLayer(chromeApi), scope)
+  const bridge = Context.get(context, NativePlacementBridge)
+  yield* waitForCondition(() => postedMessages.length === 1)
+  valueAt(messageListeners, 0)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-selection-status',
+    selection: 'another-profile',
+    capabilities: ['profile-transfer'],
+    ownerRevision: testOwnerRevision,
+  })
+  yield* waitForCondition(() => counts.disconnects === 1)
+
+  const transfer = yield* Effect.forkChild(bridge.transferCurrentProfile(testOwnerRevision))
+  yield* waitForCondition(() => counts.connections === 2 && postedMessages.length === 2)
+  valueAt(messageListeners, 1)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-selection-status',
+    selection: 'another-profile',
+    capabilities: ['profile-transfer'],
+    ownerRevision: testOwnerRevision,
+  })
+  yield* waitForCondition(() => postedMessages.length === 3)
+  const replacementOwnerRevision = '33333333-3333-4333-8333-333333333333'
+  valueAt(messageListeners, 1)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-transfer-result',
+    status: 'rejected',
+    reason: 'selection-changed',
+    ownerRevision: replacementOwnerRevision,
+  })
+  assert.deepEqual(yield* Fiber.join(transfer), {
+    ok: false,
+    reason: 'selection-changed',
+  })
+  const staleTransferStatus = yield* bridge.getStatus()
+  assert.equal(staleTransferStatus.ownerRevision, replacementOwnerRevision)
+  assert.equal(staleTransferStatus.profileTransferAvailable, false)
+
+  yield* waitForCondition(() => counts.connections === 3 && postedMessages.length === 4)
+  const messageCountBeforeRefreshStatus = runtimeMessages.length
+  valueAt(messageListeners, 2)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-selection-status',
+    selection: 'required',
+    capabilities: ['profile-transfer'],
+  })
+  yield* waitForCondition(() => runtimeMessages.length > messageCountBeforeRefreshStatus)
+  assert.equal((yield* bridge.getStatus()).profileSelection, 'required')
+  yield* Scope.close(scope, Exit.void)
+}))
+
+it.effect('native bridge clears a timed-out profile transfer before a retry', () => Effect.gen(function* () {
+  const { chromeApi, counts, messageListeners, postedMessages } = createNativeBridgeHarness()
+
+  const scope = yield* Scope.make()
+  const context = yield* Layer.buildWithScope(makeNativePlacementBridgeLayer(chromeApi), scope)
+  const bridge = Context.get(context, NativePlacementBridge)
+  yield* waitForCondition(() => postedMessages.length === 1)
+  valueAt(messageListeners, 0)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-selection-status',
+    selection: 'another-profile',
+    capabilities: ['profile-transfer'],
+    ownerRevision: testOwnerRevision,
+  })
+  yield* waitForCondition(() => counts.disconnects === 1)
+
+  const timedOutTransfer = yield* Effect.forkChild(
+    bridge.transferCurrentProfile(testOwnerRevision),
+  )
+  yield* waitForCondition(() => counts.connections === 2 && postedMessages.length === 2)
+  valueAt(messageListeners, 1)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-selection-status',
+    selection: 'another-profile',
+    capabilities: ['profile-transfer'],
+    ownerRevision: testOwnerRevision,
+  })
+  yield* waitForCondition(() => postedMessages.length === 3)
+  yield* TestClock.adjust(10_000)
+  yield* waitForCondition(() => counts.connections === 3 && postedMessages.length === 4)
+  valueAt(messageListeners, 2)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-selection-status',
+    selection: 'another-profile',
+    capabilities: ['profile-transfer'],
+    ownerRevision: testOwnerRevision,
+  })
+  assert.deepEqual(yield* Fiber.join(timedOutTransfer), { ok: false, reason: 'failed' })
+  yield* waitForCondition(() => counts.disconnects === 3)
+
+  const retry = yield* Effect.forkChild(bridge.transferCurrentProfile(testOwnerRevision))
+  yield* waitForCondition(() => counts.connections === 4 && postedMessages.length === 5)
+  valueAt(messageListeners, 3)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-selection-status',
+    selection: 'another-profile',
+    capabilities: ['profile-transfer'],
+    ownerRevision: testOwnerRevision,
+  })
+  yield* waitForCondition(() => postedMessages.length === 6)
+  valueAt(messageListeners, 3)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-transfer-result',
+    status: 'rejected',
+    reason: 'busy',
+    ownerRevision: testOwnerRevision,
+  })
+  assert.deepEqual(yield* Fiber.join(retry), { ok: false, reason: 'busy' })
+  yield* Scope.close(scope, Exit.void)
+}))
+
+it.effect('native bridge only attests idle when merge and transfer drains do not overlap', () => Effect.gen(function* () {
+  const { chromeApi, messageListeners, postedMessages } = createNativeBridgeHarness()
+
+  const scope = yield* Scope.make()
+  const context = yield* Layer.buildWithScope(makeNativePlacementBridgeLayer(chromeApi), scope)
+  const bridge = Context.get(context, NativePlacementBridge)
+  yield* waitForCondition(() => postedMessages.length === 1)
+  valueAt(messageListeners, 0)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-selection-status',
+    selection: 'selected',
+    capabilities: ['profile-transfer'],
+    ownerRevision: testOwnerRevision,
+  })
+  valueAt(messageListeners, 0)({
+    version: NATIVE_CONTROL_BRIDGE_VERSION,
+    type: 'controller-status',
+    connected: true,
+    capabilities: [
+      NATIVE_MERGE_DESKTOP_CAPABILITY,
+      NATIVE_PROFILE_TRANSFER_DRAIN_CAPABILITY,
+    ],
+  })
+  yield* bridge.beginDesktopWindowMerge()
+  valueAt(messageListeners, 0)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-transfer-prepare',
+    requestId: 'profile-transfer-busy',
+  })
+  yield* waitForCondition(() => postedMessages.length === 2)
+  assert.deepEqual(postedMessages[1], {
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-transfer-response',
+    requestId: 'profile-transfer-busy',
+    status: 'busy',
+  })
+
+  yield* bridge.finishDesktopWindowMerge()
+  valueAt(messageListeners, 0)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-transfer-prepare',
+    requestId: 'profile-transfer-idle',
+  })
+  yield* waitForCondition(() => postedMessages.length === 3)
+  assert.deepEqual(postedMessages[2], {
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-transfer-response',
+    requestId: 'profile-transfer-idle',
+    status: 'idle',
+  })
+  assert.equal(Exit.isFailure(yield* Effect.exit(bridge.beginDesktopWindowMerge())), true)
+
+  valueAt(messageListeners, 0)({
+    version: NATIVE_PROFILE_SELECTION_VERSION,
+    type: 'profile-transfer-cancel',
+    requestId: 'profile-transfer-idle',
+  })
+  yield* Effect.yieldNow
+  yield* bridge.beginDesktopWindowMerge()
+  yield* bridge.finishDesktopWindowMerge()
   yield* Scope.close(scope, Exit.void)
 }))
 
@@ -610,9 +1017,11 @@ it.effect('native bridge rejects an oversized profile window inventory before tr
   const bridge = Context.get(context, NativePlacementBridge)
   yield* waitForCondition(() => messageListeners.length === 1)
   valueAt(messageListeners, 0)({
-    version: 1,
+    version: NATIVE_PROFILE_SELECTION_VERSION,
     type: 'profile-selection-status',
     selection: 'selected',
+    capabilities: ['profile-transfer'],
+    ownerRevision: testOwnerRevision,
   })
   valueAt(messageListeners, 0)({
     version: NATIVE_CONTROL_BRIDGE_VERSION,

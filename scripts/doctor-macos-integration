@@ -4,18 +4,25 @@ set -u
 set -o pipefail
 
 usage() {
-  printf '%s\n' "Usage: scripts/doctor-macos-integration [hammerspoon-config-directory]"
+  printf '%s\n' \
+    "Usage: scripts/doctor-macos-integration [--expect-unpaired-profile] [hammerspoon-config-directory]"
   printf '%s\n' "Defaults to TAB_OUT_HAMMERSPOON_CONFIG_DIR or ~/.hammerspoon. Performs read-only checks."
 }
+
+if (( $# == 1 )) && [[ $1 == "-h" || $1 == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+expect_unpaired_profile=false
+if (( $# > 0 )) && [[ $1 == "--expect-unpaired-profile" ]]; then
+  expect_unpaired_profile=true
+  shift
+fi
 
 if (( $# > 1 )); then
   usage >&2
   exit 64
-fi
-
-if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
-  usage
-  exit 0
 fi
 
 script_directory=${0:A:h}
@@ -104,6 +111,7 @@ validate_profile_selection() {
   local profile_id
   local profile_key_count
   local profile_mode
+  local owner_revision
   local profile_owner
   local profile_size
   local profile_stat
@@ -136,26 +144,69 @@ validate_profile_selection() {
   if ! profile_file_type=$(/usr/bin/file -b -- "$selection_path" 2>/dev/null) \
     || [[ $profile_file_type != JSON* ]]
   then
-    REPLY="expected version 1 and one opaque profile ID"
+    REPLY="expected version 2, one opaque profile ID, and one owner revision"
     return 1
   fi
   if ! profile_description=$(/usr/bin/plutil -p -- "$selection_path" 2>/dev/null); then
-    REPLY="expected version 1 and one opaque profile ID"
+    REPLY="expected version 2, one opaque profile ID, and one owner revision"
     return 1
   fi
   profile_key_count=$(printf '%s\n' "$profile_description" | /usr/bin/grep -c ' => ' || true)
-  if (( profile_key_count != 2 )) \
-    || ! profile_version=$(/usr/bin/plutil -extract version raw -o - -- "$selection_path" 2>/dev/null) \
+  if ! profile_version=$(/usr/bin/plutil -extract version raw -o - -- "$selection_path" 2>/dev/null) \
     || ! profile_id=$(/usr/bin/plutil -extract profileId raw -o - -- "$selection_path" 2>/dev/null)
   then
-    REPLY="expected version 1 and one opaque profile ID"
+    REPLY="expected version 2, one opaque profile ID, and one owner revision"
     return 1
   fi
-  if [[ $profile_version != "1" && $profile_version != "1.0" ]] \
-    || [[ ! $profile_id =~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' ]]
+  if [[ ! $profile_id =~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' ]]
   then
-    REPLY="expected version 1 and one opaque profile ID"
+    REPLY="expected version 2, one opaque profile ID, and one owner revision"
     return 1
+  fi
+  if (( profile_key_count == 2 )) \
+    && [[ $profile_version == "1" || $profile_version == "1.0" ]]
+  then
+    REPLY="legacy-version-1"
+    return 0
+  fi
+  if (( profile_key_count != 3 )) \
+    || [[ $profile_version != "2" && $profile_version != "2.0" ]] \
+    || ! owner_revision=$(/usr/bin/plutil -extract ownerRevision raw -o - -- "$selection_path" 2>/dev/null) \
+    || [[ ! $owner_revision =~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' ]]
+  then
+    REPLY="expected version 2, one opaque profile ID, and one owner revision"
+    return 1
+  fi
+  REPLY="current-version-2"
+}
+
+native_host_source="$tab_out_checkout/native/bridge-host/TabOutNativeBridge.swift"
+expected_native_host_version=""
+if [[ -f $native_host_source ]]; then
+  expected_native_host_version=$(
+    /usr/bin/sed -n 's/^private let bridgeVersionString = "\([^"]*\)"$/\1/p' \
+      "$native_host_source" | /usr/bin/head -n 1
+  )
+fi
+
+inspect_native_host_version() {
+  local output=$1
+  local first_line=${output%%$'\n'*}
+  local installed_version
+
+  if [[ -z $expected_native_host_version ]]; then
+    fail "Could not read the expected native host version from $native_host_source"
+    return
+  fi
+  if [[ $first_line != "Native host version: "* ]]; then
+    action "Native host did not report its installed version"
+    return
+  fi
+  installed_version=${first_line#Native host version: }
+  if [[ $installed_version == "$expected_native_host_version" ]]; then
+    pass "Native host version matches this checkout: $installed_version"
+  else
+    action "Native host $installed_version is installed; run pnpm setup:local to install $expected_native_host_version"
   fi
 }
 
@@ -258,17 +309,39 @@ fi
 native_status_command="$tab_out_checkout/scripts/native-host/status"
 profile_selection_path=${TAB_OUT_NATIVE_BRIDGE_PROFILE_SELECTION_PATH:-"$HOME/Library/Application Support/Tab Out/configured-profile-v1.json"}
 if validate_profile_selection "$profile_selection_path"; then
-  pass "A Chrome profile is selected for the macOS integration"
+  if [[ $REPLY == "legacy-version-1" ]]; then
+    info "The selected Chrome profile will gain an owner revision when the updated extension reconnects"
+  else
+    pass "A Chrome profile is selected for the macOS integration"
+  fi
 elif [[ -e $profile_selection_path || -L $profile_selection_path ]]; then
   action "The persisted Chrome profile selection is invalid: $REPLY. Run pnpm setup:local --reset-profile."
+elif [[ $expect_unpaired_profile == true ]]; then
+  info "Chrome profile ownership was reset; choose 'Use this profile for macOS integration' in the intended profile"
 else
-  action "Open Tab Out's toolbar menu in the intended Chrome profile and choose 'Use this Chrome profile for macOS integration'"
+  action "Open Tab Out's toolbar menu in the intended Chrome profile and choose 'Use this profile for macOS integration'"
 fi
 
 if [[ -x $native_status_command ]]; then
-  if native_status_output=$("$native_status_command" 2>&1); then
+  if [[ $expect_unpaired_profile == true && ! -e $profile_selection_path && ! -L $profile_selection_path ]]; then
+    if native_status_output=$(
+      TAB_OUT_DOCTOR_EXPECT_UNPAIRED_PROFILE=1 "$native_status_command" 2>&1
+    ); then
+      action "Native host is still active after profile ownership was reset"
+    else
+      native_status_code=$?
+      if (( native_status_code == 2 )); then
+        info "${native_status_output%%$'\n'*}"
+        inspect_native_host_version "$native_status_output"
+        info "Native Placement Bridge status awaits a selected Chrome profile"
+      else
+        action "Native host is not ready: ${native_status_output%%$'\n'*}"
+      fi
+    fi
+  elif native_status_output=$("$native_status_command" 2>&1); then
     pass "Native Placement Bridge status round trip is ready"
     info "${native_status_output%%$'\n'*}"
+    inspect_native_host_version "$native_status_output"
   else
     action "Native host is not ready: ${native_status_output%%$'\n'*}"
   fi
@@ -279,13 +352,17 @@ fi
 readiness_policy="$tab_out_checkout/scripts/hammerspoon/doctor-readiness.lua"
 escaped_readiness_policy=${readiness_policy//\\/\\\\}
 escaped_readiness_policy=${escaped_readiness_policy//\"/\\\"}
+readiness_options="nil"
+if [[ $expect_unpaired_profile == true ]]; then
+  readiness_options="{ expectUnpairedProfile = true }"
+fi
 
 if command -v hs >/dev/null 2>&1; then
   if ipc_output=$(hs -c 'return "ready"' 2>&1); then
     if [[ $ipc_output == "ready" ]]; then
       pass "Hammerspoon IPC is available"
 
-      if runtime_output=$(hs -c "local readiness = dofile(\"$escaped_readiness_policy\"); return readiness.evaluate(spoon and spoon.TabOut)" 2>&1); then
+      if runtime_output=$(hs -c "local readiness = dofile(\"$escaped_readiness_policy\"); return readiness.evaluate(spoon and spoon.TabOut, $readiness_options)" 2>&1); then
         if [[ $runtime_output == "ready" ]]; then
           pass "Loaded Hammerspoon and Tab Out runtime checks are ready"
         elif [[ $runtime_output == missing:* ]]; then

@@ -188,7 +188,7 @@ set -e
 
 : > "$command_log"
 profile_selection="$temporary_root/configured-profile-v1.json"
-printf '%s\n' '{"version":1,"profileId":"11111111-1111-4111-8111-111111111111"}' \
+printf '%s\n' '{"version":2,"profileId":"11111111-1111-4111-8111-111111111111","ownerRevision":"22222222-2222-4222-8222-222222222222"}' \
   > "$profile_selection"
 PATH="$fake_bin:$PATH" \
   HOME="$temporary_home" \
@@ -197,7 +197,7 @@ PATH="$fake_bin:$PATH" \
   TAB_OUT_TEST_COMMAND_LOG="$command_log" \
   "$fixture_setup" --reset-profile "$extension_id" >/dev/null
 
-expected_reset_commands=$'bin/pnpm\tinstall\t--frozen-lockfile\nbin/pnpm\texec\tplaywright\tinstall\tchromium\nbin/pnpm\tsetup:hooks\nbin/pnpm\tbuild\nhammerspoon/build\nhammerspoon/install\t'"$fallback_config"$'\nnative-host/install\t'"$extension_id"$'\nnative-host/reset-profile\nbin/hs\t-c\ths.reload()\nscripts/doctor-macos-integration\t'"$fallback_config"
+expected_reset_commands=$'bin/pnpm\tinstall\t--frozen-lockfile\nbin/pnpm\texec\tplaywright\tinstall\tchromium\nbin/pnpm\tsetup:hooks\nbin/pnpm\tbuild\nhammerspoon/build\nhammerspoon/install\t'"$fallback_config"$'\nnative-host/install\t'"$extension_id"$'\nnative-host/reset-profile\nbin/hs\t-c\ths.reload()\nscripts/doctor-macos-integration\t--expect-unpaired-profile\t'"$fallback_config"
 [[ $(<"$command_log") == "$expected_reset_commands" ]]
 [[ ! -e $profile_selection && ! -L $profile_selection ]]
 
@@ -249,7 +249,7 @@ mkdir -p \
 ln -s "$fake_child" "$installed_host"
 : > "$native_manifest"
 : > "$native_socket"
-printf '%s\n' '{"version":1,"profileId":"11111111-1111-4111-8111-111111111111"}' \
+printf '%s\n' '{"version":2,"profileId":"11111111-1111-4111-8111-111111111111","ownerRevision":"22222222-2222-4222-8222-222222222222"}' \
   > "$profile_selection"
 : > "$profile_selection_lock"
 : > "$command_log"

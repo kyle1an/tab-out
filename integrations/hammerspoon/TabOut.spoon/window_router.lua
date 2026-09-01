@@ -48,6 +48,7 @@ function M.new(options)
   local pendingNativePlacement
   local privateFocus = options.privateFocus
   local privateFocusError = options.privateFocusError
+  local profileTransferDraining = false
   local queue = {}
   local stopTimer = options.stopTimer
   local trackTimer = options.trackTimer
@@ -1029,6 +1030,10 @@ function M.new(options)
   function router:current() return currentRequest end
 
   function router:enqueue(kind)
+    if profileTransferDraining then
+      options.reportFailure("The Chrome profile transfer is in progress")
+      return false
+    end
     local request, message, detail = prepareRoutingRequest(kind)
     if not request then
       options.reportFailure(message, detail)
@@ -1062,6 +1067,18 @@ function M.new(options)
   end
 
   function router:isBusy() return busy end
+
+  function router:beginProfileTransferDrain()
+    if profileTransferDraining or busy or #queue > 0 then
+      return false
+    end
+    profileTransferDraining = true
+    return true
+  end
+
+  function router:cancelProfileTransferDrain()
+    profileTransferDraining = false
+  end
 
   function router:queueDepth() return #queue end
 

@@ -244,6 +244,14 @@ local function configureDesktopWindowController(config)
   end
 
   local created, controllerOrError = pcall(DesktopWindowController.new, {
+    beginProfileTransferDrain = function()
+      return state.windowRouter and state.windowRouter:beginProfileTransferDrain() or false
+    end,
+    cancelProfileTransferDrain = function()
+      if state.windowRouter then
+        state.windowRouter:cancelProfileTransferDrain()
+      end
+    end,
     catalog = state.chromeCatalog,
     chromeBundleId = config.chromeBundleId,
     chromeWindows = function()

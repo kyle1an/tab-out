@@ -15,7 +15,7 @@ No server. No account. No external API calls. Just a Chrome extension.
 Send your coding agent (Claude Code, Codex, etc.) this repo and say **"install this"**:
 
 ```
-https://github.com/zarazhangrui/tab-out
+https://github.com/m7yang/tab-out
 ```
 
 The agent will walk you through it. Takes about 1 minute.
@@ -63,7 +63,7 @@ The agent will walk you through it. Takes about 1 minute.
 **1. Clone the repo**
 
 ```bash
-git clone https://github.com/zarazhangrui/tab-out.git
+git clone https://github.com/m7yang/tab-out.git
 ```
 
 **2. Load the Chrome extension**
@@ -99,11 +99,16 @@ Configure `spoon.TabOut:start(config)` through your Hammerspoon configuration;
 the companion `hammerspoon-config` repository keeps its profile and keybindings
 in ignored `tab-out.local.lua`. Then reload Tab Out from `chrome://extensions`.
 On first setup, open its toolbar menu in that intended profile and choose **Use
-this Chrome profile for macOS integration**. Tab Out may be loaded in additional
-profiles later without transferring that selection. To intentionally choose a
-different owner, run `pnpm setup:local --reset-profile`; it revokes any live
-owner before returning. Then reload the extension and select again from the
-intended profile. The complete configuration,
+this profile for macOS integration**. Tab Out may be loaded in additional
+profiles later without transferring that selection. To intentionally change
+the owner, first point Hammerspoon's `chromeProfileDirectory` at the intended
+profile, then open that profile's toolbar menu and choose **Switch macOS
+integration to this profile…**. Review the confirmation carefully: Chrome does
+not expose the profile directory to Tab Out, so the extension cannot verify that
+Hammerspoon setting. A live owner switches only after both its extension worker
+and Hammerspoon controller attest that no native action is running; an offline
+owner can be replaced directly. `pnpm setup:local --reset-profile` remains the
+explicit fallback when the popup transfer is unavailable. The complete configuration,
 diagnostic, permission, and live-acceptance guide is in
 [`integrations/hammerspoon/README.md`](integrations/hammerspoon/README.md).
 

@@ -10,17 +10,30 @@ import {
 } from 'effect'
 
 import { omitUndefined } from '../../lib/omit-undefined.js'
-import { DESKTOP_WINDOW_MERGE_STATUS_CHANGED_MESSAGE } from '../desktop-window-merge-contract.js'
+import {
+  DESKTOP_WINDOW_MERGE_STATUS_CHANGED_MESSAGE,
+  type NativeIntegrationProfileTransferResponse,
+} from '../desktop-window-merge-contract.js'
 import type { ChromeApi } from './chrome-api.js'
 import {
   createInactiveWindow,
   type TargetDisplayBounds,
 } from './native-window-placement.js'
 
-const NATIVE_PROFILE_SELECTION_VERSION = 1
+export const NATIVE_PROFILE_SELECTION_VERSION = 2
 export const NATIVE_PLACEMENT_BRIDGE_VERSION = 6
 export const NATIVE_CONTROL_BRIDGE_VERSION = 7
 export const NATIVE_MERGE_DESKTOP_CAPABILITY = 'merge-desktop'
+export const NATIVE_PROFILE_TRANSFER_DRAIN_CAPABILITY = 'profile-transfer-drain'
+const NATIVE_PROFILE_TRANSFER_CAPABILITY = 'profile-transfer'
+const nativeProfileTransferFailed = {
+  ok: false,
+  reason: 'failed',
+} satisfies NativeIntegrationProfileTransferResponse
+const nativeProfileTransferIndeterminate = {
+  ok: false,
+  reason: 'indeterminate',
+} satisfies NativeIntegrationProfileTransferResponse
 const NATIVE_INTEGRATION_PROFILE_ID_STORAGE_KEY =
   'nativeIntegrationProfileIdV1'
 const NATIVE_CONTROL_MAXIMUM_WINDOW_IDS = 512
@@ -54,6 +67,7 @@ const nativeControlRequestIdSchema = Schema.String.check(
 const nativeControlWindowIdSchema = Schema.Int.check(Schema.isGreaterThan(0))
 const nativeControlCapabilitiesSchema = Schema.Array(Schema.Literals([
   NATIVE_MERGE_DESKTOP_CAPABILITY,
+  NATIVE_PROFILE_TRANSFER_DRAIN_CAPABILITY,
 ])).check(Schema.isMaxLength(16))
 const nativeControlWindowIdsSchema = Schema.Array(nativeControlWindowIdSchema).check(
   Schema.isMaxLength(NATIVE_CONTROL_MAXIMUM_WINDOW_IDS),
@@ -79,6 +93,32 @@ const nativeProfileSelectionStatusMessageSchema = Schema.Struct({
   version: Schema.Literals([NATIVE_PROFILE_SELECTION_VERSION]),
   type: Schema.Literals(['profile-selection-status']),
   selection: Schema.Literals(['another-profile', 'required', 'selected']),
+  capabilities: Schema.Array(Schema.Literals([
+    NATIVE_PROFILE_TRANSFER_CAPABILITY,
+  ])).check(Schema.isMaxLength(8)),
+  ownerRevision: Schema.optionalKey(nativeProfileIdSchema),
+})
+const nativeProfileTransferResultMessageSchema = Schema.Struct({
+  version: Schema.Literals([NATIVE_PROFILE_SELECTION_VERSION]),
+  type: Schema.Literals(['profile-transfer-result']),
+  status: Schema.Literals(['rejected']),
+  reason: Schema.Literals([
+    'busy',
+    'failed',
+    'selection-changed',
+    'update-required',
+  ]),
+  ownerRevision: Schema.optionalKey(nativeProfileIdSchema),
+})
+const nativeProfileTransferPrepareMessageSchema = Schema.Struct({
+  version: Schema.Literals([NATIVE_PROFILE_SELECTION_VERSION]),
+  type: Schema.Literals(['profile-transfer-prepare']),
+  requestId: nativeControlRequestIdSchema,
+})
+const nativeProfileTransferCancelMessageSchema = Schema.Struct({
+  version: Schema.Literals([NATIVE_PROFILE_SELECTION_VERSION]),
+  type: Schema.Literals(['profile-transfer-cancel']),
+  requestId: nativeControlRequestIdSchema,
 })
 
 type NativeControlResponse = typeof nativeControlResponseSchema.Type
@@ -92,6 +132,15 @@ const isNativeProfileId = Schema.is(nativeProfileIdSchema)
 const isNativeProfileSelectionStatusMessage = Schema.is(
   nativeProfileSelectionStatusMessageSchema,
 )
+const isNativeProfileTransferResultMessage = Schema.is(
+  nativeProfileTransferResultMessageSchema,
+)
+const isNativeProfileTransferPrepareMessage = Schema.is(
+  nativeProfileTransferPrepareMessageSchema,
+)
+const isNativeProfileTransferCancelMessage = Schema.is(
+  nativeProfileTransferCancelMessageSchema,
+)
 
 export interface NativeDesktopWindowSelection {
   readonly selectionToken: string
@@ -102,7 +151,10 @@ export interface NativeDesktopControllerStatus {
   readonly capabilities: readonly string[]
   readonly controllerConnected: boolean
   readonly hostConnected: boolean
+  readonly initialConnectionSettled: boolean
+  readonly ownerRevision: string | null
   readonly profileSelection: 'another-profile' | 'required' | 'selected' | 'unknown'
+  readonly profileTransferAvailable: boolean
 }
 
 export class NativeDesktopControlError extends Schema.TaggedError<NativeDesktopControlError>()(
@@ -113,6 +165,11 @@ export class NativeDesktopControlError extends Schema.TaggedError<NativeDesktopC
 export class NativePlacementBridge extends Context.Service<NativePlacementBridge, {
   readonly getStatus: () => Effect.Effect<NativeDesktopControllerStatus>
   readonly selectCurrentProfile: () => Effect.Effect<void, NativeDesktopControlError>
+  readonly transferCurrentProfile: (
+    expectedOwnerRevision: string,
+  ) => Effect.Effect<NativeIntegrationProfileTransferResponse>
+  readonly beginDesktopWindowMerge: () => Effect.Effect<void, NativeDesktopControlError>
+  readonly finishDesktopWindowMerge: () => Effect.Effect<void>
   readonly resolveDesktopWindows: (
     destinationWindowId: number,
   ) => Effect.Effect<NativeDesktopWindowSelection, NativeDesktopControlError>
@@ -265,7 +322,10 @@ export function makeNativePlacementBridgeLayer(
       capabilities: [],
       controllerConnected: false,
       hostConnected: false,
+      initialConnectionSettled: false,
+      ownerRevision: null,
       profileSelection: 'unknown',
+      profileTransferAvailable: false,
     })
     const activePort = yield* Ref.make<chrome.runtime.Port | null>(null)
     const pendingProfileSelection = yield* Ref.make<Deferred.Deferred<
@@ -276,11 +336,23 @@ export function makeNativePlacementBridgeLayer(
       string,
       Deferred.Deferred<NativeControlResponse, NativeDesktopControlError>
     >>(new Map())
+    const pendingProfileTransfer = yield* Ref.make<{
+      readonly completion: Deferred.Deferred<NativeIntegrationProfileTransferResponse>
+      readonly expectedOwnerRevision: string
+      readonly phase: 'awaiting-result' | 'reconciling' | 'starting'
+      readonly requestPort: chrome.runtime.Port | null
+    } | null>(null)
+    const profileTransferActivity = yield* Ref.make<{
+      readonly drainRequestId: string | null
+      readonly mergeRunning: boolean
+    }>({ drainRequestId: null, mergeRunning: false })
+    const manualReconnects = yield* Queue.unbounded<void>()
     const incomingMessages = yield* Queue.unbounded<{
       readonly disconnect: () => void
       readonly message: unknown
       readonly port: chrome.runtime.Port
     }>()
+    let disconnectActivePort: (() => void) | null = null
     let reconnectAttempt = 0
     let cachedProfileId: string | null = null
 
@@ -306,6 +378,9 @@ export function makeNativePlacementBridgeLayer(
         previous.hostConnected === next.hostConnected &&
         previous.controllerConnected === next.controllerConnected &&
         previous.profileSelection === next.profileSelection &&
+        previous.initialConnectionSettled === next.initialConnectionSettled &&
+        previous.ownerRevision === next.ownerRevision &&
+        previous.profileTransferAvailable === next.profileTransferAvailable &&
         previous.capabilities.length === next.capabilities.length &&
         previous.capabilities.every((capability, index) =>
           next.capabilities[index] === capability)
@@ -334,6 +409,28 @@ export function makeNativePlacementBridgeLayer(
       if (completion) yield* Deferred.fail(completion, controlError(reason))
     })
 
+    const completeUnavailableProfileTransfer = Effect.fn(
+      'NativePlacementBridge.completeUnavailableProfileTransfer',
+    )(function* () {
+      const pending = yield* Ref.getAndSet(pendingProfileTransfer, null)
+      if (!pending) return
+      yield* Deferred.succeed(
+        pending.completion,
+        pending.phase === 'reconciling'
+          ? nativeProfileTransferIndeterminate
+          : nativeProfileTransferFailed,
+      )
+    })
+
+    const postNativeMessage = Effect.fn(
+      'NativePlacementBridge.postNativeMessage',
+    )(function* (port: chrome.runtime.Port, message: unknown) {
+      yield* Effect.try({
+        try: () => port.postMessage(message),
+        catch: (cause) => controlError(errorMessage(cause)),
+      })
+    })
+
     const updateControllerStatus = Effect.fn(
       'NativePlacementBridge.updateControllerStatus',
     )(function* (message: NativeControllerStatusMessage) {
@@ -343,7 +440,10 @@ export function makeNativePlacementBridgeLayer(
         capabilities: message.capabilities,
         controllerConnected: message.connected,
         hostConnected: current.hostConnected,
+        initialConnectionSettled: current.initialConnectionSettled,
+        ownerRevision: current.ownerRevision,
         profileSelection: current.profileSelection,
+        profileTransferAvailable: current.profileTransferAvailable,
       })
     })
 
@@ -358,10 +458,51 @@ export function makeNativePlacementBridgeLayer(
           ? current.controllerConnected
           : false,
         hostConnected: current.hostConnected,
+        initialConnectionSettled: true,
+        ownerRevision: message.ownerRevision ?? null,
         profileSelection,
+        profileTransferAvailable: profileSelection === 'another-profile' &&
+          message.ownerRevision !== undefined &&
+          message.capabilities.includes(NATIVE_PROFILE_TRANSFER_CAPABILITY),
       })
-      const completion = yield* Ref.getAndSet(pendingProfileSelection, null)
-      if (completion) yield* Deferred.succeed(completion, profileSelection === 'selected')
+      if (profileSelection !== 'required') {
+        const completion = yield* Ref.getAndSet(pendingProfileSelection, null)
+        if (completion) yield* Deferred.succeed(completion, profileSelection === 'selected')
+      }
+    })
+
+    const completeProfileTransfer = Effect.fn(
+      'NativePlacementBridge.completeProfileTransfer',
+    )(function* (result: NativeIntegrationProfileTransferResponse) {
+      const pending = yield* Ref.getAndSet(pendingProfileTransfer, null)
+      if (pending) yield* Deferred.succeed(pending.completion, result)
+    })
+
+    const handleProfileTransferPrepare = Effect.fn(
+      'NativePlacementBridge.handleProfileTransferPrepare',
+    )(function* (port: chrome.runtime.Port, requestId: string) {
+      const accepted = yield* Ref.modify(profileTransferActivity, (current) => {
+        if (current.drainRequestId !== null || current.mergeRunning) {
+          return [false, current] as const
+        }
+        return [true, { ...current, drainRequestId: requestId }] as const
+      })
+      yield* postNativeMessage(port, {
+        version: NATIVE_PROFILE_SELECTION_VERSION,
+        type: 'profile-transfer-response',
+        requestId,
+        status: accepted ? 'idle' : 'busy',
+      }).pipe(Effect.catch(() => Effect.void))
+    })
+
+    const handleProfileTransferCancel = Effect.fn(
+      'NativePlacementBridge.handleProfileTransferCancel',
+    )(function* (requestId: string) {
+      yield* Ref.update(profileTransferActivity, (current) => (
+        current.drainRequestId === requestId
+          ? { ...current, drainRequestId: null }
+          : current
+      ))
     })
 
     const replyToNativeMessage = Effect.fn('NativePlacementBridge.reply')(function* (
@@ -372,9 +513,93 @@ export function makeNativePlacementBridgeLayer(
       if ((yield* Ref.get(activePort)) !== port) return
       if (isNativeProfileSelectionStatusMessage(message)) {
         yield* updateProfileSelectionStatus(message)
+        const pending = yield* Ref.get(pendingProfileTransfer)
+        if (pending) {
+          // A status means the requested connection is now live. Remove any
+          // wake-up token left by the narrow confirm-before-disconnect race.
+          yield* Queue.clear(manualReconnects)
+        }
         if (message.selection === 'another-profile') {
+          if (pending?.phase === 'reconciling') {
+            yield* completeProfileTransfer({
+              ok: false,
+              reason: message.ownerRevision !== pending.expectedOwnerRevision
+                ? 'selection-changed'
+                : message.capabilities.includes(NATIVE_PROFILE_TRANSFER_CAPABILITY)
+                  ? 'failed'
+                  : 'update-required',
+            })
+            yield* Effect.sync(disconnect)
+            return
+          }
+          if (
+            pending &&
+            pending.phase === 'starting' &&
+            message.ownerRevision === pending.expectedOwnerRevision &&
+            message.capabilities.includes(NATIVE_PROFILE_TRANSFER_CAPABILITY)
+          ) {
+            yield* Ref.update(pendingProfileTransfer, (current) => (
+              current === pending
+                ? { ...current, phase: 'awaiting-result' as const, requestPort: port }
+                : current
+            ))
+            const posted = yield* Effect.result(postNativeMessage(port, {
+              version: NATIVE_PROFILE_SELECTION_VERSION,
+              type: 'transfer-profile',
+              profileId: cachedProfileId,
+              expectedOwnerRevision: pending.expectedOwnerRevision,
+            }))
+            if (Result.isFailure(posted)) {
+              yield* completeProfileTransfer(nativeProfileTransferFailed)
+              yield* Effect.sync(disconnect)
+            }
+            return
+          }
+          if (pending?.phase === 'awaiting-result' && pending.requestPort === port) {
+            return
+          }
+          if (pending) {
+            yield* completeProfileTransfer({
+              ok: false,
+              reason: message.capabilities.includes(NATIVE_PROFILE_TRANSFER_CAPABILITY)
+                ? 'selection-changed'
+                : 'update-required',
+            })
+          }
+          yield* Effect.sync(disconnect)
+        } else if (message.selection === 'selected') {
+          yield* completeProfileTransfer({ ok: true })
+        } else if (pending) {
+          yield* completeProfileTransfer({ ok: false, reason: 'selection-changed' })
           yield* Effect.sync(disconnect)
         }
+        return
+      }
+      if (isNativeProfileTransferResultMessage(message)) {
+        const current = yield* Ref.get(status)
+        yield* setControllerStatus({
+          ...current,
+          initialConnectionSettled: true,
+          ownerRevision: message.ownerRevision ?? current.ownerRevision,
+          profileTransferAvailable:
+            message.reason !== 'selection-changed' && message.reason !== 'update-required',
+        })
+        yield* completeProfileTransfer({ ok: false, reason: message.reason })
+        if (message.reason === 'selection-changed') {
+          // Re-read authority after a stale or competing commit so the popup
+          // can offer Use or a newly revisioned Switch without a second
+          // failed confirmation.
+          yield* Queue.offer(manualReconnects, undefined)
+        }
+        yield* Effect.sync(disconnect)
+        return
+      }
+      if (isNativeProfileTransferPrepareMessage(message)) {
+        yield* handleProfileTransferPrepare(port, message.requestId)
+        return
+      }
+      if (isNativeProfileTransferCancelMessage(message)) {
+        yield* handleProfileTransferCancel(message.requestId)
         return
       }
       if (isNativeControllerStatusMessage(message)) {
@@ -406,6 +631,9 @@ export function makeNativePlacementBridgeLayer(
         const reply = replyToNativeMessage(port, message, disconnect)
         if (
           isNativeProfileSelectionStatusMessage(message) ||
+          isNativeProfileTransferResultMessage(message) ||
+          isNativeProfileTransferPrepareMessage(message) ||
+          isNativeProfileTransferCancelMessage(message) ||
           isNativeControllerStatusMessage(message) ||
           isNativeControlResponse(message)
         ) return reply
@@ -434,11 +662,15 @@ export function makeNativePlacementBridgeLayer(
         catch: (cause) => NativePlacementConnectionError.make({ cause }),
       })
       yield* Ref.set(activePort, port)
+      const previousStatus = yield* Ref.get(status)
       yield* setControllerStatus({
         capabilities: [],
         controllerConnected: false,
         hostConnected: true,
+        initialConnectionSettled: previousStatus.initialConnectionSettled,
+        ownerRevision: previousStatus.ownerRevision,
         profileSelection: 'unknown',
+        profileTransferAvailable: false,
       })
 
       yield* Effect.callback<void>((resume) => {
@@ -452,6 +684,7 @@ export function makeNativePlacementBridgeLayer(
           if (disconnected) return
           disconnected = true
           removeListeners()
+          if (disconnectActivePort === disconnect) disconnectActivePort = null
           resume(Effect.void)
         }
         const disconnect = () => {
@@ -479,6 +712,7 @@ export function makeNativePlacementBridgeLayer(
 
         port.onMessage.addListener(onMessage)
         port.onDisconnect.addListener(onDisconnect)
+        disconnectActivePort = disconnect
 
         try {
           port.postMessage({
@@ -487,19 +721,18 @@ export function makeNativePlacementBridgeLayer(
             profileId,
           })
         } catch (cause) {
-          disconnected = true
-          removeListeners()
           console.info(
             'Tab Out native placement bridge disconnected:',
             errorMessage(cause),
           )
-          resume(Effect.void)
+          finishDisconnect()
         }
 
         return Effect.sync(() => {
           if (disconnected) return
           disconnected = true
           removeListeners()
+          if (disconnectActivePort === disconnect) disconnectActivePort = null
           try {
             port.disconnect()
           } catch {}
@@ -511,10 +744,38 @@ export function makeNativePlacementBridgeLayer(
         capabilities: [],
         controllerConnected: false,
         hostConnected: false,
+        initialConnectionSettled: true,
+        ownerRevision: currentStatus.ownerRevision,
         profileSelection: currentStatus.profileSelection,
+        profileTransferAvailable: currentStatus.profileTransferAvailable,
       })
+      yield* Ref.update(profileTransferActivity, (current) => ({
+        ...current,
+        drainRequestId: null,
+      }))
       yield* failPendingProfileSelection('The native bridge disconnected')
       yield* failPendingControlRequests('The native bridge disconnected')
+      const pendingTransfer = yield* Ref.get(pendingProfileTransfer)
+      if (
+        pendingTransfer?.phase === 'awaiting-result' &&
+        pendingTransfer.requestPort === port
+      ) {
+        yield* Ref.update(pendingProfileTransfer, (current) => (
+          current === pendingTransfer
+            ? { ...current, phase: 'reconciling' as const }
+            : current
+        ))
+        yield* Queue.offer(manualReconnects, undefined)
+      } else if (
+        !pendingTransfer ||
+        currentStatus.profileSelection !== 'another-profile' ||
+        (
+          pendingTransfer.phase === 'reconciling' &&
+          pendingTransfer.requestPort !== port
+        )
+      ) {
+        yield* completeUnavailableProfileTransfer()
+      }
     })
 
     const reconnect = Effect.fn('NativePlacementBridge.reconnect')(function* () {
@@ -526,10 +787,21 @@ export function makeNativePlacementBridgeLayer(
             errorMessage(connection.failure.cause),
           )
         })
+        const current = yield* Ref.get(status)
+        const staleNonOwnerStatus = current.profileSelection === 'another-profile'
+        yield* setControllerStatus({
+          ...current,
+          hostConnected: false,
+          initialConnectionSettled: true,
+          ownerRevision: staleNonOwnerStatus ? null : current.ownerRevision,
+          profileSelection: staleNonOwnerStatus ? 'unknown' : current.profileSelection,
+          profileTransferAvailable: false,
+        })
+        yield* completeUnavailableProfileTransfer()
       }
 
       if ((yield* Ref.get(status)).profileSelection === 'another-profile') {
-        return yield* Effect.never
+        return yield* Queue.take(manualReconnects)
       }
 
       const delayIndex = Math.min(
@@ -627,11 +899,118 @@ export function makeNativePlacementBridgeLayer(
       }
     })
 
+    const transferCurrentProfile = Effect.fn(
+      'NativePlacementBridge.transferCurrentProfile',
+    )(function* (expectedOwnerRevision: string) {
+      const transfer = Effect.gen(function* () {
+        const currentStatus = yield* Ref.get(status)
+        if (currentStatus.profileSelection === 'selected') {
+          return { ok: true } as const
+        }
+        if (
+          currentStatus.profileSelection !== 'another-profile' ||
+          currentStatus.ownerRevision !== expectedOwnerRevision
+        ) {
+          return { ok: false, reason: 'selection-changed' } as const
+        }
+        if (!currentStatus.profileTransferAvailable) {
+          return { ok: false, reason: 'update-required' } as const
+        }
+        if (yield* Ref.get(pendingProfileSelection)) {
+          return { ok: false, reason: 'busy' } as const
+        }
+
+        const completion = yield* Deferred.make<NativeIntegrationProfileTransferResponse>()
+        const pending = {
+          completion,
+          expectedOwnerRevision,
+          phase: 'starting' as const,
+          requestPort: null,
+        }
+        const installed = yield* Ref.modify(pendingProfileTransfer, (current) => (
+          current ? [false, current] : [true, pending]
+        ))
+        if (!installed) return { ok: false, reason: 'busy' } as const
+
+        const removePending = Ref.update(pendingProfileTransfer, (current) =>
+          current?.completion === completion ? null : current)
+        const reconcileAfterTimeout = Effect.gen(function* () {
+          const current = yield* Ref.get(pendingProfileTransfer)
+          if (
+            current?.completion !== completion ||
+            current.phase !== 'awaiting-result'
+          ) {
+            return nativeProfileTransferIndeterminate
+          }
+          yield* Ref.update(pendingProfileTransfer, (candidate) => (
+            candidate === current
+              ? { ...candidate, phase: 'reconciling' as const }
+              : candidate
+          ))
+          yield* Effect.sync(() => disconnectActivePort?.())
+          yield* Queue.offer(manualReconnects, undefined)
+          return yield* Deferred.await(completion).pipe(
+            Effect.timeoutOrElse({
+              duration: '4 seconds',
+              orElse: () => Effect.succeed(nativeProfileTransferIndeterminate),
+            }),
+          )
+        })
+        return yield* Queue.offer(manualReconnects, undefined).pipe(
+          Effect.andThen(Deferred.await(completion)),
+          Effect.timeoutOrElse({
+            duration: '10 seconds',
+            orElse: () => reconcileAfterTimeout,
+          }),
+          Effect.ensuring(removePending),
+        )
+      })
+      const result = yield* Effect.result(transfer)
+      const response = Result.isSuccess(result)
+        ? result.success
+        : nativeProfileTransferIndeterminate
+
+      if (!response.ok && response.reason === 'indeterminate' && (yield* Ref.get(activePort))) {
+        yield* Effect.sync(() => disconnectActivePort?.())
+      }
+      return response
+    })
+
+    const beginDesktopWindowMerge = Effect.fn(
+      'NativePlacementBridge.beginDesktopWindowMerge',
+    )(function* () {
+      const acquired = yield* Ref.modify(profileTransferActivity, (current) => {
+        if (current.drainRequestId !== null || current.mergeRunning) {
+          return [false, current] as const
+        }
+        return [true, { ...current, mergeRunning: true }] as const
+      })
+      if (!acquired) {
+        return yield* Effect.fail(controlError(
+          'A native integration action is already in progress',
+        ))
+      }
+    })
+
+    const finishDesktopWindowMerge = Effect.fn(
+      'NativePlacementBridge.finishDesktopWindowMerge',
+    )(function* () {
+      yield* Ref.update(profileTransferActivity, (current) => ({
+        ...current,
+        mergeRunning: false,
+      }))
+    })
+
     const requestControl = Effect.fn('NativePlacementBridge.requestControl')(function* (
       type: 'resolve-desktop-windows' | 'revalidate-desktop-windows',
       destinationWindowId: number,
       selectionToken?: string,
     ) {
+      if ((yield* Ref.get(profileTransferActivity)).drainRequestId !== null) {
+        return yield* Effect.fail(controlError(
+          'The native integration is switching Chrome profiles',
+        ))
+      }
       const port = yield* Ref.get(activePort)
       if (!port) return yield* Effect.fail(controlError('The native bridge is not connected'))
       const currentStatus = yield* Ref.get(status)
@@ -709,8 +1088,11 @@ export function makeNativePlacementBridgeLayer(
     })
 
     return NativePlacementBridge.of({
+      beginDesktopWindowMerge,
+      finishDesktopWindowMerge,
       getStatus: () => Ref.get(status),
       selectCurrentProfile,
+      transferCurrentProfile,
       resolveDesktopWindows: (destinationWindowId) => requestControl(
         'resolve-desktop-windows',
         destinationWindowId,

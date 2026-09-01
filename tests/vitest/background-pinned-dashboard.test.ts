@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, test, vi } from '@effect/vi
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { STARTUP_SNAPSHOT_DEBOUNCE_MS } from '../../src/extension/background/startup-snapshot-service.js'
+import { NATIVE_PROFILE_SELECTION_VERSION } from '../../src/extension/background/native-placement-bridge.js'
 import { WORKING_SET_ACTIVITY_AUTHORITY_KEY } from '../../src/extension/background/working-set-activity-authority.js'
 import { RETAINED_PAGES_EXPIRY_ALARM } from '../../src/extension/background/retained-pages-expiry-alarm.js'
 import { CLOSED_TAB_RESTORE_STATE_MESSAGE } from '../../src/extension/closed-tabs.js'
@@ -2017,13 +2018,15 @@ test('native placement bridge directly places a requested window without focusin
 
   await flushBackgroundWork()
   const profileHello = mock.calls.nativeMessages[0] as Record<string, unknown>
-  assert.equal(profileHello.version, 1)
+  assert.equal(profileHello.version, NATIVE_PROFILE_SELECTION_VERSION)
   assert.equal(profileHello.type, 'profile-hello')
   assert.match(String(profileHello.profileId), /^[0-9a-f-]{36}$/)
   onNativeMessage({
-    version: 1,
+    version: NATIVE_PROFILE_SELECTION_VERSION,
     type: 'profile-selection-status',
     selection: 'selected',
+    capabilities: ['profile-transfer'],
+    ownerRevision: '11111111-1111-4111-8111-111111111111',
   })
   await flushBackgroundWork()
 

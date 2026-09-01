@@ -106,7 +106,18 @@ local catalog = {
   end,
 }
 local timers = {}
+local profileTransferDraining = false
 local controller = DesktopWindowController.new({
+  beginProfileTransferDrain = function()
+    if profileTransferDraining then
+      return false
+    end
+    profileTransferDraining = true
+    return true
+  end,
+  cancelProfileTransferDrain = function()
+    profileTransferDraining = false
+  end,
   catalog = catalog,
   chromeBundleId = "com.google.Chrome",
   chromeWindows = function()
@@ -127,7 +138,11 @@ local controller = DesktopWindowController.new({
 controller:start()
 assertEqual(writes[1].type, "controller-register", "controller registers")
 assertEqual(writes[1].version, 7, "controller protocol version")
-assertArray(writes[1].capabilities, { "merge-desktop" }, "controller capabilities")
+assertArray(
+  writes[1].capabilities,
+  { "merge-desktop", "profile-transfer-drain" },
+  "controller capabilities"
+)
 
 socketCallback(hs.json.encode({
   version = 7,
@@ -273,6 +288,32 @@ socketCallback(hs.json.encode({
 }) .. "\n")
 assertEqual(writes[10].status, "rejected", "a different same-bundle process cannot be selected")
 
+socketCallback(hs.json.encode({
+  version = 7,
+  type = "profile-transfer-prepare",
+  requestId = "profile-transfer-alpha",
+}) .. "\n")
+assertEqual(writes[11].status, "accepted", "idle profile transfer begins draining")
+assertEqual(writes[11].type, "profile-transfer-response", "profile transfer uses a distinct response type")
+assertEqual(profileTransferDraining, true, "profile transfer gates new shortcut work")
+
+socketCallback(hs.json.encode({
+  version = 7,
+  type = "profile-transfer-prepare",
+  requestId = "profile-transfer-beta",
+}) .. "\n")
+assertEqual(writes[12].status, "rejected", "a second profile transfer is busy")
+assertEqual(writes[12].type, "profile-transfer-response", "busy transfer stays out of control replies")
+
+socketCallback(hs.json.encode({
+  version = 7,
+  type = "profile-transfer-cancel",
+  requestId = "profile-transfer-alpha",
+}) .. "\n")
+assertEqual(writes[13].status, "accepted", "profile transfer cancellation is acknowledged")
+assertEqual(writes[13].type, "profile-transfer-response", "transfer cancellation stays distinct")
+assertEqual(profileTransferDraining, false, "profile transfer cancellation releases shortcut work")
+
 controller:stop()
 assertEqual(controller:status().connected, false, "controller stop disconnects")
 assertEqual(timers[1].stopped, true, "controller stop clears its monitor")
@@ -308,6 +349,8 @@ capabilityHs.socket = {
   end,
 }
 local capabilityController = DesktopWindowController.new({
+  beginProfileTransferDrain = function() return true end,
+  cancelProfileTransferDrain = function() end,
   catalog = catalog,
   chromeBundleId = "com.google.Chrome",
   chromeWindows = function()

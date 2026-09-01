@@ -22,8 +22,12 @@ export function desktopWindowMergeFailureMessage(
       return 'Window merge coordination is unavailable in this Chrome session'
     case 'desktop-selection-unavailable':
       return 'Could not safely identify the windows on this desktop'
+    case 'native-integration-checking':
+      return 'Checking macOS integration…'
     case 'native-integration-required':
       return 'Set up the Tab Out macOS integration to merge windows'
+    case 'profile-transfer-update-required':
+      return 'Update the Tab Out macOS integration before switching profiles'
     case 'profile-selection-required':
       return 'Choose this Chrome profile for the macOS integration'
     case 'session-storage-unavailable':

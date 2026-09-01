@@ -9,6 +9,7 @@ import {
   getDesktopWindowMergeStatus,
   previewDesktopWindowMerge,
   selectCurrentNativeIntegrationProfile,
+  transferCurrentNativeIntegrationProfile,
 } from '../extension/desktop-window-merge-client.js'
 import {
   desktopWindowMergeConfirmMessage,
@@ -24,6 +25,8 @@ import {
 import { showToast } from '../extension/toast.js'
 
 const DEDUPE_PLAN_REFRESH_DELAY_MS = 150
+const MACOS_INTEGRATION_SETUP_URL =
+  'https://github.com/m7yang/tab-out#optional-macos-hammerspoon-integration'
 
 const popupItemClassName =
   'relative flex w-full min-h-6 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2 py-1.5 text-left text-sm leading-tight text-foreground outline-none select-none [corner-shape:squircle] hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground disabled:pointer-events-none disabled:opacity-50'
@@ -91,7 +94,7 @@ async function requestMergeConfirmHandoff(previewId: string): Promise<void> {
   window.close()
 }
 
-type PendingAction = 'merge' | 'profile-selection' | 'tab-action'
+type PendingAction = 'merge' | 'profile-selection' | 'profile-transfer' | 'tab-action'
 
 /**
  * The Tab Actions Menu rendered by popup.html behind the toolbar action.
@@ -109,6 +112,7 @@ export function TabActionsPopup() {
   const [mergeSession, setMergeSession] =
     useState<DesktopWindowMergeJournal | null>(null)
   const [mergeConfirm, setMergeConfirm] = useState<PopupMergePreview | null>(null)
+  const [profileTransferConfirm, setProfileTransferConfirm] = useState<string | null>(null)
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
 
   // react-doctor-disable-next-line react-doctor/effect-needs-cleanup -- the returned cleanup clears refreshTimer; the id is reassigned per debounce, which the rule cannot track.
@@ -145,6 +149,14 @@ export function TabActionsPopup() {
       }
       setAvailability(response.availability)
       setMergeSession(response.session?.journal ?? null)
+      setProfileTransferConfirm((ownerRevision) => (
+        ownerRevision &&
+        response.availability.available === false &&
+        response.availability.reason === 'another-profile-selected' &&
+        response.availability.ownerRevision === ownerRevision
+          ? ownerRevision
+          : null
+      ))
       // A session appearing means another surface already merged; the counts
       // in a pending confirmation would be stale, so withdraw it.
       if (response.session?.journal) setMergeConfirm(null)
@@ -235,23 +247,86 @@ export function TabActionsPopup() {
       })
   }
 
+  function transferNativeIntegrationProfile() {
+    const expectedOwnerRevision = profileTransferConfirm
+    if (
+      !expectedOwnerRevision ||
+      pendingActionRef.current ||
+      mergeSession?.status === 'running'
+    ) return
+    pendingActionRef.current = 'profile-transfer'
+    setPendingAction('profile-transfer')
+    void transferCurrentNativeIntegrationProfile(expectedOwnerRevision)
+      .then(async (result) => {
+        if (result.ok) {
+          setProfileTransferConfirm(null)
+          showToast('This profile now owns the macOS integration')
+        } else if (result.reason === 'busy') {
+          showToast('Finish the current macOS action, then try again')
+        } else if (result.reason === 'selection-changed') {
+          setProfileTransferConfirm(null)
+          showToast('The selected Chrome profile changed. Review and try again')
+        } else if (result.reason === 'update-required') {
+          setProfileTransferConfirm(null)
+          showToast('Update the macOS integration before switching profiles')
+        } else if (result.reason === 'indeterminate') {
+          setProfileTransferConfirm(null)
+          showToast('Could not confirm which profile owns the macOS integration. Reopen the menu to check')
+        } else {
+          setProfileTransferConfirm(null)
+          showToast('Could not switch profiles. Profile ownership did not change')
+        }
+        const response = await getDesktopWindowMergeStatus()
+        if (response) {
+          setAvailability(response.availability)
+          setMergeSession(response.session?.journal ?? null)
+        }
+      })
+      .finally(() => {
+        pendingActionRef.current = null
+        setPendingAction(null)
+      })
+  }
+
+  function openMacosIntegrationSetup() {
+    if (pendingActionRef.current) return
+    pendingActionRef.current = 'tab-action'
+    setPendingAction('tab-action')
+    void chrome.tabs.create({ active: true, url: MACOS_INTEGRATION_SETUP_URL })
+      .then(() => window.close())
+      .catch(() => {
+        showToast('Could not open the macOS integration setup guide')
+        pendingActionRef.current = null
+        setPendingAction(null)
+      })
+  }
+
   const mergeUnavailableReason = availability == null
     ? 'Checking macOS integration…'
     : pendingAction === 'profile-selection'
       ? 'Selecting Chrome profile…'
-      : !availability.available
-          ? desktopWindowMergeFailureMessage(availability.reason)
-          : pendingAction === 'tab-action'
-            ? 'Another tab action is in progress'
-            : mergeSession?.status === 'running'
-              ? 'A window merge is already in progress'
-              : mergeSession
-                ? 'Finish the current window merge result'
-                : pendingAction === 'merge'
-                  ? 'Checking windows…'
-                  : null
+      : pendingAction === 'profile-transfer'
+        ? 'Switching Chrome profile…'
+        : !availability.available
+            ? desktopWindowMergeFailureMessage(availability.reason)
+            : pendingAction === 'tab-action'
+              ? 'Another tab action is in progress'
+              : mergeSession?.status === 'running'
+                ? 'A window merge is already in progress'
+                : mergeSession
+                  ? 'Finish the current window merge result'
+                  : pendingAction === 'merge'
+                    ? 'Checking windows…'
+                    : null
   const profileSelectionRequired = availability?.available === false &&
     availability.reason === 'profile-selection-required'
+  const profileTransferAvailable = availability?.available === false &&
+    availability.reason === 'another-profile-selected'
+  const integrationSetupRequired = availability?.available === false && (
+    availability.reason === 'native-integration-required' ||
+    availability.reason === 'controller-update-required' ||
+    availability.reason === 'profile-transfer-update-required'
+  )
   const otherActionsDisabled = pendingAction !== null || mergeSession?.status === 'running'
   const dedupeDisabled =
     otherActionsDisabled || !dedupePlan || dedupePlan.closableCount === 0
@@ -283,6 +358,42 @@ export function TabActionsPopup() {
               onClick={confirmMergeHandoff}
             >
               Merge windows
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (profileTransferConfirm) {
+    return (
+      <div data-tabout="tab-actions" className="flex w-full flex-col">
+        <div data-tabout-part="profile-transfer-confirm" className="flex flex-col gap-2.5 p-2">
+          <p className="m-0 text-sm leading-5 text-foreground">
+            Switch the macOS integration to this Chrome profile? First configure
+            Hammerspoon&apos;s <code>chromeProfileDirectory</code> for this profile;
+            Tab Out cannot verify that setting. The profile that currently owns the
+            integration will lose access.
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              data-tabout-part="cancel-button"
+              autoFocus
+              className={popupSecondaryButtonClassName}
+              disabled={pendingAction === 'profile-transfer'}
+              onClick={() => setProfileTransferConfirm(null)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              data-tabout-part="confirm-button"
+              className={popupPrimaryButtonClassName}
+              disabled={pendingAction === 'profile-transfer'}
+              onClick={transferNativeIntegrationProfile}
+            >
+              {pendingAction === 'profile-transfer' ? 'Switching…' : 'Switch profile'}
             </button>
           </div>
         </div>
@@ -328,22 +439,6 @@ export function TabActionsPopup() {
         <span className="min-w-0 flex-1">Close all suspended tabs and dedupe</span>
       </button>
       <div role="separator" aria-orientation="horizontal" className="pointer-events-none mx-1 my-1 h-px bg-border" />
-      {profileSelectionRequired && (
-        <button
-          type="button"
-          data-tabout-part="select-native-profile-button"
-          className={popupItemClassName}
-          disabled={otherActionsDisabled}
-          onClick={selectNativeIntegrationProfile}
-        >
-          <span className="icon-[lucide--circle-check-big] size-3.5" aria-hidden="true" />
-          <span className="min-w-0 flex-1">
-            {pendingAction === 'profile-selection'
-              ? 'Selecting this Chrome profile…'
-              : 'Use this Chrome profile for macOS integration'}
-          </span>
-        </button>
-      )}
       <button
         type="button"
         data-tabout-part="move-current-tab-button"
@@ -359,6 +454,46 @@ export function TabActionsPopup() {
         <span className="icon-[lucide--app-window] size-3.5" aria-hidden="true" />
         <span className="min-w-0 flex-1">Move current tab to new window</span>
       </button>
+      {profileSelectionRequired && (
+        <button
+          type="button"
+          data-tabout-part="select-native-profile-button"
+          className={popupItemClassName}
+          disabled={otherActionsDisabled}
+          onClick={selectNativeIntegrationProfile}
+        >
+          <span className="icon-[lucide--circle-check-big] size-3.5" aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            {pendingAction === 'profile-selection'
+              ? 'Selecting this Chrome profile…'
+              : 'Use this profile for macOS integration'}
+          </span>
+        </button>
+      )}
+      {profileTransferAvailable && (
+        <button
+          type="button"
+          data-tabout-part="transfer-native-profile-button"
+          className={popupItemClassName}
+          disabled={otherActionsDisabled}
+          onClick={() => setProfileTransferConfirm(availability.ownerRevision)}
+        >
+          <span className="icon-[lucide--replace] size-3.5" aria-hidden="true" />
+          <span className="min-w-0 flex-1">Switch macOS integration to this profile…</span>
+        </button>
+      )}
+      {integrationSetupRequired && (
+        <button
+          type="button"
+          data-tabout-part="setup-native-integration-button"
+          className={popupItemClassName}
+          disabled={otherActionsDisabled}
+          onClick={openMacosIntegrationSetup}
+        >
+          <span className="icon-[lucide--external-link] size-3.5" aria-hidden="true" />
+          <span className="min-w-0 flex-1">Set up or update macOS integration…</span>
+        </button>
+      )}
       <button
         type="button"
         data-tabout-part="merge-desktop-windows-button"

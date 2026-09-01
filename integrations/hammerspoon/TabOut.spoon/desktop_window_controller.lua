@@ -3,6 +3,7 @@ local M = {}
 local CONTROL_VERSION = 7
 local MAXIMUM_PROCESS_ID = 2147483647
 local MERGE_DESKTOP_CAPABILITY = "merge-desktop"
+local PROFILE_TRANSFER_DRAIN_CAPABILITY = "profile-transfer-drain"
 local MAXIMUM_WINDOW_IDS = 512
 local RECONNECT_DELAYS_SECONDS = { 0.25, 1, 5, 30 }
 local SELECTION_LIFETIME_MS = 10 * 60 * 1000
@@ -80,6 +81,14 @@ end
 function M.new(options)
   assert(type(options) == "table", "desktop window controller options are required")
   assert(type(options.catalog) == "table", "desktop window controller catalog is required")
+  assert(
+    type(options.beginProfileTransferDrain) == "function",
+    "desktop window controller transfer-drain start is required"
+  )
+  assert(
+    type(options.cancelProfileTransferDrain) == "function",
+    "desktop window controller transfer-drain cancellation is required"
+  )
   assert(type(options.chromeBundleId) == "string", "desktop window controller Chrome bundle ID is required")
   assert(type(options.chromeWindows) == "function", "desktop window controller window source is required")
   assert(type(options.hs) == "table", "desktop window controller Hammerspoon API is required")
@@ -88,6 +97,8 @@ function M.new(options)
   assert(type(options.stopTimer) == "function", "desktop window controller timer cleanup is required")
 
   local catalog = options.catalog
+  local beginProfileTransferDrain = options.beginProfileTransferDrain
+  local cancelProfileTransferDrain = options.cancelProfileTransferDrain
   local chromeBundleId = options.chromeBundleId
   local chromeWindows = options.chromeWindows
   local hs = options.hs
@@ -124,6 +135,12 @@ function M.new(options)
     for key, field in pairs(fields or {}) do
       value[key] = field
     end
+    return value
+  end
+
+  local function profileTransferResponse(requestId, status, reason)
+    local value = response(requestId, status, reason)
+    value.type = "profile-transfer-response"
     return value
   end
 
@@ -323,6 +340,38 @@ function M.new(options)
   end
 
   local function handleRequest(message)
+    if type(message) == "table"
+      and (message.type == "profile-transfer-prepare" or message.type == "profile-transfer-cancel")
+    then
+      local requestId = validRequestId(message.requestId) and message.requestId or "invalid"
+      if message.version ~= CONTROL_VERSION
+        or requestId == "invalid"
+        or not hasOnlyKeys(message, {
+          version = true,
+          type = true,
+          requestId = true,
+        })
+      then
+        return profileTransferResponse(
+          requestId,
+          "rejected",
+          "The profile-transfer drain request is invalid"
+        )
+      end
+      if message.type == "profile-transfer-cancel" then
+        cancelProfileTransferDrain()
+        return profileTransferResponse(requestId, "accepted")
+      end
+      if not beginProfileTransferDrain() then
+        return profileTransferResponse(
+          requestId,
+          "rejected",
+          "A Tab Out macOS action is already in progress"
+        )
+      end
+      return profileTransferResponse(requestId, "accepted")
+    end
+
     local request, requestError = validateRequest(message)
     local requestId = type(message) == "table" and message.requestId or "invalid"
     if not request then
@@ -384,6 +433,7 @@ function M.new(options)
   local connect
 
   local function clearSocket()
+    cancelProfileTransferDrain()
     connected = false
     connecting = false
     registrationRequestId = nil
@@ -516,7 +566,10 @@ function M.new(options)
         type = "controller-register",
         requestId = registrationRequestId,
         expiresAtMs = nowMs() + 5000,
-        capabilities = { MERGE_DESKTOP_CAPABILITY },
+        capabilities = {
+          MERGE_DESKTOP_CAPABILITY,
+          PROFILE_TRANSFER_DRAIN_CAPABILITY,
+        },
       }) then
         clearSocket()
         scheduleReconnect()
@@ -573,7 +626,10 @@ function M.new(options)
 
   function controller:status()
     return {
-      capabilities = { MERGE_DESKTOP_CAPABILITY },
+      capabilities = {
+        MERGE_DESKTOP_CAPABILITY,
+        PROFILE_TRANSFER_DRAIN_CAPABILITY,
+      },
       connected = connected,
       connecting = connecting,
       socketPath = socketPath,

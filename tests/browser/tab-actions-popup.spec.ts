@@ -7,6 +7,8 @@ const CLOSE_SUSPENDED_ITEM = '[data-tabout="tab-actions"] [data-tabout-part="clo
 const COMBINED_ITEM = '[data-tabout="tab-actions"] [data-tabout-part="close-suspended-and-dedupe-button"]'
 const MOVE_CURRENT_TAB_ITEM = '[data-tabout="tab-actions"] [data-tabout-part="move-current-tab-button"]'
 const SELECT_NATIVE_PROFILE_ITEM = '[data-tabout="tab-actions"] [data-tabout-part="select-native-profile-button"]'
+const TRANSFER_NATIVE_PROFILE_ITEM = '[data-tabout="tab-actions"] [data-tabout-part="transfer-native-profile-button"]'
+const SETUP_NATIVE_INTEGRATION_ITEM = '[data-tabout="tab-actions"] [data-tabout-part="setup-native-integration-button"]'
 const MERGE_ITEM = '[data-tabout="tab-actions"] [data-tabout-part="merge-desktop-windows-button"]'
 
 async function enableMergeAvailability(page: Page) {
@@ -335,7 +337,7 @@ test('popup explicitly pairs the current Chrome profile for the macOS integratio
   })
 
   const selectionItem = page.locator(SELECT_NATIVE_PROFILE_ITEM)
-  await expect(selectionItem).toHaveText('Use this Chrome profile for macOS integration')
+  await expect(selectionItem).toHaveText('Use this profile for macOS integration')
   await expect(selectionItem).toBeEnabled()
   await expect(page.locator(MERGE_ITEM)).toContainText(
     'Choose this Chrome profile for the macOS integration',
@@ -352,6 +354,209 @@ test('popup explicitly pairs the current Chrome profile for the macOS integratio
     (Reflect.get(window, '__tabOutPopupSentMessages') as Array<{ type?: string }>)
       .filter((message) => message?.type === 'tab-out:select-native-integration-profile')
   ))).toEqual([{ type: 'tab-out:select-native-integration-profile' }])
+})
+
+test('popup confirms and switches macOS integration ownership to this profile', async ({ page }) => {
+  await page.goto(POPUP_FIXTURE)
+  await page.evaluate(() => {
+    let transferred = false
+    let ownerRevision = '11111111-1111-4111-8111-111111111111'
+    Reflect.set(window, '__tabOutSetOwnerRevision', (revision: string) => {
+      ownerRevision = revision
+    })
+    Reflect.set(window, '__tabOutPopupMessageHandler', (message: { type?: string } | undefined) => {
+      if (message?.type === 'tab-out:transfer-native-integration-profile') {
+        transferred = true
+        return { ok: true }
+      }
+      if (message?.type === 'tab-out:get-desktop-window-merge-status') {
+        return transferred
+          ? { ok: true, availability: { available: true }, session: null }
+          : {
+              ok: true,
+              availability: {
+                available: false,
+                reason: 'another-profile-selected',
+                ownerRevision,
+              },
+              session: null,
+            }
+      }
+      return undefined
+    })
+    const onMessage = Reflect.get(window.chrome.runtime, 'onMessage') as unknown as {
+      dispatch: (message: unknown) => void
+    }
+    onMessage.dispatch({ type: 'tab-out:desktop-window-merge-status-changed' })
+  })
+
+  const transferItem = page.locator(TRANSFER_NATIVE_PROFILE_ITEM)
+  await expect(transferItem).toHaveText('Switch macOS integration to this profile…')
+  await expect(transferItem).toBeEnabled()
+  await transferItem.click()
+
+  const confirmView = page.locator(
+    '[data-tabout="tab-actions"] [data-tabout-part="profile-transfer-confirm"]',
+  )
+  await expect(confirmView).toBeVisible()
+  await expect(confirmView.locator('p')).toContainText(
+    'First configure Hammerspoon\'s chromeProfileDirectory for this profile',
+  )
+  await expect(confirmView.locator('p')).toContainText(
+    'The profile that currently owns the integration will lose access',
+  )
+  await expect(confirmView.locator('[data-tabout-part="cancel-button"]')).toBeFocused()
+
+  await confirmView.locator('[data-tabout-part="cancel-button"]').click()
+  await expect(confirmView).not.toBeAttached()
+  await transferItem.click()
+  await page.evaluate(() => {
+    const nextRevision = '22222222-2222-4222-8222-222222222222'
+    Reflect.get(window, '__tabOutSetOwnerRevision')(nextRevision)
+    const onMessage = Reflect.get(window.chrome.runtime, 'onMessage') as unknown as {
+      dispatch: (message: unknown) => void
+    }
+    onMessage.dispatch({ type: 'tab-out:desktop-window-merge-status-changed' })
+  })
+  await expect(confirmView).not.toBeAttached()
+  await transferItem.click()
+  await confirmView.locator('[data-tabout-part="confirm-button"]').click()
+
+  await expect(confirmView).not.toBeAttached()
+  await expect(page.getByText(
+    'This profile now owns the macOS integration',
+    { exact: true },
+  )).toBeVisible()
+  expect(await page.evaluate(() => (
+    (Reflect.get(window, '__tabOutPopupSentMessages') as Array<{
+      expectedOwnerRevision?: string
+      type?: string
+    }>)
+      .filter((message) => message?.type === 'tab-out:transfer-native-integration-profile')
+  ))).toEqual([{
+    type: 'tab-out:transfer-native-integration-profile',
+    expectedOwnerRevision: '22222222-2222-4222-8222-222222222222',
+  }])
+})
+
+test('popup distinguishes a safe-aborted profile transfer from an indeterminate result', async ({ page }) => {
+  await page.goto(POPUP_FIXTURE)
+  await page.evaluate(() => {
+    let transferReason: 'failed' | 'indeterminate' = 'failed'
+    Reflect.set(window, '__tabOutSetTransferReason', (reason: 'failed' | 'indeterminate') => {
+      transferReason = reason
+    })
+    Reflect.set(window, '__tabOutPopupMessageHandler', (message: { type?: string } | undefined) => {
+      if (message?.type === 'tab-out:transfer-native-integration-profile') {
+        return { ok: false, reason: transferReason }
+      }
+      if (message?.type === 'tab-out:get-desktop-window-merge-status') {
+        return {
+          ok: true,
+          availability: {
+            available: false,
+            reason: 'another-profile-selected',
+            ownerRevision: '11111111-1111-4111-8111-111111111111',
+          },
+          session: null,
+        }
+      }
+      return undefined
+    })
+    const onMessage = Reflect.get(window.chrome.runtime, 'onMessage') as unknown as {
+      dispatch: (message: unknown) => void
+    }
+    onMessage.dispatch({ type: 'tab-out:desktop-window-merge-status-changed' })
+  })
+
+  const transferItem = page.locator(TRANSFER_NATIVE_PROFILE_ITEM)
+  await transferItem.click()
+  await page.locator(
+    '[data-tabout-part="profile-transfer-confirm"] [data-tabout-part="confirm-button"]',
+  ).click()
+  await expect(page.getByText(
+    'Could not switch profiles. Profile ownership did not change',
+    { exact: true },
+  )).toBeVisible()
+  await expect(transferItem).toBeEnabled()
+
+  await page.evaluate(() => {
+    Reflect.get(window, '__tabOutSetTransferReason')('indeterminate')
+  })
+  await transferItem.click()
+  await page.locator(
+    '[data-tabout-part="profile-transfer-confirm"] [data-tabout-part="confirm-button"]',
+  ).click()
+  await expect(page.getByText(
+    'Could not confirm which profile owns the macOS integration. Reopen the menu to check',
+    { exact: true },
+  )).toBeVisible()
+})
+
+test('popup links unavailable integration states to the canonical setup guide', async ({ page }) => {
+  await page.goto(POPUP_FIXTURE)
+  await page.evaluate(() => {
+    Reflect.set(window, '__tabOutSetupTabs', [])
+    const createTab = window.chrome.tabs.create.bind(window.chrome.tabs)
+    Reflect.set(window.chrome.tabs, 'create', async (properties: chrome.tabs.CreateProperties) => {
+      Reflect.get(window, '__tabOutSetupTabs').push(properties)
+      return createTab(properties)
+    })
+    Reflect.set(window, 'close', () => {
+      Reflect.set(window, '__tabOutPopupClosed', true)
+    })
+    Reflect.set(window, '__tabOutPopupMessageHandler', (message: { type?: string } | undefined) => {
+      if (message?.type === 'tab-out:get-desktop-window-merge-status') {
+        return {
+          ok: true,
+          availability: { available: false, reason: 'native-integration-required' },
+          session: null,
+        }
+      }
+      return undefined
+    })
+    const onMessage = Reflect.get(window.chrome.runtime, 'onMessage') as unknown as {
+      dispatch: (message: unknown) => void
+    }
+    onMessage.dispatch({ type: 'tab-out:desktop-window-merge-status-changed' })
+  })
+
+  const setupItem = page.locator(SETUP_NATIVE_INTEGRATION_ITEM)
+  await expect(setupItem).toHaveText('Set up or update macOS integration…')
+  await expect(setupItem).toBeEnabled()
+  await setupItem.click()
+  await expect.poll(() => page.evaluate(() => (
+    Reflect.get(window, '__tabOutSetupTabs')
+  ))).toEqual([{
+    active: true,
+    url: 'https://github.com/m7yang/tab-out#optional-macos-hammerspoon-integration',
+  }])
+  expect(await page.evaluate(() => Reflect.get(window, '__tabOutPopupClosed'))).toBe(true)
+})
+
+test('popup waits for the native check before offering setup or profile ownership actions', async ({ page }) => {
+  await page.goto(POPUP_FIXTURE)
+  await page.evaluate(() => {
+    Reflect.set(window, '__tabOutPopupMessageHandler', (message: { type?: string } | undefined) => {
+      if (message?.type === 'tab-out:get-desktop-window-merge-status') {
+        return {
+          ok: true,
+          availability: { available: false, reason: 'native-integration-checking' },
+          session: null,
+        }
+      }
+      return undefined
+    })
+    const onMessage = Reflect.get(window.chrome.runtime, 'onMessage') as unknown as {
+      dispatch: (message: unknown) => void
+    }
+    onMessage.dispatch({ type: 'tab-out:desktop-window-merge-status-changed' })
+  })
+
+  await expect(page.locator(SELECT_NATIVE_PROFILE_ITEM)).toHaveCount(0)
+  await expect(page.locator(TRANSFER_NATIVE_PROFILE_ITEM)).toHaveCount(0)
+  await expect(page.locator(SETUP_NATIVE_INTEGRATION_ITEM)).toHaveCount(0)
+  await expect(page.locator(MERGE_ITEM)).toContainText('Checking macOS integration…')
 })
 
 test('popup combines suspended close and dedupe into one Undo', async ({ page }) => {

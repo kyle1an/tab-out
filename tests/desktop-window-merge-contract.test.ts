@@ -5,6 +5,8 @@ import {
   parseDesktopWindowMergeConfirmMessage,
   parseDesktopWindowMergeJournal,
   parseDesktopWindowMergeStatusResponse,
+  parseNativeIntegrationProfileTransferRequest,
+  parseNativeIntegrationProfileTransferResponse,
 } from '../src/extension/desktop-window-merge-contract.js'
 
 function journal(overrides: Record<string, unknown> = {}) {
@@ -38,6 +40,42 @@ test('desktop merge messages accept only bounded opaque identifiers', () => {
   }), null)
 })
 
+test('native profile transfer messages expose only bounded outcomes', () => {
+  assert.deepEqual(parseNativeIntegrationProfileTransferRequest({
+    type: 'tab-out:transfer-native-integration-profile',
+    expectedOwnerRevision: 'owner-revision-example',
+  }), {
+    type: 'tab-out:transfer-native-integration-profile',
+    expectedOwnerRevision: 'owner-revision-example',
+  })
+  assert.equal(parseNativeIntegrationProfileTransferRequest({
+    type: 'tab-out:transfer-native-integration-profile',
+  }), null)
+  assert.equal(parseNativeIntegrationProfileTransferRequest({
+    type: 'tab-out:select-native-integration-profile',
+    expectedOwnerRevision: 'owner-revision-example',
+  }), null)
+  assert.deepEqual(parseNativeIntegrationProfileTransferResponse({ ok: true }), { ok: true })
+  assert.deepEqual(parseNativeIntegrationProfileTransferResponse({
+    ok: false,
+    reason: 'selection-changed',
+  }), {
+    ok: false,
+    reason: 'selection-changed',
+  })
+  assert.deepEqual(parseNativeIntegrationProfileTransferResponse({
+    ok: false,
+    reason: 'indeterminate',
+  }), {
+    ok: false,
+    reason: 'indeterminate',
+  })
+  assert.equal(parseNativeIntegrationProfileTransferResponse({
+    ok: false,
+    reason: 'unexpected',
+  }), null)
+})
+
 test('desktop merge journals reject inconsistent or misleading terminal state', () => {
   assert.deepEqual(parseDesktopWindowMergeJournal(journal()), journal())
   assert.equal(parseDesktopWindowMergeJournal(journal({ remainingTabCount: 2 })), null)
@@ -64,5 +102,30 @@ test('desktop merge status responses cannot smuggle an invalid journal to the pa
         remainingTabCount: 1,
       }),
     },
+  }), null)
+})
+
+test('profile transfer availability carries the exact observed owner revision', () => {
+  assert.deepEqual(parseDesktopWindowMergeStatusResponse({
+    ok: true,
+    availability: {
+      available: false,
+      reason: 'another-profile-selected',
+      ownerRevision: 'owner-revision-example',
+    },
+    session: null,
+  }), {
+    ok: true,
+    availability: {
+      available: false,
+      reason: 'another-profile-selected',
+      ownerRevision: 'owner-revision-example',
+    },
+    session: null,
+  })
+  assert.equal(parseDesktopWindowMergeStatusResponse({
+    ok: true,
+    availability: { available: false, reason: 'another-profile-selected' },
+    session: null,
   }), null)
 })

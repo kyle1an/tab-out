@@ -75,5 +75,12 @@ expect(
   readiness.evaluate(tabOutWithStatus(disconnectedController)),
   "missing:desktop-window controller connection"
 )
+expect(
+  readiness.evaluate(
+    tabOutWithStatus(disconnectedController),
+    { expectUnpairedProfile = true }
+  ),
+  "ready"
+)
 
 return "doctor readiness policy regression: ok"

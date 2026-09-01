@@ -119,11 +119,21 @@ else
 fi
 
 printf '%s\n' \
-  "Reload Tab Out in chrome://extensions. On first setup, open its toolbar menu in the intended profile and choose 'Use this Chrome profile for macOS integration'."
+  "Reload Tab Out in chrome://extensions. On first setup, open its toolbar menu in the intended profile and choose 'Use this profile for macOS integration'."
 printf '\n'
 
-if "$script_directory/doctor-macos-integration" "$config_directory"; then
-  printf '%s\n' "Local Tab Out setup is current."
+doctor_arguments=("$config_directory")
+if [[ $reset_profile == true ]]; then
+  doctor_arguments=(--expect-unpaired-profile "$config_directory")
+fi
+
+if "$script_directory/doctor-macos-integration" "${doctor_arguments[@]}"; then
+  if [[ $reset_profile == true ]]; then
+    printf '%s\n' \
+      "Local files are current and profile ownership is reset. Choose 'Use this profile for macOS integration' in the intended profile."
+  else
+    printf '%s\n' "Local Tab Out setup is current."
+  fi
   exit 0
 fi
 

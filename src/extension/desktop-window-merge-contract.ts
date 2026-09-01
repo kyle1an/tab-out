@@ -16,6 +16,8 @@ export const DESKTOP_WINDOW_MERGE_START_CONFIRM_MESSAGE =
   'tab-out:start-desktop-window-merge-confirm'
 export const NATIVE_INTEGRATION_PROFILE_SELECT_MESSAGE =
   'tab-out:select-native-integration-profile'
+export const NATIVE_INTEGRATION_PROFILE_TRANSFER_MESSAGE =
+  'tab-out:transfer-native-integration-profile'
 
 export const DESKTOP_WINDOW_MERGE_SESSION_STORAGE_KEY =
   'desktopWindowMergeSessionV1'
@@ -28,12 +30,13 @@ const opaqueIdSchema = Schema.String.check(
   Schema.isPattern(/^[A-Za-z0-9._:-]+$/),
 )
 
-const desktopWindowMergeAvailabilityReasonSchema = Schema.Literals([
-  'another-profile-selected',
+const desktopWindowMergeAvailabilityReasonWithoutTransferSchema = Schema.Literals([
   'controller-update-required',
   'coordination-unavailable',
+  'native-integration-checking',
   'native-integration-required',
   'profile-selection-required',
+  'profile-transfer-update-required',
   'session-storage-unavailable',
 ])
 
@@ -43,7 +46,9 @@ export const desktopWindowMergeRequestFailureReasonSchema = Schema.Literals([
   'controller-update-required',
   'coordination-unavailable',
   'desktop-selection-unavailable',
+  'native-integration-checking',
   'native-integration-required',
+  'profile-transfer-update-required',
   'profile-selection-required',
   'session-storage-unavailable',
 ])
@@ -104,7 +109,12 @@ const desktopWindowMergeAvailabilitySchema = Schema.Union([
   Schema.Struct({ available: Schema.Literals([true]) }),
   Schema.Struct({
     available: Schema.Literals([false]),
-    reason: desktopWindowMergeAvailabilityReasonSchema,
+    reason: desktopWindowMergeAvailabilityReasonWithoutTransferSchema,
+  }),
+  Schema.Struct({
+    available: Schema.Literals([false]),
+    reason: Schema.Literals(['another-profile-selected']),
+    ownerRevision: opaqueIdSchema,
   }),
 ])
 
@@ -203,6 +213,27 @@ const nativeIntegrationProfileSelectMessageSchema = Schema.Struct({
 const nativeIntegrationProfileSelectResponseSchema = Schema.Struct({
   ok: Schema.Boolean,
 })
+const nativeIntegrationProfileTransferMessageSchema = Schema.Struct({
+  type: Schema.Literals([NATIVE_INTEGRATION_PROFILE_TRANSFER_MESSAGE]),
+  expectedOwnerRevision: opaqueIdSchema,
+})
+const nativeIntegrationProfileTransferFailureReasonSchema = Schema.Literals([
+  'busy',
+  'failed',
+  'indeterminate',
+  'selection-changed',
+  'update-required',
+])
+const nativeIntegrationProfileTransferResponseSchema = Schema.Union([
+  Schema.Struct({ ok: Schema.Literals([true]) }),
+  Schema.Struct({
+    ok: Schema.Literals([false]),
+    reason: nativeIntegrationProfileTransferFailureReasonSchema,
+  }),
+])
+
+export type NativeIntegrationProfileTransferResponse =
+  typeof nativeIntegrationProfileTransferResponseSchema.Type
 
 export type DesktopWindowMergeStatusResponse =
   typeof desktopWindowMergeStatusResponseSchema.Type
@@ -224,6 +255,12 @@ const isNativeIntegrationProfileSelectMessage = Schema.is(
 )
 const isNativeIntegrationProfileSelectResponse = Schema.is(
   nativeIntegrationProfileSelectResponseSchema,
+)
+const isNativeIntegrationProfileTransferMessage = Schema.is(
+  nativeIntegrationProfileTransferMessageSchema,
+)
+const isNativeIntegrationProfileTransferResponse = Schema.is(
+  nativeIntegrationProfileTransferResponseSchema,
 )
 const isStatusResponse = Schema.is(desktopWindowMergeStatusResponseSchema)
 const isPreviewResponse = Schema.is(desktopWindowMergePreviewResponseSchema)
@@ -281,6 +318,18 @@ export function parseNativeIntegrationProfileSelectResponse(
   value: unknown,
 ): typeof nativeIntegrationProfileSelectResponseSchema.Type | null {
   return isNativeIntegrationProfileSelectResponse(value) ? value : null
+}
+
+export function parseNativeIntegrationProfileTransferRequest(
+  value: unknown,
+): typeof nativeIntegrationProfileTransferMessageSchema.Type | null {
+  return isNativeIntegrationProfileTransferMessage(value) ? value : null
+}
+
+export function parseNativeIntegrationProfileTransferResponse(
+  value: unknown,
+): NativeIntegrationProfileTransferResponse | null {
+  return isNativeIntegrationProfileTransferResponse(value) ? value : null
 }
 
 export function parseDesktopWindowMergeStatusResponse(

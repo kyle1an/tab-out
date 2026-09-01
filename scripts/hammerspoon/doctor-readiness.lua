@@ -10,7 +10,7 @@ local requiredChecks = {
   { "configured-profile extension discovery", "extensionReady" },
 }
 
-function M.evaluate(tabOut)
+function M.evaluate(tabOut, options)
   if not tabOut or type(tabOut.status) ~= "function" then
     return "missing:Tab Out Spoon"
   end
@@ -22,7 +22,10 @@ function M.evaluate(tabOut)
 
   local missing = {}
   for _, check in ipairs(requiredChecks) do
-    if status[check[2]] ~= true then
+    local expectedUnpairedController = type(options) == "table"
+      and options.expectUnpairedProfile == true
+      and check[2] == "desktopWindowControllerReady"
+    if not expectedUnpairedController and status[check[2]] ~= true then
       table.insert(missing, check[1])
     end
   end

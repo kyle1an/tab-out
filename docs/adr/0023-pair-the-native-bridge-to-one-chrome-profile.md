@@ -1,6 +1,6 @@
 # ADR 0023: Pair the Native Bridge to One Chrome Profile
 
-- Status: Accepted
+- Status: Accepted; profile replacement superseded by ADR 0024
 - Date: 2026-08-27
 
 ## Context
@@ -28,13 +28,14 @@ restart.
   The host does not create or replace the shared local socket before that
   handshake matches the persisted selected profile.
 - When no profile is selected, the Tab Actions Menu offers an explicit **Use
-  this Chrome profile for macOS integration** action. The host serializes that
+  this profile for macOS integration** action. The host serializes that
   first selection under a per-user file lock and writes it to a mode-restricted
   local file. A competing selection cannot overwrite it.
 - A later connection with another profile ID receives only the fact that
   another profile is selected, exits without binding the local socket, and does
-  not enter the normal reconnect loop. It cannot disable or replace the selected
-  profile.
+  not enter the normal reconnect loop. It cannot automatically disable or
+  replace the selected profile. ADR 0024 defines the explicit, revision-checked
+  transfer that may replace it after user confirmation.
 - The explicitly paired extension instance is the Configured Profile authority
   for profile-scoped browser window inventories. Hammerspoon continues to
   require the configured user-data process lock, the configured profile's local
@@ -45,8 +46,8 @@ restart.
   setting and must name the same profile in which the user performs the pairing.
   Chrome exposes no native-messaging profile-directory claim on macOS, so this
   correspondence is an explicit setup invariant rather than an inferred one.
-- `pnpm setup:local --reset-profile` is the explicit recovery path when the user
-  intentionally wants to choose a different profile. The installed native
+- `pnpm setup:local --reset-profile` is the explicit fallback recovery path when
+  the user cannot use ADR 0024's popup transfer. The installed native
   helper clears the selection under the same lock used by host startup and
   stops any live owner before reset returns, so that owner cannot retain the
   shared socket. Reset does not choose a replacement; after extension reload,
@@ -64,9 +65,10 @@ socket and do not sustain native-host reconnect attempts after they learn that
 another profile is selected.
 
 Fresh setup now includes one deliberate profile-selection click after loading
-or reloading the extension. Selecting the wrong profile is recoverable but not
-silently corrected, because automatic takeover would recreate the authority
-race this decision removes.
+or reloading the extension. Selecting the wrong profile is recoverable but
+never silently corrected, because automatic takeover would recreate the
+authority race this decision removes. ADR 0024 supersedes this record only
+where reset was the sole way to choose a different owner.
 
 This supersedes ADR 0022 only where it required the Configured Profile to be the
 sole Tab Out installation in one Chrome user-data directory. ADR 0022's exact

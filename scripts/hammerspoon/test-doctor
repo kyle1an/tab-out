@@ -59,7 +59,15 @@ if [[ ${TAB_OUT_DOCTOR_TEST_FIXTURE:-} == "1" && ${0:t} == "hs" ]]; then
 fi
 
 if [[ ${TAB_OUT_DOCTOR_TEST_FIXTURE:-} == "1" && ${0:t} == "status" ]]; then
-  printf '%s\n' "Native host version: fixture"
+  printf '%s\n' "Native host version: 9.0.0"
+  if [[ ${TAB_OUT_DOCTOR_EXPECT_UNPAIRED_PROFILE:-} == "1" ]]; then
+    if [[ ${TAB_OUT_DOCTOR_TEST_NATIVE_STATUS:-} == "broken" ]]; then
+      printf '%s\n' "The native host status probe failed unexpectedly" >&2
+      exit 1
+    fi
+    printf '%s\n' "The native bridge is not connected" >&2
+    exit 2
+  fi
   exit 0
 fi
 
@@ -76,7 +84,7 @@ readiness_test_output=$(hs -c "return dofile(\"$escaped_readiness_test\")")
 [[ $readiness_test_output == "doctor readiness policy regression: ok" ]]
 
 help_output=$("$doctor" --help)
-[[ ${help_output%%$'\n'*} == "Usage: scripts/doctor-macos-integration [hammerspoon-config-directory]" ]]
+[[ ${help_output%%$'\n'*} == "Usage: scripts/doctor-macos-integration [--expect-unpaired-profile] [hammerspoon-config-directory]" ]]
 
 set +e
 invalid_output=$("$doctor" first second 2>&1)
@@ -131,6 +139,7 @@ fixture_test_script=${0:A}
 mkdir -p \
   "$fixture_checkout/scripts/hammerspoon" \
   "$fixture_checkout/scripts/native-host" \
+  "$fixture_checkout/native/bridge-host" \
   "$fixture_spoon_source/native" \
   "$fixture_home" \
   "$fixture_config/Spoons" \
@@ -144,6 +153,9 @@ cp \
 cp \
   "$repository_root/integrations/hammerspoon/TabOut.spoon/native/tab_out_private_focus.m" \
   "$fixture_spoon_source/native/tab_out_private_focus.m"
+cp \
+  "$repository_root/native/bridge-host/TabOutNativeBridge.swift" \
+  "$fixture_checkout/native/bridge-host/TabOutNativeBridge.swift"
 cp "$repository_root/integrations/hammerspoon/TabOut.spoon/init.lua" "$fixture_config/init.lua"
 chmod +x "$fixture_doctor"
 ln -s /usr/bin/true "$fixture_checkout/scripts/install-macos-integration"
@@ -156,7 +168,7 @@ ln -s "$fixture_config" "$fixture_home/.hammerspoon"
 ln -s "$fixture_spoon_source" "$fixture_spoon_destination"
 fixture_profile_selection="$fixture_home/Library/Application Support/Tab Out/configured-profile-v1.json"
 mkdir -p "${fixture_profile_selection:h}"
-printf '%s\n' '{"version":1,"profileId":"11111111-1111-4111-8111-111111111111"}' \
+printf '%s\n' '{"version":2,"profileId":"11111111-1111-4111-8111-111111111111","ownerRevision":"22222222-2222-4222-8222-222222222222"}' \
   > "$fixture_profile_selection"
 chmod 600 "$fixture_profile_selection"
 
@@ -174,13 +186,61 @@ set -e
 [[ $ready_status -eq 0 ]]
 [[ $ready_output == *"PASS    A Chrome profile is selected for the macOS integration"* ]]
 [[ $ready_output == *"PASS    Native Placement Bridge status round trip is ready"* ]]
-[[ $ready_output == *"INFO    Native host version: fixture"* ]]
+[[ $ready_output == *"INFO    Native host version: 9.0.0"* ]]
+[[ $ready_output == *"PASS    Native host version matches this checkout: 9.0.0"* ]]
 [[ $ready_output == *"PASS    Hammerspoon IPC is available"* ]]
 [[ $ready_output == *"PASS    Loaded Hammerspoon and Tab Out runtime checks are ready"* ]]
 [[ $ready_output == *"RESULT  Automated setup checks passed with 0 warning(s)"* ]]
 
+printf '%s\n' '{"version":1,"profileId":"11111111-1111-4111-8111-111111111111"}' \
+  > "$fixture_profile_selection"
+chmod 600 "$fixture_profile_selection"
+legacy_output=$(
+  HOME="$fixture_home" \
+    PATH="$fixture_bin:$PATH" \
+    TAB_OUT_DOCTOR_TEST_FIXTURE=1 \
+    TAB_OUT_DOCTOR_TEST_APPLICATION_ROOT="$fixture_application_root" \
+    "$fixture_doctor" "$fixture_config" 2>&1
+)
+[[ $legacy_output == *"INFO    The selected Chrome profile will gain an owner revision when the updated extension reconnects"* ]]
+[[ $legacy_output != *"persisted Chrome profile selection is invalid"* ]]
+
+rm -f -- "$fixture_profile_selection"
+set +e
+unpaired_output=$(
+  HOME="$fixture_home" \
+    PATH="$fixture_bin:$PATH" \
+    TAB_OUT_DOCTOR_TEST_FIXTURE=1 \
+    TAB_OUT_DOCTOR_TEST_APPLICATION_ROOT="$fixture_application_root" \
+    "$fixture_doctor" --expect-unpaired-profile "$fixture_config" 2>&1
+)
+unpaired_status=$?
+set -e
+[[ $unpaired_status -eq 0 ]]
+[[ $unpaired_output == *"INFO    Chrome profile ownership was reset; choose 'Use this profile for macOS integration' in the intended profile"* ]]
+[[ $unpaired_output == *"INFO    Native host version: 9.0.0"* ]]
+[[ $unpaired_output == *"PASS    Native host version matches this checkout: 9.0.0"* ]]
+[[ $unpaired_output == *"INFO    Native Placement Bridge status awaits a selected Chrome profile"* ]]
+[[ $unpaired_output == *"RESULT  Automated setup checks passed with 0 warning(s)"* ]]
+
+set +e
+broken_unpaired_output=$(
+  HOME="$fixture_home" \
+    PATH="$fixture_bin:$PATH" \
+    TAB_OUT_DOCTOR_TEST_FIXTURE=1 \
+    TAB_OUT_DOCTOR_TEST_NATIVE_STATUS=broken \
+    TAB_OUT_DOCTOR_TEST_APPLICATION_ROOT="$fixture_application_root" \
+    "$fixture_doctor" --expect-unpaired-profile "$fixture_config" 2>&1
+)
+broken_unpaired_status=$?
+set -e
+[[ $broken_unpaired_status -eq 1 ]]
+[[ $broken_unpaired_output == *"ACTION  Native host is not ready: Native host version: 9.0.0"* ]]
+[[ $broken_unpaired_output != *"Native Placement Bridge status awaits a selected Chrome profile"* ]]
+
 printf '%s\n' '{"version":2,"profileId":"11111111-1111-4111-8111-111111111111"}' \
   > "$fixture_profile_selection"
+chmod 600 "$fixture_profile_selection"
 set +e
 invalid_profile_output=$(
   HOME="$fixture_home" \
@@ -192,10 +252,10 @@ invalid_profile_output=$(
 invalid_profile_status=$?
 set -e
 [[ $invalid_profile_status -eq 1 ]]
-[[ $invalid_profile_output == *"ACTION  The persisted Chrome profile selection is invalid: expected version 1 and one opaque profile ID"* ]]
+[[ $invalid_profile_output == *"ACTION  The persisted Chrome profile selection is invalid: expected version 2, one opaque profile ID, and one owner revision"* ]]
 [[ $invalid_profile_output != *"PASS    A Chrome profile is selected for the macOS integration"* ]]
 
-printf '%s\n' '{"version":1,"profileId":"11111111-1111-4111-8111-111111111111"}' \
+printf '%s\n' '{"version":2,"profileId":"11111111-1111-4111-8111-111111111111","ownerRevision":"22222222-2222-4222-8222-222222222222"}' \
   > "$fixture_profile_selection"
 chmod 644 "$fixture_profile_selection"
 set +e

@@ -2,19 +2,23 @@ import Darwin
 import CoreFoundation
 import Foundation
 
-private let profileSelectionVersion = 1
+private let profileSelectionVersion = 2
 private let placementBridgeVersion = 6
 private let controlBridgeVersion = 7
-private let bridgeVersionString = "8.0.0"
+private let bridgeVersionString = "9.0.0"
 private let maximumMessageBytes = 64 * 1024
 private let maximumRequestLifetimeMs: Int64 = 60_000
 private let mergeDesktopCapability = "merge-desktop"
+private let profileTransferCapability = "profile-transfer"
+private let profileTransferDrainCapability = "profile-transfer-drain"
 
 private enum BridgeError: Error, CustomStringConvertible {
+  case endpointUnavailable(String)
   case message(String)
 
   var description: String {
     switch self {
+    case .endpointUnavailable(let message): message
     case .message(let message): message
     }
   }
@@ -213,14 +217,30 @@ private enum ProfileSelectionStatus: String {
   case selected
 }
 
+private struct SelectedProfile {
+  let profileId: String
+  let ownerRevision: String
+}
+
+private struct ProfileSelectionSnapshot {
+  let selectedProfile: SelectedProfile?
+  let status: ProfileSelectionStatus
+}
+
 private func profileSelectionStatusMessage(
-  _ status: ProfileSelectionStatus
+  _ snapshot: ProfileSelectionSnapshot,
+  profileTransferAvailable: Bool
 ) -> [String: Any] {
-  [
+  var message: [String: Any] = [
     "version": profileSelectionVersion,
     "type": "profile-selection-status",
-    "selection": status.rawValue,
+    "selection": snapshot.status.rawValue,
+    "capabilities": profileTransferAvailable ? [profileTransferCapability] : [],
   ]
+  if let selectedProfile = snapshot.selectedProfile {
+    message["ownerRevision"] = selectedProfile.ownerRevision
+  }
+  return message
 }
 
 private func secureProfileSelectionDirectory() throws {
@@ -254,7 +274,7 @@ private func withProfileSelectionLock<Result>(
   return try operation()
 }
 
-private func readSelectedProfileId() throws -> String? {
+private func readSelectedProfile() throws -> SelectedProfile? {
   let url = profileSelectionURL()
   guard FileManager.default.fileExists(atPath: url.path) else { return nil }
   let data = try Data(contentsOf: url)
@@ -262,20 +282,31 @@ private func readSelectedProfileId() throws -> String? {
     throw BridgeError.message("The native bridge profile selection is invalid")
   }
   let object = try jsonObject(from: data)
-  guard hasOnlyKeys(object, ["version", "profileId"]),
-        finiteNumber(object["version"]) == Double(profileSelectionVersion),
-        let profileId = validProfileId(object["profileId"])
-  else {
-    throw BridgeError.message("The native bridge profile selection is invalid")
+  if hasOnlyKeys(object, ["version", "profileId", "ownerRevision"]),
+     finiteNumber(object["version"]) == Double(profileSelectionVersion),
+     let profileId = validProfileId(object["profileId"]),
+     let ownerRevision = validProfileId(object["ownerRevision"]) {
+    return SelectedProfile(profileId: profileId, ownerRevision: ownerRevision)
   }
-  return profileId
+  if hasOnlyKeys(object, ["version", "profileId"]),
+     finiteNumber(object["version"]) == 1,
+     let profileId = validProfileId(object["profileId"]) {
+    let migrated = SelectedProfile(
+      profileId: profileId,
+      ownerRevision: UUID().uuidString.lowercased()
+    )
+    try writeSelectedProfile(migrated)
+    return migrated
+  }
+  throw BridgeError.message("The native bridge profile selection is invalid")
 }
 
-private func writeSelectedProfileId(_ profileId: String) throws {
+private func writeSelectedProfile(_ selectedProfile: SelectedProfile) throws {
   let url = profileSelectionURL()
   let data = try jsonData([
     "version": profileSelectionVersion,
-    "profileId": profileId,
+    "profileId": selectedProfile.profileId,
+    "ownerRevision": selectedProfile.ownerRevision,
   ])
   let temporaryURL = url.deletingLastPathComponent()
     .appendingPathComponent(".configured-profile-\(UUID().uuidString.lowercased())")
@@ -301,35 +332,49 @@ private func writeSelectedProfileId(_ profileId: String) throws {
   installed = true
 }
 
-private func profileSelectionStatus(for profileId: String) throws -> ProfileSelectionStatus {
+private func profileSelectionSnapshotLocked(
+  for profileId: String
+) throws -> ProfileSelectionSnapshot {
+  guard let selectedProfile = try readSelectedProfile() else {
+    return ProfileSelectionSnapshot(selectedProfile: nil, status: .required)
+  }
+  return ProfileSelectionSnapshot(
+    selectedProfile: selectedProfile,
+    status: selectedProfile.profileId == profileId ? .selected : .anotherProfile
+  )
+}
+
+private func profileSelectionSnapshot(for profileId: String) throws -> ProfileSelectionSnapshot {
   try withProfileSelectionLock {
-    guard let selectedProfileId = try readSelectedProfileId() else {
-      return .required
-    }
-    return selectedProfileId == profileId ? .selected : .anotherProfile
+    try profileSelectionSnapshotLocked(for: profileId)
   }
 }
 
-private func selectProfile(_ profileId: String) throws -> ProfileSelectionStatus {
+private func selectProfile(_ profileId: String) throws -> ProfileSelectionSnapshot {
   try withProfileSelectionLock {
-    if let selectedProfileId = try readSelectedProfileId() {
-      return selectedProfileId == profileId ? .selected : .anotherProfile
+    if let selectedProfile = try readSelectedProfile() {
+      return ProfileSelectionSnapshot(
+        selectedProfile: selectedProfile,
+        status: selectedProfile.profileId == profileId ? .selected : .anotherProfile
+      )
     }
-    try writeSelectedProfileId(profileId)
-    return .selected
+    let selectedProfile = SelectedProfile(
+      profileId: profileId,
+      ownerRevision: UUID().uuidString.lowercased()
+    )
+    try writeSelectedProfile(selectedProfile)
+    return ProfileSelectionSnapshot(selectedProfile: selectedProfile, status: .selected)
   }
 }
 
 @discardableResult
-private func clearSelectedProfile() throws -> Bool {
-  try withProfileSelectionLock {
-    let path = profileSelectionURL().path
-    if unlink(path) == 0 { return true }
-    if errno == ENOENT { return false }
-    throw BridgeError.message(
-      "Could not clear the native bridge profile selection: \(String(cString: strerror(errno)))"
-    )
-  }
+private func clearSelectedProfileLocked() throws -> Bool {
+  let path = profileSelectionURL().path
+  if unlink(path) == 0 { return true }
+  if errno == ENOENT { return false }
+  throw BridgeError.message(
+    "Could not clear the native bridge profile selection: \(String(cString: strerror(errno)))"
+  )
 }
 
 private func finiteNumber(_ value: Any?) -> Double? {
@@ -362,7 +407,7 @@ private func validCapabilities(_ value: Any?) -> [String]? {
   var seen = Set<String>()
   for value in values {
     guard let capability = value as? String,
-          capability == mergeDesktopCapability,
+          capability == mergeDesktopCapability || capability == profileTransferDrainCapability,
           seen.insert(capability).inserted
     else { return nil }
     capabilities.append(capability)
@@ -560,6 +605,38 @@ private func validateControllerResponse(_ object: [String: Any]) -> String? {
   return requestId
 }
 
+private func validateProfileTransferControllerResponse(
+  _ object: [String: Any]
+) -> (requestId: String, result: ProfileTransferPreparationResult)? {
+  guard hasOnlyKeys(object, ["version", "type", "requestId", "status", "reason"]),
+        finiteNumber(object["version"]) == Double(controlBridgeVersion),
+        object["type"] as? String == "profile-transfer-response",
+        let requestId = validRequestId(object["requestId"]),
+        let status = object["status"] as? String
+  else { return nil }
+  if status == "accepted", object["reason"] == nil {
+    return (requestId, .idle)
+  }
+  if status == "rejected", validReason(object["reason"]) != nil {
+    return (requestId, .busy)
+  }
+  return nil
+}
+
+private func validateProfileTransferExtensionResponse(
+  _ object: [String: Any]
+) -> (requestId: String, result: ProfileTransferPreparationResult)? {
+  guard hasOnlyKeys(object, ["version", "type", "requestId", "status"]),
+        finiteNumber(object["version"]) == Double(profileSelectionVersion),
+        object["type"] as? String == "profile-transfer-response",
+        let requestId = validRequestId(object["requestId"]),
+        let status = object["status"] as? String
+  else { return nil }
+  if status == "idle" { return (requestId, .idle) }
+  if status == "busy" { return (requestId, .busy) }
+  return nil
+}
+
 private func makeUnixAddress(path: String) throws -> sockaddr_un {
   var address = sockaddr_un()
   address.sun_family = sa_family_t(AF_UNIX)
@@ -596,7 +673,12 @@ private func connectSocket(path: String, timeoutSeconds: Int = 15) throws -> Int
       }
     }
     guard result == 0 else {
-      throw BridgeError.message("The native bridge is not connected: \(String(cString: strerror(errno)))")
+      let connectionError = errno
+      let message = "The native bridge is not connected: \(String(cString: strerror(connectionError)))"
+      if connectionError == ENOENT || connectionError == ECONNREFUSED {
+        throw BridgeError.endpointUnavailable(message)
+      }
+      throw BridgeError.message(message)
     }
     return fileDescriptor
   } catch {
@@ -611,17 +693,76 @@ private func socketIsLive(path: String) -> Bool {
   return true
 }
 
+private enum ProfileTransferPreparationResult: Equatable {
+  case busy
+  case idle
+  case updateRequired
+}
+
+private final class ProfileTransferPreparation: @unchecked Sendable {
+  private let lock = NSLock()
+  private let semaphore = DispatchSemaphore(value: 0)
+  private var controllerResult: ProfileTransferPreparationResult?
+  private var extensionResult: ProfileTransferPreparationResult?
+
+  func completeController(_ result: ProfileTransferPreparationResult) {
+    lock.lock()
+    guard controllerResult == nil else {
+      lock.unlock()
+      return
+    }
+    controllerResult = result
+    lock.unlock()
+    semaphore.signal()
+  }
+
+  func completeExtension(_ result: ProfileTransferPreparationResult) {
+    lock.lock()
+    guard extensionResult == nil else {
+      lock.unlock()
+      return
+    }
+    extensionResult = result
+    lock.unlock()
+    semaphore.signal()
+  }
+
+  func wait(timeoutSeconds: Double) -> ProfileTransferPreparationResult {
+    let deadline = DispatchTime.now() + timeoutSeconds
+    for _ in 0..<2 {
+      if semaphore.wait(timeout: deadline) == .timedOut { break }
+    }
+    lock.lock()
+    defer { lock.unlock() }
+    if extensionResult == .busy || controllerResult == .busy { return .busy }
+    if extensionResult == .idle && controllerResult == .idle { return .idle }
+    return .updateRequired
+  }
+}
+
+private enum ProfileTransferPreparationStart {
+  case busy
+  case started(ProfileTransferPreparation, Int32)
+  case updateRequired
+}
+
 private final class BridgeState: @unchecked Sendable {
   private let lock = NSLock()
+  private var controllerCapabilities = Set<String>()
   private var controllerDescriptor: Int32?
   private var controllerPending = Set<String>()
   private var placementPending: [String: Int32] = [:]
+  private var profileTransferDraining = false
+  private var profileTransferPreparation: (requestId: String, value: ProfileTransferPreparation)?
   private var shuttingDown = false
 
   func registerPlacement(requestId: String, fileDescriptor: Int32) -> Bool {
     lock.lock()
     defer { lock.unlock() }
-    guard !shuttingDown, placementPending[requestId] == nil else { return false }
+    guard !shuttingDown,
+          !profileTransferDraining,
+          placementPending[requestId] == nil
+    else { return false }
     placementPending[requestId] = fileDescriptor
     return true
   }
@@ -632,18 +773,21 @@ private final class BridgeState: @unchecked Sendable {
     return placementPending.removeValue(forKey: requestId)
   }
 
-  func registerController(fileDescriptor: Int32) -> Bool {
+  func registerController(fileDescriptor: Int32, capabilities: [String]) -> Bool {
     lock.lock()
     defer { lock.unlock() }
     guard !shuttingDown, controllerDescriptor == nil else { return false }
     controllerDescriptor = fileDescriptor
+    controllerCapabilities = Set(capabilities)
     return true
   }
 
   func forwardToController(requestId: String, object: [String: Any]) -> String? {
     lock.lock()
     defer { lock.unlock() }
-    guard !shuttingDown else { return "The native bridge is shutting down" }
+    guard !shuttingDown, !profileTransferDraining else {
+      return "The native bridge is shutting down or transferring profiles"
+    }
     guard let fileDescriptor = controllerDescriptor else {
       return "The Hammerspoon controller is not connected"
     }
@@ -668,9 +812,68 @@ private final class BridgeState: @unchecked Sendable {
     defer { lock.unlock() }
     guard controllerDescriptor == fileDescriptor else { return (false, []) }
     controllerDescriptor = nil
+    controllerCapabilities.removeAll()
+    profileTransferPreparation?.value.completeController(.updateRequired)
     let pending = Array(controllerPending)
     controllerPending.removeAll()
     return (true, pending)
+  }
+
+  func beginProfileTransferPreparation(requestId: String) -> ProfileTransferPreparationStart {
+    lock.lock()
+    defer { lock.unlock() }
+    guard !shuttingDown, !profileTransferDraining, placementPending.isEmpty else {
+      return .busy
+    }
+    guard let controllerDescriptor,
+          controllerCapabilities.contains(profileTransferDrainCapability)
+    else { return .updateRequired }
+    let preparation = ProfileTransferPreparation()
+    profileTransferDraining = true
+    profileTransferPreparation = (requestId, preparation)
+    return .started(preparation, controllerDescriptor)
+  }
+
+  func profileTransferIsAvailable() -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return !shuttingDown
+      && controllerDescriptor != nil
+      && controllerCapabilities.contains(profileTransferDrainCapability)
+  }
+
+  func completeProfileTransferController(
+    requestId: String,
+    result: ProfileTransferPreparationResult
+  ) -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    guard let pending = profileTransferPreparation, pending.requestId == requestId else {
+      return false
+    }
+    pending.value.completeController(result)
+    return true
+  }
+
+  func completeProfileTransferExtension(
+    requestId: String,
+    result: ProfileTransferPreparationResult
+  ) -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    guard let pending = profileTransferPreparation, pending.requestId == requestId else {
+      return false
+    }
+    pending.value.completeExtension(result)
+    return true
+  }
+
+  func cancelProfileTransferPreparation(requestId: String) {
+    lock.lock()
+    defer { lock.unlock() }
+    guard profileTransferPreparation?.requestId == requestId else { return }
+    profileTransferPreparation = nil
+    profileTransferDraining = false
   }
 
   struct ShutdownState {
@@ -682,11 +885,14 @@ private final class BridgeState: @unchecked Sendable {
     lock.lock()
     defer { lock.unlock() }
     shuttingDown = true
+    profileTransferDraining = true
+    profileTransferPreparation = nil
     let state = ShutdownState(
       controllerDescriptor: controllerDescriptor,
       placementDescriptors: Array(placementPending.values)
     )
     controllerDescriptor = nil
+    controllerCapabilities.removeAll()
     controllerPending.removeAll()
     placementPending.removeAll()
     return state
@@ -736,7 +942,14 @@ private func readNativeMessage() -> [String: Any]? {
   return try? jsonObject(from: data)
 }
 
-private func negotiateProfileSelection(nativeOutput: NativeOutput) throws -> String? {
+private struct NegotiatedProfileSelection {
+  let selectedProfile: SelectedProfile
+  let serverSocket: ServerSocket?
+}
+
+private func negotiateProfileSelection(
+  nativeOutput: NativeOutput
+) throws -> NegotiatedProfileSelection? {
   guard let hello = readNativeMessage() else { return nil }
   guard hasOnlyKeys(hello, ["version", "type", "profileId"]),
         finiteNumber(hello["version"]) == Double(profileSelectionVersion),
@@ -746,14 +959,86 @@ private func negotiateProfileSelection(nativeOutput: NativeOutput) throws -> Str
     throw BridgeError.message("The native bridge profile handshake is invalid")
   }
 
-  var status = try profileSelectionStatus(for: profileId)
-  guard nativeOutput.send(profileSelectionStatusMessage(status)) else {
-    throw BridgeError.message("Chrome disconnected during native bridge profile selection")
+  var snapshot = try withProfileSelectionLock { () throws -> ProfileSelectionSnapshot in
+    let snapshot = try profileSelectionSnapshotLocked(for: profileId)
+    guard nativeOutput.send(profileSelectionStatusMessage(
+      snapshot,
+      profileTransferAvailable: profileTransferIsAvailable(snapshot)
+    )) else {
+      throw BridgeError.message("Chrome disconnected during native bridge profile selection")
+    }
+    return snapshot
   }
-  if status == .selected { return profileId }
-  if status == .anotherProfile {
-    _ = readNativeMessage()
-    return nil
+  if snapshot.status == .selected, let selectedProfile = snapshot.selectedProfile {
+    return NegotiatedProfileSelection(selectedProfile: selectedProfile, serverSocket: nil)
+  }
+  if snapshot.status == .anotherProfile {
+    guard let transfer = readNativeMessage() else { return nil }
+    guard hasOnlyKeys(transfer, [
+      "version", "type", "profileId", "expectedOwnerRevision",
+    ]),
+    finiteNumber(transfer["version"]) == Double(profileSelectionVersion),
+    transfer["type"] as? String == "transfer-profile",
+    validProfileId(transfer["profileId"]) == profileId,
+    let expectedOwnerRevision = validProfileId(transfer["expectedOwnerRevision"])
+    else {
+      throw BridgeError.message("The native bridge profile-transfer request is invalid")
+    }
+
+    do {
+      let commit = try transferProfile(
+        to: profileId,
+        expectedOwnerRevision: expectedOwnerRevision
+      )
+      snapshot = ProfileSelectionSnapshot(
+        selectedProfile: commit.selectedProfile,
+        status: .selected
+      )
+      guard nativeOutput.send(profileSelectionStatusMessage(
+        snapshot,
+        profileTransferAvailable: false
+      )) else {
+        throw BridgeError.message("Chrome disconnected during native bridge profile transfer")
+      }
+      return NegotiatedProfileSelection(
+        selectedProfile: commit.selectedProfile,
+        serverSocket: commit.serverSocket
+      )
+    } catch let reason as ProfileTransferFailureReason {
+      snapshot = try profileSelectionSnapshot(for: profileId)
+      if snapshot.status == .selected, let selectedProfile = snapshot.selectedProfile {
+        guard nativeOutput.send(profileSelectionStatusMessage(
+          snapshot,
+          profileTransferAvailable: false
+        )) else {
+          throw BridgeError.message("Chrome disconnected after native bridge profile transfer")
+        }
+        return NegotiatedProfileSelection(selectedProfile: selectedProfile, serverSocket: nil)
+      }
+      var result: [String: Any] = [
+        "version": profileSelectionVersion,
+        "type": "profile-transfer-result",
+        "status": "rejected",
+        "reason": reason.rawValue,
+      ]
+      if let selectedProfile = snapshot.selectedProfile {
+        result["ownerRevision"] = selectedProfile.ownerRevision
+      }
+      _ = nativeOutput.send(result)
+      return nil
+    } catch {
+      var result: [String: Any] = [
+        "version": profileSelectionVersion,
+        "type": "profile-transfer-result",
+        "status": "rejected",
+        "reason": ProfileTransferFailureReason.failed.rawValue,
+      ]
+      if let selectedProfile = snapshot.selectedProfile {
+        result["ownerRevision"] = selectedProfile.ownerRevision
+      }
+      _ = nativeOutput.send(result)
+      return nil
+    }
   }
 
   guard let selection = readNativeMessage() else { return nil }
@@ -765,12 +1050,18 @@ private func negotiateProfileSelection(nativeOutput: NativeOutput) throws -> Str
     throw BridgeError.message("The native bridge profile-selection request is invalid")
   }
 
-  status = try selectProfile(profileId)
-  guard nativeOutput.send(profileSelectionStatusMessage(status)) else {
+  snapshot = try selectProfile(profileId)
+  guard nativeOutput.send(profileSelectionStatusMessage(
+    snapshot,
+    profileTransferAvailable: false
+  )) else {
     throw BridgeError.message("Chrome disconnected during native bridge profile selection")
   }
-  if status != .selected { _ = readNativeMessage() }
-  return status == .selected ? profileId : nil
+  if snapshot.status != .selected { _ = readNativeMessage() }
+  guard snapshot.status == .selected, let selectedProfile = snapshot.selectedProfile else {
+    return nil
+  }
+  return NegotiatedProfileSelection(selectedProfile: selectedProfile, serverSocket: nil)
 }
 
 private struct SocketIdentity {
@@ -874,12 +1165,23 @@ private func makeServerSocket(path: String) throws -> ServerSocket {
 
 private func makeSelectedProfileServerSocket(
   path: String,
-  profileId: String
+  selectedProfile: SelectedProfile
 ) throws -> ServerSocket? {
   try withProfileSelectionLock { () -> ServerSocket? in
-    guard try readSelectedProfileId() == profileId else { return nil }
+    guard let current = try readSelectedProfile(),
+          current.profileId == selectedProfile.profileId,
+          current.ownerRevision == selectedProfile.ownerRevision
+    else { return nil }
     return try makeServerSocket(path: path)
   }
+}
+
+private func closeServerSocket(_ serverSocket: ServerSocket, path: String) {
+  unlinkSocket(path: path, ifOwnedBy: serverSocket.identity)
+  Darwin.shutdown(serverSocket.fileDescriptor, SHUT_RDWR)
+  Darwin.close(serverSocket.fileDescriptor)
+  _ = flock(serverSocket.lockFileDescriptor, LOCK_UN)
+  Darwin.close(serverSocket.lockFileDescriptor)
 }
 
 private func bridgeOwnershipIsHeld(path: String) throws -> Bool {
@@ -903,7 +1205,7 @@ private func waitForBridgeOwnershipRelease(path: String) throws {
   let deadline = Date().addingTimeInterval(3)
   while try bridgeOwnershipIsHeld(path: path) {
     guard Date() < deadline else {
-      throw BridgeError.message("The active native bridge did not stop after profile reset")
+      throw BridgeError.message("The active native bridge did not release its endpoint")
     }
     usleep(20_000)
   }
@@ -959,7 +1261,172 @@ private func terminateLegacyProfileOwner(_ processId: pid_t) throws {
   }
 }
 
-private func requestRunningHostProfileReset() throws -> Bool {
+private enum ProfileTransferFailureReason: String, Error {
+  case busy
+  case failed
+  case selectionChanged = "selection-changed"
+  case updateRequired = "update-required"
+}
+
+private func profileTransferIsAvailable(
+  _ snapshot: ProfileSelectionSnapshot
+) -> Bool {
+  guard snapshot.status == .anotherProfile,
+        let selectedProfile = snapshot.selectedProfile
+  else { return false }
+
+  let path = bridgeSocketURL().path
+  let fileDescriptor: Int32
+  do {
+    fileDescriptor = try connectSocket(path: path, timeoutSeconds: 3)
+  } catch BridgeError.endpointUnavailable {
+    return (try? bridgeOwnershipIsHeld(path: path)) == false
+  } catch {
+    return false
+  }
+  defer { Darwin.close(fileDescriptor) }
+
+  do {
+    _ = try validateRunningOwnerExecutable(fileDescriptor)
+    let requestId = "profile-transfer-capability-\(getpid())-\(currentTimeMs())"
+    var requestData = try jsonData([
+      "version": profileSelectionVersion,
+      "type": "profile-transfer-capability",
+      "requestId": requestId,
+      "expectedOwnerRevision": selectedProfile.ownerRevision,
+    ])
+    requestData.append(0x0A)
+    guard writeAll(fileDescriptor, data: requestData),
+          let responseData = try? readLine(fileDescriptor),
+          let capabilityResponse = try? jsonObject(from: responseData),
+          hasOnlyKeys(capabilityResponse, [
+            "version", "type", "requestId", "status",
+          ]),
+          finiteNumber(capabilityResponse["version"]) == Double(profileSelectionVersion),
+          capabilityResponse["type"] as? String == "response",
+          capabilityResponse["requestId"] as? String == requestId,
+          capabilityResponse["status"] as? String == "accepted"
+    else { return false }
+    return true
+  } catch {
+    return false
+  }
+}
+
+private func validateRunningOwnerExecutable(_ fileDescriptor: Int32) throws -> pid_t {
+  let processId = try peerProcessId(fileDescriptor)
+  guard let runningPath = processExecutablePath(processId),
+        canonicalPath(runningPath) == canonicalPath(CommandLine.arguments[0])
+  else {
+    throw BridgeError.message(
+      "Refusing to coordinate with an unexpected process that owns the native bridge endpoint"
+    )
+  }
+  return processId
+}
+
+private func prepareRunningHostForProfileTransfer(
+  expectedOwnerRevision: String
+) throws -> Bool {
+  let path = bridgeSocketURL().path
+  let socketIdentityBeforeTransfer = socketIdentity(path: path)
+  let fileDescriptor: Int32
+  do {
+    fileDescriptor = try connectSocket(path: path, timeoutSeconds: 3)
+  } catch BridgeError.endpointUnavailable {
+    if try bridgeOwnershipIsHeld(path: path) {
+      throw ProfileTransferFailureReason.failed
+    }
+    if let socketIdentityBeforeTransfer {
+      unlinkSocket(path: path, ifOwnedBy: socketIdentityBeforeTransfer)
+    }
+    return false
+  } catch {
+    throw ProfileTransferFailureReason.failed
+  }
+  defer { Darwin.close(fileDescriptor) }
+
+  _ = try validateRunningOwnerExecutable(fileDescriptor)
+  let requestId = "profile-transfer-\(getpid())-\(currentTimeMs())"
+  var requestData = try jsonData([
+    "version": profileSelectionVersion,
+    "type": "prepare-profile-transfer",
+    "requestId": requestId,
+    "expectedOwnerRevision": expectedOwnerRevision,
+  ])
+  requestData.append(0x0A)
+
+  guard writeAll(fileDescriptor, data: requestData),
+        let responseData = try? readLine(fileDescriptor),
+        let transferResponse = try? jsonObject(from: responseData),
+        finiteNumber(transferResponse["version"]) == Double(profileSelectionVersion),
+        transferResponse["type"] as? String == "response",
+        transferResponse["requestId"] as? String == requestId,
+        let status = transferResponse["status"] as? String
+  else { throw ProfileTransferFailureReason.updateRequired }
+
+  if status == "rejected" {
+    guard let code = transferResponse["code"] as? String,
+          let reason = ProfileTransferFailureReason(rawValue: code)
+    else { throw ProfileTransferFailureReason.failed }
+    throw reason
+  }
+  guard status == "accepted", transferResponse["code"] == nil else {
+    throw ProfileTransferFailureReason.failed
+  }
+
+  try waitForBridgeOwnershipRelease(path: path)
+  if let socketIdentityBeforeTransfer {
+    unlinkSocket(path: path, ifOwnedBy: socketIdentityBeforeTransfer)
+  }
+  return true
+}
+
+private struct ProfileTransferCommit {
+  let selectedProfile: SelectedProfile
+  let serverSocket: ServerSocket
+}
+
+private func transferProfile(
+  to profileId: String,
+  expectedOwnerRevision: String
+) throws -> ProfileTransferCommit {
+  try withProfileSelectionLock {
+    guard let current = try readSelectedProfile() else {
+      throw ProfileTransferFailureReason.selectionChanged
+    }
+    if current.profileId == profileId {
+      throw ProfileTransferFailureReason.selectionChanged
+    }
+    guard current.ownerRevision == expectedOwnerRevision else {
+      throw ProfileTransferFailureReason.selectionChanged
+    }
+
+    _ = try prepareRunningHostForProfileTransfer(
+      expectedOwnerRevision: expectedOwnerRevision
+    )
+    let path = bridgeSocketURL().path
+    let serverSocket = try makeServerSocket(path: path)
+    do {
+      let replacement = SelectedProfile(
+        profileId: profileId,
+        ownerRevision: UUID().uuidString.lowercased()
+      )
+      try writeSelectedProfile(replacement)
+      return ProfileTransferCommit(
+        selectedProfile: replacement,
+        serverSocket: serverSocket
+      )
+    } catch {
+      closeServerSocket(serverSocket, path: path)
+      throw error
+    }
+  }
+}
+
+private func releaseRunningHostForProfileReset(
+  expectedOwnerRevision: String?
+) throws -> Bool {
   let path = bridgeSocketURL().path
   let socketIdentityBeforeReset = socketIdentity(path: path)
   let fileDescriptor: Int32
@@ -980,24 +1447,28 @@ private func requestRunningHostProfileReset() throws -> Bool {
 
   let processId = try peerProcessId(fileDescriptor)
   let requestId = "profile-reset-\(getpid())-\(currentTimeMs())"
-  var requestData = try jsonData([
+  var request: [String: Any] = [
     "version": profileSelectionVersion,
-    "type": "reset-profile",
+    "type": "release-profile-owner",
     "requestId": requestId,
-  ])
+  ]
+  if let expectedOwnerRevision {
+    request["expectedOwnerRevision"] = expectedOwnerRevision
+  }
+  var requestData = try jsonData(request)
   requestData.append(0x0A)
 
-  var resetAccepted = false
+  var releaseAccepted = false
   if writeAll(fileDescriptor, data: requestData),
      let responseData = try? readLine(fileDescriptor),
-     let resetResponse = try? jsonObject(from: responseData) {
-    resetAccepted = finiteNumber(resetResponse["version"]) == Double(profileSelectionVersion)
-      && resetResponse["type"] as? String == "response"
-      && resetResponse["requestId"] as? String == requestId
-      && resetResponse["status"] as? String == "accepted"
+     let releaseResponse = try? jsonObject(from: responseData) {
+    releaseAccepted = finiteNumber(releaseResponse["version"]) == Double(profileSelectionVersion)
+      && releaseResponse["type"] as? String == "response"
+      && releaseResponse["requestId"] as? String == requestId
+      && releaseResponse["status"] as? String == "accepted"
   }
 
-  if !resetAccepted {
+  if !releaseAccepted {
     try terminateLegacyProfileOwner(processId)
   }
   try waitForBridgeOwnershipRelease(path: path)
@@ -1013,17 +1484,42 @@ private struct ProfileResetResult {
 }
 
 private func resetProfileSelection() throws -> ProfileResetResult {
-  let selectionCleared = try clearSelectedProfile()
-  let runningHostStopped = try requestRunningHostProfileReset()
-  return ProfileResetResult(
-    selectionCleared: selectionCleared,
-    runningHostStopped: runningHostStopped
-  )
+  try withProfileSelectionLock {
+    let selectedProfile = try? readSelectedProfile()
+    let runningHostStopped = try releaseRunningHostForProfileReset(
+      expectedOwnerRevision: selectedProfile?.ownerRevision
+    )
+    let selectionCleared = try clearSelectedProfileLocked()
+    return ProfileResetResult(
+      selectionCleared: selectionCleared,
+      runningHostStopped: runningHostStopped
+    )
+  }
+}
+
+private func cancelProfileTransferPreparation(
+  requestId: String,
+  controllerDescriptor: Int32,
+  state: BridgeState,
+  nativeOutput: NativeOutput
+) {
+  _ = nativeOutput.send([
+    "version": profileSelectionVersion,
+    "type": "profile-transfer-cancel",
+    "requestId": requestId,
+  ])
+  _ = writeLocalMessage([
+    "version": controlBridgeVersion,
+    "type": "profile-transfer-cancel",
+    "requestId": requestId,
+  ], to: controllerDescriptor)
+  state.cancelProfileTransferPreparation(requestId: requestId)
 }
 
 private func handleLocalClient(
   _ fileDescriptor: Int32,
   browserProcessId: Int,
+  selectedProfile: SelectedProfile,
   state: BridgeState,
   nativeOutput: NativeOutput,
   socketIdentity: SocketIdentity,
@@ -1043,27 +1539,144 @@ private func handleLocalClient(
 
   do {
     let object = try jsonObject(from: readLine(fileDescriptor))
-    if object["type"] as? String == "reset-profile" {
+    if object["type"] as? String == "profile-transfer-capability" {
       responseVersion = positiveInteger(object["version"]) ?? profileSelectionVersion
       requestId = validRequestId(object["requestId"]) ?? "invalid"
-      guard hasOnlyKeys(object, ["version", "type", "requestId"]),
+      guard hasOnlyKeys(object, [
+        "version", "type", "requestId", "expectedOwnerRevision",
+      ]),
             finiteNumber(object["version"]) == Double(profileSelectionVersion),
-            requestId != "invalid"
+            requestId != "invalid",
+            validProfileId(object["expectedOwnerRevision"]) == selectedProfile.ownerRevision
       else {
-        throw BridgeError.message("The native bridge profile-reset request is invalid")
+        throw BridgeError.message("The native bridge profile-transfer capability request is invalid")
       }
-      let selectionCleared = try clearSelectedProfile()
+      let available = state.profileTransferIsAvailable()
+      writeLocalMessage(response(
+        version: profileSelectionVersion,
+        requestId: requestId,
+        status: available ? "accepted" : "rejected",
+        reason: available ? nil : "The active integration does not support profile transfer",
+        fields: available ? [:] : ["code": ProfileTransferFailureReason.updateRequired.rawValue]
+      ), to: fileDescriptor)
+      Darwin.close(fileDescriptor)
+      return
+    }
+    if object["type"] as? String == "release-profile-owner" {
+      responseVersion = positiveInteger(object["version"]) ?? profileSelectionVersion
+      requestId = validRequestId(object["requestId"]) ?? "invalid"
+      guard hasOnlyKeys(object, [
+        "version", "type", "requestId", "expectedOwnerRevision",
+      ]),
+            finiteNumber(object["version"]) == Double(profileSelectionVersion),
+            requestId != "invalid",
+            validProfileId(object["expectedOwnerRevision"]) == selectedProfile.ownerRevision
+      else {
+        throw BridgeError.message("The native bridge profile-owner release request is invalid")
+      }
       guard writeLocalMessage(response(
         version: profileSelectionVersion,
         requestId: requestId,
-        status: "accepted",
-        fields: ["selectionCleared": selectionCleared]
+        status: "accepted"
       ), to: fileDescriptor) else {
-        throw BridgeError.message("Could not acknowledge the native bridge profile reset")
+        throw BridgeError.message("Could not acknowledge the native bridge profile-owner release")
       }
       Darwin.close(fileDescriptor)
       unlinkSocket(path: socketPath, ifOwnedBy: socketIdentity)
       Darwin.exit(0)
+    }
+    if object["type"] as? String == "prepare-profile-transfer" {
+      responseVersion = positiveInteger(object["version"]) ?? profileSelectionVersion
+      requestId = validRequestId(object["requestId"]) ?? "invalid"
+      guard hasOnlyKeys(object, [
+        "version", "type", "requestId", "expectedOwnerRevision",
+      ]),
+      finiteNumber(object["version"]) == Double(profileSelectionVersion),
+      requestId != "invalid",
+      validProfileId(object["expectedOwnerRevision"]) == selectedProfile.ownerRevision
+      else {
+        throw BridgeError.message("The native bridge profile-transfer preparation is invalid")
+      }
+
+      switch state.beginProfileTransferPreparation(requestId: requestId) {
+      case .busy:
+        writeLocalMessage(response(
+          version: profileSelectionVersion,
+          requestId: requestId,
+          status: "rejected",
+          reason: "A Tab Out macOS action is already in progress",
+          fields: ["code": ProfileTransferFailureReason.busy.rawValue]
+        ), to: fileDescriptor)
+        Darwin.close(fileDescriptor)
+        return
+      case .updateRequired:
+        writeLocalMessage(response(
+          version: profileSelectionVersion,
+          requestId: requestId,
+          status: "rejected",
+          reason: "The active integration cannot attest that it is idle",
+          fields: ["code": ProfileTransferFailureReason.updateRequired.rawValue]
+        ), to: fileDescriptor)
+        Darwin.close(fileDescriptor)
+        return
+      case .started(let preparation, let controllerDescriptor):
+        let extensionPrepared = nativeOutput.send([
+          "version": profileSelectionVersion,
+          "type": "profile-transfer-prepare",
+          "requestId": requestId,
+        ])
+        let controllerPrepared = writeLocalMessage([
+          "version": controlBridgeVersion,
+          "type": "profile-transfer-prepare",
+          "requestId": requestId,
+        ], to: controllerDescriptor)
+        if !extensionPrepared {
+          preparation.completeExtension(.updateRequired)
+        }
+        if !controllerPrepared {
+          preparation.completeController(.updateRequired)
+        }
+        let preparationResult = preparation.wait(timeoutSeconds: 3)
+        if preparationResult == .idle {
+          guard writeLocalMessage(response(
+            version: profileSelectionVersion,
+            requestId: requestId,
+            status: "accepted"
+          ), to: fileDescriptor) else {
+            cancelProfileTransferPreparation(
+              requestId: requestId,
+              controllerDescriptor: controllerDescriptor,
+              state: state,
+              nativeOutput: nativeOutput
+            )
+            throw BridgeError.message("Could not acknowledge the native bridge profile transfer")
+          }
+          Darwin.close(fileDescriptor)
+          unlinkSocket(path: socketPath, ifOwnedBy: socketIdentity)
+          Darwin.exit(0)
+        }
+
+        cancelProfileTransferPreparation(
+          requestId: requestId,
+          controllerDescriptor: controllerDescriptor,
+          state: state,
+          nativeOutput: nativeOutput
+        )
+        let failure = preparationResult == .busy
+          ? ProfileTransferFailureReason.busy
+          : ProfileTransferFailureReason.updateRequired
+        writeLocalMessage(response(
+          version: profileSelectionVersion,
+          requestId: requestId,
+          status: "rejected",
+          reason: failure == .busy
+            ? "A Tab Out macOS action is already in progress"
+            : "The active integration could not attest that it is idle",
+          fields: ["code": failure.rawValue]
+        ), to: fileDescriptor)
+        Darwin.close(fileDescriptor)
+        return
+      }
     }
     if finiteNumber(object["version"]) == Double(controlBridgeVersion) {
       responseVersion = controlBridgeVersion
@@ -1075,7 +1688,10 @@ private func handleLocalClient(
         throw BridgeError.message("The native controller protocol version is unsupported")
       }
       let registration = try validateControllerRegistration(object)
-      guard state.registerController(fileDescriptor: fileDescriptor) else {
+      guard state.registerController(
+        fileDescriptor: fileDescriptor,
+        capabilities: registration.capabilities
+      ) else {
         throw BridgeError.message("Another Hammerspoon controller is already connected")
       }
       guard writeLocalMessage(response(
@@ -1094,6 +1710,13 @@ private func handleLocalClient(
 
       while !state.isShuttingDown() {
         let controllerObject = try jsonObject(from: readLine(fileDescriptor))
+        if let transferResponse = validateProfileTransferControllerResponse(controllerObject) {
+          _ = state.completeProfileTransferController(
+            requestId: transferResponse.requestId,
+            result: transferResponse.result
+          )
+          continue
+        }
         guard let controllerRequestId = validateControllerResponse(controllerObject) else {
           throw BridgeError.message("The Hammerspoon controller returned an invalid response")
         }
@@ -1198,12 +1821,18 @@ private func runNativeHost() throws {
   signal(SIGPIPE, SIG_IGN)
   let browserProcessId = try validatedBrowserProcessId()
   let nativeOutput = NativeOutput()
-  guard let profileId = try negotiateProfileSelection(nativeOutput: nativeOutput) else { return }
+  guard let negotiation = try negotiateProfileSelection(nativeOutput: nativeOutput) else { return }
   let path = bridgeSocketURL().path
-  guard let serverSocket = try makeSelectedProfileServerSocket(
-    path: path,
-    profileId: profileId
-  ) else { return }
+  let serverSocket: ServerSocket
+  if let transferredSocket = negotiation.serverSocket {
+    serverSocket = transferredSocket
+  } else {
+    guard let selectedSocket = try makeSelectedProfileServerSocket(
+      path: path,
+      selectedProfile: negotiation.selectedProfile
+    ) else { return }
+    serverSocket = selectedSocket
+  }
   let serverDescriptor = serverSocket.fileDescriptor
   let state = BridgeState()
 
@@ -1218,6 +1847,7 @@ private func runNativeHost() throws {
         handleLocalClient(
           clientDescriptor,
           browserProcessId: browserProcessId,
+          selectedProfile: negotiation.selectedProfile,
           state: state,
           nativeOutput: nativeOutput,
           socketIdentity: serverSocket.identity,
@@ -1229,6 +1859,13 @@ private func runNativeHost() throws {
 
   while let object = readNativeMessage() {
     let messageType = object["type"] as? String
+    if let transferResponse = validateProfileTransferExtensionResponse(object),
+       state.completeProfileTransferExtension(
+         requestId: transferResponse.requestId,
+         result: transferResponse.result
+       ) {
+      continue
+    }
     if (messageType == "resolve-desktop-windows"
       || messageType == "revalidate-desktop-windows"),
        finiteNumber(object["version"]) != Double(controlBridgeVersion) {
@@ -1280,11 +1917,7 @@ private func runNativeHost() throws {
     writeLocalMessage(rejection(requestId: "invalid", reason: "Chrome disconnected from the native bridge"), to: clientDescriptor)
     Darwin.close(clientDescriptor)
   }
-  unlinkSocket(path: path, ifOwnedBy: serverSocket.identity)
-  Darwin.shutdown(serverDescriptor, SHUT_RDWR)
-  Darwin.close(serverDescriptor)
-  _ = flock(serverSocket.lockFileDescriptor, LOCK_UN)
-  Darwin.close(serverSocket.lockFileDescriptor)
+  closeServerSocket(serverSocket, path: path)
 }
 
 private func runClient(requestData: Data) throws -> [String: Any] {
@@ -1355,6 +1988,9 @@ private func main() -> Int32 {
       stderr
     )
     return 64
+  } catch BridgeError.endpointUnavailable(let message) {
+    fputs("tab-out-native-bridge: \(message)\n", stderr)
+    return 2
   } catch {
     fputs("tab-out-native-bridge: \(String(describing: error))\n", stderr)
     return 1

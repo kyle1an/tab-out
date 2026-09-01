@@ -25,9 +25,10 @@ import { omitUndefined } from '../../src/lib/omit-undefined.ts'
 
 const PLACEMENT_BRIDGE_VERSION = 6
 const CONTROL_BRIDGE_VERSION = 7
-const PROFILE_SELECTION_VERSION = 1
+const PROFILE_SELECTION_VERSION = 2
 const CONFIGURED_PROFILE_ID = '11111111-1111-4111-8111-111111111111'
 const ALTERNATE_PROFILE_ID = '22222222-2222-4222-8222-222222222222'
+const CONFIGURED_OWNER_REVISION = '33333333-3333-4333-8333-333333333333'
 
 class NativeHostTestError extends Schema.TaggedError<NativeHostTestError>()(
   'NativeHostTestError',
@@ -94,6 +95,7 @@ type NativeHostStartOptions = {
   readonly helloProfileId?: string | null
   readonly profileSelectionPath?: string
   readonly selectedProfileId?: string | null
+  readonly selectedOwnerRevision?: string
 }
 
 function nativeHostTestError(operation: string, cause: unknown): NativeHostTestError {
@@ -223,6 +225,7 @@ const startNativeHost = Effect.fn('nativeHostTest.startNativeHost')(function* (
     yield* fileSystem.writeFileString(profileSelectionPath, JSON.stringify({
       version: PROFILE_SELECTION_VERSION,
       profileId: selectedProfileId,
+      ownerRevision: options.selectedOwnerRevision ?? CONFIGURED_OWNER_REVISION,
     })).pipe(
       Effect.mapError((cause) => nativeHostTestError('seed native profile selection', cause)),
     )
@@ -344,7 +347,9 @@ const testProfileSelectionAuthority = Effect.fn(
   yield* check(
     unselectedStatus.version === PROFILE_SELECTION_VERSION &&
     unselectedStatus.type === 'profile-selection-status' &&
-    unselectedStatus.selection === 'required',
+    unselectedStatus.selection === 'required' &&
+    JSON.stringify(unselectedStatus.capabilities) === '[]' &&
+    unselectedStatus.ownerRevision === undefined,
     'report that explicit profile selection is required',
     JSON.stringify(unselectedStatus),
   )
@@ -361,7 +366,8 @@ const testProfileSelectionAuthority = Effect.fn(
   yield* check(
     selectedStatus.version === PROFILE_SELECTION_VERSION &&
     selectedStatus.type === 'profile-selection-status' &&
-    selectedStatus.selection === 'selected',
+    selectedStatus.selection === 'selected' &&
+    typeof selectedStatus.ownerRevision === 'string',
     'persist explicit profile selection',
     JSON.stringify(selectedStatus),
   )
@@ -379,7 +385,9 @@ const testProfileSelectionAuthority = Effect.fn(
   ))
   yield* check(
     alternateStatus.type === 'profile-selection-status' &&
-    alternateStatus.selection === 'another-profile',
+    alternateStatus.selection === 'another-profile' &&
+    alternateStatus.ownerRevision === selectedStatus.ownerRevision &&
+    JSON.stringify(alternateStatus.capabilities) === '[]',
     'keep a later-loaded profile from replacing the selected profile',
     JSON.stringify(alternateStatus),
   )
@@ -408,6 +416,523 @@ const testProfileSelectionAuthority = Effect.fn(
     `native host exited with code ${result.exitCode}`,
   )
   yield* check(result.stderr === '', 'inspect profile-selection native host', result.stderr)
+})
+
+const testLegacyProfileSelectionMigration = Effect.fn(
+  'nativeHostTest.legacyProfileSelectionMigration',
+)(function* (hostPath: string) {
+  const fileSystem = yield* FileSystem.FileSystem
+  const temporaryDirectory = yield* fileSystem.makeTempDirectoryScoped({
+    prefix: 'tab-out-native-profile-migration-',
+  }).pipe(
+    Effect.mapError((cause) => nativeHostTestError('create profile-migration directory', cause)),
+  )
+  const socketPath = join(temporaryDirectory, 'bridge.sock')
+  const selectionPath = join(temporaryDirectory, 'configured-profile.json')
+  yield* fileSystem.writeFileString(selectionPath, JSON.stringify({
+    version: 1,
+    profileId: CONFIGURED_PROFILE_ID,
+  })).pipe(
+    Effect.mapError((cause) => nativeHostTestError('seed legacy profile selection', cause)),
+  )
+
+  const host = yield* startNativeHost(hostPath, socketPath, 'capture-all', {
+    profileSelectionPath: selectionPath,
+    selectedProfileId: null,
+  })
+  const status = objectMessage(yield* takeMessage(
+    host.nativeMessages,
+    'read migrated profile status',
+  ))
+  const migrated = JSON.parse(yield* fileSystem.readFileString(selectionPath).pipe(
+    Effect.mapError((cause) => nativeHostTestError('read migrated profile selection', cause)),
+  )) as Record<string, unknown>
+  yield* check(
+    status.selection === 'selected' &&
+    typeof status.ownerRevision === 'string' &&
+    migrated.version === PROFILE_SELECTION_VERSION &&
+    migrated.profileId === CONFIGURED_PROFILE_ID &&
+    migrated.ownerRevision === status.ownerRevision,
+    'migrate a version 1 profile selection with a fresh owner revision',
+    JSON.stringify({ migrated, status }),
+  )
+
+  const result = yield* finishNativeHost(host)
+  yield* check(
+    result.exitCode === ChildProcessSpawner.ExitCode(0) && result.stderr === '',
+    'stop migrated profile owner',
+    result.stderr || `native host exited with code ${result.exitCode}`,
+  )
+})
+
+const testProfileTransferAuthority = Effect.fn(
+  'nativeHostTest.profileTransferAuthority',
+)(function* (hostPath: string) {
+  const fileSystem = yield* FileSystem.FileSystem
+  const temporaryDirectory = yield* fileSystem.makeTempDirectoryScoped({
+    prefix: 'tab-out-native-profile-transfer-',
+  }).pipe(
+    Effect.mapError((cause) => nativeHostTestError('create profile-transfer directory', cause)),
+  )
+  const socketPath = join(temporaryDirectory, 'bridge.sock')
+  const selectionPath = join(temporaryDirectory, 'configured-profile.json')
+  const selectedHost = yield* startNativeHost(hostPath, socketPath, 'capture-all', {
+    profileSelectionPath: selectionPath,
+  })
+  const selectedStatus = objectMessage(yield* takeMessage(
+    selectedHost.nativeMessages,
+    'read selected profile status before transfer',
+  ))
+  yield* check(
+    selectedStatus.selection === 'selected' &&
+    selectedStatus.ownerRevision === CONFIGURED_OWNER_REVISION,
+    'start the configured profile owner',
+    JSON.stringify(selectedStatus),
+  )
+  yield* waitForSocket(selectedHost, socketPath)
+
+  const controller = yield* connectController(socketPath)
+  const currentTime = yield* Clock.currentTimeMillis
+  yield* writeControllerMessage(controller, {
+    version: CONTROL_BRIDGE_VERSION,
+    type: 'controller-register',
+    requestId: 'profile-transfer-controller',
+    expiresAtMs: currentTime + 5_000,
+    capabilities: ['merge-desktop', 'profile-transfer-drain'],
+  })
+  const controllerRegistration = objectMessage(yield* takeMessage(
+    controller.messages,
+    'read profile-transfer controller registration',
+  ))
+  yield* check(
+    controllerRegistration.status === 'accepted' &&
+    JSON.stringify(controllerRegistration.capabilities) ===
+    '["merge-desktop","profile-transfer-drain"]',
+    'register a profile-transfer-capable controller',
+    JSON.stringify(controllerRegistration),
+  )
+  const controllerStatus = objectMessage(yield* takeMessage(
+    selectedHost.nativeMessages,
+    'read profile-transfer controller status',
+  ))
+  yield* check(
+    controllerStatus.type === 'controller-status' &&
+    controllerStatus.connected === true,
+    'publish the profile-transfer controller status',
+    JSON.stringify(controllerStatus),
+  )
+
+  const busyChallenger = yield* startNativeHost(hostPath, socketPath, 'capture-all', {
+    helloProfileId: ALTERNATE_PROFILE_ID,
+    profileSelectionPath: selectionPath,
+    selectedProfileId: null,
+  })
+  const busyStatus = objectMessage(yield* takeMessage(
+    busyChallenger.nativeMessages,
+    'read profile-transfer busy challenger status',
+  ))
+  yield* check(
+    busyStatus.selection === 'another-profile' &&
+    busyStatus.ownerRevision === CONFIGURED_OWNER_REVISION &&
+    JSON.stringify(busyStatus.capabilities) === '["profile-transfer"]',
+    'report the current owner revision to a profile-transfer challenger',
+    JSON.stringify(busyStatus),
+  )
+  yield* Queue.offer(busyChallenger.input, yield* encodeNativeMessage({
+    version: PROFILE_SELECTION_VERSION,
+    type: 'transfer-profile',
+    profileId: ALTERNATE_PROFILE_ID,
+    expectedOwnerRevision: CONFIGURED_OWNER_REVISION,
+  }))
+  const extensionBusyPrepare = objectMessage(yield* takeMessage(
+    selectedHost.nativeMessages,
+    'read busy extension profile-transfer preparation',
+  ))
+  const controllerBusyPrepare = objectMessage(yield* takeMessage(
+    controller.messages,
+    'read busy controller profile-transfer preparation',
+  ))
+  yield* check(
+    extensionBusyPrepare.type === 'profile-transfer-prepare' &&
+    controllerBusyPrepare.type === 'profile-transfer-prepare' &&
+    extensionBusyPrepare.requestId === controllerBusyPrepare.requestId,
+    'coordinate profile-transfer preparation with Chrome and Hammerspoon',
+    JSON.stringify({ extensionBusyPrepare, controllerBusyPrepare }),
+  )
+  yield* Queue.offer(selectedHost.input, yield* encodeNativeMessage({
+    version: PROFILE_SELECTION_VERSION,
+    type: 'profile-transfer-response',
+    requestId: extensionBusyPrepare.requestId,
+    status: 'busy',
+  }))
+  yield* writeControllerMessage(controller, {
+    version: CONTROL_BRIDGE_VERSION,
+    type: 'profile-transfer-response',
+    requestId: controllerBusyPrepare.requestId,
+    status: 'accepted',
+  })
+  const extensionCancel = objectMessage(yield* takeMessage(
+    selectedHost.nativeMessages,
+    'read extension profile-transfer cancellation',
+  ))
+  const controllerCancel = objectMessage(yield* takeMessage(
+    controller.messages,
+    'read controller profile-transfer cancellation',
+  ))
+  const busyResult = objectMessage(yield* takeMessage(
+    busyChallenger.nativeMessages,
+    'read rejected busy profile transfer',
+  ))
+  yield* check(
+    extensionCancel.type === 'profile-transfer-cancel' &&
+    controllerCancel.type === 'profile-transfer-cancel' &&
+    extensionCancel.requestId === extensionBusyPrepare.requestId &&
+    controllerCancel.requestId === extensionBusyPrepare.requestId &&
+    busyResult.type === 'profile-transfer-result' &&
+    busyResult.reason === 'busy' &&
+    busyResult.ownerRevision === CONFIGURED_OWNER_REVISION,
+    'keep the current owner when either integration surface is busy',
+    JSON.stringify({ extensionCancel, controllerCancel, busyResult }),
+  )
+  const busyChallengerResult = yield* finishNativeHost(busyChallenger)
+  yield* check(
+    busyChallengerResult.exitCode === ChildProcessSpawner.ExitCode(0) &&
+    busyChallengerResult.stderr === '',
+    'stop the rejected profile-transfer challenger',
+    busyChallengerResult.stderr || `native host exited with code ${busyChallengerResult.exitCode}`,
+  )
+  const selectedHostStillRunning = yield* selectedHost.handle.isRunning.pipe(
+    Effect.mapError((cause) => nativeHostTestError('inspect busy profile owner', cause)),
+  )
+  yield* check(
+    selectedHostStillRunning,
+    'preserve the busy profile owner',
+    'the current owner stopped after rejecting a profile transfer',
+  )
+  yield* writeControllerMessage(controller, {
+    version: CONTROL_BRIDGE_VERSION,
+    type: 'profile-transfer-response',
+    requestId: controllerCancel.requestId,
+    status: 'accepted',
+  })
+
+  const replacementHost = yield* startNativeHost(hostPath, socketPath, 'capture-all', {
+    helloProfileId: ALTERNATE_PROFILE_ID,
+    profileSelectionPath: selectionPath,
+    selectedProfileId: null,
+  })
+  const replacementStatus = objectMessage(yield* takeMessage(
+    replacementHost.nativeMessages,
+    'read replacement profile-transfer status',
+  ))
+  yield* Queue.offer(replacementHost.input, yield* encodeNativeMessage({
+    version: PROFILE_SELECTION_VERSION,
+    type: 'transfer-profile',
+    profileId: ALTERNATE_PROFILE_ID,
+    expectedOwnerRevision: replacementStatus.ownerRevision,
+  }))
+  const extensionIdlePrepare = objectMessage(yield* takeMessage(
+    selectedHost.nativeMessages,
+    'read idle extension profile-transfer preparation',
+  ))
+  const controllerIdlePrepare = objectMessage(yield* takeMessage(
+    controller.messages,
+    'read idle controller profile-transfer preparation',
+  ))
+  yield* Queue.offer(selectedHost.input, yield* encodeNativeMessage({
+    version: PROFILE_SELECTION_VERSION,
+    type: 'profile-transfer-response',
+    requestId: extensionIdlePrepare.requestId,
+    status: 'idle',
+  }))
+  yield* writeControllerMessage(controller, {
+    version: CONTROL_BRIDGE_VERSION,
+    type: 'profile-transfer-response',
+    requestId: controllerIdlePrepare.requestId,
+    status: 'accepted',
+  })
+  const transferredStatus = objectMessage(yield* takeMessage(
+    replacementHost.nativeMessages,
+    'read transferred profile status',
+  ))
+  yield* check(
+    transferredStatus.selection === 'selected' &&
+    typeof transferredStatus.ownerRevision === 'string' &&
+    transferredStatus.ownerRevision !== CONFIGURED_OWNER_REVISION,
+    'commit a new owner revision after both integration surfaces attest idle',
+    JSON.stringify(transferredStatus),
+  )
+  yield* waitForSocket(replacementHost, socketPath)
+  const selectedResult = yield* finishNativeHost(selectedHost)
+  yield* check(
+    selectedResult.exitCode === ChildProcessSpawner.ExitCode(0) &&
+    selectedResult.stderr === '',
+    'release the previous profile owner after transfer',
+    selectedResult.stderr || `native host exited with code ${selectedResult.exitCode}`,
+  )
+
+  const staleChallenger = yield* startNativeHost(hostPath, socketPath, 'capture-all', {
+    profileSelectionPath: selectionPath,
+    selectedProfileId: null,
+  })
+  const staleStatus = objectMessage(yield* takeMessage(
+    staleChallenger.nativeMessages,
+    'read stale profile-transfer challenger status',
+  ))
+  yield* check(
+    staleStatus.selection === 'another-profile' &&
+    staleStatus.ownerRevision === transferredStatus.ownerRevision,
+    'publish the replacement owner revision',
+    JSON.stringify(staleStatus),
+  )
+  yield* Queue.offer(staleChallenger.input, yield* encodeNativeMessage({
+    version: PROFILE_SELECTION_VERSION,
+    type: 'transfer-profile',
+    profileId: CONFIGURED_PROFILE_ID,
+    expectedOwnerRevision: CONFIGURED_OWNER_REVISION,
+  }))
+  const staleResult = objectMessage(yield* takeMessage(
+    staleChallenger.nativeMessages,
+    'read stale profile-transfer result',
+  ))
+  yield* check(
+    staleResult.type === 'profile-transfer-result' &&
+    staleResult.reason === 'selection-changed' &&
+    staleResult.ownerRevision === transferredStatus.ownerRevision,
+    'reject a challenger that confirms an obsolete owner revision',
+    JSON.stringify(staleResult),
+  )
+  const staleChallengerResult = yield* finishNativeHost(staleChallenger)
+  yield* check(
+    staleChallengerResult.exitCode === ChildProcessSpawner.ExitCode(0) &&
+    staleChallengerResult.stderr === '',
+    'stop the stale profile-transfer challenger',
+    staleChallengerResult.stderr || `native host exited with code ${staleChallengerResult.exitCode}`,
+  )
+
+  const replacementResult = yield* finishNativeHost(replacementHost)
+  yield* check(
+    replacementResult.exitCode === ChildProcessSpawner.ExitCode(0) &&
+    replacementResult.stderr === '',
+    'stop the replacement profile owner',
+    replacementResult.stderr || `native host exited with code ${replacementResult.exitCode}`,
+  )
+})
+
+const testProfileTransferAcknowledgementFailure = Effect.fn(
+  'nativeHostTest.profileTransferAcknowledgementFailure',
+)(function* (hostPath: string) {
+  const fileSystem = yield* FileSystem.FileSystem
+  const temporaryDirectory = yield* fileSystem.makeTempDirectoryScoped({
+    prefix: 'tab-out-native-profile-transfer-ack-',
+  }).pipe(
+    Effect.mapError((cause) => nativeHostTestError(
+      'create profile-transfer acknowledgement directory',
+      cause,
+    )),
+  )
+  const socketPath = join(temporaryDirectory, 'bridge.sock')
+  const selectionPath = join(temporaryDirectory, 'configured-profile.json')
+  const selectedHost = yield* startNativeHost(hostPath, socketPath, 'capture-all', {
+    profileSelectionPath: selectionPath,
+  })
+  yield* takeMessage(
+    selectedHost.nativeMessages,
+    'read acknowledgement-failure owner status',
+  )
+  yield* waitForSocket(selectedHost, socketPath)
+
+  const controller = yield* connectController(socketPath)
+  const registrationTime = yield* Clock.currentTimeMillis
+  yield* writeControllerMessage(controller, {
+    version: CONTROL_BRIDGE_VERSION,
+    type: 'controller-register',
+    requestId: 'profile-transfer-ack-controller',
+    expiresAtMs: registrationTime + 5_000,
+    capabilities: ['merge-desktop', 'profile-transfer-drain'],
+  })
+  yield* takeMessage(controller.messages, 'read acknowledgement-failure registration')
+  yield* takeMessage(
+    selectedHost.nativeMessages,
+    'read acknowledgement-failure controller status',
+  )
+
+  const challenger = yield* startNativeHost(hostPath, socketPath, 'capture-all', {
+    helloProfileId: ALTERNATE_PROFILE_ID,
+    profileSelectionPath: selectionPath,
+    selectedProfileId: null,
+  })
+  const challengerStatus = objectMessage(yield* takeMessage(
+    challenger.nativeMessages,
+    'read acknowledgement-failure challenger status',
+  ))
+  yield* Queue.offer(challenger.input, yield* encodeNativeMessage({
+    version: PROFILE_SELECTION_VERSION,
+    type: 'transfer-profile',
+    profileId: ALTERNATE_PROFILE_ID,
+    expectedOwnerRevision: challengerStatus.ownerRevision,
+  }))
+  const extensionPrepare = objectMessage(yield* takeMessage(
+    selectedHost.nativeMessages,
+    'read acknowledgement-failure extension preparation',
+  ))
+  const controllerPrepare = objectMessage(yield* takeMessage(
+    controller.messages,
+    'read acknowledgement-failure controller preparation',
+  ))
+
+  yield* challenger.handle.kill().pipe(
+    Effect.mapError((cause) => nativeHostTestError(
+      'stop disconnected profile-transfer challenger',
+      cause,
+    )),
+  )
+  yield* Effect.exit(challenger.handle.exitCode)
+  yield* Effect.exit(Fiber.join(challenger.stdoutFiber))
+  yield* Effect.exit(Fiber.join(challenger.stderrFiber))
+  yield* Queue.offer(selectedHost.input, yield* encodeNativeMessage({
+    version: PROFILE_SELECTION_VERSION,
+    type: 'profile-transfer-response',
+    requestId: extensionPrepare.requestId,
+    status: 'idle',
+  }))
+  yield* writeControllerMessage(controller, {
+    version: CONTROL_BRIDGE_VERSION,
+    type: 'profile-transfer-response',
+    requestId: controllerPrepare.requestId,
+    status: 'accepted',
+  })
+  const extensionCancel = objectMessage(yield* takeMessage(
+    selectedHost.nativeMessages,
+    'read acknowledgement-failure extension cancellation',
+  ))
+  const controllerCancel = objectMessage(yield* takeMessage(
+    controller.messages,
+    'read acknowledgement-failure controller cancellation',
+  ))
+  yield* check(
+    extensionCancel.type === 'profile-transfer-cancel' &&
+    controllerCancel.type === 'profile-transfer-cancel' &&
+    extensionCancel.requestId === extensionPrepare.requestId &&
+    controllerCancel.requestId === extensionPrepare.requestId,
+    'cancel both transfer drains when the challenger disconnects before acknowledgement',
+    JSON.stringify({ extensionCancel, controllerCancel }),
+  )
+  yield* writeControllerMessage(controller, {
+    version: CONTROL_BRIDGE_VERSION,
+    type: 'profile-transfer-response',
+    requestId: controllerCancel.requestId,
+    status: 'accepted',
+  })
+
+  const controlTime = yield* Clock.currentTimeMillis
+  yield* Queue.offer(selectedHost.input, yield* encodeNativeMessage({
+    version: CONTROL_BRIDGE_VERSION,
+    type: 'resolve-desktop-windows',
+    requestId: 'control-rejection-after-transfer-cancel',
+    expiresAtMs: controlTime + 5_000,
+    destinationWindowId: 71,
+    profileWindowIds: [71],
+  }))
+  const forwardedControl = objectMessage(yield* takeMessage(
+    controller.messages,
+    'read control request after transfer cancellation',
+  ))
+  yield* writeControllerMessage(controller, {
+    version: CONTROL_BRIDGE_VERSION,
+    type: 'response',
+    requestId: forwardedControl.requestId,
+    status: 'rejected',
+    reason: 'Example controller rejection',
+  })
+  const forwardedRejection = objectMessage(yield* takeMessage(
+    selectedHost.nativeMessages,
+    'read ordinary controller rejection after transfer cancellation',
+  ))
+  yield* check(
+    forwardedRejection.type === 'response' &&
+    forwardedRejection.status === 'rejected' &&
+    forwardedRejection.requestId === 'control-rejection-after-transfer-cancel',
+    'forward ordinary controller rejections without treating them as transfer responses',
+    JSON.stringify(forwardedRejection),
+  )
+
+  const result = yield* finishNativeHost(selectedHost)
+  yield* check(
+    result.exitCode === ChildProcessSpawner.ExitCode(0) && result.stderr === '',
+    'stop acknowledgement-failure profile owner',
+    result.stderr || `native host exited with code ${result.exitCode}`,
+  )
+})
+
+const testOfflineProfileTransfer = Effect.fn(
+  'nativeHostTest.offlineProfileTransfer',
+)(function* (hostPath: string) {
+  const fileSystem = yield* FileSystem.FileSystem
+  const temporaryDirectory = yield* fileSystem.makeTempDirectoryScoped({
+    prefix: 'tab-out-offline-transfer-',
+  }).pipe(
+    Effect.mapError((cause) => nativeHostTestError(
+      'create offline profile-transfer directory',
+      cause,
+    )),
+  )
+  const socketPath = join(temporaryDirectory, 'bridge.sock')
+  const selectionPath = join(temporaryDirectory, 'configured-profile.json')
+  const selectedHost = yield* startNativeHost(hostPath, socketPath, 'capture-all', {
+    profileSelectionPath: selectionPath,
+  })
+  yield* takeMessage(selectedHost.nativeMessages, 'read offline owner profile status')
+  yield* waitForSocket(selectedHost, socketPath)
+  const selectedResult = yield* finishNativeHost(selectedHost)
+  yield* check(
+    selectedResult.exitCode === ChildProcessSpawner.ExitCode(0) &&
+    selectedResult.stderr === '',
+    'stop the offline profile owner',
+    selectedResult.stderr || `native host exited with code ${selectedResult.exitCode}`,
+  )
+
+  const replacementHost = yield* startNativeHost(hostPath, socketPath, 'capture-all', {
+    helloProfileId: ALTERNATE_PROFILE_ID,
+    profileSelectionPath: selectionPath,
+    selectedProfileId: null,
+  })
+  const replacementStatus = objectMessage(yield* takeMessage(
+    replacementHost.nativeMessages,
+    'read offline profile-transfer status',
+  ))
+  yield* check(
+    replacementStatus.selection === 'another-profile' &&
+    replacementStatus.ownerRevision === CONFIGURED_OWNER_REVISION &&
+    JSON.stringify(replacementStatus.capabilities) === '["profile-transfer"]',
+    'offer profile transfer when the configured owner is offline',
+    JSON.stringify(replacementStatus),
+  )
+  yield* Queue.offer(replacementHost.input, yield* encodeNativeMessage({
+    version: PROFILE_SELECTION_VERSION,
+    type: 'transfer-profile',
+    profileId: ALTERNATE_PROFILE_ID,
+    expectedOwnerRevision: replacementStatus.ownerRevision,
+  }))
+  const transferredStatus = objectMessage(yield* takeMessage(
+    replacementHost.nativeMessages,
+    'read offline transferred profile status',
+  ))
+  yield* check(
+    transferredStatus.selection === 'selected' &&
+    typeof transferredStatus.ownerRevision === 'string' &&
+    transferredStatus.ownerRevision !== CONFIGURED_OWNER_REVISION,
+    'transfer persisted authority from an offline owner',
+    JSON.stringify(transferredStatus),
+  )
+  yield* waitForSocket(replacementHost, socketPath)
+  const replacementResult = yield* finishNativeHost(replacementHost)
+  yield* check(
+    replacementResult.exitCode === ChildProcessSpawner.ExitCode(0) &&
+    replacementResult.stderr === '',
+    'stop the offline replacement profile owner',
+    replacementResult.stderr || `native host exited with code ${replacementResult.exitCode}`,
+  )
 })
 
 const testLiveProfileReset = Effect.fn(
@@ -536,6 +1061,38 @@ const testLiveProfileReset = Effect.fn(
     replacementResult.stderr === '',
     'inspect replacement profile owner',
     replacementResult.stderr,
+  )
+})
+
+const testInvalidProfileSelectionReset = Effect.fn(
+  'nativeHostTest.invalidProfileSelectionReset',
+)(function* (hostPath: string) {
+  const fileSystem = yield* FileSystem.FileSystem
+  const temporaryDirectory = yield* fileSystem.makeTempDirectoryScoped({
+    prefix: 'tab-out-native-invalid-profile-reset-',
+  }).pipe(
+    Effect.mapError((cause) => nativeHostTestError(
+      'create invalid profile-reset directory',
+      cause,
+    )),
+  )
+  const socketPath = join(temporaryDirectory, 'bridge.sock')
+  const selectionPath = join(temporaryDirectory, 'configured-profile.json')
+  yield* fileSystem.writeFileString(selectionPath, '{"version":2').pipe(
+    Effect.mapError((cause) => nativeHostTestError('seed invalid profile selection', cause)),
+  )
+
+  const reset = yield* runProfileReset(hostPath, socketPath, selectionPath)
+  const selectionStillExists = yield* fileSystem.access(selectionPath).pipe(
+    Effect.as(true),
+    Effect.catch(() => Effect.succeed(false)),
+  )
+  yield* check(
+    reset.exitCode === ChildProcessSpawner.ExitCode(0) &&
+    reset.stderr === '' &&
+    !selectionStillExists,
+    'clear an invalid persisted profile selection through the documented reset',
+    reset.stderr || `profile reset exited with code ${reset.exitCode}`,
   )
 })
 
@@ -1168,7 +1725,12 @@ const runNativeHostTests = Effect.fn('nativeHostTest.run')(function* () {
   const hostPath = resolve(hostArgument)
 
   yield* testProfileSelectionAuthority(hostPath)
+  yield* testLegacyProfileSelectionMigration(hostPath)
+  yield* testProfileTransferAuthority(hostPath)
+  yield* testProfileTransferAcknowledgementFailure(hostPath)
+  yield* testOfflineProfileTransfer(hostPath)
   yield* testLiveProfileReset(hostPath)
+  yield* testInvalidProfileSelectionReset(hostPath)
   yield* testRoundTrip(hostPath)
   yield* testCreateProcessAuthority(hostPath)
   yield* testDesktopControllerRoundTrip(hostPath)

@@ -54,7 +54,10 @@ function createMergeHarness(nativeStatus: NativeDesktopControllerStatus = {
   capabilities: [NATIVE_MERGE_DESKTOP_CAPABILITY],
   controllerConnected: true,
   hostConnected: true,
+  initialConnectionSettled: true,
+  ownerRevision: '11111111-1111-4111-8111-111111111111',
   profileSelection: 'selected',
+  profileTransferAvailable: false,
 }) {
   const tabs = [
     makeTab(1, 10, 0, { active: true, pinned: true }),
@@ -79,6 +82,8 @@ function createMergeHarness(nativeStatus: NativeDesktopControllerStatus = {
     windowId: 20,
   }] as chrome.tabGroups.TabGroup[]
   const stored: Record<string, unknown> = {}
+  let beginMergeCount = 0
+  let finishMergeCount = 0
   let groupMoveCount = 0
   let resolveCount = 0
 
@@ -209,8 +214,15 @@ function createMergeHarness(nativeStatus: NativeDesktopControllerStatus = {
     },
   } as unknown as ChromeApi
   const nativeLayer = Layer.succeed(NativePlacementBridge, NativePlacementBridge.of({
+    beginDesktopWindowMerge: () => Effect.sync(() => {
+      beginMergeCount += 1
+    }),
+    finishDesktopWindowMerge: () => Effect.sync(() => {
+      finishMergeCount += 1
+    }),
     getStatus: () => Effect.succeed(nativeStatus),
     selectCurrentProfile: () => Effect.void,
+    transferCurrentProfile: () => Effect.succeed({ ok: true }),
     resolveDesktopWindows: () => Effect.sync(() => {
       resolveCount += 1
       return {
@@ -224,8 +236,10 @@ function createMergeHarness(nativeStatus: NativeDesktopControllerStatus = {
     }),
   }))
   return {
+    beginMergeCount: () => beginMergeCount,
     browserApi,
     chromeApi,
+    finishMergeCount: () => finishMergeCount,
     groups,
     groupMoveCount: () => groupMoveCount,
     nativeLayer,
@@ -253,18 +267,45 @@ it.effect('desktop merge offers profile selection only while the native host is 
   const cases = [
     {
       hostConnected: true,
+      initialConnectionSettled: true,
       profileSelection: 'required' as const,
+      profileTransferAvailable: false,
       reason: 'profile-selection-required',
     },
     {
       hostConnected: false,
+      initialConnectionSettled: true,
       profileSelection: 'required' as const,
+      profileTransferAvailable: false,
       reason: 'native-integration-required',
     },
     {
       hostConnected: false,
+      initialConnectionSettled: true,
       profileSelection: 'another-profile' as const,
+      profileTransferAvailable: true,
       reason: 'another-profile-selected',
+    },
+    {
+      hostConnected: false,
+      initialConnectionSettled: true,
+      profileSelection: 'another-profile' as const,
+      profileTransferAvailable: false,
+      reason: 'profile-transfer-update-required',
+    },
+    {
+      hostConnected: false,
+      initialConnectionSettled: false,
+      profileSelection: 'unknown' as const,
+      profileTransferAvailable: false,
+      reason: 'native-integration-checking',
+    },
+    {
+      hostConnected: false,
+      initialConnectionSettled: true,
+      profileSelection: 'unknown' as const,
+      profileTransferAvailable: false,
+      reason: 'native-integration-required',
     },
   ]
 
@@ -273,17 +314,25 @@ it.effect('desktop merge offers profile selection only while the native host is 
       capabilities: [],
       controllerConnected: false,
       hostConnected: entry.hostConnected,
+      initialConnectionSettled: entry.initialConnectionSettled,
+      ownerRevision: entry.profileSelection === 'another-profile'
+        ? '11111111-1111-4111-8111-111111111111'
+        : null,
       profileSelection: entry.profileSelection,
+      profileTransferAvailable: entry.profileTransferAvailable,
     })
     const scope = yield* Scope.make()
     const context = yield* Layer.buildWithScope(buildService(harness), scope)
     const service = Context.get(context, DesktopWindowMerge)
 
     const status = yield* service.getStatus(1, 10, true)
-    assert.deepEqual(status.availability, {
-      available: false,
-      reason: entry.reason,
-    })
+    assert.deepEqual(status.availability, entry.reason === 'another-profile-selected'
+      ? {
+          available: false,
+          reason: entry.reason,
+          ownerRevision: '11111111-1111-4111-8111-111111111111',
+        }
+      : { available: false, reason: entry.reason })
     yield* Scope.close(scope, Exit.void)
   }
 }))
@@ -293,7 +342,10 @@ it.effect('desktop merge offers profile selection without session storage', () =
     capabilities: [],
     controllerConnected: false,
     hostConnected: true,
+    initialConnectionSettled: true,
+    ownerRevision: null,
     profileSelection: 'required',
+    profileTransferAvailable: false,
   })
   Reflect.deleteProperty(harness.chromeApi.storage, 'session')
   const context = yield* Layer.build(buildService(harness))
@@ -323,7 +375,10 @@ it.effect('desktop merge offers profile selection without merge coordination', (
     capabilities: [],
     controllerConnected: false,
     hostConnected: true,
+    initialConnectionSettled: true,
+    ownerRevision: null,
     profileSelection: 'required',
+    profileTransferAvailable: false,
   })
   const context = yield* Layer.build(buildService(harness, { runExclusive: undefined }))
   const service = Context.get(context, DesktopWindowMerge)
@@ -354,6 +409,8 @@ it.effect('desktop merge moves pins and whole groups in deterministic order', ()
   const completed = yield* service.confirm(1, 10, 'preview-test')
   assert.equal(completed.ok, true)
   assert.equal(completed.ok && completed.status, 'succeeded')
+  assert.equal(harness.beginMergeCount(), 1)
+  assert.equal(harness.finishMergeCount(), 1)
   assert.deepEqual(
     harness.tabs.slice().sort((left, right) => left.index - right.index).map((tab) => ({
       active: tab.active,

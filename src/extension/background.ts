@@ -39,6 +39,7 @@ import {
   parseDesktopWindowMergeConfirmMessage,
   parseDesktopWindowMergeOpenMessage,
   parseDesktopWindowMergePreviewMessage,
+  parseNativeIntegrationProfileTransferRequest,
 } from './desktop-window-merge-contract.js'
 import { NativePlacementBridge } from './background/native-placement-bridge.js'
 import {
@@ -462,6 +463,18 @@ chromeApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse,
       () => ({ ok: true }),
       () => ({ ok: false }),
+    )))
+    return true
+  }
+  const profileTransferRequest = parseNativeIntegrationProfileTransferRequest(message)
+  if (profileTransferRequest && senderTabId === undefined) {
+    void backgroundRuntime.runPromise(settleBackgroundEffect(sendEffectResponse(
+      nativePlacementBridgeService.transferCurrentProfile(
+        profileTransferRequest.expectedOwnerRevision,
+      ),
+      sendResponse,
+      (result) => result,
+      () => ({ ok: false, reason: 'indeterminate' }),
     )))
     return true
   }

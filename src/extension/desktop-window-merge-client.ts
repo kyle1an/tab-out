@@ -4,14 +4,17 @@ import {
   DESKTOP_WINDOW_MERGE_PREVIEW_MESSAGE,
   DESKTOP_WINDOW_MERGE_STATUS_GET_MESSAGE,
   NATIVE_INTEGRATION_PROFILE_SELECT_MESSAGE,
+  NATIVE_INTEGRATION_PROFILE_TRANSFER_MESSAGE,
   parseDesktopWindowMergeAcknowledgeResponse,
   parseDesktopWindowMergeConfirmResponse,
   parseDesktopWindowMergePreviewResponse,
   parseDesktopWindowMergeStatusResponse,
   parseNativeIntegrationProfileSelectResponse,
+  parseNativeIntegrationProfileTransferResponse,
   type DesktopWindowMergeConfirmResponse,
   type DesktopWindowMergePreviewResponse,
   type DesktopWindowMergeStatusResponse,
+  type NativeIntegrationProfileTransferResponse,
 } from './desktop-window-merge-contract.js'
 
 async function sendMessage(message: unknown): Promise<unknown> {
@@ -35,6 +38,17 @@ export async function selectCurrentNativeIntegrationProfile(): Promise<boolean> 
     type: NATIVE_INTEGRATION_PROFILE_SELECT_MESSAGE,
   }))
   return response?.ok === true
+}
+
+export async function transferCurrentNativeIntegrationProfile(
+  expectedOwnerRevision: string,
+): Promise<
+  NativeIntegrationProfileTransferResponse
+> {
+  return parseNativeIntegrationProfileTransferResponse(await sendMessage({
+    type: NATIVE_INTEGRATION_PROFILE_TRANSFER_MESSAGE,
+    expectedOwnerRevision,
+  })) ?? { ok: false, reason: 'indeterminate' }
 }
 
 export async function previewDesktopWindowMerge(

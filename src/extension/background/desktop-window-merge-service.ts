@@ -282,7 +282,19 @@ function makeDesktopWindowMergeLayer(
     const availability = Effect.fn('DesktopWindowMerge.availability')(function* () {
       const nativeStatus = yield* nativeBridge.getStatus()
       if (nativeStatus.profileSelection === 'another-profile') {
-        return { available: false, reason: 'another-profile-selected' }
+        return nativeStatus.profileTransferAvailable && nativeStatus.ownerRevision
+          ? {
+              available: false,
+              reason: 'another-profile-selected',
+              ownerRevision: nativeStatus.ownerRevision,
+            }
+          : { available: false, reason: 'profile-transfer-update-required' }
+      }
+      if (
+        !nativeStatus.initialConnectionSettled ||
+        (nativeStatus.hostConnected && nativeStatus.profileSelection === 'unknown')
+      ) {
+        return { available: false, reason: 'native-integration-checking' }
       }
       if (!nativeStatus.hostConnected) {
         return { available: false, reason: 'native-integration-required' }
@@ -1028,9 +1040,17 @@ function makeDesktopWindowMergeLayer(
         ? { ...candidate, ownerTabId: requesterTabId }
         : candidate
 
+      const guardedMerge = Effect.gen(function* () {
+        yield* nativeBridge.beginDesktopWindowMerge().pipe(
+          Effect.mapError(() => serviceError('another-profile-selected')),
+        )
+        return yield* runConfirmedMerge(confirmedCandidate).pipe(
+          Effect.ensuring(nativeBridge.finishDesktopWindowMerge()),
+        )
+      })
       const locked = yield* Effect.result(runPromiseExclusiveEffect(
         runExclusive,
-        runConfirmedMerge(confirmedCandidate),
+        guardedMerge,
         (cause) => new DesktopWindowMergeLockError({
           busy: cause instanceof DesktopWindowMergeLockBusy,
         }),

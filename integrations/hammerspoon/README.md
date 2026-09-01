@@ -113,9 +113,11 @@ This selected profile is the **Configured Profile**. At runtime Tab Out accepts
 only the **Configured Chrome Instance** whose Chrome-launched native host proves
 that profile's current process and whose opaque profile-local identity was
 explicitly paired. Tab Out may also be loaded in other profiles; those later
-profiles cannot replace or invalidate the paired owner. Another Chrome process
-is not eligible merely because `chrome://version` shows the same executable or
-application name.
+profiles cannot automatically replace or invalidate the paired owner. An
+explicit transfer can replace it only after the user confirms the new profile
+and any live owner attests that its native integration is idle. Another Chrome
+process is not eligible merely because `chrome://version` shows the same
+executable or application name.
 
 The companion `hammerspoon-config` repository keeps those values in ignored
 `tab-out.local.lua`. Create it only when absent, then replace the profile
@@ -187,16 +189,37 @@ After it succeeds:
 1. Reload Tab Out in `chrome://extensions` so its service worker reconnects.
 2. Open Hammerspoon, or reload it from its menu if it was already running.
 3. In the Configured Profile, click the Tab Out toolbar icon and choose **Use
-   this Chrome profile for macOS integration** when that first-setup action is
+   this profile for macOS integration** when that first-setup action is
    present.
 4. Confirm the final Tab Actions Menu option no longer shows an integration
    setup, profile-selection, or update reason.
 
-If the wrong profile was paired or the Configured Profile intentionally changes,
-run `pnpm --dir "$TAB_OUT_CHECKOUT" setup:local --reset-profile`, reload Tab Out,
-and perform the selection once in the intended profile. Reset never chooses a
-replacement automatically, and it stops any live native bridge owner before it
-returns so the replacement can claim the local endpoint.
+If the wrong profile was paired or the Configured Profile intentionally changes:
+
+1. Set Hammerspoon's `chromeProfileDirectory` to the intended profile directory
+   from that profile's `chrome://version` page, then reload Hammerspoon.
+2. Open Tab Out's toolbar menu in the intended profile and choose **Switch
+   macOS integration to this profile…**.
+3. Review the compact confirmation. Tab Out cannot verify
+   `chromeProfileDirectory`, so confirming attests that the setting already
+   matches this profile. The profile that currently owns the integration will
+   lose access.
+
+A live owner transfers only when its extension worker has no confirmed Desktop
+Window Merge running and its Hammerspoon shortcut queue is idle. A read-only
+capability probe verifies both components before Switch is offered, and a
+read-only merge preview does not block transfer. An offline owner can be replaced
+because no live native owner is interrupted, though Tab Out cannot prove that no
+browser-only work remains in the offline profile. A stale or competing transfer,
+busy owner, or mixed-version installation Safe Aborts without changing persisted
+authority. If a transfer response is lost, Tab Out reconnects once to read fresh
+authority before describing the result.
+
+If the popup says an update is required or cannot complete the transfer, run
+`pnpm --dir "$TAB_OUT_CHECKOUT" setup:local --reset-profile`, reload Tab Out, and
+choose **Use this profile for macOS integration** in the intended profile. Reset
+is the explicit fallback: it never chooses a replacement automatically and
+releases any live native bridge owner before clearing persisted authority.
 
 ### 6. Complete macOS permissions
 
@@ -307,7 +330,7 @@ host PID must also match the configured user-data directory's live Chrome
 process lock. Before the host can own the local endpoint, the extension's opaque
 profile-local identity must match the persisted Configured Profile selection. A
 later-loaded profile receives no controller authority and cannot replace the
-selected host. The Spoon reuses only a verified Configured Profile window in
+selected host without an explicit revision-checked transfer. The Spoon reuses only a verified Configured Profile window in
 that Configured Chrome Instance; otherwise the Native Placement Bridge creates
 the destination there without activating Chrome on another display. A route
 that needs an unavailable identity, Accessibility, bridge, or Private
