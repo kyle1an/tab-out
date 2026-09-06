@@ -127,8 +127,8 @@ const playwrightChromiumVersion = Effect.fn('chromeSupport.playwrightChromiumVer
 })
 
 export function chromeVersionHistoryUrl(platform: ChromePlatform): string {
-  return `${VERSION_HISTORY_BASE_URL}/${platform}/channels/stable/versions?` +
-    'page_size=1&order_by=version%20desc'
+  return `${VERSION_HISTORY_BASE_URL}/${platform}/channels/stable/versions/all/releases?` +
+    'filter=fraction=1&page_size=1&order_by=version%20desc'
 }
 
 const fetchVersionHistory = Effect.fn('chromeSupport.fetchVersionHistory')(function* (platform: ChromePlatform) {
@@ -187,7 +187,7 @@ const assertManifestIsCurrent = Effect.fn('chromeSupport.assertManifestIsCurrent
 
 const observeAndReport = Effect.fn('chromeSupport.observeAndReport')(function* () {
   const stableVersions = yield* observeChromeStable()
-  yield* Console.log(`Chrome Stable: ${formatStableVersions(stableVersions)}`)
+  yield* Console.log(`Chrome Stable (100% rollout): ${formatStableVersions(stableVersions)}`)
   return {
     stableVersions,
     assessment: assessChromeSupport(chromeSupportPolicy, stableVersions),

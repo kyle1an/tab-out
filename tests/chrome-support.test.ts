@@ -29,10 +29,10 @@ const stableVersions: ChromeStableVersions = {
   mac_arm64: '150.0.7871.181',
 }
 
-test('requests the explicitly newest Apple silicon Stable version', () => {
+test('requests the newest Apple silicon Stable release that reached 100% rollout', () => {
   assert.equal(
     chromeVersionHistoryUrl('mac_arm64'),
-    'https://versionhistory.googleapis.com/v1/chrome/platforms/mac_arm64/channels/stable/versions?page_size=1&order_by=version%20desc',
+    'https://versionhistory.googleapis.com/v1/chrome/platforms/mac_arm64/channels/stable/versions/all/releases?filter=fraction=1&page_size=1&order_by=version%20desc',
   )
 })
 
@@ -160,20 +160,33 @@ test('distinguishes a current, stale, and unsupported committed floor', () => {
   )
 })
 
-test('uses the first Stable version from the descending VersionHistory response', () => {
+test('uses the newest Stable release that reached 100% rollout', () => {
   assert.equal(
     parseLatestStableVersion({
-      versions: [
-        { version: '151.0.7922.47' },
-        { version: '150.0.7871.181' },
+      releases: [
+        { version: '151.0.7922.47', fraction: 1 },
+        { version: '150.0.7871.181', fraction: 1 },
       ],
     }, 'mac_arm64'),
     '151.0.7922.47',
   )
   assert.throws(
-    () => parseLatestStableVersion({ versions: [] }, 'mac_arm64'),
-    /no Stable version for mac_arm64/,
+    () => parseLatestStableVersion({ releases: [] }, 'mac_arm64'),
+    /no Stable release at 100% rollout for mac_arm64/,
   )
+})
+
+test('rejects early rollouts and version listings without release evidence', () => {
+  for (const value of [
+    { releases: [{ version: '153.0.8010.12', fraction: 0.01 }] },
+    { releases: [{ version: '153.0.8010.12' }] },
+    { versions: [{ version: '153.0.8010.12' }] },
+  ]) {
+    assert.throws(
+      () => parseLatestStableVersion(value, 'mac_arm64'),
+      /no Stable release at 100% rollout for mac_arm64/,
+    )
+  }
 })
 
 test('derives the Stable floor from the Apple silicon feed', () => {

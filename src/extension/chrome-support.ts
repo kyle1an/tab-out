@@ -30,11 +30,12 @@ export type ChromeSupportAssessment = {
 const CHROME_VERSION_PATTERN = /^(\d+)\./
 
 const chromeVersionHistoryEnvelopeSchema = Schema.Struct({
-  versions: Schema.Array(Schema.Unknown),
+  releases: Schema.Array(Schema.Unknown),
 })
 
 const chromeVersionCandidateSchema = Schema.Struct({
   version: Schema.String,
+  fraction: Schema.Literals([1]),
 })
 
 const isChromeStableVersionsSchema = Schema.is(chromeStableVersionsSchema)
@@ -58,11 +59,11 @@ export function isChromeStableVersions(value: unknown): value is ChromeStableVer
 
 export function parseLatestStableVersion(value: unknown, platform: string): string {
   if (!isChromeVersionHistoryEnvelope(value)) {
-    throw new TypeError(`Chrome VersionHistory returned no Stable version for ${platform}`)
+    throw new TypeError(`Chrome VersionHistory returned no Stable release at 100% rollout for ${platform}`)
   }
-  const first = value.versions[0]
+  const first = value.releases[0]
   if (!isChromeVersionCandidate(first)) {
-    throw new TypeError(`Chrome VersionHistory returned no Stable version for ${platform}`)
+    throw new TypeError(`Chrome VersionHistory returned no Stable release at 100% rollout for ${platform}`)
   }
   chromeMajor(first.version)
   return first.version
