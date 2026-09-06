@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-04
+- Remote visual oracle refined by: ADR 0025
 
 ## Context
 

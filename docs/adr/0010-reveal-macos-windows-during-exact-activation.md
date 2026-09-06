@@ -44,19 +44,18 @@ remain unavailable as fixes.
   Chrome PID, and native window ID before invoking Private Exact-Window
   Activation.
 - When Screen Recording permission is available, the Spoon snapshots only the
-  target display's usable work area immediately before requesting creation and
-  presents that image in a non-focusable floating canvas over the same absolute
-  work-area frame. It excludes the Dock and menu bar so captured system UI is
-  not replayed beneath macOS's live system UI; the canvas stays above normal
-  windows during the inactive-to-front transition.
+  target display's usable work area, reported by `screen:frame()`, immediately
+  before requesting creation and presents that image in a non-focusable
+  floating canvas over the same absolute rectangle. The canvas stays above
+  normal windows during the inactive-to-front transition.
 - The private helper applies the exact WindowServer foreground and key-window
   sequence and raises that same Accessibility window. Existing visible window
   reuse follows the same private activation path.
 - The Spoon removes the snapshot only after the exact Chrome window is
   keyboard-active and its destination control is focused. Completion and every
-  failure path both dispose of the canvas. If capture permission or snapshot
-  creation is unavailable, creation continues without the optional shield so
-  the shortcut's existing availability is preserved.
+  failure path both dispose of the canvas. If capture permission is unavailable
+  or snapshot or canvas creation fails, creation continues without the optional
+  shield so the shortcut's existing availability is preserved.
 - No ordinary application activation, `window:focus()`, synthetic click, or
   remote z-order repair is added.
 
@@ -64,10 +63,12 @@ remain unavailable as fixes.
 
 New bridge windows are born at final target bounds. macOS may still present the
 window in inactive order before exact activation, but the target-work-area
-snapshot covers that normal-window transition while the Dock and menu bar remain
-live and uncovered. The snapshot is removed only after the Chrome window is
-frontmost, so its first exposed frame has final ordering. Non-target displays
-receive neither the new window nor a canvas and retain their window order.
+snapshot covers that normal-window transition within the reported work area.
+System UI outside that rectangle remains uncovered; a Dock boundary or shadow
+painted inside it can be captured and covered. The snapshot is removed only after
+the Chrome window is frontmost, so its first exposed frame has final ordering.
+Non-target displays receive neither the new window nor a canvas and retain their
+window order.
 
 The unpacked extension bundle must be rebuilt, and Chrome must reload the
 extension before the new handoff is active. The five-millisecond poll runs only

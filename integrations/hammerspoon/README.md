@@ -263,9 +263,22 @@ Also exercise the process-isolation cases for both shortcuts:
   command line, and lifecycle. An ordinary focus change away from it is expected
   when Tab Out focuses the configured destination.
 
-Confirm destination focus and the absence of remote focus, ordering, or window
-flash regressions. Repeat create and reuse acceptance after macOS updates or
-changes to Private Exact-Window Activation.
+Confirm destination focus and that every non-target display retains its active
+Space and frontmost window. Record the shortcut activation and, as a reference,
+ordinary Chrome activation on the pointer display in equivalent starting state.
+Include the remote displays in both recordings and compare them frame by frame:
+
+- An unchanged remote window's ordinary active-to-inactive tint or redraw is
+  allowed when it also appears in the reference recording.
+- An additional blank or bright transition frame, Desktop exposure, or unrelated
+  content introduced by the shortcut fails acceptance. Remote focus, Space, or
+  window-order changes also fail.
+
+Make these recordings as part of manual acceptance; Tab Out does not capture
+non-target displays at runtime. Repeat create, reuse, and cold-start acceptance
+for both shortcuts after macOS updates or changes to Private Exact-Window
+Activation. See [ADR 0025](../../docs/adr/0025-accept-ordinary-remote-deactivation-repaint.md)
+for the visual comparison rationale.
 
 Then exercise **Merge windows on this desktop…** from the Tab Out toolbar
 menu:
