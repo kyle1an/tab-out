@@ -7,24 +7,17 @@ allowBuilds:
   # Preserves Effect's optional native MessagePack fast path.
   msgpackr-extract: true
 
+overrides:
+  # Rolldown 1.2.7 folds a deliberately lazy geometry chunk into the app entry.
+  rolldown: 1.2.4
+
 minimumReleaseAge: 1440
 
 # These exact releases were selected by the authorized latest-version upgrade
 # while they were inside pnpm 11's default 24-hour quarantine window.
 minimumReleaseAgeExclude:
-  - '@typescript-eslint/eslint-plugin@8.67.0'
-  - '@typescript-eslint/parser@8.67.0'
-  - '@typescript-eslint/project-service@8.67.0'
-  - '@typescript-eslint/scope-manager@8.67.0'
-  - '@typescript-eslint/tsconfig-utils@8.67.0'
-  - '@typescript-eslint/type-utils@8.67.0'
   - '@typescript-eslint/types@8.67.0'
-  - '@typescript-eslint/typescript-estree@8.67.0'
-  - '@typescript-eslint/utils@8.67.0'
-  - '@typescript-eslint/visitor-keys@8.67.0'
   - dependency-cruiser@18.2.0
-  - knip@6.32.1
-  - typescript-eslint@8.67.0
 
 trustPolicy: no-downgrade
 trustPolicyExclude:

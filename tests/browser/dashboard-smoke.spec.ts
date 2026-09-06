@@ -6884,6 +6884,7 @@ test('destructive menu actions stay red at rest and through pointer and keyboard
   const cardMenu = page.locator('[data-slot="menu-content"]:visible')
   const cardRemoveItem = cardMenu.locator('[data-tabout-part="remove-from-tabs-button"]')
   await expect(cardMenu).toBeVisible()
+  await expect(cardMenu).toBeFocused()
   await page.keyboard.press('End')
   await expect(cardRemoveItem).toHaveAttribute('data-variant', 'destructive')
   await expect(cardRemoveItem).toHaveAttribute('data-highlighted', '')

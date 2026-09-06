@@ -1,3 +1,4 @@
+import { resolve } from 'node:path'
 import { defineConfig } from '@playwright/test'
 
 const browserTestPort = Number(process.env.TAB_OUT_PLAYWRIGHT_PORT || 8766)
@@ -17,6 +18,7 @@ export default defineConfig({
   },
   webServer: {
     command: 'pnpm serve',
+    cwd: resolve(import.meta.dirname, '..'),
     env: { PORT: String(browserTestPort) },
     url: `${browserTestBaseUrl}/tests/fixtures/dashboard-resize.html`,
     reuseExistingServer: false,

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { it } from '@effect/vitest'
-import fc from 'fast-check'
+import { FastCheck } from 'effect/testing'
 
 import {
   applyPinnedDomainMutation,
@@ -11,8 +11,8 @@ import {
 } from '../../src/extension/domain-pins.js'
 
 const pinnedDomainsArbitrary = (minimumLength: number) =>
-  fc
-    .uniqueArray(fc.integer({ min: 0, max: 100_000 }), {
+  FastCheck
+    .uniqueArray(FastCheck.integer({ min: 0, max: 100_000 }), {
       minLength: minimumLength,
       maxLength: 20,
     })
@@ -27,7 +27,7 @@ it('normalizePinnedDomains preserves order, removes invalid entries, and allows 
 
 it.prop(
   'normalizePinnedDomains satisfies its invariants for arbitrary stored values',
-  [fc.oneof(fc.jsonValue(), fc.constant(undefined))],
+  [FastCheck.oneof(FastCheck.jsonValue(), FastCheck.constant(undefined))],
   ([storedValue]) => {
     const normalized = normalizePinnedDomains(storedValue)
     const expected = Array.isArray(storedValue)
@@ -49,7 +49,7 @@ it('applyPinnedDomainMutation removes existing domains and appends new domains',
 
 it.prop(
   'applyPinnedDomainMutation changes only the selected generated domain',
-  [pinnedDomainsArbitrary(0), fc.nat(), fc.boolean()],
+  [pinnedDomainsArbitrary(0), FastCheck.nat(), FastCheck.boolean()],
   ([domains, seed, selectExisting]) => {
     const domain = selectExisting && domains.length > 0
       ? domains[seed % domains.length]
@@ -101,9 +101,9 @@ it.prop(
   'reorderPinnedDomainInList preserves generated membership and requested adjacency',
   [
     pinnedDomainsArbitrary(2),
-    fc.nat(),
-    fc.nat(),
-    fc.constantFrom('before' as const, 'after' as const),
+    FastCheck.nat(),
+    FastCheck.nat(),
+    FastCheck.constantFrom('before' as const, 'after' as const),
   ],
   ([domains, domainSeed, targetSeed, position]) => {
     const domainIndex = domainSeed % domains.length
@@ -143,7 +143,7 @@ it('movePinnedDomainInList ignores edge and unknown domains', () => {
 
 it.prop(
   'moving an interior generated domain and reversing the move restores the list',
-  [pinnedDomainsArbitrary(3), fc.nat()],
+  [pinnedDomainsArbitrary(3), FastCheck.nat()],
   ([domains, seed]) => {
     const domain = domains[1 + (seed % (domains.length - 2))]
 

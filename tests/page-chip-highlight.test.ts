@@ -19,7 +19,7 @@ import { computeDomainCardViewModel } from '../src/extension/render.js'
 import { allocateCardSuppressionTones } from '../src/extension/title-suppression-tones.js'
 import type { DashboardCardVM, DashboardChipData, DashboardTab, DomainGroup, TabHistoryEntry, TabHistorySnapshot, WorkingSetItem, WorkingSetSnapshot } from '../src/extension/types'
 import {
-  sameTitlePageChipPlan as compileSameTitlePageChipPlan,
+  sameTitlePageChipPlan,
   sameTitlePageChipTargets,
 } from './helpers/same-title-page-chip-plan.js'
 
@@ -52,7 +52,7 @@ function makeChip(overrides: Partial<DashboardChipData> = {}): DashboardChipData
 }
 
 function presentationsForTargets(targets: DashboardChipData[]) {
-  return compileSameTitlePageChipPlan(targets)
+  return sameTitlePageChipPlan(targets)
 }
 
 function makeDashboardTab(id: number, url: string, title: string): DashboardTab {

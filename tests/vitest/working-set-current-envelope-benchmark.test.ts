@@ -12,7 +12,7 @@ import {
 import { createFakeChromeApi } from '../helpers/fake-chrome.mjs'
 import {
   benchmarkBackend,
-  FROZEN_WORKING_SET_ACTIVITY_KEY as WORKING_SET_ACTIVITY_KEY,
+  FROZEN_WORKING_SET_ACTIVITY_KEY,
   makeWorkingSetActivityStorageLayer,
 } from '../extension/working-set-backends/current-envelope-layer.js'
 import { jsonUtf8ByteLength } from '../extension/working-set-backends/benchmark-backend.js'
@@ -39,8 +39,8 @@ it.effect('current benchmark adapter preserves whole-envelope writes and reports
     yield* storage.write(change)
 
     assert.deepEqual(
-      yield* Effect.promise(() => fakeChromeApi.storage.local.get(WORKING_SET_ACTIVITY_KEY)),
-      { [WORKING_SET_ACTIVITY_KEY]: change.activity },
+      yield* Effect.promise(() => fakeChromeApi.storage.local.get(FROZEN_WORKING_SET_ACTIVITY_KEY)),
+      { [FROZEN_WORKING_SET_ACTIVITY_KEY]: change.activity },
     )
     assert.equal(benchmarkBackend.writeInvocationCount(), 1)
     assert.equal(
@@ -49,7 +49,7 @@ it.effect('current benchmark adapter preserves whole-envelope writes and reports
     )
     assert.deepEqual(
       benchmarkBackend.lastMutationPhysicalWrites(),
-      [WORKING_SET_ACTIVITY_KEY],
+      [FROZEN_WORKING_SET_ACTIVITY_KEY],
     )
 
     yield* storage.replace(emptyWorkingSetActivity())
@@ -75,14 +75,14 @@ it.effect('current benchmark adapter preserves whole-envelope writes and reports
     assert.ok(Result.isFailure(syntheticFailure))
     assert.equal(syntheticFailure.failure.reason, 'backend')
     assert.deepEqual(
-      yield* Effect.promise(() => fakeChromeApi.storage.local.get(WORKING_SET_ACTIVITY_KEY)),
-      { [WORKING_SET_ACTIVITY_KEY]: change.activity },
+      yield* Effect.promise(() => fakeChromeApi.storage.local.get(FROZEN_WORKING_SET_ACTIVITY_KEY)),
+      { [FROZEN_WORKING_SET_ACTIVITY_KEY]: change.activity },
       'synthetic failure must happen before persistence',
     )
     yield* storage.write(retryChange)
     assert.deepEqual(
-      yield* Effect.promise(() => fakeChromeApi.storage.local.get(WORKING_SET_ACTIVITY_KEY)),
-      { [WORKING_SET_ACTIVITY_KEY]: retryChange.activity },
+      yield* Effect.promise(() => fakeChromeApi.storage.local.get(FROZEN_WORKING_SET_ACTIVITY_KEY)),
+      { [FROZEN_WORKING_SET_ACTIVITY_KEY]: retryChange.activity },
       'the one-shot failure must not affect the following write',
     )
 
@@ -106,7 +106,7 @@ it.effect('current benchmark adapter preserves whole-envelope writes and reports
 
     yield* Effect.promise(() => benchmarkBackend.reset(chromeApi))
     assert.deepEqual(
-      yield* Effect.promise(() => fakeChromeApi.storage.local.get(WORKING_SET_ACTIVITY_KEY)),
+      yield* Effect.promise(() => fakeChromeApi.storage.local.get(FROZEN_WORKING_SET_ACTIVITY_KEY)),
       {},
     )
     assert.equal(benchmarkBackend.writeInvocationCount(), 0)
